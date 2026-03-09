@@ -9,80 +9,143 @@ export default function SignInPage() {
   const [rememberMe, setRememberMe] = useState(true);
 
   return (
-    <div className="min-h-screen bg-white flex">
-      {/* Left panel */}
-      <div className="w-[45%] lg:w-[40%] bg-[#4285f4] p-12 flex flex-col relative overflow-hidden">
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-auto">
-          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center flex-shrink-0">
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+    <div className="min-h-screen flex" style={{ backgroundColor: "#eef2f7" }}>
+      {/* ── Left Panel ─────────────────────────────────────────── */}
+      <div
+        className="flex flex-col relative overflow-hidden"
+        style={{
+          width: "50%",
+          backgroundColor: "#4285f4",
+          padding: "48px 56px",
+        }}
+      >
+        {/* Logo row */}
+        <div className="flex items-center gap-3 mb-16">
+          <div
+            className="flex items-center justify-center flex-shrink-0"
+            style={{
+              width: 48,
+              height: 48,
+              backgroundColor: "white",
+              borderRadius: 12,
+            }}
+          >
+            {/* Puzzle icon */}
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
               <path
-                d="M11 2C6.03 2 2 6.03 2 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16.2c-3.97 0-7.2-3.23-7.2-7.2S7.03 3.8 11 3.8s7.2 3.23 7.2 7.2-3.23 7.2-7.2 7.2zm0-12.6c-2.98 0-5.4 2.42-5.4 5.4s2.42 5.4 5.4 5.4 5.4-2.42 5.4-5.4S13.98 5.6 11 5.6zm0 8.4c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"
+                d="M10.5 4C10.5 2.895 11.395 2 12.5 2H13.5C14.605 2 15.5 2.895 15.5 4V5H18.5C19.605 5 20.5 5.895 20.5 7V10H21.5C22.605 10 23.5 10.895 23.5 12V13C23.5 14.105 22.605 15 21.5 15H20.5V18C20.5 19.105 19.605 20 18.5 20H15.5V21C15.5 22.105 14.605 23 13.5 23H12.5C11.395 23 10.5 22.105 10.5 21V20H7.5C6.395 20 5.5 19.105 5.5 18V15H4.5C3.395 15 2.5 14.105 2.5 13V12C2.5 10.895 3.395 10 4.5 10H5.5V7C5.5 5.895 6.395 5 7.5 5H10.5V4Z"
                 fill="#4285f4"
               />
             </svg>
           </div>
-          <span className="text-white text-xl font-bold">Woorkroom</span>
+          <span
+            className="font-extrabold text-white"
+            style={{ fontSize: 22, letterSpacing: "-0.3px" }}
+          >
+            Woorkroom
+          </span>
         </div>
 
         {/* Tagline */}
-        <div className="mt-10">
-          <h1 className="text-white text-3xl font-extrabold leading-tight mb-2">
+        <div className="mb-8">
+          <h1
+            className="font-extrabold text-white leading-tight"
+            style={{ fontSize: 40 }}
+          >
             Your place to work
           </h1>
-          <p className="text-white text-3xl font-extrabold leading-tight">
+          <h1
+            className="font-extrabold text-white leading-tight"
+            style={{ fontSize: 40 }}
+          >
             Plan. Create. Control.
-          </p>
+          </h1>
         </div>
 
         {/* Illustration */}
-        <div className="mt-6 flex justify-center">
-          <div className="relative w-full max-w-[270px]">
-            <Image
-              src="/Illustration.png"
-              alt="Woorkroom workspace illustration"
-              width={270}
-              height={240}
-              className="object-contain drop-shadow-lg"
-            />
-          </div>
+        <div className="flex-1 flex items-end justify-center">
+          <Image
+            src="/Illustration.png"
+            alt="Woorkroom workspace"
+            width={420}
+            height={360}
+            className="object-contain w-full max-w-[420px]"
+            priority
+          />
         </div>
       </div>
 
-      {/* Right panel */}
-      <div className="flex-1 p-12 flex flex-col justify-center">
-        <h2 className="text-[#1a1a2e] text-2xl font-bold text-center mb-8">
-          Sign In to Woorkroom
-        </h2>
+      {/* ── Right Panel ────────────────────────────────────────── */}
+      <div
+        className="flex-1 flex items-center justify-center"
+        style={{ backgroundColor: "#eef2f7" }}
+      >
+        <div
+          className="bg-white flex flex-col"
+          style={{
+            width: "100%",
+            maxWidth: 460,
+            padding: "48px 40px",
+            borderRadius: 20,
+            boxShadow: "0 4px 40px rgba(0,0,0,0.07)",
+          }}
+        >
+          <h2
+            className="font-bold text-center"
+            style={{ fontSize: 22, color: "#1a1a2e", marginBottom: 32 }}
+          >
+            Sign In to Woorkroom
+          </h2>
 
-        <div className="space-y-5">
           {/* Email */}
-          <div>
-            <label className="block text-[#6b7280] text-sm font-semibold mb-2">
+          <div style={{ marginBottom: 20 }}>
+            <label
+              className="block font-semibold"
+              style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}
+            >
               Email Address
             </label>
             <input
               type="email"
               placeholder="youremail@gmail.com"
-              className="w-full px-4 py-3 border border-[#e5e7eb] rounded-xl text-[#374151] placeholder-[#9ca3af] text-sm font-normal focus:border-[#4285f4] focus:ring-2 focus:ring-[#4285f4]/20 transition-all duration-200"
+              style={{
+                width: "100%",
+                padding: "13px 16px",
+                border: "1.5px solid #e5e7eb",
+                borderRadius: 12,
+                fontSize: 14,
+                color: "#374151",
+                fontFamily: "inherit",
+              }}
             />
           </div>
 
           {/* Password */}
-          <div>
-            <label className="block text-[#6b7280] text-sm font-semibold mb-2">
+          <div style={{ marginBottom: 20 }}>
+            <label
+              className="block font-semibold"
+              style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}
+            >
               Password
             </label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                defaultValue="password"
-                className="w-full px-4 py-3 border border-[#e5e7eb] rounded-xl text-[#374151] placeholder-[#9ca3af] text-sm font-normal focus:border-[#4285f4] focus:ring-2 focus:ring-[#4285f4]/20 transition-all duration-200 pr-12"
+                defaultValue="password123"
+                style={{
+                  width: "100%",
+                  padding: "13px 48px 13px 16px",
+                  border: "1.5px solid #e5e7eb",
+                  borderRadius: 12,
+                  fontSize: 14,
+                  color: "#374151",
+                  fontFamily: "inherit",
+                }}
               />
               <button
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] transition-colors"
+                onClick={() => setShowPassword((s) => !s)}
+                className="absolute right-4 top-1/2 -translate-y-1/2"
+                style={{ color: "#9ca3af" }}
               >
                 {showPassword ? (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -99,15 +162,24 @@ export default function SignInPage() {
             </div>
           </div>
 
-          {/* Remember me + Forgot */}
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          {/* Remember + Forgot */}
+          <div
+            className="flex items-center justify-between"
+            style={{ marginBottom: 24 }}
+          >
+            <label className="flex items-center gap-2 cursor-pointer select-none">
               <div
                 onClick={() => setRememberMe(!rememberMe)}
-                className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all duration-200 cursor-pointer ${rememberMe
-                  ? "bg-[#4285f4] border-[#4285f4]"
-                  : "bg-white border-[#d1d5db]"
-                  }`}
+                className="flex items-center justify-center cursor-pointer"
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 5,
+                  border: rememberMe ? "none" : "2px solid #d1d5db",
+                  backgroundColor: rememberMe ? "#4285f4" : "white",
+                  transition: "all 0.15s",
+                  flexShrink: 0,
+                }}
               >
                 {rememberMe && (
                   <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
@@ -115,15 +187,33 @@ export default function SignInPage() {
                   </svg>
                 )}
               </div>
-              <span className="text-[#6b7280] text-sm font-semibold">Remember me</span>
+              <span style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>
+                Remember me
+              </span>
             </label>
-            <button className="text-[#9ca3af] text-sm font-semibold hover:text-[#4285f4] transition-colors">
+            <button
+              style={{ fontSize: 13, color: "#9ca3af", fontWeight: 600, background: "none", border: "none", cursor: "pointer" }}
+            >
               Forgot Password?
             </button>
           </div>
 
           {/* Sign In button */}
-          <button className="w-full bg-[#4285f4] text-white py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 hover:bg-[#3574e2] active:scale-[0.98] transition-all duration-200 shadow-[0_4px_14px_rgba(66,133,244,0.35)] mt-2">
+          <button
+            className="flex items-center justify-center gap-2 font-bold"
+            style={{
+              width: "100%",
+              padding: "14px",
+              backgroundColor: "#4285f4",
+              color: "white",
+              borderRadius: 12,
+              fontSize: 15,
+              border: "none",
+              cursor: "pointer",
+              boxShadow: "0 4px 14px rgba(66,133,244,0.35)",
+              marginBottom: 16,
+            }}
+          >
             Sign In
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M12 5l7 7-7 7" />
@@ -131,16 +221,16 @@ export default function SignInPage() {
           </button>
 
           {/* Sign up link */}
-          <div className="text-center pt-1">
+          <div className="text-center">
             <Link
               href="/signup"
-              className="text-[#4285f4] text-sm font-semibold hover:underline"
+              style={{ fontSize: 13, color: "#4285f4", fontWeight: 600 }}
             >
               Don&apos;t have an account?
             </Link>
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }
