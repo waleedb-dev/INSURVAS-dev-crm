@@ -265,8 +265,8 @@ function Step2({
                             <div
                                 onClick={() => setNewsletter("yes")}
                                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${newsletter === "yes"
-                                        ? "border-[#4285f4]"
-                                        : "border-[#d1d5db]"
+                                    ? "border-[#4285f4]"
+                                    : "border-[#d1d5db]"
                                     }`}
                             >
                                 {newsletter === "yes" && (
@@ -279,8 +279,8 @@ function Step2({
                             <div
                                 onClick={() => setNewsletter("no")}
                                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${newsletter === "no"
-                                        ? "border-[#4285f4]"
-                                        : "border-[#d1d5db]"
+                                    ? "border-[#4285f4]"
+                                    : "border-[#d1d5db]"
                                     }`}
                             >
                                 {newsletter === "no" && (
@@ -407,8 +407,8 @@ function Step3({
                                 key={size}
                                 onClick={() => setTeamSize(size)}
                                 className={`py-2.5 rounded-xl border text-sm font-semibold transition-all duration-200 ${teamSize === size
-                                        ? "bg-[#4285f4] border-[#4285f4] text-white shadow-[0_4px_14px_rgba(66,133,244,0.35)]"
-                                        : "bg-white border-[#e5e7eb] text-[#6b7280] hover:border-[#4285f4] hover:text-[#4285f4]"
+                                    ? "bg-[#4285f4] border-[#4285f4] text-white shadow-[0_4px_14px_rgba(66,133,244,0.35)]"
+                                    : "bg-white border-[#e5e7eb] text-[#6b7280] hover:border-[#4285f4] hover:text-[#4285f4]"
                                     }`}
                             >
                                 {size}
@@ -538,13 +538,13 @@ export default function SignupPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#eef2f7] flex items-center justify-center p-4">
-            <div className="w-full max-w-[920px] bg-white rounded-2xl shadow-[0_4px_40px_rgba(0,0,0,0.08)] overflow-hidden flex min-h-[580px]">
-                {/* Left sidebar */}
-                <SignupSidebar currentStep={step} />
+        <div className="h-screen bg-white flex overflow-hidden">
+            {/* Left sidebar */}
+            <SignupSidebar currentStep={step} />
 
-                {/* Right content area */}
-                <div className="flex-1 flex flex-col p-10 bg-white rounded-tr-2xl rounded-br-2xl">
+            {/* Right content area */}
+            <div className="flex-1 flex flex-col p-16 bg-white overflow-y-auto">
+                <div className="max-w-[540px] mx-auto w-full flex flex-col min-h-full">
                     {step === 1 && <Step1 onNext={goNext} />}
                     {step === 2 && <Step2 onNext={goNext} onPrev={goPrev} />}
                     {step === 3 && <Step3 onNext={goNext} onPrev={goPrev} />}

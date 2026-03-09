@@ -15,7 +15,7 @@ interface SignupSidebarProps {
 
 export function SignupSidebar({ currentStep }: SignupSidebarProps) {
     return (
-        <div className="w-[220px] flex-shrink-0 bg-[#4285f4] rounded-2xl p-7 flex flex-col">
+        <div className="w-[300px] flex-shrink-0 bg-[#4285f4] p-10 flex flex-col h-screen">
             {/* Logo */}
             <div className="mb-10">
                 <WoorkroomLogoIcon />
@@ -41,10 +41,10 @@ export function SignupSidebar({ currentStep }: SignupSidebarProps) {
                                 {/* Circle */}
                                 <div
                                     className={`w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${isCompleted
-                                            ? "bg-white border-white"
-                                            : isCurrent
-                                                ? "bg-transparent border-white"
-                                                : "bg-transparent border-white/50"
+                                        ? "bg-white border-white"
+                                        : isCurrent
+                                            ? "bg-transparent border-white"
+                                            : "bg-transparent border-white/50"
                                         }`}
                                 >
                                     {isCompleted ? (
@@ -63,10 +63,10 @@ export function SignupSidebar({ currentStep }: SignupSidebarProps) {
                                 {/* Label */}
                                 <span
                                     className={`text-sm font-semibold transition-all duration-300 ${isCurrent
+                                        ? "text-white"
+                                        : isCompleted
                                             ? "text-white"
-                                            : isCompleted
-                                                ? "text-white"
-                                                : "text-white/50"
+                                            : "text-white/50"
                                         }`}
                                 >
                                     {step.label}
