@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Woorkroom – Your place to work. Plan. Create. Control.",
-  description: "Sign up and get started with Woorkroom – the all-in-one workspace to plan, create, and control your projects.",
+  description: "Sign in to Woorkroom – the all-in-one workspace to plan, create, and control your projects.",
 };
 
 export default function RootLayout({

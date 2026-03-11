@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -245,14 +244,6 @@ export default function SignInPage() {
             {isSubmitting ? "Signing in..." : "Sign In"}
           </button>
 
-          <div className="text-center">
-            <Link
-              href="/signup"
-              style={{ fontSize: 13, color: "#4285f4", fontWeight: 600 }}
-            >
-              Don&apos;t have an account?
-            </Link>
-          </div>
         </form>
       </div>
     </div>
