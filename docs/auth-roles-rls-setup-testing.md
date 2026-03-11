@@ -2,7 +2,7 @@
 
 This document captures the current decision:
 - Fixed roles
-- No separate `permissions` table for now
+- Dedicated `permissions` + `role_permissions` tables
 - Authorization enforced in Supabase RLS (not frontend)
 
 ## 1) Current Auth Model
@@ -11,6 +11,8 @@ This document captures the current decision:
 - `public.users` (profile + org scope)
 - `public.roles` (8 fixed role keys)
 - `public.users.role_id` (single role assignment)
+- `public.permissions` (permission catalog)
+- `public.role_permissions` (role to permission mapping)
 
 ## Role Keys
 - `call_center_agent`
@@ -47,7 +49,7 @@ RLS will use these scopes:
 
 Notes:
 - Keep this matrix as the single business reference for policy behavior.
-- Any exception should be avoided now; add a permission table later only if exceptions grow.
+- Permission-key detail is documented in `docs/permissions-model.md`.
 
 ## 3) Setup Plan (Supabase)
 
@@ -57,6 +59,7 @@ Notes:
 4. Enable RLS on every exposed business table.
 5. Add SQL helper functions:
    - role checks by `auth.uid()`
+   - permission checks by `auth.uid()`
    - scope checks (`self/team/center/all`)
 6. Add table policies for `SELECT`, `INSERT`, `UPDATE`, `DELETE` based on role + scope.
 7. Keep FE checks for UX only (route/menu/button visibility).
@@ -120,12 +123,7 @@ Run on every policy change:
 4. Freeze role matrix and capture sign-off from stakeholders.
 5. Promote to production with staged monitoring.
 
-## 7) When to Introduce a Permission Table Later
+## 7) Permission Table Decision
 
-Add `permissions` only if one of these appears:
-- frequent one-off access exceptions
-- role explosion
-- non-engineers need runtime permission changes
-- compliance requires explicit grant records per capability
-
-Until then, fixed roles + RLS is the simplest and most maintainable model.
+The project now uses `permissions` + `role_permissions` as a first-class model.
+Keep role checks for broad auth and use permission checks for page/action gates.
