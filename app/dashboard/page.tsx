@@ -1,42 +1,60 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
+import { useState } from "react";
+import DashboardLayout, { type DashPage } from "@/components/dashboard/DashboardLayout";
+import MainDashboard from "@/components/dashboard/MainDashboard";
+import NearestEventsPage from "@/components/dashboard/NearestEventsPage";
+import SupportModal from "@/components/dashboard/SupportModal";
+import DailyDealFlowPage from "@/components/dashboard/pages/DailyDealFlowPage";
+import AssigningPage from "@/components/dashboard/pages/AssigningPage";
+import LeadPipelinePage from "@/components/dashboard/pages/LeadPipelinePage";
+import CommissionsPage from "@/components/dashboard/pages/CommissionsPage";
+import UsersAccessPage from "@/components/dashboard/pages/UsersAccessPage";
+import OperationsGuidePage from "@/components/dashboard/pages/OperationsGuidePage";
 
-export default function DashboardRootPage() {
-  const router = useRouter();
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [message, setMessage] = useState("Resolving your dashboard...");
+export default function DashboardPage() {
+  const [activePage, setActivePage] = useState<DashPage>("dashboard");
+  const [showSupport, setShowSupport] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    const redirectToRoleDashboard = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+  const handleNavigate = (page: DashPage) => {
+    setActivePage(page);
+    setSearchQuery("");
+  };
 
-      if (!session?.user) {
-        router.replace("/");
-        return;
-      }
-
-      const role = await getCurrentUserPrimaryRole(supabase, session.user.id);
-
-      if (!role) {
-        setMessage("No role is assigned to this account. Contact admin.");
-        return;
-      }
-
-      router.replace(`/dashboard/${role}`);
-    };
-
-    void redirectToRoleDashboard();
-  }, [router, supabase]);
+  const handleSignOut = () => {
+    // No-op – auth removed per requirements
+    handleNavigate("dashboard");
+  };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
-      <p className="text-sm font-semibold text-slate-600">{message}</p>
-    </main>
+    <>
+      <DashboardLayout
+        activePage={activePage}
+        onNavigate={handleNavigate}
+        onSignOut={handleSignOut}
+        onSupportClick={() => setShowSupport(true)}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      >
+        {activePage === "dashboard" && (
+          <MainDashboard
+            onViewAllEvents={() => setActivePage("nearest-events")}
+            searchQuery={searchQuery}
+          />
+        )}
+        {activePage === "nearest-events" && (
+          <NearestEventsPage onBack={() => setActivePage("dashboard")} />
+        )}
+        {activePage === "daily-deal-flow" && <DailyDealFlowPage />}
+        {activePage === "assigning"        && <AssigningPage />}
+        {activePage === "lead-pipeline"    && <LeadPipelinePage />}
+        {activePage === "commissions"      && <CommissionsPage />}
+        {activePage === "users-access"     && <UsersAccessPage />}
+        {activePage === "operations-guide" && <OperationsGuidePage />}
+      </DashboardLayout>
+
+      {showSupport && <SupportModal onClose={() => setShowSupport(false)} />}
+    </>
   );
 }

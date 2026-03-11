@@ -28,14 +28,14 @@ export function pickPrimaryRole(roleKeys: string[]): RoleKey | null {
 }
 
 export const ROLE_TITLES: Record<RoleKey, string> = {
-  system_admin: "System Admin Dashboard",
-  sales_manager: "Sales Manager Dashboard",
-  sales_agent_licensed: "Licensed Sales Agent Dashboard",
-  sales_agent_unlicensed: "Unlicensed Sales Agent Dashboard",
-  call_center_admin: "Call Center Admin Dashboard",
-  call_center_agent: "Call Center Agent Dashboard",
-  hr: "HR Dashboard",
-  accounting: "Accounting Dashboard",
+  system_admin: "System Admin Console",
+  sales_manager: "Sales Management Console",
+  sales_agent_licensed: "Licensed Sales Console",
+  sales_agent_unlicensed: "Unlicensed Sales Console",
+  call_center_admin: "Call Center Operations Console",
+  call_center_agent: "Call Center Agent Workspace",
+  hr: "HR Operations Console",
+  accounting: "Accounting Console",
 };
 
 export const ROLE_SUMMARIES: Record<RoleKey, string> = {

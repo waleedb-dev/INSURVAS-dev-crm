@@ -5,8 +5,8 @@ import { T } from "@/lib/theme";
 
 export type DashPage =
   | "dashboard" | "nearest-events"
-  | "projects" | "calendar" | "vacations"
-  | "employees" | "messenger" | "info-portal";
+  | "daily-deal-flow" | "assigning" | "lead-pipeline"
+  | "commissions" | "users-access" | "operations-guide";
 
 interface Props {
   activePage: DashPage;
@@ -22,13 +22,13 @@ const SIDEBAR_W  = 210;
 const SIDEBAR_SM = 64;
 
 const NAV_ITEMS: { id: DashPage; label: string; Icon: React.FC<{ active: boolean }> }[] = [
-  { id: "dashboard",   label: "Dashboard",  Icon: DashboardIcon },
-  { id: "projects",    label: "Projects",   Icon: ProjectsIcon },
-  { id: "calendar",    label: "Calendar",   Icon: CalendarIcon },
-  { id: "vacations",   label: "Vacations",  Icon: VacationsIcon },
-  { id: "employees",   label: "Employees",  Icon: EmployeesIcon },
-  { id: "messenger",   label: "Messenger",  Icon: MessengerIcon },
-  { id: "info-portal", label: "Info Portal",Icon: InfoPortalIcon },
+  { id: "dashboard",        label: "Overview",         Icon: DashboardIcon },
+  { id: "daily-deal-flow",  label: "Daily Deal Flow",  Icon: ProjectsIcon },
+  { id: "assigning",        label: "Assigning",        Icon: CalendarIcon },
+  { id: "lead-pipeline",    label: "Lead Pipeline",    Icon: VacationsIcon },
+  { id: "commissions",      label: "Commissions",      Icon: EmployeesIcon },
+  { id: "users-access",     label: "Users & Access",   Icon: MessengerIcon },
+  { id: "operations-guide", label: "Operations Guide", Icon: InfoPortalIcon },
 ];
 
 const NOTIFICATIONS = [
@@ -230,7 +230,7 @@ export default function DashboardLayout({
             <input
               id="global-search"
               type="text"
-              placeholder="Search members, projects…"
+              placeholder="Search leads, deals, and users..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               style={{

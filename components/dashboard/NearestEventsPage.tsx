@@ -58,7 +58,7 @@ export default function NearestEventsPage({ onBack }: Props) {
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke={C.blue} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              Back to Dashboard
+              Back to Overview
             </button>
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: C.textDark }}>Nearest Events</h1>
             <p style={{ margin: "4px 0 0", fontSize: 13, color: C.textMuted, fontWeight: 600 }}>{events.length} upcoming events</p>

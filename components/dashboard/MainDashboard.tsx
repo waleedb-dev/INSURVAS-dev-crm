@@ -86,7 +86,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
             <div>
               <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 600, margin: 0, marginBottom: 4 }}>Welcome back, Evan!</p>
-              <h1 style={{ fontSize: 28, fontWeight: 800, color: C.textDark, margin: 0 }}>Dashboard</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 800, color: C.textDark, margin: 0 }}>CRM Overview</h1>
             </div>
             <DateRangeButton />
           </div>
@@ -95,7 +95,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           <div style={{ backgroundColor: C.white, borderRadius: 20, padding: "24px 24px 28px", marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textDark }}>
-                Workload
+                Agent Workload
                 {q && <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginLeft: 8 }}>({filteredMembers.length} found)</span>}
               </h2>
               <ViewAllBtn />
@@ -112,17 +112,17 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
             )}
           </div>
 
-          {/* Projects */}
+          {/* Daily Deal Flow */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textDark }}>
-                Projects
+                Daily Deal Flow
                 {q && <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginLeft: 8 }}>({filteredProjects.length} found)</span>}
               </h2>
               <ViewAllBtn />
             </div>
             {filteredProjects.length === 0 ? (
-              <EmptyState text="No projects match your search" />
+              <EmptyState text="No deal records match your search" />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {filteredProjects.map((p) => (
