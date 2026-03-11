@@ -1,33 +1,29 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isRoleKey, pickPrimaryRole, type RoleKey } from "@/lib/auth/roles";
-
-type UserRoleRow = {
-  roles: { key: string } | { key: string }[] | null;
-};
+import { isRoleKey, type RoleKey } from "@/lib/auth/roles";
 
 export async function getCurrentUserPrimaryRole(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<RoleKey | null> {
-  const { data, error } = await supabase
-    .from("user_roles")
-    .select("roles!inner(key)")
-    .eq("user_id", userId)
-    .is("revoked_at", null);
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select("role_id")
+    .eq("id", userId)
+    .maybeSingle();
 
-  if (error || !data?.length) {
+  if (userError || !user?.role_id) {
     return null;
   }
 
-  const keys = (data as UserRoleRow[])
-    .flatMap((row) => {
-      if (Array.isArray(row.roles)) {
-        return row.roles.map((role) => role.key);
-      }
+  const { data: role, error: roleError } = await supabase
+    .from("roles")
+    .select("key")
+    .eq("id", user.role_id)
+    .maybeSingle();
 
-      return row.roles?.key ? [row.roles.key] : [];
-    })
-    .filter(isRoleKey);
+  if (roleError || !role?.key || !isRoleKey(role.key)) {
+    return null;
+  }
 
-  return pickPrimaryRole(keys);
+  return role.key;
 }

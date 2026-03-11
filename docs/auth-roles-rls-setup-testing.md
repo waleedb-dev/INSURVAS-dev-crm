@@ -10,7 +10,7 @@ This document captures the current decision:
 ## Tables
 - `public.users` (profile + org scope)
 - `public.roles` (8 fixed role keys)
-- `public.user_roles` (role assignments)
+- `public.users.role_id` (single role assignment)
 
 ## Role Keys
 - `call_center_agent`
@@ -24,7 +24,6 @@ This document captures the current decision:
 
 ## Scope Columns (required on business tables)
 - `owner_user_id`
-- `sales_team_id`
 - `call_center_id`
 
 RLS will use these scopes:
@@ -53,8 +52,8 @@ Notes:
 ## 3) Setup Plan (Supabase)
 
 1. Create and seed `roles`.
-2. Create `user_roles` and assign exactly one role per user initially (you can allow multiple later).
-3. Ensure each business table includes scope columns (`owner_user_id`, `sales_team_id`, `call_center_id`) as applicable.
+2. Ensure `users.role_id` references `roles.id` and assign one role per user.
+3. Ensure each business table includes scope columns (`owner_user_id`, `call_center_id`) as applicable.
 4. Enable RLS on every exposed business table.
 5. Add SQL helper functions:
    - role checks by `auth.uid()`
@@ -73,7 +72,7 @@ Per table, define policies by operation:
 Policy strategy:
 - Prefer explicit allow policies.
 - Default deny when no policy matches.
-- Keep policy names explicit, e.g. `leads_select_sales_team`.
+- Keep policy names explicit, e.g. `leads_select_call_center`.
 
 ## 5) Testing Strategy
 
@@ -84,7 +83,6 @@ Test at two levels:
 ## A) Test Accounts
 Create at least one user per role and assign:
 - 2 call centers
-- 2 sales teams
 - mixed ownership rows across leads/policies
 
 This gives positive and negative scope cases.
@@ -99,7 +97,6 @@ For each role, verify:
 
 Minimum scenarios:
 - Self row vs other user row
-- Same team vs other team
 - Same center vs other center
 - Admin full access
 

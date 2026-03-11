@@ -15,7 +15,7 @@ This document explains the current authentication and role-based dashboard routi
 
 - Identity and credentials: `auth.users` (Supabase Auth)
 - App profile: `public.users`
-- Role assignments: `public.user_roles` (`revoked_at IS NULL` = active)
+- Role assignment: `public.users.role_id`
 - Role catalog: `public.roles`
 
 ## 3) Login Flow
@@ -25,11 +25,11 @@ This document explains the current authentication and role-based dashboard routi
 3. Supabase validates credentials against `auth.users`.
 4. On success, Supabase returns a session (JWT + refresh).
 5. App reads `session.user.id`.
-6. App fetches active role(s) from `user_roles -> roles`.
-7. App picks a primary role by configured priority order.
+6. App fetches the role from `users.role_id -> roles`.
+7. App validates the role key.
 8. App redirects to `/dashboard/<role>`.
 
-If no active role is found:
+If no role is found:
 - Login succeeds, but UI shows: `No role is assigned to this account. Contact admin.`
 
 ## 4) Dashboard Guard Flow
@@ -56,20 +56,9 @@ When user navigates to dashboard:
 3. Session is cleared.
 4. User is redirected to `/`.
 
-## 6) Role Priority Behavior
+## 6) Role Behavior
 
-If a user has multiple active roles, the app picks one primary role by priority order in `lib/auth/roles.ts`:
-
-1. `system_admin`
-2. `sales_manager`
-3. `sales_agent_licensed`
-4. `sales_agent_unlicensed`
-5. `call_center_admin`
-6. `call_center_agent`
-7. `hr`
-8. `accounting`
-
-To avoid ambiguity in testing, seed scripts currently enforce one active role per test user.
+Each user has exactly one role via `users.role_id`.
 
 ## 7) Mermaid Flow Diagram
 
@@ -80,10 +69,10 @@ flowchart TD
     C --> D{Credentials valid?}
     D -- No --> E[Show sign-in error]
     D -- Yes --> F[Get session user.id]
-    F --> G[Query user_roles + roles where revoked_at is null]
+    F --> G[Query users.role_id then roles]
     G --> H{Role found?}
     H -- No --> I[Show no-role-assigned message]
-    H -- Yes --> J[Pick primary role]
+    H -- Yes --> J[Use resolved role key]
     J --> K[Redirect to /dashboard/role]
 
     K --> L[Dashboard page checks session]

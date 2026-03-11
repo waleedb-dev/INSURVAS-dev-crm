@@ -1,0 +1,66 @@
+/**
+ * Global design tokens – single source of truth.
+ * Every dashboard component MUST import colors from here.
+ * Extracted directly from UX-design/Dashboard.jpg.
+ */
+export const T = {
+  // ── Backgrounds ──────────────────────────────────────────────────────────
+  pageBg:      "#eef2f7",   // page / outer bg
+  sidebarBg:   "#ffffff",   // sidebar bg
+  cardBg:      "#ffffff",   // card / panel bg
+  rowBg:       "#eef2f7",   // table row / member card bg
+
+  // ── Brand ────────────────────────────────────────────────────────────────
+  blue:        "#4285f4",   // primary – active nav, buttons, links
+  blueHover:   "#2d6fd4",   // button hover
+  blueLight:   "#dbeafe",   // blue tint bg
+  blueFaint:   "#f0f7ff",   // subtle blue wash
+
+  // ── Text ─────────────────────────────────────────────────────────────────
+  textDark:    "#1a202c",   // headings, primary labels
+  textMid:     "#2d3748",   // body copy
+  textMuted:   "#8a94a6",   // secondary labels, placeholders
+
+  // ── Borders ──────────────────────────────────────────────────────────────
+  border:      "#e2e8f0",   // default border
+  borderLight: "#f0f4f8",   // subtle divider
+
+  // ── Event accent bars ─────────────────────────────────────────────────────
+  accentBlue:   "#4285f4",
+  accentPink:   "#e879a0",
+  accentPurple: "#a855f7",
+
+  // ── Priority arrows ───────────────────────────────────────────────────────
+  priorityHigh: "#f59e0b",  // amber  ↑
+  priorityLow:  "#22c55e",  // green  ↓
+
+  // ── Status / semantic ─────────────────────────────────────────────────────
+  danger:      "#ef4444",
+  success:     "#22c55e",
+  warning:     "#f59e0b",
+
+  // ── Member avatar palette (kept here so they're consistent everywhere) ───
+  memberBlue:   "#4285f4",
+  memberAmber:  "#f59e0b",
+  memberPink:   "#ec4899",
+  memberViolet: "#8b5cf6",
+  memberSky:    "#0ea5e9",
+  memberTeal:   "#14b8a6",
+  memberSlate:  "#64748b",
+  memberOrange: "#f97316",
+
+  // ── Shadows ───────────────────────────────────────────────────────────────
+  shadowSm:  "0 2px 8px  rgba(0,0,0,0.04)",
+  shadowMd:  "0 2px 12px rgba(0,0,0,0.06)",
+  shadowLg:  "0 8px 32px rgba(0,0,0,0.10)",
+  shadowXl:  "0 20px 60px rgba(0,0,0,0.14)",
+
+  // ── Radii ────────────────────────────────────────────────────────────────
+  radiusSm:  8,
+  radiusMd:  12,
+  radiusLg:  16,
+  radiusXl:  20,
+
+  // ── Font ─────────────────────────────────────────────────────────────────
+  font: "'Nunito Sans', sans-serif",
+} as const;

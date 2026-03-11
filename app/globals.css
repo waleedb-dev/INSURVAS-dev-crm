@@ -1,43 +1,71 @@
 @import "tailwindcss";
 
-* {
-  box-sizing: border-box;
+/* ── Design tokens ───────────────────────────────────────────────────────── */
+:root {
+  --color-page-bg:       #eef2f7;
+  --color-sidebar-bg:    #ffffff;
+  --color-card-bg:       #ffffff;
+  --color-row-bg:        #eef2f7;
+
+  --color-blue:          #4285f4;
+  --color-blue-hover:    #2d6fd4;
+  --color-blue-light:    #dbeafe;
+  --color-blue-faint:    #f0f7ff;
+
+  --color-text-dark:     #1a202c;
+  --color-text-mid:      #2d3748;
+  --color-text-muted:    #8a94a6;
+
+  --color-border:        #e2e8f0;
+  --color-border-light:  #f0f4f8;
+
+  --color-accent-pink:   #e879a0;
+  --color-accent-purple: #a855f7;
+
+  --color-priority-high: #f59e0b;
+  --color-priority-low:  #22c55e;
+
+  --color-danger:        #ef4444;
+  --color-success:       #22c55e;
 }
 
-html,
-body {
+/* ── Reset ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html, body {
   font-family: 'Nunito Sans', sans-serif;
-  background-color: #eef2f7;
+  background-color: var(--color-page-bg);
+  color: var(--color-text-dark);
+  -webkit-font-smoothing: antialiased;
 }
 
-input:focus {
+input:focus,
+select:focus,
+textarea:focus {
   outline: none;
 }
 
-select:focus {
-  outline: none;
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
