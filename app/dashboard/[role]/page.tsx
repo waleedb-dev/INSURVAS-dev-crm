@@ -85,10 +85,12 @@ export default function RoleDashboardPage() {
 
       const email = session.user.email ?? "";
       const displayName = profile?.full_name?.trim() || email.split("@")[0] || "User";
-      const initials = displayName
+      const nameParts: string[] = displayName
         .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
+        .map((part: string) => part.trim())
+        .filter((part: string) => part.length > 0)
+        .slice(0, 2);
+      const initials = nameParts
         .map((part) => part[0]?.toUpperCase() ?? "")
         .join("") || "U";
 
