@@ -16,6 +16,10 @@ interface Props {
   children: ReactNode;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  visiblePages?: DashPage[];
+  userDisplayName?: string;
+  userEmail?: string;
+  userInitials?: string;
 }
 
 const SIDEBAR_W  = 210;
@@ -40,7 +44,10 @@ const NOTIFICATIONS = [
 
 export default function DashboardLayout({
   activePage, onNavigate, onSignOut, onSupportClick,
-  children, searchQuery, onSearchChange,
+  children, searchQuery, onSearchChange, visiblePages,
+  userDisplayName = "User",
+  userEmail = "",
+  userInitials = "U",
 }: Props) {
   const [collapsed, setCollapsed]             = useState(false);
   const [showNotif,  setShowNotif]            = useState(false);
@@ -53,6 +60,7 @@ export default function DashboardLayout({
   const unread     = notifs.filter((n) => !n.read).length;
   const sidebarW   = collapsed ? SIDEBAR_SM : SIDEBAR_W;
   const activeNav  = activePage === "nearest-events" ? "dashboard" : activePage;
+  const visiblePageSet = new Set<DashPage>(visiblePages ?? NAV_ITEMS.map((item) => item.id));
 
   // close dropdowns on outside click
   useEffect(() => {
@@ -130,7 +138,7 @@ export default function DashboardLayout({
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: `0 ${collapsed ? 8 : 12}px`, transition: "padding 0.22s" }}>
-          {NAV_ITEMS.map(({ id, label, Icon }) => {
+          {NAV_ITEMS.filter((item) => visiblePageSet.has(item.id)).map(({ id, label, Icon }) => {
             const isActive = id === activeNav;
             return (
               <button
@@ -302,8 +310,8 @@ export default function DashboardLayout({
               onMouseEnter={(e) => { if (!showUser) (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
               onMouseLeave={(e) => { if (!showUser) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
             >
-              <div style={{ width: 34, height: 34, borderRadius: "50%", backgroundColor: T.blue, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>EY</div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>Evan Yates</span>
+              <div style={{ width: 34, height: 34, borderRadius: "50%", backgroundColor: T.blue, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{userInitials}</div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{userDisplayName}</span>
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ transition: "transform 0.18s", transform: showUser ? "rotate(180deg)" : "rotate(0)" }}>
                 <path d="M3 4.5L6 7.5L9 4.5" stroke={T.textMuted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -312,8 +320,8 @@ export default function DashboardLayout({
             {showUser && (
               <div style={{ position: "absolute", top: "calc(100% + 10px)", right: 0, width: 196, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 200, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
                 <div style={{ padding: "13px 16px", borderBottom: `1px solid ${T.borderLight}` }}>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.textDark }}>Evan Yates</p>
-                  <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>evan@woorkroom.com</p>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.textDark }}>{userDisplayName}</p>
+                  <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>{userEmail}</p>
                 </div>
                 {["My Profile", "Account Settings", "Notifications"].map((label) => (
                   <button key={label} style={{ width: "100%", display: "block", padding: "10px 16px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}

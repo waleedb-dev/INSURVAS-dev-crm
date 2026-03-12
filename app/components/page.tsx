@@ -41,7 +41,6 @@ import {
     IconLink,
     IconEye,
     IconLock,
-    IconUnlock,
     IconCheck,
     IconX,
     IconAlertCircle,

@@ -41,7 +41,7 @@ const COMMISSIONS: Commission[] = [
   { id:"C-012", agent:"Blake Silva",    agentColor:"#0ea5e9", policyNum:"POL-88832", client:"Grace Nakamura",    type:"Home",       carrier:"State Farm",    premium:3450,  rate:10, amount:345.0,   status:"Paid",         payDate:"Mar 01, 2026" },
 ];
 
-export default function CommissionsPage() {
+export default function CommissionsPage({ canApproveActions = true }: { canApproveActions?: boolean }) {
   const [filter, setFilter] = useState<CommStatus | "All">("All");
 
   const total   = COMMISSIONS.reduce((s, c) => s + c.amount, 0);
@@ -60,11 +60,11 @@ export default function CommissionsPage() {
       {/* Summary cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
         {[
-          { label: "Total Earned (YTD)", value: `$${(total * 8.4).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`, color: T.blue, bg: T.blueFaint },
-          { label: "Paid This Month",    value: `$${paid.toFixed(2)}`,    color: "#16a34a", bg: "#f0fdf4" },
-          { label: "Pending Payment",    value: `$${pending.toFixed(2)}`, color: "#ca8a04", bg: "#fef9c3" },
-          { label: "Avg Commission",     value: `$${(total / COMMISSIONS.length).toFixed(0)}`, color: "#7c3aed", bg: "#fdf4ff" },
-        ].map(({ label, value, color, bg }) => (
+          { label: "Total Earned (YTD)", value: `$${(total * 8.4).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`, color: T.blue },
+          { label: "Paid This Month",    value: `$${paid.toFixed(2)}`,    color: "#16a34a" },
+          { label: "Pending Payment",    value: `$${pending.toFixed(2)}`, color: "#ca8a04" },
+          { label: "Avg Commission",     value: `$${(total / COMMISSIONS.length).toFixed(0)}`, color: "#7c3aed" },
+        ].map(({ label, value, color }) => (
           <div key={label} style={{ backgroundColor: T.cardBg, borderRadius: T.radiusLg, padding: "18px 20px", boxShadow: T.shadowSm, borderLeft: `4px solid ${color}` }}>
             <p style={{ margin: "0 0 6px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{label}</p>
             <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color }}>{value}</p>
@@ -84,7 +84,26 @@ export default function CommissionsPage() {
               }}>{s}</button>
             ))}
           </div>
-          <button style={{ backgroundColor: T.rowBg, color: T.textMid, border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: "7px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}>Export Statement</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              disabled={!canApproveActions}
+              title={!canApproveActions ? "Missing permission: action.commissions.approve" : undefined}
+              style={{
+                backgroundColor: canApproveActions ? "#16a34a" : T.border,
+                color: "#fff",
+                border: "none",
+                borderRadius: T.radiusSm,
+                padding: "7px 16px",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: canApproveActions ? "pointer" : "not-allowed",
+                fontFamily: T.font,
+              }}
+            >
+              Approve Batch
+            </button>
+            <button style={{ backgroundColor: T.rowBg, color: T.textMid, border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: "7px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}>Export Statement</button>
+          </div>
         </div>
 
         {/* Table */}

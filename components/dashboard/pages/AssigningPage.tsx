@@ -43,7 +43,7 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   Commercial: { bg: "#f8fafc", color: "#475569" },
 };
 
-export default function AssigningPage() {
+export default function AssigningPage({ canAssignActions = true }: { canAssignActions?: boolean }) {
   const [leads, setLeads] = useState(INITIAL_LEADS);
   const [agentLoads, setAgentLoads] = useState(AGENTS.map((a) => ({ ...a })));
   const [assigningId, setAssigningId] = useState<string | null>(null);
@@ -114,13 +114,31 @@ export default function AssigningPage() {
                         <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>⏱ {lead.received}</span>
                       </div>
                     </div>
-                    <button onClick={() => setAssigningId(isOpen ? null : lead.id)} style={{ backgroundColor: isOpen ? T.rowBg : T.blue, color: isOpen ? T.textMid : "#fff", border: "none", borderRadius: T.radiusSm, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: T.font, whiteSpace: "nowrap", transition: "all 0.15s", flexShrink: 0 }}>
+                    <button
+                      disabled={!canAssignActions}
+                      title={!canAssignActions ? "Missing permission: action.assigning.assign" : undefined}
+                      onClick={() => setAssigningId(isOpen ? null : lead.id)}
+                      style={{
+                        backgroundColor: isOpen ? T.rowBg : canAssignActions ? T.blue : T.border,
+                        color: isOpen ? T.textMid : "#fff",
+                        border: "none",
+                        borderRadius: T.radiusSm,
+                        padding: "8px 16px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: canAssignActions ? "pointer" : "not-allowed",
+                        fontFamily: T.font,
+                        whiteSpace: "nowrap",
+                        transition: "all 0.15s",
+                        flexShrink: 0,
+                      }}
+                    >
                       {isOpen ? "Cancel" : "Assign →"}
                     </button>
                   </div>
 
                   {/* Agent picker */}
-                  {isOpen && (
+                  {isOpen && canAssignActions && (
                     <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.border}`, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, animation: "fadeInDown 0.15s ease" }}>
                       {agentLoads.map((a) => {
                         const pct = Math.round((a.current / a.capacity) * 100);
@@ -174,7 +192,25 @@ export default function AssigningPage() {
                         <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>→ {lead.assignedTo} · <span style={{ backgroundColor: tc.bg, color: tc.color, borderRadius: 4, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{lead.type}</span></p>
                       </div>
                     </div>
-                    <button onClick={() => handleUnassign(lead.id, lead.assignedTo!)} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, color: T.textMuted, cursor: "pointer", fontFamily: T.font }}>Unassign</button>
+                    <button
+                      disabled={!canAssignActions}
+                      title={!canAssignActions ? "Missing permission: action.assigning.assign" : undefined}
+                      onClick={() => handleUnassign(lead.id, lead.assignedTo!)}
+                      style={{
+                        background: "none",
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 6,
+                        padding: "4px 10px",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: T.textMuted,
+                        cursor: canAssignActions ? "pointer" : "not-allowed",
+                        fontFamily: T.font,
+                        opacity: canAssignActions ? 1 : 0.6,
+                      }}
+                    >
+                      Unassign
+                    </button>
                   </div>
                 );
               })}

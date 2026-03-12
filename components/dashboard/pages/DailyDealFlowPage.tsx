@@ -48,7 +48,7 @@ const POLICY_CONFIG: Record<PolicyType, { bg: string; color: string }> = {
   "Commercial": { bg: "#f8fafc", color: "#475569" },
 };
 
-export default function DailyDealFlowPage() {
+export default function DailyDealFlowPage({ canProcessActions = true }: { canProcessActions?: boolean }) {
   const [filter, setFilter] = useState<DealStatus | "All">("All");
   const [search, setSearch] = useState("");
 
@@ -77,12 +77,12 @@ export default function DailyDealFlowPage() {
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 24 }}>
         {[
-          { label: "Submitted Today", value: counts.total,       color: T.blue,         bg: T.blueFaint },
-          { label: "Approved",        value: counts.approved,    color: "#16a34a",       bg: "#f0fdf4" },
-          { label: "Pending Review",  value: counts.pending,     color: "#ca8a04",       bg: "#fef9c3" },
-          { label: "Declined",        value: counts.declined,    color: "#dc2626",       bg: "#fef2f2" },
-          { label: "Total Premium",   value: `$${counts.totalPremium.toLocaleString()}`, color: "#7c3aed", bg: "#fdf4ff" },
-        ].map(({ label, value, color, bg }) => (
+          { label: "Submitted Today", value: counts.total,       color: T.blue },
+          { label: "Approved",        value: counts.approved,    color: "#16a34a" },
+          { label: "Pending Review",  value: counts.pending,     color: "#ca8a04" },
+          { label: "Declined",        value: counts.declined,    color: "#dc2626" },
+          { label: "Total Premium",   value: `$${counts.totalPremium.toLocaleString()}`, color: "#7c3aed" },
+        ].map(({ label, value, color }) => (
           <div key={label} style={{ backgroundColor: T.cardBg, borderRadius: T.radiusLg, padding: "18px 20px", boxShadow: T.shadowSm }}>
             <p style={{ margin: "0 0 6px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{label}</p>
             <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color }}>{value}</p>
@@ -157,7 +157,23 @@ export default function DailyDealFlowPage() {
 
         <div style={{ padding: "12px 20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Showing {filtered.length} of {DEALS.length} deals</span>
-          <button style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusSm, padding: "8px 18px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}>Export CSV</button>
+          <button
+            disabled={!canProcessActions}
+            title={!canProcessActions ? "Missing permission: action.daily_deal_flow.process" : undefined}
+            style={{
+              backgroundColor: canProcessActions ? T.blue : T.border,
+              color: "#fff",
+              border: "none",
+              borderRadius: T.radiusSm,
+              padding: "8px 18px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: canProcessActions ? "pointer" : "not-allowed",
+              fontFamily: T.font,
+            }}
+          >
+            Export CSV
+          </button>
         </div>
       </div>
     </div>

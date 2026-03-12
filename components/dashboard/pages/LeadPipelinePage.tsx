@@ -48,7 +48,7 @@ const INITIAL_LEADS: Lead[] = [
   { id:"P-014", name:"Amanda Foster",     type:"Auto",       premium:790,   source:"Web",      agent:"OH", agentColor:"#f97316", daysInStage:15, stage:"Lost" },
 ];
 
-export default function LeadPipelinePage() {
+export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdateActions?: boolean }) {
   const [leads, setLeads] = useState(INITIAL_LEADS);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<Stage | null>(null);
@@ -69,7 +69,11 @@ export default function LeadPipelinePage() {
       <div style={{ marginBottom: 24 }}>
         <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Sales Funnel</p>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Lead Pipeline</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>Drag cards between columns to update stage</p>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
+          {canUpdateActions
+            ? "Drag cards between columns to update stage"
+            : "View-only mode: no permission to move leads between stages."}
+        </p>
       </div>
 
       {/* Summary banner */}
@@ -95,9 +99,20 @@ export default function LeadPipelinePage() {
           return (
             <div
               key={stage}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(stage); }}
+              onDragOver={(e) => {
+                if (!canUpdateActions) {
+                  return;
+                }
+                e.preventDefault();
+                setDragOver(stage);
+              }}
               onDragLeave={() => setDragOver(null)}
-              onDrop={() => handleDrop(stage)}
+              onDrop={() => {
+                if (!canUpdateActions) {
+                  return;
+                }
+                handleDrop(stage);
+              }}
               style={{ backgroundColor: isOver ? cfg.bg : T.rowBg, borderRadius: T.radiusLg, border: `2px dashed ${isOver ? cfg.color : "transparent"}`, transition: "all 0.15s", minHeight: 120 }}
             >
               {/* Column header */}
@@ -111,11 +126,18 @@ export default function LeadPipelinePage() {
                   <div
                     key={lead.id}
                     draggable
-                    onDragStart={() => setDragId(lead.id)}
+                    onDragStart={() => {
+                      if (!canUpdateActions) {
+                        return;
+                      }
+                      setDragId(lead.id);
+                    }}
                     onDragEnd={() => { setDragId(null); setDragOver(null); }}
                     style={{
                       backgroundColor: T.cardBg, borderRadius: T.radiusSm, padding: "12px 10px",
-                      boxShadow: T.shadowSm, cursor: "grab", opacity: dragId === lead.id ? 0.5 : 1,
+                      boxShadow: T.shadowSm,
+                      cursor: canUpdateActions ? "grab" : "default",
+                      opacity: dragId === lead.id ? 0.5 : 1,
                       borderLeft: `3px solid ${cfg.color}`, transition: "opacity 0.15s",
                     }}
                   >
