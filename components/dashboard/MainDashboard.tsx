@@ -79,23 +79,23 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
 
   return (
     <>
+      {/* Welcome + date */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 600, margin: 0, marginBottom: 4 }}>Welcome back, Evan!</p>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.textDark, margin: 0 }}>Dashboard</h1>
+        </div>
+        <DateRangeButton />
+      </div>
+
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
         {/* ── Left/main column ── */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Welcome + date */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-            <div>
-              <p style={{ fontSize: 14, color: C.textMuted, fontWeight: 600, margin: 0, marginBottom: 4 }}>Welcome back, Evan!</p>
-              <h1 style={{ fontSize: 28, fontWeight: 800, color: C.textDark, margin: 0 }}>CRM Overview</h1>
-            </div>
-            <DateRangeButton />
-          </div>
-
           {/* Workload */}
           <div style={{ backgroundColor: C.white, borderRadius: 20, padding: "24px 24px 28px", marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textDark }}>
-                Agent Workload
+                Workload
                 {q && <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginLeft: 8 }}>({filteredMembers.length} found)</span>}
               </h2>
               <ViewAllBtn />
@@ -116,7 +116,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textDark }}>
-                Daily Deal Flow
+                Projects
                 {q && <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginLeft: 8 }}>({filteredProjects.length} found)</span>}
               </h2>
               <ViewAllBtn />
@@ -139,11 +139,11 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
         </div>
 
         {/* ── Right column ── */}
-        <div style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Nearest Events */}
-          <div style={{ backgroundColor: C.white, borderRadius: 20, padding: "20px", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.textDark }}>Nearest Events</h2>
+          <div style={{ backgroundColor: C.white, borderRadius: 20, padding: "24px 20px", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.textDark }}>Nearest Events</h2>
               <button id="nearest-events-view-all" onClick={onViewAllEvents} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color: C.blue, fontFamily: "inherit", padding: 0, transition: "opacity 0.15s" }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.7"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
@@ -179,10 +179,10 @@ function DateRangeButton() {
   return (
     <div style={{ position: "relative" }}>
       <button onClick={() => setOpen((v) => !v)} style={{
-        display: "flex", alignItems: "center", gap: 8, backgroundColor: C.white,
-        border: `1.5px solid ${open ? C.blue : C.border}`, borderRadius: 12, padding: "10px 18px",
+        display: "flex", alignItems: "center", gap: 8, backgroundColor: "#f4f9fd",
+        border: "none", borderRadius: 12, padding: "10px 18px",
         fontSize: 13, fontWeight: 700, color: C.textMid, cursor: "pointer", whiteSpace: "nowrap",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.04)", fontFamily: "inherit", transition: "border-color 0.15s",
+        fontFamily: "inherit", transition: "background-color 0.15s",
       }}>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="10" rx="2" stroke={C.textMuted} strokeWidth="1.3" /><path d="M4 1V3.5M10 1V3.5" stroke={C.textMuted} strokeWidth="1.3" strokeLinecap="round" /><path d="M1 6H13" stroke={C.textMuted} strokeWidth="1.3" /></svg>
         {selected}
@@ -253,16 +253,9 @@ function MemberCard({ initials, name, role, level, color, tasks, done, onClick }
       <div style={{ width: 60, height: 60, borderRadius: "50%", border: `2.5px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color + "18", marginBottom: 4 }}>
         <span style={{ fontSize: 15, fontWeight: 800, color }}>{initials}</span>
       </div>
-      <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.textDark, textAlign: "center" }}>{name}</p>
-      <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: C.textMuted, textAlign: "center" }}>{role}</p>
-      {/* Mini progress bar */}
-      <div style={{ width: "100%", marginTop: 4 }}>
-        <div style={{ height: 4, backgroundColor: "#e2e8f0", borderRadius: 2, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${pct}%`, backgroundColor: color, borderRadius: 2, transition: "width 0.6s ease" }} />
-        </div>
-        <p style={{ margin: "3px 0 0", fontSize: 10, color: C.textMuted, fontWeight: 600, textAlign: "center" }}>{done}/{tasks} tasks</p>
-      </div>
-      <span style={{ border: `1.5px solid #e2e8f0`, borderRadius: 6, padding: "2px 10px", fontSize: 11, fontWeight: 700, color: C.textMuted, backgroundColor: C.white, marginTop: 2 }}>{level}</span>
+      <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: C.textDark, textAlign: "center", marginTop: 4 }}>{name}</p>
+      <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: C.textMuted, textAlign: "center", marginBottom: 6 }}>{role}</p>
+      <span style={{ border: `1px solid #cbd5e1`, borderRadius: 4, padding: "1px 8px", fontSize: 11, fontWeight: 600, color: C.textMuted, backgroundColor: "transparent" }}>{level}</span>
     </div>
   );
 }
@@ -495,8 +488,8 @@ function ActivityStream({ showAll, onToggle, extraActivity }: { showAll: boolean
   ];
   const groups = showAll ? [...baseActivity, ...extraActivity] : baseActivity;
   return (
-    <div style={{ backgroundColor: C.white, borderRadius: 20, padding: "20px", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
-      <h2 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 800, color: C.textDark }}>Activity Stream</h2>
+    <div style={{ backgroundColor: C.white, borderRadius: 20, padding: "24px 20px", boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
+      <h2 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 800, color: C.textDark }}>Activity Stream</h2>
       {groups.map((group, gi) => (
         <div key={gi} style={{ marginBottom: gi < groups.length - 1 ? 16 : 0, animation: gi >= 2 ? "fadeInDown 0.2s ease" : "none" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>

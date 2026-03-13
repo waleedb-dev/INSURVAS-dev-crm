@@ -2,10 +2,10 @@
 
 /* ── Design tokens ───────────────────────────────────────────────────────── */
 :root {
-  --color-page-bg:       #eef2f7;
+  --color-page-bg:       #f4f9fd;
   --color-sidebar-bg:    #ffffff;
   --color-card-bg:       #ffffff;
-  --color-row-bg:        #eef2f7;
+  --color-row-bg:        #f4f9fd;
 
   --color-blue:          #4285f4;
   --color-blue-hover:    #2d6fd4;

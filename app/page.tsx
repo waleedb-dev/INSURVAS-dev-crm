@@ -47,7 +47,7 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: "#eef2f7" }}>
+    <div className="min-h-screen flex" style={{ backgroundColor: "#f4f9fd" }}>
       <div
         className="hidden md:flex flex-col relative overflow-hidden items-center justify-center text-center"
         style={{
@@ -110,7 +110,7 @@ export default function SignInPage() {
 
       <div
         className="flex-1 flex items-center justify-center px-4"
-        style={{ backgroundColor: "#eef2f7" }}
+        style={{ backgroundColor: "#f4f9fd" }}
       >
         <form
           onSubmit={handleSignIn}
@@ -203,9 +203,7 @@ export default function SignInPage() {
                 Remember me
               </span>
             </label>
-            <span style={{ fontSize: 13, color: "#9ca3af", fontWeight: 600 }}>
-              Managed by Supabase session
-            </span>
+
           </div>
 
           {errorMessage ? (

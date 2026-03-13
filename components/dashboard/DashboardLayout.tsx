@@ -80,7 +80,7 @@ export default function DashboardLayout({
         width: sidebarW, flexShrink: 0, backgroundColor: T.sidebarBg,
         display: "flex", flexDirection: "column",
         position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 100,
-        boxShadow: "2px 0 12px rgba(0,0,0,0.04)",
+        boxShadow: "none", borderRight: "1px solid #ffffff",
         transition: "width 0.22s cubic-bezier(.4,0,.2,1)", overflow: "hidden",
         paddingTop: 28, paddingBottom: 24,
       }}>
@@ -225,7 +225,7 @@ export default function DashboardLayout({
           height: 68, backgroundColor: T.sidebarBg,
           display: "flex", alignItems: "center", padding: "0 28px", gap: 16,
           position: "sticky", top: 0, zIndex: 50,
-          borderBottom: `1px solid ${T.borderLight}`,
+          borderBottom: `1px solid #ffffff`,
         }}>
           {/* Search */}
           <div style={{ flex: 1, maxWidth: 340, position: "relative" }}>

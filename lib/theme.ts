@@ -5,10 +5,10 @@
  */
 export const T = {
   // ── Backgrounds ──────────────────────────────────────────────────────────
-  pageBg:      "#eef2f7",   // page / outer bg
+  pageBg:      "#f4f9fd",   // page / outer bg
   sidebarBg:   "#ffffff",   // sidebar bg
   cardBg:      "#ffffff",   // card / panel bg
-  rowBg:       "#eef2f7",   // table row / member card bg
+  rowBg:       "#f4f9fd",   // table row / member card bg
 
   // ── Brand ────────────────────────────────────────────────────────────────
   blue:        "#4285f4",   // primary – active nav, buttons, links

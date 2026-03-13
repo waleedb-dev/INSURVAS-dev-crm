@@ -26,7 +26,7 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
 
         <h2 style={{ fontSize: 22, fontWeight: 800, color: "#1a202c", marginBottom: 20 }}>Need some Help?</h2>
 
-        <div style={{ backgroundColor: "#eef2f7", borderRadius: 16, height: 180, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
+        <div style={{ backgroundColor: "#f4f9fd", borderRadius: 16, height: 180, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
           <SupportIllustration />
         </div>
 
