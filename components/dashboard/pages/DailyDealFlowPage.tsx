@@ -32,6 +32,21 @@ const DEALS: Deal[] = [
   { id:"DL-2024-012", client:"Grace Nakamura",    policyType:"Home",       agent:"Blake Silva",    agentColor:"#0ea5e9", premium:3450,  submittedAt:"12:10 PM", status:"Under Review",  carrier:"State Farm" },
 ];
 
+const COMMISSIONS = [
+  { id:"C-001", amount:148.8,   status:"Paid" },
+  { id:"C-002", amount:218.0,   status:"Pending" },
+  { id:"C-003", amount:675.0,   status:"Paid" },
+  { id:"C-004", amount:256.0,   status:"Under Review" },
+  { id:"C-005", amount:875.0,   status:"Pending" },
+  { id:"C-006", amount:117.6,   status:"Paid" },
+  { id:"C-007", amount:187.5,   status:"On Hold" },
+  { id:"C-008", amount:930.0,   status:"Pending" },
+  { id:"C-009", amount:232.0,   status:"Paid" },
+  { id:"C-010", amount:1240.0,  status:"Under Review" },
+  { id:"C-011", amount:132.0,   status:"Paid" },
+  { id:"C-012", amount:345.0,   status:"Paid" },
+];
+
 const STATUS_CONFIG: Record<DealStatus, { bg: string; color: string }> = {
   "Approved":     { bg: "#dcfce7", color: "#16a34a" },
   "Under Review": { bg: "#fef9c3", color: "#ca8a04" },
@@ -52,13 +67,9 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
   const [filter, setFilter] = useState<DealStatus | "All">("All");
   const [search, setSearch] = useState("");
 
-  const counts = {
-    total:       DEALS.length,
-    approved:    DEALS.filter((d) => d.status === "Approved").length,
-    pending:     DEALS.filter((d) => d.status === "Under Review" || d.status === "Submitted").length,
-    declined:    DEALS.filter((d) => d.status === "Declined").length,
-    totalPremium:DEALS.reduce((s, d) => s + d.premium, 0),
-  };
+  const total   = COMMISSIONS.reduce((s, c) => s + c.amount, 0);
+  const paid    = COMMISSIONS.filter((c) => c.status === "Paid").reduce((s, c) => s + c.amount, 0);
+  const pending = COMMISSIONS.filter((c) => c.status === "Pending").reduce((s, c) => s + c.amount, 0);
 
   const filtered = DEALS.filter((d) => {
     const matchStatus = filter === "All" || d.status === filter;
@@ -75,15 +86,14 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
         {[
-          { label: "Submitted Today", value: counts.total,       color: T.blue },
-          { label: "Approved",        value: counts.approved,    color: "#16a34a" },
-          { label: "Pending Review",  value: counts.pending,     color: "#ca8a04" },
-          { label: "Declined",        value: counts.declined,    color: "#dc2626" },
-          { label: "Total Premium",   value: `$${counts.totalPremium.toLocaleString()}`, color: "#7c3aed" },
+          { label: "Total Earned (YTD)", value: `$${(total * 8.4).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`, color: T.blue },
+          { label: "Paid This Month",    value: `$${paid.toFixed(2)}`,    color: "#16a34a" },
+          { label: "Pending Payment",    value: `$${pending.toFixed(2)}`, color: "#ca8a04" },
+          { label: "Avg Commission",     value: `$${(total / COMMISSIONS.length).toFixed(0)}`, color: "#7c3aed" },
         ].map(({ label, value, color }) => (
-          <div key={label} style={{ backgroundColor: T.cardBg, borderRadius: T.radiusLg, padding: "18px 20px", boxShadow: T.shadowSm }}>
+          <div key={label} style={{ backgroundColor: T.cardBg, borderRadius: T.radiusLg, padding: "18px 20px", boxShadow: T.shadowSm, borderLeft: `4px solid ${color}` }}>
             <p style={{ margin: "0 0 6px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{label}</p>
             <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color }}>{value}</p>
           </div>

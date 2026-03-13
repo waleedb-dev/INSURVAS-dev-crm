@@ -9,9 +9,7 @@ import SupportModal from "@/components/dashboard/SupportModal";
 import DailyDealFlowPage from "@/components/dashboard/pages/DailyDealFlowPage";
 import AssigningPage from "@/components/dashboard/pages/AssigningPage";
 import LeadPipelinePage from "@/components/dashboard/pages/LeadPipelinePage";
-import CommissionsPage from "@/components/dashboard/pages/CommissionsPage";
 import UsersAccessPage from "@/components/dashboard/pages/UsersAccessPage";
-import OperationsGuidePage from "@/components/dashboard/pages/OperationsGuidePage";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
 import type { RoleKey } from "@/lib/auth/roles";
@@ -26,9 +24,7 @@ const ALL_PAGES: DashPage[] = [
   "daily-deal-flow",
   "assigning",
   "lead-pipeline",
-  "commissions",
   "users-access",
-  "operations-guide",
   "nearest-events",
 ];
 
@@ -179,11 +175,7 @@ export default function RoleDashboardPage() {
         {resolvedActivePage === "lead-pipeline" && (
           <LeadPipelinePage canUpdateActions={permissionKeys.has("action.lead_pipeline.update")} />
         )}
-        {resolvedActivePage === "commissions" && (
-          <CommissionsPage canApproveActions={permissionKeys.has("action.commissions.approve")} />
-        )}
         {resolvedActivePage === "users-access" && <UsersAccessPage />}
-        {resolvedActivePage === "operations-guide" && <OperationsGuidePage />}
       </DashboardLayout>
 
       {showSupport && <SupportModal onClose={() => setShowSupport(false)} />}

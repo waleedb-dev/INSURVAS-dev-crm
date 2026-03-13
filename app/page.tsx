@@ -49,24 +49,24 @@ export default function SignInPage() {
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: "#eef2f7" }}>
       <div
-        className="hidden md:flex flex-col relative overflow-hidden"
+        className="hidden md:flex flex-col relative overflow-hidden items-center justify-center text-center"
         style={{
           width: "50%",
           backgroundColor: "#4285f4",
           padding: "48px 56px",
         }}
       >
-        <div className="flex items-center gap-3 mb-16">
+        <div className="flex items-center justify-center gap-3 mb-12 w-full">
           <div
             className="flex items-center justify-center flex-shrink-0"
             style={{
-              width: 48,
-              height: 48,
+              width: 56,
+              height: 56,
               backgroundColor: "white",
-              borderRadius: 12,
+              borderRadius: 14,
             }}
           >
-            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+            <svg width="30" height="30" viewBox="0 0 26 26" fill="none">
               <path
                 d="M10.5 4C10.5 2.895 11.395 2 12.5 2H13.5C14.605 2 15.5 2.895 15.5 4V5H18.5C19.605 5 20.5 5.895 20.5 7V10H21.5C22.605 10 23.5 10.895 23.5 12V13C23.5 14.105 22.605 15 21.5 15H20.5V18C20.5 19.105 19.605 20 18.5 20H15.5V21C15.5 22.105 14.605 23 13.5 23H12.5C11.395 23 10.5 22.105 10.5 21V20H7.5C6.395 20 5.5 19.105 5.5 18V15H4.5C3.395 15 2.5 14.105 2.5 13V12C2.5 10.895 3.395 10 4.5 10H5.5V7C5.5 5.895 6.395 5 7.5 5H10.5V4Z"
                 fill="#4285f4"
@@ -75,28 +75,28 @@ export default function SignInPage() {
           </div>
           <span
             className="font-extrabold text-white"
-            style={{ fontSize: 22, letterSpacing: "-0.3px" }}
+            style={{ fontSize: 26, letterSpacing: "-0.3px" }}
           >
-            Woorkroom
+            Orbita workroom cc
           </span>
         </div>
 
-        <div className="mb-8">
+        <div className="mb-12 w-full">
           <h1
             className="font-extrabold text-white leading-tight"
-            style={{ fontSize: 40 }}
+            style={{ fontSize: 46 }}
           >
             Your place to work
           </h1>
           <h1
             className="font-extrabold text-white leading-tight"
-            style={{ fontSize: 40 }}
+            style={{ fontSize: 48 }}
           >
             Plan. Create. Control.
           </h1>
         </div>
 
-        <div className="flex-1 flex items-end justify-center">
+        <div className="flex items-center justify-center w-full">
           <Image
             src="/Illustration.png"
             alt="Woorkroom workspace"
