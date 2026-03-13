@@ -64,25 +64,79 @@ const POLICY_CONFIG: Record<PolicyType, { bg: string; color: string }> = {
 };
 
 export default function DailyDealFlowPage({ canProcessActions = true }: { canProcessActions?: boolean }) {
-  const [filter, setFilter] = useState<DealStatus | "All">("All");
+  const [filterStatus, setFilterStatus] = useState<DealStatus | "All">("All");
+  const [filterAgent, setFilterAgent] = useState("All");
+  const [filterType, setFilterType] = useState("All");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 8;
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
   const total   = COMMISSIONS.reduce((s, c) => s + c.amount, 0);
   const paid    = COMMISSIONS.filter((c) => c.status === "Paid").reduce((s, c) => s + c.amount, 0);
   const pending = COMMISSIONS.filter((c) => c.status === "Pending").reduce((s, c) => s + c.amount, 0);
 
   const filtered = DEALS.filter((d) => {
-    const matchStatus = filter === "All" || d.status === filter;
+    const matchStatus = filterStatus === "All" || d.status === filterStatus;
+    const matchAgent = filterAgent === "All" || d.agent === filterAgent;
+    const matchType = filterType === "All" || d.policyType === filterType;
     const matchSearch = !search || d.client.toLowerCase().includes(search.toLowerCase()) || d.agent.toLowerCase().includes(search.toLowerCase()) || d.id.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
+    return matchStatus && matchAgent && matchType && matchSearch;
   });
 
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+  const agents = Array.from(new Set(DEALS.map(d => d.agent)));
+  const policyTypes = Array.from(new Set(DEALS.map(d => d.policyType)));
+
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Today — {new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" })}</p>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h1>
+    <div onClick={() => setActiveMenu(null)}>
+      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <div>
+          <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Today — {new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" })}</p>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h1>
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button
+            disabled={!canProcessActions}
+            title={!canProcessActions ? "Missing permission: action.daily_deal_flow.process" : undefined}
+            style={{
+              backgroundColor: "transparent",
+              color: canProcessActions ? T.blue : T.border,
+              border: `1.5px solid ${canProcessActions ? T.blue : T.border}`,
+              borderRadius: T.radiusMd,
+              padding: "10px 18px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: canProcessActions ? "pointer" : "not-allowed",
+              fontFamily: T.font,
+              transition: "all 0.15s"
+            }}
+          >
+            Export CSV
+          </button>
+          <button
+            style={{
+              backgroundColor: T.blue,
+              color: "#fff",
+              border: "none",
+              borderRadius: T.radiusMd,
+              padding: "10px 22px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: T.font,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              transition: "all 0.15s"
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            Add Deal
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -102,25 +156,31 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
 
       {/* Filters + Search */}
       <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            {(["All", "Approved", "Under Review", "Pending Docs", "Submitted", "Declined"] as const).map((s) => (
-              <button key={s} onClick={() => setFilter(s)} style={{
-                padding: "6px 14px", borderRadius: 20, border: "none", cursor: "pointer",
-                backgroundColor: filter === s ? T.blue : T.rowBg, color: filter === s ? "#fff" : T.textMuted,
-                fontSize: 12, fontWeight: 700, fontFamily: T.font, transition: "all 0.15s",
-              }}>{s}</button>
-            ))}
-          </div>
-          <div style={{ position: "relative" }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)" }}>
+        <div style={{ padding: "20px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>
               <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="1.5" />
               <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search deals, agents…" style={{ padding: "7px 14px 7px 32px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontFamily: T.font, color: T.textMid, width: 220 }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = T.border; }}
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search deals, clients…" style={{ padding: "10px 14px 10px 36px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontFamily: T.font, color: T.textMid, width: "100%", backgroundColor: T.rowBg }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.backgroundColor = T.cardBg; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.backgroundColor = T.rowBg; }}
             />
+          </div>
+          
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+              <option value="All">All Statuses</option>
+              {["Approved", "Under Review", "Pending Docs", "Submitted", "Declined"].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+              <option value="All">All Agents</option>
+              {agents.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+              <option value="All">All Policies</option>
+              {policyTypes.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
         </div>
 
@@ -128,13 +188,13 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ backgroundColor: T.rowBg }}>
-              {["Deal ID","Client","Policy Type","Agent","Carrier","Premium","Submitted","Status"].map((h) => (
-                <th key={h} style={{ padding: "10px 16px", fontSize: 11, fontWeight: 700, color: T.textMuted, textAlign: "left", whiteSpace: "nowrap" }}>{h}</th>
+              {["Deal ID","Client","Policy Type","Agent","Carrier","Premium","Submitted","Status","Actions"].map((h) => (
+                <th key={h} style={{ padding: "14px 16px", fontSize: 11, fontWeight: 700, color: T.textMuted, textAlign: h === "Actions" ? "center" : "left", whiteSpace: "nowrap" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map((d, i) => {
+            {paginated.map((d, i) => {
               const sc = STATUS_CONFIG[d.status];
               const pc = POLICY_CONFIG[d.policyType];
               return (
@@ -156,8 +216,23 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
                   <td style={{ padding: "12px 16px", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>{d.carrier}</td>
                   <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 800, color: T.textDark }}>${d.premium.toLocaleString()}</td>
                   <td style={{ padding: "12px 16px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{d.submittedAt}</td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <span style={{ backgroundColor: sc.bg, color: sc.color, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{d.status}</span>
+                  <td style={{ padding: "14px 16px" }}>
+                    <span style={{ backgroundColor: "transparent", color: sc.color, border: `1px solid ${sc.color}44`, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{d.status}</span>
+                  </td>
+                  <td style={{ padding: "14px 16px", textAlign: "center", position: "relative" }}>
+                    <button onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === d.id ? null : d.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4 }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+                    </button>
+                    {activeMenu === d.id && (
+                      <div style={{ position: "absolute", top: "calc(100% - 10px)", right: 40, width: 140, backgroundColor: T.cardBg, borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 100, overflow: "hidden", animation: "fadeInDown 0.15s ease" }} onClick={(e) => e.stopPropagation()}>
+                        {["View Details", "Edit Lead", "Delete"].map((action, ai) => (
+                          <button key={action} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: ai === 2 ? T.danger : T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = ai === 2 ? "#fef2f2" : T.rowBg; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                          >{action}</button>
+                        ))}
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -165,25 +240,46 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
           </tbody>
         </table>
 
-        <div style={{ padding: "12px 20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Showing {filtered.length} of {DEALS.length} deals</span>
-          <button
-            disabled={!canProcessActions}
-            title={!canProcessActions ? "Missing permission: action.daily_deal_flow.process" : undefined}
-            style={{
-              backgroundColor: canProcessActions ? T.blue : T.border,
-              color: "#fff",
-              border: "none",
-              borderRadius: T.radiusSm,
-              padding: "8px 18px",
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: canProcessActions ? "pointer" : "not-allowed",
-              fontFamily: T.font,
-            }}
-          >
-            Export CSV
-          </button>
+        <div style={{ padding: "16px 20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Showing {Math.min(filtered.length, (page - 1) * itemsPerPage + 1)} - {Math.min(filtered.length, page * itemsPerPage)} of {filtered.length} deals</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              style={{
+                backgroundColor: "transparent",
+                color: page === 1 ? T.textMuted : T.textDark,
+                border: `1px solid ${T.border}`,
+                borderRadius: T.radiusSm,
+                padding: "6px 14px",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: page === 1 ? "not-allowed" : "pointer",
+                fontFamily: T.font,
+                opacity: page === 1 ? 0.5 : 1
+              }}
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages || totalPages === 0}
+              style={{
+                backgroundColor: "transparent",
+                color: page === totalPages || totalPages === 0 ? T.textMuted : T.textDark,
+                border: `1px solid ${T.border}`,
+                borderRadius: T.radiusSm,
+                padding: "6px 14px",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: page === totalPages || totalPages === 0 ? "not-allowed" : "pointer",
+                fontFamily: T.font,
+                opacity: page === totalPages || totalPages === 0 ? 0.5 : 1
+              }}
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -23,8 +23,9 @@ export default function UsersAccessPage(){
   const [users,setUsers]=useState(INIT);
   const [search,setSearch]=useState("");
   const [rf,setRf]=useState<UserRole|"All">("All");
-  const [showInvite,setShowInvite]=useState(false);
-  const [editRole,setEditRole]=useState<string|null>(null);
+  const [showInvite, setShowInvite] = useState(false);
+  const [editRole, setEditRole] = useState<string | null>(null);
+  const [inviteRole, setInviteRole] = useState<UserRole>("Agent");
 
   const filtered=users.filter(u=>(rf==="All"||u.role===rf)&&(!search||u.name.toLowerCase().includes(search.toLowerCase())||u.email.toLowerCase().includes(search.toLowerCase())));
   const toggle=(id:string)=>setUsers(p=>p.map(u=>u.id===id?{...u,status:u.status==="Active"?"Inactive":"Active"}:u));
@@ -122,23 +123,52 @@ export default function UsersAccessPage(){
           <div onClick={e=>e.stopPropagation()} style={{backgroundColor:T.cardBg,borderRadius:T.radiusXl,padding:"36px",width:440,position:"relative",boxShadow:T.shadowXl,animation:"fadeInDown 0.18s ease"}}>
             <button onClick={()=>setShowInvite(false)} style={{position:"absolute",top:18,right:18,background:"none",border:"none",cursor:"pointer",color:T.textMuted,fontSize:18}}>✕</button>
             <h2 style={{margin:"0 0 24px",fontSize:20,fontWeight:800,color:T.textDark}}>Invite Team Member</h2>
-            {[["Full Name","text","John Smith"],["Email Address","email","john@example.com"]].map(([l,t,p])=>(
+            {[["Username","text","johnsmith"],["Email Address","email","john@example.com"]].map(([l,t,p])=>(
               <div key={l} style={{marginBottom:16}}>
-                <label style={{display:"block",fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:6}}>{l}</label>
-                <input type={t} placeholder={p} style={{width:"100%",padding:"11px 14px",border:`1.5px solid ${T.border}`,borderRadius:T.radiusMd,fontSize:13,fontFamily:T.font,color:T.textMid,boxSizing:"border-box" as const}}
-                  onFocus={e=>{e.currentTarget.style.borderColor=T.blue;}} onBlur={e=>{e.currentTarget.style.borderColor=T.border;}}
+                <label style={{display:"block",fontSize:13,fontWeight:700,color:T.textMuted,marginBottom:6}}>{l}</label>
+                <input type={t} placeholder={p} style={{width:"100%",padding:"11px 14px",border:`1.5px solid ${T.border}`,borderRadius:T.radiusMd,fontSize:13,fontFamily:T.font,color:T.textMid,boxSizing:"border-box" as const,backgroundColor:T.rowBg}}
+                  onFocus={e=>{e.currentTarget.style.borderColor=T.blue;e.currentTarget.style.backgroundColor="#fff";}} onBlur={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.backgroundColor=T.rowBg;}}
                 />
               </div>
             ))}
-            <div style={{marginBottom:24}}>
-              <label style={{display:"block",fontSize:12,fontWeight:700,color:T.textMuted,marginBottom:6}}>Role</label>
-              <select style={{width:"100%",padding:"11px 14px",border:`1.5px solid ${T.border}`,borderRadius:T.radiusMd,fontSize:13,fontFamily:T.font,color:T.textMid,cursor:"pointer"}}>
-                {["Agent","Manager","Admin","Read-Only"].map(r=><option key={r}>{r}</option>)}
-              </select>
+            <div style={{marginBottom:24,marginTop:20}}>
+              <label style={{display:"block",fontSize:13,fontWeight:700,color:T.textMuted,marginBottom:12}}>Select access role</label>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {([
+                  { r:"Admin", d:"Full access to all CRM settings, billing, users, and pipelines." },
+                  { r:"Manager", d:"Can oversee team members, configure deal pipelines, and manage groups." },
+                  { r:"Agent", d:"Standard agent access. Can view assigned leads, deals, and daily tasks." },
+                  { r:"Read-Only", d:"Can only view dashboards and reports. No edit permissions." }
+                ] as const).map(({ r, d }) => {
+                  const isSel = inviteRole === r;
+                  return (
+                    <div key={r} onClick={() => setInviteRole(r)} style={{
+                      display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 16px",
+                      border: `1.5px solid ${isSel ? T.blue : T.border}`, borderRadius: T.radiusLg,
+                      backgroundColor: isSel ? "#f0f7ff" : "transparent", cursor: "pointer",
+                      transition: "all 0.15s"
+                    }}>
+                      <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${isSel ? T.blue : T.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink: 0, marginTop: 2, backgroundColor: "#fff" }}>
+                        {isSel && <div style={{width:10,height:10,borderRadius:"50%",backgroundColor:T.blue}}/>}
+                      </div>
+                      <div>
+                        <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 800, color: isSel ? T.blue : T.textDark }}>{r}</p>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: isSel ? "#3b82f6" : T.textMuted, lineHeight: 1.4 }}>{d}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setShowInvite(false)} style={{flex:1,padding:"12px",borderRadius:T.radiusMd,border:`1.5px solid ${T.border}`,background:"none",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.font,color:T.textMuted}}>Cancel</button>
-              <button onClick={()=>setShowInvite(false)} style={{flex:2,padding:"12px",borderRadius:T.radiusMd,border:"none",backgroundColor:T.blue,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.font}}>Send Invite</button>
+              <button onClick={()=>setShowInvite(false)} style={{flex:1,padding:"12px",borderRadius:T.radiusMd,border:`1.5px solid ${T.border}`,background:"none",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.font,color:T.textMuted,transition:"background-color 0.15s"}}
+                onMouseEnter={(e)=>(e.currentTarget as HTMLElement).style.backgroundColor=T.rowBg}
+                onMouseLeave={(e)=>(e.currentTarget as HTMLElement).style.backgroundColor="transparent"}
+              >Cancel</button>
+              <button onClick={()=>setShowInvite(false)} style={{flex:2,padding:"12px",borderRadius:T.radiusMd,border:"none",backgroundColor:T.blue,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.font,transition:"opacity 0.15s"}}
+                onMouseEnter={(e)=>(e.currentTarget as HTMLElement).style.opacity="0.85"}
+                onMouseLeave={(e)=>(e.currentTarget as HTMLElement).style.opacity="1"}
+              >Send Invite</button>
             </div>
           </div>
         </div>
