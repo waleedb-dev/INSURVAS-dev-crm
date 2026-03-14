@@ -156,9 +156,15 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       <div className="kanban-container">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Workload</h2>
-          <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-            View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", backgroundColor: T.rowBg, borderRadius: T.radiusMd, padding: 4 }}>
+              <button onClick={() => setViewMode("kanban")} style={{ padding: "6px 12px", border: "none", borderRadius: T.radiusSm, cursor: "pointer", fontSize: 12, fontWeight: 700, backgroundColor: viewMode === "kanban" ? "#fff" : "transparent", color: viewMode === "kanban" ? T.blue : T.textMuted, boxShadow: viewMode === "kanban" ? T.shadowSm : "none", fontFamily: T.font, transition: "all 0.15s" }}>Kanban</button>
+              <button onClick={() => setViewMode("list")} style={{ padding: "6px 12px", border: "none", borderRadius: T.radiusSm, cursor: "pointer", fontSize: 12, fontWeight: 700, backgroundColor: viewMode === "list" ? "#fff" : "transparent", color: viewMode === "list" ? T.blue : T.textMuted, boxShadow: viewMode === "list" ? T.shadowSm : "none", fontFamily: T.font, transition: "all 0.15s" }}>List</button>
+            </div>
+            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+              View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+          </div>
         </div>
         <div className="kanban-board">
           {STAGES.map((stage) => {
@@ -262,10 +268,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div style={{ display: "flex", backgroundColor: T.rowBg, borderRadius: T.radiusMd, padding: 4 }}>
-            <button onClick={() => setViewMode("kanban")} style={{ padding: "6px 12px", border: "none", borderRadius: T.radiusSm, cursor: "pointer", fontSize: 12, fontWeight: 700, backgroundColor: viewMode === "kanban" ? "#fff" : "transparent", color: viewMode === "kanban" ? T.blue : T.textMuted, boxShadow: viewMode === "kanban" ? T.shadowSm : "none", fontFamily: T.font, transition: "all 0.15s" }}>Kanban</button>
-            <button onClick={() => setViewMode("list")} style={{ padding: "6px 12px", border: "none", borderRadius: T.radiusSm, cursor: "pointer", fontSize: 12, fontWeight: 700, backgroundColor: viewMode === "list" ? "#fff" : "transparent", color: viewMode === "list" ? T.blue : T.textMuted, boxShadow: viewMode === "list" ? T.shadowSm : "none", fontFamily: T.font, transition: "all 0.15s" }}>List View</button>
-          </div>
           <button style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "9px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, display: "flex", alignItems: "center", gap: 8 }}>
             Add Lead
           </button>
@@ -283,7 +285,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         renderKanbanBoard()
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {renderKanbanBoard()}
           <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
