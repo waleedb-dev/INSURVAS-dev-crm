@@ -77,7 +77,7 @@ export default function SignInPage() {
             className="font-extrabold text-white"
             style={{ fontSize: 26, letterSpacing: "-0.3px" }}
           >
-            Orbita workroom cc
+            Orbito
           </span>
         </div>
 
@@ -99,7 +99,7 @@ export default function SignInPage() {
         <div className="flex items-center justify-center w-full">
           <Image
             src="/Illustration.png"
-            alt="Woorkroom workspace"
+            alt="Orbito workspace"
             width={420}
             height={360}
             className="object-contain w-full max-w-[420px]"
