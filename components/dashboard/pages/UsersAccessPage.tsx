@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
+import { Pagination } from "@/components/ui";
 
 interface User { id:string; name:string; email:string; role:"Admin"|"Manager"|"Agent"|"Read-Only"; status:"Active"|"Inactive"|"Suspended"; color:string; lastActive:string; policies:number; }
 type UserRole = User["role"];
@@ -26,10 +27,27 @@ export default function UsersAccessPage(){
   const [showInvite, setShowInvite] = useState(false);
   const [editRole, setEditRole] = useState<string | null>(null);
   const [inviteRole, setInviteRole] = useState<UserRole>("Agent");
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 8;
 
   const filtered=users.filter(u=>(rf==="All"||u.role===rf)&&(!search||u.name.toLowerCase().includes(search.toLowerCase())||u.email.toLowerCase().includes(search.toLowerCase())));
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
   const toggle=(id:string)=>setUsers(p=>p.map(u=>u.id===id?{...u,status:u.status==="Active"?"Inactive":"Active"}:u));
   const changeRole=(uid:string,role:UserRole)=>{setUsers(p=>p.map(u=>u.id===uid?{...u,role}:u));setEditRole(null);};
+
+  useEffect(() => {
+    setPage(1);
+  }, [rf, search]);
+
+  useEffect(() => {
+    if (page > totalPages && totalPages > 0) {
+      setPage(totalPages);
+    }
+    if (filtered.length === 0 && page !== 1) {
+      setPage(1);
+    }
+  }, [filtered.length, page, totalPages]);
 
   return(
     <div>
@@ -73,7 +91,7 @@ export default function UsersAccessPage(){
             </tr>
           </thead>
           <tbody>
-            {filtered.map((u,i)=>{
+            {paginated.map((u,i)=>{
               const rc=ROLE_CFG[u.role];
               const isEditing=editRole===u.id;
               const dotColor=u.status==="Active"?"#16a34a":u.status==="Inactive"?"#ca8a04":"#dc2626";
@@ -116,6 +134,13 @@ export default function UsersAccessPage(){
             })}
           </tbody>
         </table>
+        <Pagination
+          page={page}
+          totalItems={filtered.length}
+          itemsPerPage={itemsPerPage}
+          itemLabel="users"
+          onPageChange={setPage}
+        />
       </div>
 
       {showInvite&&(

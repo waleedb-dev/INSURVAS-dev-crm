@@ -52,6 +52,7 @@ interface Props { onViewAllEvents: () => void; searchQuery: string; }
 export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
   const [selectedMember, setSelectedMember] = useState<typeof MEMBERS[0] | null>(null);
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
+  const [workloadView, setWorkloadView] = useState<"kanban" | "list">("kanban");
 
   const q = searchQuery.toLowerCase().trim();
 
@@ -96,9 +97,47 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Workload</h2>
-            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-              View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: "flex", backgroundColor: T.rowBg, borderRadius: T.radiusMd, padding: 4 }}>
+                <button
+                  onClick={() => setWorkloadView("kanban")}
+                  style={{
+                    padding: "6px 12px",
+                    border: "none",
+                    borderRadius: T.radiusSm,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    backgroundColor: workloadView === "kanban" ? "#fff" : "transparent",
+                    color: workloadView === "kanban" ? T.blue : T.textMuted,
+                    boxShadow: workloadView === "kanban" ? T.shadowSm : "none",
+                    fontFamily: T.font,
+                  }}
+                >
+                  Kanban
+                </button>
+                <button
+                  onClick={() => setWorkloadView("list")}
+                  style={{
+                    padding: "6px 12px",
+                    border: "none",
+                    borderRadius: T.radiusSm,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    backgroundColor: workloadView === "list" ? "#fff" : "transparent",
+                    color: workloadView === "list" ? T.blue : T.textMuted,
+                    boxShadow: workloadView === "list" ? T.shadowSm : "none",
+                    fontFamily: T.font,
+                  }}
+                >
+                  List
+                </button>
+              </div>
+              <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
@@ -107,11 +146,19 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                 <p style={{ margin: 0, fontSize: 13, color: T.textMuted, fontWeight: 600 }}>No members found</p>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-                {filteredMembers.map((m) => (
-                  <MemberCard key={m.name} {...m} onClick={() => setSelectedMember(m)} />
-                ))}
-              </div>
+              workloadView === "kanban" ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                  {filteredMembers.map((m) => (
+                    <MemberCard key={m.name} {...m} onClick={() => setSelectedMember(m)} />
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {filteredMembers.map((m) => (
+                    <MemberListRow key={m.name} {...m} onClick={() => setSelectedMember(m)} />
+                  ))}
+                </div>
+              )
             )}
           </div>
         </div>
@@ -200,6 +247,46 @@ function MemberCard({ initials, name, role, level, color, onClick }: any) {
       <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: T.textDark, textAlign: "center" }}>{name}</p>
       <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: T.textMuted, textAlign: "center" }}>{role}</p>
       <span style={{ borderRadius: 4, padding: "1px 6px", fontSize: 10, fontWeight: 700, color: T.textMuted, backgroundColor: T.rowBg, marginTop: 4 }}>{level}</span>
+    </div>
+  );
+}
+
+function MemberListRow({ initials, name, role, level, color, tasks, done, onClick }: any) {
+  const progress = tasks > 0 ? Math.round((done / tasks) * 100) : 0;
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        backgroundColor: "#fbfcfe",
+        borderRadius: 14,
+        padding: "14px 16px",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        cursor: "pointer",
+        transition: "all 0.18s",
+        border: `1px solid ${T.border}`,
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = "translateY(-1px)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = "translateY(0)"; }}
+    >
+      <div style={{ width: 42, height: 42, borderRadius: "50%", border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color + "15", flexShrink: 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color }}>{initials}</span>
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 800, color: T.textDark }}>{name}</p>
+        <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: T.textMuted }}>{role}</p>
+      </div>
+      <div style={{ width: 120 }}>
+        <div style={{ height: 6, backgroundColor: T.rowBg, borderRadius: 999, overflow: "hidden", marginBottom: 6 }}>
+          <div style={{ height: "100%", width: `${progress}%`, backgroundColor: color, borderRadius: 999 }} />
+        </div>
+        <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: T.textMuted }}>{done}/{tasks} tasks</p>
+      </div>
+      <span style={{ borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 700, color: T.textMuted, backgroundColor: T.rowBg, flexShrink: 0 }}>
+        {level}
+      </span>
     </div>
   );
 }

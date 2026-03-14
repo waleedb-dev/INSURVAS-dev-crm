@@ -1,6 +1,8 @@
 "use client";
-import { useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
+import { Pagination } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 
 type DealStatus = "Approved" | "Under Review" | "Declined" | "Pending Docs" | "Submitted";
@@ -65,6 +67,7 @@ const POLICY_CONFIG: Record<PolicyType, { bg: string; color: string }> = {
 };
 
 export default function DailyDealFlowPage({ canProcessActions = true }: { canProcessActions?: boolean }) {
+  const [deals, setDeals] = useState(DEALS);
   const [filterStatus, setFilterStatus] = useState<DealStatus | "All">("All");
   const [filterAgent, setFilterAgent] = useState("All");
   const [filterType, setFilterType] = useState("All");
@@ -73,12 +76,14 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
   const itemsPerPage = 8;
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [viewingLead, setViewingLead] = useState<{ id: string, name: string } | null>(null);
+  const [showAddDeal, setShowAddDeal] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
 
   const total   = COMMISSIONS.reduce((s, c) => s + c.amount, 0);
   const paid    = COMMISSIONS.filter((c) => c.status === "Paid").reduce((s, c) => s + c.amount, 0);
   const pending = COMMISSIONS.filter((c) => c.status === "Pending").reduce((s, c) => s + c.amount, 0);
 
-  const filtered = DEALS.filter((d) => {
+  const filtered = deals.filter((d) => {
     const matchStatus = filterStatus === "All" || d.status === filterStatus;
     const matchAgent = filterAgent === "All" || d.agent === filterAgent;
     const matchType = filterType === "All" || d.policyType === filterType;
@@ -89,8 +94,21 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
-  const agents = Array.from(new Set(DEALS.map(d => d.agent)));
-  const policyTypes = Array.from(new Set(DEALS.map(d => d.policyType)));
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus, filterAgent, filterType, search]);
+
+  useEffect(() => {
+    if (page > totalPages && totalPages > 0) {
+      setPage(totalPages);
+    }
+    if (filtered.length === 0 && page !== 1) {
+      setPage(1);
+    }
+  }, [filtered.length, page, totalPages]);
+
+  const agents = Array.from(new Set(deals.map(d => d.agent)));
+  const policyTypes = Array.from(new Set(deals.map(d => d.policyType)));
 
   if (viewingLead) {
     return (
@@ -129,15 +147,18 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
             Export CSV
           </button>
           <button
+            onClick={() => setShowAddDeal(true)}
+            disabled={!canProcessActions}
+            title={!canProcessActions ? "Missing permission: action.daily_deal_flow.process" : undefined}
             style={{
-              backgroundColor: T.blue,
+              backgroundColor: canProcessActions ? T.blue : T.border,
               color: "#fff",
               border: "none",
               borderRadius: T.radiusMd,
               padding: "10px 22px",
               fontSize: 13,
               fontWeight: 700,
-              cursor: "pointer",
+              cursor: canProcessActions ? "pointer" : "not-allowed",
               fontFamily: T.font,
               display: "flex",
               alignItems: "center",
@@ -241,10 +262,12 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
                             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
                             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                         >View Details</button>
-                        <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
+                        <button
+                            onClick={() => { setEditingDeal(d); setActiveMenu(null); }}
+                            style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
                             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
                             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                        >Edit Lead</button>
+                        >Edit Deal</button>
                         <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.danger, textAlign: "left", transition: "background-color 0.15s" }}
                             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#fef2f2"; }}
                             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
@@ -258,48 +281,206 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
           </tbody>
         </table>
 
-        <div style={{ padding: "16px 20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Showing {Math.min(filtered.length, (page - 1) * itemsPerPage + 1)} - {Math.min(filtered.length, page * itemsPerPage)} of {filtered.length} deals</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              style={{
-                backgroundColor: "transparent",
-                color: page === 1 ? T.textMuted : T.textDark,
-                border: `1px solid ${T.border}`,
-                borderRadius: T.radiusSm,
-                padding: "6px 14px",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: page === 1 ? "not-allowed" : "pointer",
-                fontFamily: T.font,
-                opacity: page === 1 ? 0.5 : 1
-              }}
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages || totalPages === 0}
-              style={{
-                backgroundColor: "transparent",
-                color: page === totalPages || totalPages === 0 ? T.textMuted : T.textDark,
-                border: `1px solid ${T.border}`,
-                borderRadius: T.radiusSm,
-                padding: "6px 14px",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: page === totalPages || totalPages === 0 ? "not-allowed" : "pointer",
-                fontFamily: T.font,
-                opacity: page === totalPages || totalPages === 0 ? 0.5 : 1
-              }}
-            >
-              Next
-            </button>
-          </div>
+        <Pagination
+          page={page}
+          totalItems={filtered.length}
+          itemsPerPage={itemsPerPage}
+          itemLabel="deals"
+          onPageChange={setPage}
+        />
+      </div>
+
+      {showAddDeal && (
+        <AddDealModal
+          agents={agents}
+          existingCount={deals.length}
+          onClose={() => setShowAddDeal(false)}
+          onSubmit={(deal) => {
+            setDeals((prev) => [deal, ...prev]);
+            setShowAddDeal(false);
+            setPage(1);
+          }}
+        />
+      )}
+
+      {editingDeal && (
+        <AddDealModal
+          deal={editingDeal}
+          agents={agents}
+          existingCount={deals.length}
+          onClose={() => setEditingDeal(null)}
+          onSubmit={(deal) => {
+            setDeals((prev) => prev.map((item) => (item.id === deal.id ? deal : item)));
+            setEditingDeal(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddDealModal({
+  deal,
+  agents,
+  existingCount,
+  onClose,
+  onSubmit,
+}: {
+  deal?: Deal;
+  agents: string[];
+  existingCount: number;
+  onClose: () => void;
+  onSubmit: (deal: Deal) => void;
+}) {
+  const [client, setClient] = useState(deal?.client ?? "");
+  const [policyType, setPolicyType] = useState<PolicyType>(deal?.policyType ?? "Auto");
+  const [agent, setAgent] = useState(deal?.agent ?? agents[0] ?? "Shawn Stone");
+  const [carrier, setCarrier] = useState(deal?.carrier ?? "");
+  const [premium, setPremium] = useState(deal ? String(deal.premium) : "");
+  const [submittedAt, setSubmittedAt] = useState(deal?.submittedAt ?? "");
+  const [status, setStatus] = useState<DealStatus>(deal?.status ?? "Submitted");
+
+  const initialMap = DEALS.reduce<Record<string, string>>((acc, deal) => {
+    acc[deal.agent] = deal.agentColor;
+    return acc;
+  }, {});
+
+  const handleSubmit = () => {
+    const premiumValue = Number(premium.replace(/,/g, ""));
+    if (!client.trim() || !carrier.trim() || !submittedAt.trim() || !Number.isFinite(premiumValue) || premiumValue <= 0) {
+      return;
+    }
+
+    const nextNumber = existingCount + 1;
+
+    onSubmit({
+      id: deal?.id ?? `DL-2024-${String(nextNumber).padStart(3, "0")}`,
+      client: client.trim(),
+      policyType,
+      agent,
+      agentColor: initialMap[agent] ?? T.blue,
+      premium: premiumValue,
+      submittedAt: submittedAt.trim(),
+      status,
+      carrier: carrier.trim(),
+    });
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "12px 14px",
+    border: `1.5px solid ${T.border}`,
+    borderRadius: T.radiusMd,
+    fontSize: 13,
+    color: T.textMid,
+    fontFamily: T.font,
+    backgroundColor: "#fff",
+    boxSizing: "border-box" as const,
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0,0,0,0.35)",
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        animation: "fadeIn 0.18s ease",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: T.cardBg,
+          borderRadius: T.radiusXl,
+          padding: "34px 34px 30px",
+          width: "100%",
+          maxWidth: 640,
+          boxShadow: T.shadowXl,
+          animation: "fadeInDown 0.18s ease",
+          position: "relative",
+        }}
+      >
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          style={{ position: "absolute", top: 18, right: 18, background: "none", border: "none", cursor: "pointer", color: T.textMuted, fontSize: 18, lineHeight: 1 }}
+        >
+          ✕
+        </button>
+
+        <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 800, color: T.textDark }}>{deal ? "Edit Deal" : "Add Deal"}</h2>
+        <p style={{ margin: "0 0 24px", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
+          {deal ? "Update the selected deal and save your changes." : "Create a new policy deal and add it to the daily flow table."}
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <Field label="Client Name">
+            <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="James Whitfield" style={inputStyle} />
+          </Field>
+          <Field label="Carrier">
+            <input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Progressive" style={inputStyle} />
+          </Field>
+          <Field label="Policy Type">
+            <select value={policyType} onChange={(e) => setPolicyType(e.target.value as PolicyType)} style={inputStyle}>
+              {(["Auto", "Home", "Life", "Health", "Commercial"] as PolicyType[]).map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Agent">
+            <select value={agent} onChange={(e) => setAgent(e.target.value)} style={inputStyle}>
+              {agents.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Premium">
+            <input value={premium} onChange={(e) => setPremium(e.target.value)} placeholder="1240" style={inputStyle} />
+          </Field>
+          <Field label="Submitted Time">
+            <input value={submittedAt} onChange={(e) => setSubmittedAt(e.target.value)} placeholder="02:30 PM" style={inputStyle} />
+          </Field>
+          <Field label="Status">
+            <select value={status} onChange={(e) => setStatus(e.target.value as DealStatus)} style={inputStyle}>
+              {(["Approved", "Under Review", "Pending Docs", "Submitted", "Declined"] as DealStatus[]).map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 28 }}>
+          <button
+            onClick={onClose}
+            style={{ backgroundColor: "transparent", color: T.textMuted, border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "12px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "12px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, boxShadow: "0 4px 14px rgba(66,133,244,0.35)" }}
+          >
+            {deal ? "Update Deal" : "Save Deal"}
+          </button>
         </div>
       </div>
     </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label style={{ display: "block" }}>
+      <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }
