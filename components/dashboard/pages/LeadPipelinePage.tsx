@@ -126,87 +126,138 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         <button style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: "transparent", color: T.textMid, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: T.font }}>Sort</button>
       </div>
 
-      {viewMode === "kanban" && (
-        <div style={{ display: "flex", gap: 10, marginBottom: 24, overflowX: "auto", paddingBottom: 12 }}>
-          {STAGES.map((s) => {
-            const cfg = STAGE_CONFIG[s];
-            return (
-              <div key={s} style={{ minWidth: 160, backgroundColor: cfg.bg, borderRadius: T.radiusMd, padding: "12px 14px", border: `1.5px solid ${cfg.color}22` }}>
-                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: cfg.color, whiteSpace: "nowrap" }}>{s}</p>
-                <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>{byStage(s).length}</p>
-                <p style={{ margin: "2px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 600 }}>${stageValue(s).toLocaleString()}</p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       {/* Kanban / List Board */}
       {viewMode === "kanban" ? (
-        <div style={{ display: "flex", gap: 12, alignItems: "start", overflowX: "auto", paddingBottom: 24 }}>
-          {STAGES.map((stage) => {
-            const cfg = STAGE_CONFIG[stage];
-            const stageLeads = byStage(stage).filter(l => filteredLeads.includes(l));
-            const isOver = dragOver === stage;
-            return (
-              <div
-                key={stage}
-                onDragOver={(e) => {
-                  if (!canUpdateActions) return;
-                  e.preventDefault();
-                  setDragOver(stage);
-                }}
-                onDragLeave={() => setDragOver(null)}
-                onDrop={() => {
-                  if (!canUpdateActions) return;
-                  handleDrop(stage);
-                }}
-                style={{ minWidth: 260, flexShrink: 0, backgroundColor: isOver ? cfg.bg : T.rowBg, borderRadius: T.radiusLg, border: `2px dashed ${isOver ? cfg.color : "transparent"}`, transition: "all 0.15s", minHeight: 120 }}
-              >
-                {/* Column header */}
-                <div style={{ backgroundColor: cfg.header, borderRadius: "12px 12px 0 0", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: cfg.color }}>{stage}</span>
-                  <span style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{stageLeads.length}</span>
-                </div>
+        <div style={{ paddingBottom: 16, paddingTop: 4 }}>
+          <style>{`
+            .kanban-container {
+              background-color: #ffffff;
+              border: 1.5px solid ${T.border};
+              border-radius: ${T.radiusXl};
+              padding: 24px;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+              width: 781px;
+              height: 470px;
+              box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
+            }
+            .kanban-board {
+              display: flex;
+              gap: 20px;
+              overflow-x: auto;
+              padding-bottom: 12px;
+              align-items: flex-start;
+              flex: 1;
+              scrollbar-width: thin;
+              scrollbar-color: ${T.border} transparent;
+            }
+            .kanban-board::-webkit-scrollbar { height: 6px; }
+            .kanban-board::-webkit-scrollbar-track { background: #f8fafc; border-radius: 10px; }
+            .kanban-board::-webkit-scrollbar-thumb { background-color: ${T.border}; border-radius: 10px; }
+            
+            .kanban-column-wrapper {
+              min-width: 250px;
+              width: 250px;
+              flex-shrink: 0;
+              display: flex;
+              flex-direction: column;
+              background-color: #fbfcfe;
+              border-radius: ${T.radiusLg};
+              border: 1px solid ${T.border};
+              overflow: hidden;
+              max-height: 380px;
+            }
+            
+            .kanban-column-body {
+              overflow-y: auto;
+              flex: 1;
+              padding: 12px;
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              scrollbar-width: thin;
+            }
+            .kanban-column-body::-webkit-scrollbar { width: 4px; }
+            .kanban-column-body::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 4px; }
+          `}</style>
+          
+          <div className="kanban-container">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Workload</h2>
+              <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
+            <div className="kanban-board">
+              {STAGES.map((stage) => {
+                const cfg = STAGE_CONFIG[stage];
+                const stageLeads = byStage(stage).filter(l => filteredLeads.includes(l));
+                const isOver = dragOver === stage;
+                return (
+                  <div
+                    key={stage}
+                    onDragOver={(e) => {
+                      if (!canUpdateActions) return;
+                      e.preventDefault();
+                      setDragOver(stage);
+                    }}
+                    onDragLeave={() => setDragOver(null)}
+                    onDrop={() => {
+                      if (!canUpdateActions) return;
+                      handleDrop(stage);
+                    }}
+                    className="kanban-column-wrapper"
+                    style={{ 
+                      borderColor: isOver ? cfg.color : T.border,
+                      backgroundColor: isOver ? cfg.bg : "#fff",
+                    }}
+                  >
+                    <div style={{ backgroundColor: cfg.bg, padding: "12px 14px", borderBottom: `2.5px solid ${cfg.header}`, flexShrink: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: cfg.color, textTransform: "uppercase" }}>{stage}</span>
+                        <span style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, fontWeight: 800 }}>{stageLeads.length}</span>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>${stageValue(stage).toLocaleString()}</span>
+                    </div>
 
-                <div style={{ padding: "10px 8px", display: "flex", flexDirection: "column", gap: 8 }}>
-                  {stageLeads.map((lead) => (
-                    <div
-                      key={lead.id}
-                      onClick={() => setViewingLead({ id: lead.id, name: lead.name })}
-                      draggable
-                      onDragStart={() => {
-                        if (!canUpdateActions) return;
-                        setDragId(lead.id);
-                      }}
-                      onDragEnd={() => { setDragId(null); setDragOver(null); }}
-                      style={{
-                        backgroundColor: T.cardBg, borderRadius: T.radiusSm, padding: "12px 10px",
-                        boxShadow: T.shadowSm, cursor: canUpdateActions ? "grab" : "default",
-                        opacity: dragId === lead.id ? 0.5 : 1,
-                        borderLeft: `3px solid ${cfg.color}`, transition: "opacity 0.15s",
-                      }}
-                    >
-                      <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 800, color: T.textDark, lineHeight: 1.3 }}>{lead.name}</p>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: TYPE_COLORS[lead.type] ?? T.textMuted, backgroundColor: TYPE_COLORS[lead.type] ? TYPE_COLORS[lead.type] + "15" : T.rowBg, borderRadius: 4, padding: "1px 6px" }}>{lead.type}</span>
-                      </div>
-                      <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 800, color: T.textDark }}>${lead.premium.toLocaleString()}</p>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ width: 20, height: 20, borderRadius: "50%", backgroundColor: lead.agentColor, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 800 }}>{lead.agent}</div>
-                        <span style={{ fontSize: 10, color: lead.daysInStage > 7 ? T.danger : T.textMuted, fontWeight: 600 }}>{lead.daysInStage}d</span>
-                      </div>
+                    <div className="kanban-column-body">
+                      {stageLeads.map((lead) => (
+                        <div
+                          key={lead.id}
+                          onClick={() => setViewingLead({ id: lead.id, name: lead.name })}
+                          draggable={canUpdateActions}
+                          onDragStart={() => { if (canUpdateActions) setDragId(lead.id); }}
+                          onDragEnd={() => { setDragId(null); setDragOver(null); }}
+                          style={{
+                            backgroundColor: T.cardBg, borderRadius: T.radiusSm, padding: "12px 10px",
+                            boxShadow: T.shadowSm, cursor: canUpdateActions ? "grab" : "default",
+                            opacity: dragId === lead.id ? 0.5 : 1,
+                            borderLeft: `3px solid ${cfg.color}`,
+                          }}
+                        >
+                          <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 800, color: T.textDark }}>{lead.name}</p>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+                             <span style={{ fontSize: 10, fontWeight: 700, color: TYPE_COLORS[lead.type] ?? T.textMuted, backgroundColor: TYPE_COLORS[lead.type] ? TYPE_COLORS[lead.type] + "15" : T.rowBg, borderRadius: 4, padding: "1px 6px" }}>{lead.type}</span>
+                          </div>
+                          <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 800, color: T.textDark }}>${lead.premium.toLocaleString()}</p>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ width: 20, height: 20, borderRadius: "50%", backgroundColor: lead.agentColor, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 800 }}>{lead.agent}</div>
+                            <span style={{ fontSize: 10, color: lead.daysInStage > 7 ? T.danger : T.textMuted, fontWeight: 600 }}>{lead.daysInStage}d</span>
+                          </div>
+                        </div>
+                      ))}
+                      {stageLeads.length === 0 && (
+                        <div style={{ padding: "40px 0", textAlign: "center", border: `1px dashed ${T.border}`, borderRadius: T.radiusMd }}>
+                          <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>No leads</p>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                  {stageLeads.length === 0 && (
-                    <div style={{ padding: "20px 0", textAlign: "center" }}>
-                      <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>Drop here</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       ) : (
         <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>

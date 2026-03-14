@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { T } from "@/lib/theme";
+import LeadViewComponent from "./LeadViewComponent";
 
 interface Lead {
   id: string;
@@ -26,7 +27,7 @@ const AGENTS = [
 
 const INITIAL_LEADS: Lead[] = [
   { id:"L-001", name:"Marcus Webb",      type:"Auto",       source:"Web Form",      location:"Houston, TX",      received:"8:22 AM",  estimatedPremium:1100, assignedTo: null },
-  { id:"L-002", name:"Donna Fitzgerald", type:"Home",       source:"Referral",      location:"Dallas, TX",       received:"8:45 AM",  estimatedPremium:2400, assignedTo: null },
+  { id:"L-002", name:" Donna Fitzgerald", type:"Home",       source:"Referral",      location:"Dallas, TX",       received:"8:45 AM",  estimatedPremium:2400, assignedTo: null },
   { id:"L-003", name:"Steve Nguyen",     type:"Life",       source:"Phone Call",    location:"Austin, TX",       received:"9:02 AM",  estimatedPremium:5000, assignedTo: null },
   { id:"L-004", name:"Rachel Hammond",   type:"Health",     source:"Social Media",  location:"San Antonio, TX",  received:"9:18 AM",  estimatedPremium:3100, assignedTo: null },
   { id:"L-005", name:"Patrick Dunn",     type:"Commercial", source:"Web Form",      location:"Fort Worth, TX",   received:"9:30 AM",  estimatedPremium:9200, assignedTo: null },
@@ -48,6 +49,7 @@ export default function AssigningPage({ canAssignActions = true }: { canAssignAc
   const [agentLoads, setAgentLoads] = useState(AGENTS.map((a) => ({ ...a })));
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [viewingLead, setViewingLead] = useState<{ id: string, name: string } | null>(null);
 
   const unassigned = leads.filter((l) => !l.assignedTo);
   const assigned   = leads.filter((l) => l.assignedTo);
@@ -64,6 +66,16 @@ export default function AssigningPage({ canAssignActions = true }: { canAssignAc
     setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, assignedTo: null } : l));
     setAgentLoads((prev) => prev.map((a) => a.name === agentName ? { ...a, current: Math.max(0, a.current - 1) } : a));
   };
+
+  if (viewingLead) {
+    return (
+      <LeadViewComponent
+        leadId={viewingLead.id}
+        leadName={viewingLead.name}
+        onBack={() => setViewingLead(null)}
+      />
+    );
+  }
 
   return (
     <div>
@@ -107,7 +119,14 @@ export default function AssigningPage({ canAssignActions = true }: { canAssignAc
                         <span style={{ backgroundColor: tc.bg, color: tc.color, borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>{lead.type}</span>
                         <span style={{ backgroundColor: "#f0fdf4", color: "#16a34a", borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>${lead.estimatedPremium.toLocaleString()}</span>
                       </div>
-                      <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: T.textDark }}>{lead.name}</p>
+                      <p 
+                        style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: T.textDark, cursor: "pointer" }}
+                        onClick={() => setViewingLead({ id: lead.id, name: lead.name })}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = T.blue; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = T.textDark; }}
+                      >
+                        {lead.name}
+                      </p>
                       <div style={{ display: "flex", gap: 12 }}>
                         <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>📍 {lead.location}</span>
                         <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>🔗 {lead.source}</span>
@@ -188,7 +207,14 @@ export default function AssigningPage({ canAssignActions = true }: { canAssignAc
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ width: 30, height: 30, borderRadius: "50%", backgroundColor: agent.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:800 }}>{agent.name.split(" ").map(p=>p[0]).join("")}</div>
                       <div>
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.textDark }}>{lead.name}</p>
+                        <p 
+                          style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.textDark, cursor: "pointer" }}
+                          onClick={() => setViewingLead({ id: lead.id, name: lead.name })}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = T.blue; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = T.textDark; }}
+                        >
+                          {lead.name}
+                        </p>
                         <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>→ {lead.assignedTo} · <span style={{ backgroundColor: tc.bg, color: tc.color, borderRadius: 4, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{lead.type}</span></p>
                       </div>
                     </div>

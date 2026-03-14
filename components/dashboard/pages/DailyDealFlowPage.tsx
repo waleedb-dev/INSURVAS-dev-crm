@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { T } from "@/lib/theme";
+import LeadViewComponent from "./LeadViewComponent";
 
 type DealStatus = "Approved" | "Under Review" | "Declined" | "Pending Docs" | "Submitted";
 type PolicyType = "Auto" | "Home" | "Life" | "Health" | "Commercial";
@@ -71,6 +72,7 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
   const [page, setPage] = useState(1);
   const itemsPerPage = 8;
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [viewingLead, setViewingLead] = useState<{ id: string, name: string } | null>(null);
 
   const total   = COMMISSIONS.reduce((s, c) => s + c.amount, 0);
   const paid    = COMMISSIONS.filter((c) => c.status === "Paid").reduce((s, c) => s + c.amount, 0);
@@ -89,6 +91,16 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
 
   const agents = Array.from(new Set(DEALS.map(d => d.agent)));
   const policyTypes = Array.from(new Set(DEALS.map(d => d.policyType)));
+
+  if (viewingLead) {
+    return (
+      <LeadViewComponent
+        leadId={viewingLead.id}
+        leadName={viewingLead.name}
+        onBack={() => setViewingLead(null)}
+      />
+    );
+  }
 
   return (
     <div onClick={() => setActiveMenu(null)}>
@@ -223,14 +235,20 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
                     <button onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === d.id ? null : d.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4 }}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
                     </button>
-                    {activeMenu === d.id && (
+                     {activeMenu === d.id && (
                       <div style={{ position: "absolute", top: "calc(100% - 10px)", right: 40, width: 140, backgroundColor: T.cardBg, borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 100, overflow: "hidden", animation: "fadeInDown 0.15s ease" }} onClick={(e) => e.stopPropagation()}>
-                        {["View Details", "Edit Lead", "Delete"].map((action, ai) => (
-                          <button key={action} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: ai === 2 ? T.danger : T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = ai === 2 ? "#fef2f2" : T.rowBg; }}
+                        <button onClick={() => { setViewingLead({ id: d.id, name: d.client }); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
                             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                          >{action}</button>
-                        ))}
+                        >View Details</button>
+                        <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                        >Edit Lead</button>
+                        <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.danger, textAlign: "left", transition: "background-color 0.15s" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#fef2f2"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                        >Delete</button>
                       </div>
                     )}
                   </td>
