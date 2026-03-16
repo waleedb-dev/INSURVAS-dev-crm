@@ -39,6 +39,38 @@ const PROJECTS = [
     description: "End-to-end food delivery platform with real-time order tracking, restaurant dashboard, and driver apps.",
     tags: ["Web","Mobile","Logistics"],
   },
+  {
+    id: "PN0001290", name: "Food Delivery Service", created: "May 28, 2020",
+    priority: "Low" as const, allTasks: 23, activeTasks: 20,
+    assignees: ["#4285f4","#ec4899","#8b5cf6"], extraAssignees: 5,
+    emoji: "📦", color: "#fdf4ff", progress: 86,
+    description: "Cloud-based logistics platform.",
+    tags: ["Web","Logistics"],
+  },
+];
+
+const ACTIVITIES = [
+  { 
+    id: 1, 
+    user: "Oscar Holloway", role: "UI/UX Designer", 
+    avatar: "OH", color: "#f97316",
+    action: "Updated the status of Mind Map task to In Progress",
+    time: "2 mins ago", icon: "☁️"
+  },
+  { 
+    id: 2, 
+    user: "System", role: "Automated Service", 
+    avatar: "?", color: T.blue,
+    action: "Attached files to the task",
+    time: "10 mins ago", icon: "📎"
+  },
+  { 
+    id: 3, 
+    user: "Emily Tyler", role: "Copywriter", 
+    avatar: "ET", color: "#ec4899",
+    action: "Updated the status of Mind Map task to In Progress",
+    time: "45 mins ago", icon: "☁️"
+  }
 ];
 
 const NEAREST_EVENTS = [
@@ -66,7 +98,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
   return (
     <div style={{ padding: "0" }}>
       {/* Welcome + date - Figma Style */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%", maxWidth: 1100, marginBottom: 32 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%", maxWidth: 1125, marginBottom: 32 }}>
         <div>
           <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Welcome back, Evan!</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: T.textDark, margin: 0 }}>Dashboard</h1>
@@ -152,22 +184,64 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
         </div>
       </div>
 
-      {/* Projects Section - restored below */}
-      <div style={{ marginTop: 32 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Daily Deal Flow</h2>
-            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>View all</button>
+      <div style={{ display: "flex", gap: 24, marginTop: 32, alignItems: "stretch" }}>
+        {/* ── Bottom Left: Daily Deal Flow (781px) ── */}
+        <div style={{ width: 781, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h2>
+            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+              View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
             {filteredProjects.map((p) => (
-              <ProjectRow
-                key={p.id}
-                {...p}
-                isExpanded={expandedProject === p.id}
-                onToggle={() => setExpandedProject(expandedProject === p.id ? null : p.id)}
-              />
+              <ProjectCard key={p.id} {...p} />
             ))}
           </div>
+        </div>
+
+        {/* ── Bottom Right: Activity Stream (320px) ── */}
+        <div style={{ width: 320, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: 0 }}>Activity Stream</h3>
+          </div>
+          
+          <div style={{ 
+            backgroundColor: "#ffffff", 
+            borderRadius: T.radiusXl, 
+            border: `1.5px solid ${T.border}`, 
+            padding: "20px", 
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+            display: "flex",
+            flexDirection: "column",
+            flex: 1
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {ACTIVITIES.map((act) => (
+                <div key={act.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: act.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 800 }}>
+                      {act.avatar}
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textDark, lineHeight: 1 }}>{act.user}</p>
+                      <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>{act.role}</p>
+                    </div>
+                  </div>
+                  <div style={{ backgroundColor: "#f0f4ff", borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 12 }}>{act.icon}</span>
+                    <p style={{ margin: 0, fontSize: 11, color: T.textDark, fontWeight: 600, lineHeight: 1.3 }}>{act.action}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: "auto", paddingTop: 16 }}>
+              View more <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Member Drawer */}
@@ -205,38 +279,73 @@ function MemberCard({ initials, name, role, level, color, onClick }: any) {
 }
 
 
-function ProjectRow({ id, name, created, priority, allTasks, activeTasks, assignees, extraAssignees, emoji, color, progress, description, tags, isExpanded, onToggle }: any) {
+function ProjectCard({ id, name, created, priority, allTasks, activeTasks, assignees, extraAssignees, emoji, color }: any) {
   return (
     <div style={{
-      backgroundColor: "#fff", borderRadius: 16, overflow: "hidden",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.04)", border: `1px solid ${T.border}`,
-      cursor: "pointer",
-    }} onClick={onToggle}>
-      <div style={{ display: "flex", alignItems: "center", padding: "18px 24px" }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginRight: 16 }}>{emoji}</div>
-        <div style={{ flex: 1 }}>
-          <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: T.textMuted }}>{id}</p>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.textDark }}>{name}</p>
-        </div>
-        <div style={{ width: 120 }}>
-          <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>Status</p>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: priority === "Medium" ? T.priorityHigh : T.priorityLow }}>{priority}</p>
-        </div>
-        <div style={{ width: 100 }}>
-          <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>Tasks</p>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 700 }}>{activeTasks}/{allTasks}</p>
-        </div>
-        <div style={{ width: 100 }}>
-           <div style={{ height: 6, backgroundColor: T.rowBg, borderRadius: 3, width: "100%", overflow: "hidden" }}>
-             <div style={{ height: "100%", width: `${progress}%`, backgroundColor: T.blue }} />
-           </div>
+      backgroundColor: "#fff", borderRadius: 20, overflow: "hidden",
+      border: `1.5px solid ${T.border}`,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+      display: "grid", gridTemplateColumns: "1.2fr 1fr 0.8fr",
+      alignItems: "stretch"
+    }}>
+      {/* Detail Section */}
+      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", gap: 16 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{emoji}</div>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: T.textMuted }}>{id}</p>
+          <h4 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: T.textDark }}>{name}</h4>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+             <div style={{ display: "flex", alignItems: "center", gap: 4, color: T.textMuted }}>
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+               <span style={{ fontSize: 11, fontWeight: 600 }}>Created {created}</span>
+             </div>
+             <div style={{ display: "flex", alignItems: "center", gap: 3, color: priority === "Low" ? "#16a34a" : "#ca8a04" }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d={priority === "Low" ? "M12 19V5M19 12l-7 7-7-7" : "M12 5v14M5 12l7-7 7 7"}/></svg>
+                <span style={{ fontSize: 11, fontWeight: 800 }}>{priority}</span>
+             </div>
+          </div>
         </div>
       </div>
-      {isExpanded && (
-        <div style={{ padding: "0 24px 18px", borderTop: `1px solid ${T.border}`, paddingTop: 14 }}>
-           <p style={{ margin: 0, fontSize: 12, color: T.textMuted }}>{description}</p>
+
+      {/* Stats Section */}
+      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Project Data</p>
+        <div style={{ display: "flex", gap: 24 }}>
+          <div>
+            <p style={{ margin: "0 0 4px", fontSize: 11, color: T.textMuted, fontWeight: 600 }}>All tasks</p>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{allTasks}</p>
+          </div>
+          <div>
+            <p style={{ margin: "0 0 4px", fontSize: 11, color: T.textMuted, fontWeight: 600 }}>Active tasks</p>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{activeTasks}</p>
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Assignees Section */}
+      <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Assignees</p>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          {assignees.map((c: string, i: number) => (
+            <div key={i} style={{ 
+              width: 28, height: 28, borderRadius: "50%", backgroundColor: c, border: "2px solid #fff", 
+              marginLeft: i === 0 ? 0 : -8, zIndex: 10 - i,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#fff"
+            }}>
+              {["SS","RD","ET","LC"][i]}
+            </div>
+          ))}
+          {extraAssignees > 0 && (
+            <div style={{ 
+              width: 28, height: 28, borderRadius: "50%", backgroundColor: T.blueFaint, border: "2px solid #fff", 
+              marginLeft: -8, zIndex: 0, color: T.blue, fontSize: 10, fontWeight: 800,
+              display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              +{extraAssignees}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
