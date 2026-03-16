@@ -137,8 +137,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         .kanban-board::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
         
         .kanban-column-wrapper {
-          min-width: 250px;
-          width: 250px;
+          min-width: 220px;
+          width: 220px;
           flex-shrink: 0;
           display: flex;
           flex-direction: column;
@@ -154,10 +154,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           overflow-y: auto;
           flex: 1;
           min-height: 0;
-          padding: 12px;
+          padding: 8px;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 8px;
           scrollbar-width: thin;
         }
         .kanban-column-body::-webkit-scrollbar { width: 6px; }
@@ -168,15 +168,40 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       
       <div className="kanban-container">
         <div style={{ padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Workload</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 20, flex: 1 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Workload</h2>
+            
+            {/* Integrated Search */}
+            <div style={{ position: "relative", flex: 1, maxWidth: 320 }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
+                <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
+                <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <input 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+                placeholder="Search leads..." 
+                style={{ 
+                  width: "100%", padding: "8px 12px 8px 34px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, 
+                  fontSize: 13, fontFamily: T.font, color: T.textDark, backgroundColor: T.pageBg, outline: "none"
+                }} 
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button 
+                onClick={() => setIsFilterOpen(true)}
+                style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, backgroundColor: "#fff", color: T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}
+              >Filter</button>
+              <button style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, backgroundColor: "#fff", color: T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}>Sort</button>
+            </div>
+          </div>
+
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ display: "flex", backgroundColor: T.rowBg, borderRadius: T.radiusMd, padding: 4 }}>
               <button onClick={() => setViewMode("kanban")} style={{ padding: "6px 12px", border: "none", borderRadius: T.radiusSm, cursor: "pointer", fontSize: 12, fontWeight: 700, backgroundColor: viewMode === "kanban" ? "#fff" : "transparent", color: viewMode === "kanban" ? T.blue : T.textMuted, boxShadow: viewMode === "kanban" ? T.shadowSm : "none", fontFamily: T.font, transition: "all 0.15s" }}>Kanban</button>
               <button onClick={() => setViewMode("list")} style={{ padding: "6px 12px", border: "none", borderRadius: T.radiusSm, cursor: "pointer", fontSize: 12, fontWeight: 700, backgroundColor: viewMode === "list" ? "#fff" : "transparent", color: viewMode === "list" ? T.blue : T.textMuted, boxShadow: viewMode === "list" ? T.shadowSm : "none", fontFamily: T.font, transition: "all 0.15s" }}>List</button>
             </div>
-            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-              View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </button>
           </div>
         </div>
         <div className="kanban-board">
@@ -202,8 +227,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 style={{ 
                   borderColor: isOver ? cfg.color : T.border,
                   backgroundColor: isOver ? cfg.bg : isCollapsed ? cfg.bg : "#fff",
-                  minWidth: isCollapsed ? 50 : 250,
-                  width: isCollapsed ? 50 : 250,
+                  minWidth: isCollapsed ? 50 : 220,
+                  width: isCollapsed ? 50 : 220,
                   maxHeight: isCollapsed ? "100%" : 380,
                   height: isCollapsed ? "100%" : undefined
                 }}
@@ -222,17 +247,17 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                   </div>
                 ) : (
                   <>
-                    <div style={{ backgroundColor: cfg.bg, padding: "12px 14px", borderBottom: `2.5px solid ${cfg.header}`, flexShrink: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ backgroundColor: cfg.bg, padding: "10px 12px", borderBottom: `2px solid ${cfg.header}`, flexShrink: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                           <button onClick={() => toggleCollapse(stage)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", color: cfg.color }} title="Collapse Column">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                           </button>
-                          <span style={{ fontSize: 12, fontWeight: 800, color: cfg.color, textTransform: "uppercase" }}>{stage}</span>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: cfg.color, textTransform: "uppercase" }}>{stage}</span>
                         </div>
-                        <span style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, fontWeight: 800 }}>{stageLeads.length}</span>
+                        <span style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{stageLeads.length}</span>
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>${stageValue(stage).toLocaleString()}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.textMuted }}>${stageValue(stage).toLocaleString()}</span>
                     </div>
 
                 <div className="kanban-column-body">
@@ -244,26 +269,29 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       onDragStart={() => { if (canUpdateActions) setDragId(lead.id); }}
                       onDragEnd={() => { setDragId(null); setDragOver(null); }}
                       style={{
-                        backgroundColor: T.cardBg, borderRadius: T.radiusSm, padding: "12px 10px",
-                        boxShadow: T.shadowSm, cursor: canUpdateActions ? "grab" : "default",
+                        backgroundColor: T.cardBg, borderRadius: T.radiusSm, padding: "10px 10px",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)", cursor: canUpdateActions ? "grab" : "default",
                         opacity: dragId === lead.id ? 0.5 : 1,
-                        borderLeft: `3px solid ${cfg.color}`,
+                        borderLeft: `2.5px solid ${cfg.color}`,
+                        transition: "transform 0.15s, box-shadow 0.15s"
                       }}
+                      onMouseEnter={e => { e.currentTarget.style.boxShadow = T.shadowMd; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)"; e.currentTarget.style.transform = "translateY(0)"; }}
                     >
-                      <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 800, color: T.textDark }}>{lead.name}</p>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: TYPE_COLORS[lead.type] ?? T.textMuted, backgroundColor: TYPE_COLORS[lead.type] ? TYPE_COLORS[lead.type] + "15" : T.rowBg, borderRadius: 4, padding: "1px 6px" }}>{lead.type}</span>
+                      <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 800, color: T.textDark, lineHeight: 1.2 }}>{lead.name}</p>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: TYPE_COLORS[lead.type] ?? T.textMuted, border: `1px solid ${TYPE_COLORS[lead.type]}33`, borderRadius: 4, padding: "0px 5px" }}>{lead.type}</span>
                       </div>
-                      <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 800, color: T.textDark }}>${lead.premium.toLocaleString()}</p>
+                      <p style={{ margin: "0 0 5px", fontSize: 11, fontWeight: 800, color: T.textDark }}>${lead.premium.toLocaleString()}</p>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ width: 20, height: 20, borderRadius: "50%", backgroundColor: lead.agentColor, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 800 }}>{lead.agent}</div>
-                        <span style={{ fontSize: 10, color: lead.daysInStage > 7 ? T.danger : T.textMuted, fontWeight: 600 }}>{lead.daysInStage}d</span>
+                        <div style={{ width: 18, height: 18, borderRadius: "50%", backgroundColor: lead.agentColor, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 800 }}>{lead.agent}</div>
+                        <span style={{ fontSize: 9, color: lead.daysInStage > 7 ? T.danger : T.textMuted, fontWeight: 700 }}>{lead.daysInStage}d</span>
                       </div>
                     </div>
                   ))}
                   {stageLeads.length === 0 && (
                     <div style={{ padding: "40px 0", textAlign: "center", border: `1px dashed ${T.border}`, borderRadius: T.radiusMd }}>
-                      <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>No leads</p>
+                      <p style={{ margin: 0, fontSize: 10, color: T.textMuted, fontWeight: 600 }}>No leads</p>
                     </div>
                   )}
                 </div>
@@ -277,6 +305,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     </div>
   );
 
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [activeFilterTab, setActiveFilterTab] = useState<"Filters" | "Fields">("Filters");
+
   if (viewingLead) {
     return (
       <LeadViewComponent
@@ -288,85 +319,141 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, paddingBottom: 24 }}>
-      <div style={{ marginBottom: 24, flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, paddingBottom: 24, position: "relative" }}>
+      {/* Drawer Overlay */}
+      {isFilterOpen && (
+        <div 
+          onClick={() => setIsFilterOpen(false)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.15)", zIndex: 1000, backdropFilter: "blur(2px)", animation: "fadeIn 0.2s" }} 
+        />
+      )}
+
+      {/* Filter Sidebar (Slide-over) */}
+      <div style={{ 
+        position: "fixed", top: 0, right: isFilterOpen ? 0 : -420, width: 420, bottom: 0, 
+        backgroundColor: "#fff", zIndex: 1001, boxShadow: "-8px 0 32px rgba(0,0,0,0.05)",
+        transition: "right 0.3s cubic-bezier(0,0,0.2,1)", display: "flex", flexDirection: "column"
+      }}>
+        {/* Header */}
+        <div style={{ padding: "24px", borderBottom: `1.5px solid ${T.borderLight}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Customise Card</h2>
+          <button 
+            onClick={() => setIsFilterOpen(false)}
+            style={{ background: T.rowBg, border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.textMuted }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          {/* Card Preview Area */}
+          <div style={{ marginBottom: 32 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginBottom: 16 }}>Card Preview</p>
+            <div style={{ backgroundColor: T.pageBg, borderRadius: 16, padding: "24px", border: `1.5px solid ${T.borderLight}` }}>
+              <div style={{ backgroundColor: "#fff", borderRadius: 12, padding: "20px", boxShadow: T.shadowSm, borderLeft: `4px solid ${T.blue}`, position: "relative" }}>
+                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 800 }}>Lead Name</p>
+                    <div style={{ width: 22, height: 22, borderRadius: "50%", backgroundColor: T.blueFaint, color: T.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>JW</div>
+                 </div>
+                 <span style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, backgroundColor: T.rowBg, borderRadius: 4, padding: "1px 6px", marginBottom: 12, display: "inline-block" }}>Automobile</span>
+                 
+                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                       <span style={{ color: T.textMuted, fontWeight: 600 }}>Policy Value:</span>
+                       <span style={{ fontWeight: 800 }}>$1,240.00</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                       <span style={{ color: T.textMuted, fontWeight: 600 }}>Source:</span>
+                       <span style={{ fontWeight: 800 }}>Web referral</span>
+                    </div>
+                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card Layout Radios */}
+          <div style={{ marginBottom: 32 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginBottom: 16 }}>Card Layout</p>
+            <div style={{ display: "flex", gap: 20 }}>
+              {["Default", "Compact", "Unlabeled"].map(mode => (
+                <label key={mode} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14, fontWeight: 600, color: T.textMid }}>
+                  <input type="radio" name="layout" defaultChecked={mode === "Default"} style={{ accentColor: T.blue, width: 16, height: 16 }} />
+                  {mode}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 24, borderBottom: `1.5px solid ${T.borderLight}`, marginBottom: 20 }}>
+            {["Filters", "Fields"].map(tab => (
+              <button 
+                key={tab}
+                onClick={() => setActiveFilterTab(tab as any)}
+                style={{ 
+                  background: "none", border: "none", padding: "0 0 12px 0", cursor: "pointer", 
+                  fontSize: 14, fontWeight: 800, color: activeFilterTab === tab ? T.blue : T.textMuted,
+                  borderBottom: activeFilterTab === tab ? `2px solid ${T.blue}` : "none",
+                  transition: "color 0.2s"
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Search Fields */}
+          <div style={{ position: "relative", marginBottom: 20 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2.5" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input placeholder="Search fields..." style={{ width: "100%", padding: "10px 12px 10px 36px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, fontSize: 14, fontFamily: T.font }} />
+          </div>
+
+          {/* Field List */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {["Opportunity Name", "Premium Amount", "Policy Type", "Lead Source", "Carrier Name", "Creation Date", "Assigned Agent"].map((field, i) => (
+              <label key={field} style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                <div style={{ display: "flex", gap: 3 }}>
+                   {[1,2,3].map(j => <div key={j} style={{ width: 2, height: 2, backgroundColor: T.border }} />)}
+                   {[1,2,3].map(j => <div key={j} style={{ width: 2, height: 2, backgroundColor: T.border }} />)}
+                </div>
+                <input type="checkbox" defaultChecked={i < 4} style={{ accentColor: T.blue, width: 16, height: 16 }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: T.textMid }}>{field}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer Buttons */}
+        <div style={{ padding: "16px 24px", borderTop: `1.5px solid ${T.borderLight}`, display: "flex", gap: 12, justifyContent: "flex-end", backgroundColor: "#f9fafb" }}>
+          <button 
+             onClick={() => setIsFilterOpen(false)}
+             style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: T.textMid }}
+          >Cancel</button>
+          <button 
+             onClick={() => setIsFilterOpen(false)}
+             style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}
+          >Apply</button>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 16, flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Sales Funnel</p>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Lead Pipeline</h1>
-            <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ padding: "6px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 700, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: T.textDark, margin: 0 }}>Lead Pipeline</h1>
+            <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ padding: "4px 10px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 12, fontWeight: 700, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
               <option value="Sales Pipeline">Sales Pipeline</option>
               <option value="Renewals Pipeline">Renewals Pipeline</option>
               <option value="Service Pipeline">Service Pipeline</option>
             </select>
           </div>
-          <p style={{ margin: "8px 0 0", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
-            {canUpdateActions
-              ? "Drag cards between columns to update stage"
-              : "View-only mode: no permission to move leads between stages."}
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+            {canUpdateActions ? "Drag cards to update stage" : "View-only mode"}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <button style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "9px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, display: "flex", alignItems: "center", gap: 8 }}>
-            Add Lead
-          </button>
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 20, flexShrink: 0, display: "flex", gap: 12, alignItems: "center" }}>
-        <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
-            <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
-            <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <input 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-            placeholder="Search leads by name or type..." 
-            style={{ 
-              width: "100%", 
-              padding: "11px 40px 11px 38px", 
-              border: `1.5px solid ${T.border}`, 
-              borderRadius: T.radiusMd, 
-              outline: "none", 
-              fontSize: 14, 
-              fontFamily: T.font, 
-              color: T.textDark,
-              backgroundColor: "#fff",
-              transition: "all 0.2s"
-            }} 
-            onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.boxShadow = `0 0 0 4px ${T.blue}15`; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-          />
-          {search && (
-            <button 
-              onClick={() => setSearch("")}
-              style={{ 
-                position: "absolute", 
-                right: 10, 
-                top: "50%", 
-                transform: "translateY(-50%)", 
-                background: "none", 
-                border: "none", 
-                cursor: "pointer", 
-                color: T.textMuted,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 4,
-                borderRadius: "50%",
-                transition: "background-color 0.2s",
-                zIndex: 2
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-          )}
-        </div>
-        <button style={{ padding: "10px 16px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, backgroundColor: "#fff", color: T.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, transition: "all 0.15s" }}>Filter</button>
-        <button style={{ padding: "10px 16px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, backgroundColor: "#fff", color: T.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, transition: "all 0.15s" }}>Sort</button>
+        <button style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}>
+          Add Lead
+        </button>
       </div>
 
       {/* Kanban / List Board */}
@@ -375,6 +462,19 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       ) : (
         <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflowY: "auto", paddingBottom: 24 }}>
           <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>
+          {/* Integrated Search for List View */}
+          <div style={{ padding: "16px 24px", borderBottom: `1.5px solid ${T.border}`, display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
+               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }}>
+                 <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" /><path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
+               </svg>
+               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ width: "100%", padding: "7px 10px 7px 30px", border: `1.5px solid ${T.border}`, borderRadius: 6, fontSize: 12 }} />
+            </div>
+            <div style={{ display: "flex", backgroundColor: T.rowBg, borderRadius: T.radiusMd, padding: 3 }}>
+              <button onClick={() => setViewMode("kanban")} style={{ padding: "4px 10px", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 11, fontWeight: 700, backgroundColor: "transparent", color: T.textMuted }}>Kanban</button>
+              <button onClick={() => setViewMode("list")} style={{ padding: "4px 10px", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 11, fontWeight: 700, backgroundColor: "#fff", color: T.blue, boxShadow: T.shadowSm }}>List</button>
+            </div>
+          </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: T.rowBg }}>
@@ -418,6 +518,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         </div>
         </div>
       )}
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      `}</style>
     </div>
   );
 }
