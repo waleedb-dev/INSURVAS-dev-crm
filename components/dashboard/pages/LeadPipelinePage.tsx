@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination } from "@/components/ui";
+import { Pagination, Avatar, Badge } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 
 type Stage = "New Lead" | "Attempted Contact" | "Contacted" | "Discovery Call" | "Presentation" | "Needs Quote" | "Quoted" | "Underwriting" | "Bound" | "Won" | "Lost";
@@ -445,26 +445,76 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
       {/* Main Board Area */}
       {viewMode === "kanban" ? renderKanbanBoard() : (
-        <div style={{ flex: 1, backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
-           <table style={{ width: "100%", borderCollapse: "collapse" }}>
-             <thead>
-               <tr style={{ backgroundColor: T.rowBg }}>
-                 {["Lead Name", "Type", "Stage", "Premium", "Agent"].map(th => <th key={th} style={{ padding: "14px 16px", textAlign: "left", fontSize: 12, color: T.textMuted }}>{th}</th>)}
-               </tr>
-             </thead>
-             <tbody>
-               {paginatedLeads.map(lead => (
-                 <tr key={lead.id} style={{ borderTop: `1px solid ${T.border}` }}>
-                   <td style={{ padding: "14px 16px", fontWeight: 700 }}>{lead.name}</td>
-                   <td style={{ padding: "14px 16px" }}>{lead.type}</td>
-                   <td style={{ padding: "14px 16px" }}>{lead.stage}</td>
-                   <td style={{ padding: "14px 16px", fontWeight: 800 }}>${lead.premium.toLocaleString()}</td>
-                   <td style={{ padding: "14px 16px" }}>{lead.agent}</td>
-                 </tr>
-               ))}
-             </tbody>
-           </table>
-           <Pagination page={page} totalItems={filteredLeads.length} itemsPerPage={itemsPerPage} itemLabel="leads" onPageChange={setPage} />
+        <div style={{ flex: 1, backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead style={{ position: "sticky", top: 0, zIndex: 10, backgroundColor: "#fff" }}>
+                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+                  <th style={{ padding: "16px", width: 40, textAlign: "center" }}>
+                    <input type="checkbox" style={{ width: 15, height: 15, accentColor: T.blue }} />
+                  </th>
+                  {[
+                    "Opportunity", "Smart Tags", "Contact", "Stage", 
+                    "Opportunity Value", "Status", "Opportunity Owner", 
+                    "Tags", "Created", "Updated"
+                  ].map(h => (
+                    <th key={h} style={{ padding: "16px", textAlign: "left", fontSize: 11, fontWeight: 800, color: T.textDark, whiteSpace: "nowrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        {h} {h !== "Tags" && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedLeads.map(lead => (
+                  <tr key={lead.id} style={{ borderBottom: `1px solid ${T.borderLight}`, transition: "background-color 0.1s" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fafafa"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>
+                    <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                      <input type="checkbox" style={{ width: 14, height: 14, accentColor: T.blue }} />
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.blue, cursor: "pointer" }} onClick={() => setViewingLead({ id: lead.id, name: lead.name })}>{lead.name} ...</p>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}></td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Avatar name={lead.name} size={26} style={{ border: `1px solid ${T.border}` }} />
+                        <span style={{ fontSize: 13, color: T.textMid }}>{lead.name}...</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <span style={{ fontSize: 13, color: T.textMid }}>{lead.stage}...</span>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>${lead.premium.toLocaleString()}</span>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <Badge label="open" variant="custom" color={T.textMid} bgColor={T.pageBg} />
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <Avatar name={lead.agent} size={28} style={{ backgroundColor: lead.agentColor }} />
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <span style={{ backgroundColor: T.rowBg, borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 700, color: T.textMuted }}>call center</span>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <div style={{ fontSize: 11, color: T.textMid }}>
+                         <p style={{ margin: 0 }}>Mar 9, 2026</p>
+                         <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>03:51 PM</p>
+                      </div>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <div style={{ fontSize: 11, color: T.textMid }}>
+                         <p style={{ margin: 0 }}>Mar 16, 2026</p>
+                         <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>10:42 AM</p>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={page} totalItems={filteredLeads.length} itemsPerPage={itemsPerPage} itemLabel="leads" onPageChange={setPage} />
         </div>
       )}
     </div>
