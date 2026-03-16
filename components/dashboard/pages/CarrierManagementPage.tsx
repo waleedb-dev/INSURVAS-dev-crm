@@ -18,7 +18,8 @@ export default function CarrierManagementPage() {
   const [search, setSearch] = useState("");
   const [newCarrierName, setNewCarrierName] = useState("");
   const [editingCarrierId, setEditingCarrierId] = useState<string | null>(null);
-  const [editingCarrierName, setEditingCarrierName] = useState("");
+  const [editingName, setEditingName] = useState("");
+  const [view, setView] = useState<"list" | "edit">("list");
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -55,54 +56,52 @@ export default function CarrierManagementPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  async function handleCreateCarrier() {
-    const name = prompt("Enter Carrier Name:");
-    if (!name) return;
-
-    const { data, error } = await supabase
-      .from("carriers")
-      .insert([{ name }])
-      .select("id, name, created_at")
-      .single();
-
-    if (error) {
-       console.error("Error creating carrier:", error);
-    } else if (data) {
-       setCarriers((prev) => [
-         {
-           id: String(data.id),
-           name: data.name,
-           createdAt: new Date(data.created_at).toLocaleString(),
-         },
-         ...prev,
-       ]);
-    }
+  function handleOpenCreate() {
+    setEditingCarrierId(null);
+    setEditingName("");
+    setView("edit");
   }
 
-  async function handleSaveCarrier(id: string) {
-    const trimmed = editingCarrierName.trim();
+  function handleOpenEdit(carrier: Carrier) {
+    setEditingCarrierId(carrier.id);
+    setEditingName(carrier.name);
+    setView("edit");
+  }
+
+  async function handleSave() {
+    const trimmed = editingName.trim();
     if (!trimmed) return;
 
-    const { error } = await supabase
-      .from("carriers")
-      .update({ name: trimmed })
-      .eq("id", id);
+    if (editingCarrierId) {
+      // Update
+      const { error } = await supabase
+        .from("carriers")
+        .update({ name: trimmed })
+        .eq("id", editingCarrierId);
 
-    if (error) {
-      console.error("Error updating carrier:", {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
-      return;
+      if (error) {
+        console.error("Error updating carrier:", error);
+        return;
+      }
+      setCarriers(prev => prev.map(c => c.id === editingCarrierId ? { ...c, name: trimmed } : c));
+    } else {
+      // Create
+      const { data, error } = await supabase
+        .from("carriers")
+        .insert([{ name: trimmed }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error creating carrier:", error);
+        return;
+      }
+      if (data) {
+        const newC = { id: String(data.id), name: data.name, createdAt: new Date(data.created_at).toLocaleString() };
+        setCarriers(prev => [newC, ...prev]);
+      }
     }
-
-    setCarriers((prev) =>
-      prev.map((carrier) => (carrier.id === id ? { ...carrier, name: trimmed } : carrier)),
-    );
-    setEditingCarrierId(null);
-    setEditingCarrierName("");
+    setView("list");
   }
 
   async function handleDeleteCarrier(id: string) {
@@ -131,6 +130,45 @@ export default function CarrierManagementPage() {
     currentPage * itemsPerPage,
   );
 
+  if (view === "edit") {
+    return (
+      <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }}>
+        <div style={{ marginBottom: 24 }}>
+          <button 
+            onClick={() => setView("list")} 
+            style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", color: T.textMuted, fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Carriers
+          </button>
+          <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>{editingCarrierId ? "Edit Carrier" : "Add New Carrier"}</h1>
+        </div>
+
+        <div style={{ display: "flex", gap: 32, borderBottom: `1.5px solid ${T.border}`, marginBottom: 24 }}>
+          <button style={{ padding: "12px 4px", border: "none", borderBottom: `3px solid ${T.blue}`, background: "none", color: T.blue, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>General Settings</button>
+        </div>
+
+        <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, padding: 32, maxWidth: 640 }}>
+           <div style={{ marginBottom: 24 }}>
+             <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8, textTransform: "uppercase" }}>Carrier Name</label>
+             <input 
+               autoFocus
+               value={editingName}
+               onChange={e => setEditingName(e.target.value)}
+               placeholder="e.g. Progressive, Humana..."
+               style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15, outline: "none", color: T.textDark, fontWeight: 600 }}
+               onKeyDown={e => e.key === 'Enter' && handleSave()}
+             />
+           </div>
+           <div style={{ display: "flex", gap: 12, paddingTop: 12, borderTop: `1.5px solid ${T.borderLight}` }}>
+             <button onClick={handleSave} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Save Carrier</button>
+             <button onClick={() => setView("list")} style={{ backgroundColor: "transparent", color: T.textMid, border: `1.5px solid ${T.border}`, borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Cancel</button>
+           </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
@@ -139,7 +177,7 @@ export default function CarrierManagementPage() {
           <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Manage insurance carriers that provide policies to your clients. These carriers will be selectable in the deal editor.</p>
         </div>
         <button 
-          onClick={handleCreateCarrier} 
+          onClick={handleOpenCreate} 
           style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}
         >
           + Add Carrier
@@ -162,6 +200,7 @@ export default function CarrierManagementPage() {
           <Table
             data={paginatedCarriers}
             hoverEffect={false}
+            onRowClick={(c) => handleOpenEdit(c)}
             columns={[
               {
                 header: (
@@ -172,28 +211,9 @@ export default function CarrierManagementPage() {
                 ),
                 key: "name",
                 render: (carrier) => (
-                  editingCarrierId === carrier.id ? (
-                    <input 
-                      autoFocus
-                      value={editingCarrierName}
-                      onChange={(e) => setEditingCarrierName(e.target.value)}
-                      onBlur={() => handleSaveCarrier(carrier.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveCarrier(carrier.id);
-                        if (e.key === "Escape") setEditingCarrierId(null);
-                      }}
-                      style={{ border: `1.5px solid ${T.blue}`, borderRadius: 4, padding: "2px 6px", fontSize: 13, fontWeight: 700, color: T.textDark, outline: "none", width: "100%" }}
-                    />
-                  ) : (
-                    <span 
-                      onClick={() => { setEditingCarrierId(carrier.id); setEditingCarrierName(carrier.name); }}
-                      style={{ fontWeight: 700, color: T.textDark, cursor: "text", padding: "2px 6px", borderRadius: 4, transition: "background-color 0.2s" }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                    >
+                    <span style={{ fontWeight: 700, color: T.textDark }}>
                       {carrier.name}
                     </span>
-                  )
                 )
               },
               {
@@ -212,14 +232,24 @@ export default function CarrierManagementPage() {
                 align: "center",
                 width: 100,
                 render: (carrier) => (
-                  <button 
-                    onClick={() => handleDeleteCarrier(carrier.id)}
-                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                  </button>
+                  <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleOpenEdit(carrier); }}
+                      style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} 
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDeleteCarrier(carrier.id); }}
+                      style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                    </button>
+                  </div>
                 )
               }
             ]}

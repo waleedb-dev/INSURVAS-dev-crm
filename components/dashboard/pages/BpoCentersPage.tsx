@@ -35,6 +35,7 @@ export default function BpoCentersPage() {
   const [page, setPage] = useState(1);
   const [selectedCenter, setSelectedCenter] = useState<CenterDetail | null>(null);
   const [editingCenterName, setEditingCenterName] = useState("");
+  const [view, setView] = useState<"list" | "edit">("list");
   const [selectedAdminUserId, setSelectedAdminUserId] = useState("");
   const [selectedAgentUserId, setSelectedAgentUserId] = useState("");
   const itemsPerPage = 10;
@@ -98,7 +99,7 @@ export default function BpoCentersPage() {
     setUsers(normalizedUsers);
     setCenters(centerRows);
 
-    if (selectedCenter) {
+    if (selectedCenter && view === "edit" && selectedCenter.id !== 'new') {
       const refreshed = buildCenterDetail(selectedCenter.id, centerRows, normalizedUsers);
       setSelectedCenter(refreshed);
       setEditingCenterName(refreshed?.name ?? "");
@@ -115,8 +116,21 @@ export default function BpoCentersPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  function handleOpenCreate() {
+    setSelectedCenter({
+      id: "new",
+      name: "",
+      createdAt: "",
+      admin: null,
+      agentCount: 0,
+      agents: []
+    } as any);
+    setEditingCenterName("");
+    setView("edit");
+  }
+
   async function handleCreateCenter() {
-    const trimmed = newCenterName.trim();
+    const trimmed = editingCenterName.trim();
     if (!trimmed) return;
 
     const { error } = await supabase.from("call_centers").insert([{ name: trimmed }]);
@@ -125,7 +139,9 @@ export default function BpoCentersPage() {
       return;
     }
 
-    setNewCenterName("");
+    setEditingCenterName("");
+    setSelectedCenter(null);
+    setView("list");
     await fetchDirectory();
   }
 
@@ -151,6 +167,7 @@ export default function BpoCentersPage() {
 
     if (selectedCenter?.id === centerId) {
       setSelectedCenter(null);
+      setView("list");
     }
     await fetchDirectory();
   }
@@ -280,135 +297,166 @@ export default function BpoCentersPage() {
     currentPage * itemsPerPage,
   );
 
-  if (selectedCenter) {
+  if (view === "edit" && selectedCenter) {
     return (
       <div style={{ animation: "fadeIn 0.3s ease-out" }}>
-        <button
-          onClick={() => setSelectedCenter(null)}
-          style={{ border: "none", background: "none", color: T.textMuted, cursor: "pointer", fontWeight: 700, marginBottom: 16 }}
-        >
-          ← Back to BPO Centres
-        </button>
+        <div style={{ marginBottom: 24 }}>
+          <button 
+            onClick={() => setView("list")} 
+            style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", color: T.textMuted, fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to BPO Centres
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>
+              {selectedCenter.id === 'new' ? "Add New BPO Centre" : selectedCenter.name}
+            </h1>
+          </div>
+        </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-          <div style={{ maxWidth: 520 }}>
-            <Input
-              label="Center Name"
+        <div style={{ display: "flex", gap: 32, borderBottom: `1.5px solid ${T.border}`, marginBottom: 24 }}>
+          <button style={{ padding: "12px 4px", border: "none", borderBottom: `3px solid ${T.blue}`, background: "none", color: T.blue, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>General Settings</button>
+          {selectedCenter.id !== 'new' && <button style={{ padding: "12px 4px", border: "none", background: "none", color: T.textMuted, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Stats & Reports</button>}
+        </div>
+
+        <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, padding: 32, maxWidth: 640, marginBottom: 24 }}>
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8, textTransform: "uppercase" }}>Centre Name</label>
+            <input 
+              autoFocus
               value={editingCenterName}
               onChange={(e) => setEditingCenterName(e.target.value)}
+              placeholder="e.g. Karachi BPO North"
+              style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15, outline: "none", color: T.textDark, fontWeight: 600 }}
+              onKeyDown={e => e.key === 'Enter' && (selectedCenter.id === 'new' ? handleCreateCenter() : handleRenameCenter())}
             />
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <Button variant="secondary" onClick={handleRenameCenter}>
-              Save Name
-            </Button>
-            <Button variant="ghost" onClick={() => void handleDeleteCenter(selectedCenter.id)}>
-              Delete Centre
-            </Button>
+          <div style={{ display: "flex", gap: 12, paddingTop: 12, borderTop: `1.5px solid ${T.borderLight}` }}>
+            <button 
+              onClick={selectedCenter.id === 'new' ? handleCreateCenter : handleRenameCenter}
+              style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+            >
+              {selectedCenter.id === 'new' ? "Create Centre" : "Save Changes"}
+            </button>
+            <button onClick={() => setView("list")} style={{ backgroundColor: "transparent", color: T.textMid, border: `1.5px solid ${T.border}`, borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Cancel</button>
+            {selectedCenter.id !== 'new' && (
+              <button 
+                onClick={() => void handleDeleteCenter(selectedCenter.id)}
+                style={{ marginLeft: "auto", background: "none", border: "none", color: "#ef4444", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+              >
+                Delete Centre
+              </button>
+            )}
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
-          <div style={{ backgroundColor: "#fff", borderRadius: 16, border: `1.5px solid ${T.border}`, padding: 20 }}>
-            <h2 style={{ margin: "0 0 14px", fontSize: 18, fontWeight: 800, color: T.textDark }}>
-              Centre Admin
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ padding: 14, borderRadius: 12, backgroundColor: T.rowBg }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: T.textMuted, marginBottom: 6 }}>CURRENT ADMIN</div>
-                {selectedCenter.admin ? (
-                  <>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{selectedCenter.admin.name}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted }}>{selectedCenter.admin.id}</div>
-                  </>
-                ) : (
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>No admin linked yet.</div>
-                )}
-              </div>
-              <Dropdown
-                options={adminOptions}
-                value={selectedAdminUserId}
-                onChange={setSelectedAdminUserId}
-                placeholder="Select admin user"
-                style={{ width: "100%" }}
-              />
-              <div style={{ display: "flex", gap: 10 }}>
-                <Button onClick={handleAssignAdmin} disabled={!selectedAdminUserId}>
-                  Link Admin
-                </Button>
-                <Button variant="ghost" onClick={handleRemoveAdmin} disabled={!selectedCenter.admin}>
-                  Remove Admin
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ backgroundColor: "#fff", borderRadius: 16, border: `1.5px solid ${T.border}`, padding: 20 }}>
-            <h2 style={{ margin: "0 0 14px", fontSize: 18, fontWeight: 800, color: T.textDark }}>
-              Add Agent
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <Dropdown
-                options={agentOptions}
-                value={selectedAgentUserId}
-                onChange={setSelectedAgentUserId}
-                placeholder="Select call centre agent"
-                style={{ width: "100%" }}
-              />
-              <Button onClick={handleAddAgent} disabled={!selectedAgentUserId}>
-                Link Agent
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 20, backgroundColor: "#fff", borderRadius: 16, border: `1.5px solid ${T.border}`, overflow: "hidden" }}>
-          <div style={{ padding: "18px 20px", borderBottom: `1.5px solid ${T.border}` }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>
-              Linked Agents
-            </h2>
-          </div>
-          <Table
-            data={selectedCenter.agents}
-            columns={[
-              {
-                header: "Agent Name",
-                key: "name",
-                render: (agent) => (
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{agent.name}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted }}>{agent.id}</div>
+        {selectedCenter.id !== 'new' && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+              {/* ... admin/agent linkers ... */}
+              <div style={{ backgroundColor: "#fff", borderRadius: 16, border: `1.5px solid ${T.border}`, padding: 20 }}>
+                <h2 style={{ margin: "0 0 14px", fontSize: 18, fontWeight: 800, color: T.textDark }}>
+                  Centre Admin
+                </h2>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ padding: 14, borderRadius: 12, backgroundColor: T.rowBg }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: T.textMuted, marginBottom: 6 }}>CURRENT ADMIN</div>
+                    {selectedCenter.admin ? (
+                      <>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{selectedCenter.admin.name}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted }}>{selectedCenter.admin.id}</div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>No admin linked yet.</div>
+                    )}
                   </div>
-                ),
-              },
-              {
-                header: "Role",
-                key: "roleKey",
-                render: (agent) => (
-                  <span style={{ fontSize: 12, fontWeight: 800, color: T.blue }}>
-                    {agent.roleKey ?? "unassigned"}
-                  </span>
-                ),
-              },
-              {
-                header: "Actions",
-                key: "actions",
-                align: "center",
-                width: 140,
-                render: (agent) => (
-                  <Button variant="ghost" size="sm" onClick={() => void handleRemoveAgent(agent.id)}>
-                    Remove
+                  <Dropdown
+                    options={adminOptions}
+                    value={selectedAdminUserId}
+                    onChange={setSelectedAdminUserId}
+                    placeholder="Select admin user"
+                    style={{ width: "100%" }}
+                  />
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Button onClick={handleAssignAdmin} disabled={!selectedAdminUserId}>
+                      Link Admin
+                    </Button>
+                    <Button variant="ghost" onClick={handleRemoveAdmin} disabled={!selectedCenter.admin}>
+                      Remove Admin
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: "#fff", borderRadius: 16, border: `1.5px solid ${T.border}`, padding: 20 }}>
+                <h2 style={{ margin: "0 0 14px", fontSize: 18, fontWeight: 800, color: T.textDark }}>
+                  Add Agent
+                </h2>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <Dropdown
+                    options={agentOptions}
+                    value={selectedAgentUserId}
+                    onChange={setSelectedAgentUserId}
+                    placeholder="Select call centre agent"
+                    style={{ width: "100%" }}
+                  />
+                  <Button onClick={handleAddAgent} disabled={!selectedAgentUserId}>
+                    Link Agent
                   </Button>
-                ),
-              },
-            ]}
-          />
-          {selectedCenter.agents.length === 0 && (
-            <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 700 }}>
-              No agents linked to this centre.
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+
+            <div style={{ marginTop: 20, backgroundColor: "#fff", borderRadius: 16, border: `1.5px solid ${T.border}`, overflow: "hidden" }}>
+              <div style={{ padding: "18px 20px", borderBottom: `1.5px solid ${T.border}` }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>
+                  Linked Agents
+                </h2>
+              </div>
+              <Table
+                data={selectedCenter.agents}
+                columns={[
+                  {
+                    header: "Agent Name",
+                    key: "name",
+                    render: (agent) => (
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{agent.name}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted }}>{agent.id}</div>
+                      </div>
+                    ),
+                  },
+                  {
+                    header: "Role",
+                    key: "roleKey",
+                    render: (agent) => (
+                      <span style={{ fontSize: 12, fontWeight: 800, color: T.blue }}>
+                        {agent.roleKey ?? "unassigned"}
+                      </span>
+                    ),
+                  },
+                  {
+                    header: "Actions",
+                    key: "actions",
+                    align: "center",
+                    width: 140,
+                    render: (agent) => (
+                      <Button variant="ghost" size="sm" onClick={() => void handleRemoveAgent(agent.id)}>
+                        Remove
+                      </Button>
+                    ),
+                  },
+                ]}
+              />
+              {selectedCenter.agents.length === 0 && (
+                <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 700 }}>
+                  No agents linked to this centre.
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -421,7 +469,7 @@ export default function BpoCentersPage() {
           <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Manage your call centers and BPO locations. Assign admins and link agents to specific centers.</p>
         </div>
         <button 
-          onClick={handleCreateCenter} 
+          onClick={handleOpenCreate} 
           style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}
         >
           + Add Centre
@@ -448,6 +496,7 @@ export default function BpoCentersPage() {
               if (detail) {
                 setSelectedCenter(detail);
                 setEditingCenterName(detail.name);
+                setView("edit");
               }
             }}
             columns={[
@@ -514,6 +563,7 @@ export default function BpoCentersPage() {
                         if (detail) {
                           setSelectedCenter(detail);
                           setEditingCenterName(detail.name);
+                          setView("edit");
                         }
                       }}
                       style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6, borderRadius: 6 }} 
