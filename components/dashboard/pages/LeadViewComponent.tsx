@@ -2,30 +2,56 @@
 import { useState } from "react";
 import { T } from "@/lib/theme";
 
+interface Lead {
+  name: string;
+  email: string;
+  phone: string;
+  premium: number;
+  type: string;
+  source: string;
+  stage: string;
+}
+
 interface LeadViewProps {
-  leadId: string;
-  leadName: string;
+  leadId?: string;
+  leadName?: string;
+  isCreation?: boolean;
+  onSubmit?: (lead: Lead) => void;
   onBack: () => void;
 }
 
 type TabType = "Overview" | "Timeline" | "Documents" | "Notes" | "Policy Details";
 
-export default function LeadViewComponent({ leadId, leadName, onBack }: LeadViewProps) {
+export default function LeadViewComponent({ leadId, leadName, isCreation, onSubmit, onBack }: LeadViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>("Overview");
-
-  // Mock data for the lead
-  const leadData = {
-    status: "Quoted",
+  
+  // State for creation/edit
+  const [formData, setFormData] = useState<Lead>({
+    name: leadName || "",
+    email: leadName ? `${leadName.split(" ")[0].toLowerCase()}@example.com` : "",
+    phone: "+1 (555) 000-0000",
+    premium: 0,
     type: "Auto Insurance",
-    premium: 1240,
+    source: "Manual Entry",
+    stage: "New Lead"
+  });
+
+  const leadData = {
+    status: formData.stage,
+    type: formData.type,
+    premium: formData.premium,
     probability: "75%",
     agent: "Shawn Stone",
     created: "Oct 12, 2023",
-    email: `${leadName.split(" ")[0].toLowerCase()}@example.com`,
-    phone: "+1 (555) 123-4567",
+    email: formData.email,
+    phone: formData.phone,
     address: "123 Main St, New York, NY 10001",
-    source: "Google Ads",
+    source: formData.source,
     tags: ["High Value", "Urgent", "New Car"],
+  };
+
+  const handleSave = () => {
+    if (onSubmit) onSubmit(formData);
   };
 
   return (
@@ -50,21 +76,24 @@ export default function LeadViewComponent({ leadId, leadName, onBack }: LeadView
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>Leads</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-              <span style={{ fontSize: 13, color: T.blue, fontWeight: 700 }}>Lead Profile</span>
+              <span style={{ fontSize: 13, color: T.blue, fontWeight: 700 }}>{isCreation ? "Create New Lead" : "Lead Profile"}</span>
             </div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>{leadName}</h1>
+            <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>{isCreation ? "New Lead Entry" : (leadName || "Lead Details")}</h1>
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 12 }}>
-          <button style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: T.textDark, transition: "all 0.2s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = T.rowBg; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#fff"; }}
-          >Edit Lead</button>
-          <button style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s", boxShadow: `0 4px 12px ${T.blue}44` }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 6px 16px ${T.blue}66`; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 4px 12px ${T.blue}44`; }}
-          >Convert to Client</button>
+          {isCreation ? (
+            <>
+              <button onClick={onBack} style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: T.textDark }}>Cancel</button>
+              <button onClick={handleSave} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>Create Lead</button>
+            </>
+          ) : (
+            <>
+              <button style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: T.textDark }}>Edit Lead</button>
+              <button style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>Convert to Client</button>
+            </>
+          )}
         </div>
       </div>
 
@@ -72,16 +101,26 @@ export default function LeadViewComponent({ leadId, leadName, onBack }: LeadView
         {/* Left Column: Essential Info & Stats */}
         <div style={{ width: 340, flexShrink: 0, display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Profile Card */}
-          <div style={{ backgroundColor: "#fff", borderRadius: "24px", padding: "32px 24px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, textAlign: "center" }}>
+          <div style={{ backgroundColor: "#fff", borderRadius: "24px", padding: "32px 24px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, textAlign: "center" }}>
             <div style={{ position: "relative", width: 90, height: 90, margin: "0 auto 20px" }}>
               <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: `linear-gradient(135deg, ${T.blue} 0%, #4f46e5 100%)`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, fontWeight: 800 }}>
-                {leadName.split(" ").map(n => n[0]).join("")}
+                {isCreation ? "+" : (leadName ? leadName.split(" ").map(n => n[0]).join("") : "?")}
               </div>
-              <div style={{ position: "absolute", bottom: 2, right: 2, width: 22, height: 22, borderRadius: "50%", background: "#10b981", border: "3px solid #fff" }} />
             </div>
             
-            <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800 }}>{leadName}</h2>
-            <p style={{ margin: "0 0 16px", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>ID: {leadId}</p>
+            {isCreation ? (
+               <input 
+                 value={formData.name} 
+                 onChange={e => setFormData({...formData, name: e.target.value})} 
+                 placeholder="Full Name"
+                 style={{ width: "100%", padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, textAlign: "center", fontSize: 18, fontWeight: 800, marginBottom: 16 }}
+               />
+            ) : (
+              <>
+                <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800 }}>{leadName}</h2>
+                <p style={{ margin: "0 0 16px", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>ID: {leadId}</p>
+              </>
+            )}
             
             <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 24 }}>
               {leadData.tags.map(tag => (
@@ -92,11 +131,15 @@ export default function LeadViewComponent({ leadId, leadName, onBack }: LeadView
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, borderTop: `1.5px solid ${T.borderLight}`, paddingTop: 24, textAlign: "left" }}>
               <div>
                 <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Status</p>
-                <span style={{ backgroundColor: "#fef3c7", color: "#d97706", fontSize: 12, fontWeight: 800, padding: "2px 8px", borderRadius: "6px" }}>{leadData.status}</span>
+                <span style={{ backgroundColor: "#fef3c7", color: "#d97706", fontSize: 12, fontWeight: 800, padding: "2px 8px", borderRadius: "6px" }}>{isCreation ? "Draft" : leadData.status}</span>
               </div>
               <div>
-                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Premium</p>
-                <p style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>${leadData.premium.toLocaleString()}</p>
+                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Monthly Premium</p>
+                {isCreation ? (
+                  <input type="number" value={formData.premium} onChange={e => setFormData({...formData, premium: Number(e.target.value)})} style={{ width: "100%", padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.border}`, fontSize: 14, fontWeight: 800 }} />
+                ) : (
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>${leadData.premium.toLocaleString()}</p>
+                )}
               </div>
             </div>
           </div>
@@ -106,18 +149,20 @@ export default function LeadViewComponent({ leadId, leadName, onBack }: LeadView
             <h3 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 800 }}>Contact Information</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
-                { label: "Email", value: leadData.email, icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg> },
-                { label: "Phone", value: leadData.phone, icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.81 12.81 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg> },
-                { label: "Address", value: leadData.address, icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> },
-                { label: "Lead Source", value: leadData.source, icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg> },
+                { label: "Email", key: "email", value: formData.email, fixed: leadData.email, icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg> },
+                { label: "Phone", key: "phone", value: formData.phone, fixed: leadData.phone, icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.81 12.81 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg> },
               ].map((item, i) => (
                 <div key={i} style={{ display: "flex", gap: 12 }}>
                   <div style={{ width: 32, height: 32, borderRadius: "10px", backgroundColor: T.rowBg, display: "flex", alignItems: "center", justifyContent: "center", color: T.textMid, flexShrink: 0 }}>
                     {item.icon}
                   </div>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>{item.label}</p>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.textDark, wordBreak: "break-word" }}>{item.value}</p>
+                    {isCreation ? (
+                      <input value={item.value} onChange={e => setFormData({...formData, [item.key as any]: e.target.value})} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: `1px solid ${T.border}`, fontSize: 13, fontWeight: 700 }} />
+                    ) : (
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.textDark, wordBreak: "break-word" }}>{item.fixed}</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -148,60 +193,87 @@ export default function LeadViewComponent({ leadId, leadName, onBack }: LeadView
           <div style={{ backgroundColor: "#fff", borderRadius: "24px", padding: "32px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, minHeight: 600 }}>
             {activeTab === "Overview" && (
               <div style={{ animation: "fadeInUp 0.3s ease-out" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
-                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Lead Overview</h3>
-                  <button style={{ background: "none", border: "none", color: T.blue, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>View History</button>
-                </div>
+                <h3 style={{ margin: "0 0 28px", fontSize: 20, fontWeight: 800 }}>Lead Details</h3>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 40 }}>
-                  <div style={{ backgroundColor: T.pageBg, border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
-                    <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Conversion Probability</p>
-                    <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginBottom: 12 }}>
-                      <span style={{ fontSize: 36, fontWeight: 800, color: T.blue, lineHeight: 1 }}>{leadData.probability}</span>
-                      <span style={{ fontSize: 13, color: "#10b981", fontWeight: 700, paddingBottom: 4 }}>↑ 5% this week</span>
-                    </div>
-                    <div style={{ height: 8, backgroundColor: T.rowBg, borderRadius: 4, overflow: "hidden" }}>
-                      <div style={{ width: leadData.probability, height: "100%", backgroundColor: T.blue, borderRadius: 4 }} />
-                    </div>
+                   <div style={{ backgroundColor: T.pageBg, border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
+                    <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Policy Information</p>
+                    {isCreation ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                         <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Policy Type</label>
+                         <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700 }}>
+                           <option value="Auto">Auto Insurance</option>
+                           <option value="Home">Home Insurance</option>
+                           <option value="Life">Life Insurance</option>
+                           <option value="Health">Health Insurance</option>
+                           <option value="Commercial">Commercial Insurance</option>
+                         </select>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ padding: "8px 16px", backgroundColor: T.blueFaint, color: T.blue, borderRadius: 8, fontWeight: 800, fontSize: 14 }}>{leadData.type}</div>
+                      </div>
+                    )}
                   </div>
                   <div style={{ backgroundColor: T.pageBg, border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
-                    <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Assigned Agent</p>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: "50%", backgroundColor: "#f59e0b", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800 }}>SS</div>
-                      <div>
-                        <p style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>{leadData.agent}</p>
-                        <p style={{ margin: 0, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Senior Insurance Advisor</p>
+                    <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Lead Lifecycle</p>
+                    {isCreation ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                         <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Initial Pipeline Stage</label>
+                         <select value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})} style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700 }}>
+                           <option value="New Lead">New Lead</option>
+                           <option value="Quoted">Quoted</option>
+                           <option value="Follow Up">Follow Up</option>
+                         </select>
                       </div>
-                    </div>
+                    ) : (
+                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: "50%", backgroundColor: "#f59e0b", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800 }}>SS</div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>{leadData.agent}</p>
+                          <p style={{ margin: 0, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Assigned Advisor</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <h4 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 800 }}>Recent Activity</h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  {[
-                    { action: "Status Updated", desc: "Lead status changed from 'Presentation' to 'Quoted'", time: "Today, 10:45 AM", user: "Shawn Stone", color: T.blue },
-                    { action: "Document Uploaded", desc: "Auto_Quote_Draft_V2.pdf was added to files", time: "Yesterday, 4:20 PM", user: "System", color: "#10b981" },
-                    { action: "Outbound Call", desc: "Discussed multi-policy discounts with prospect", time: "Oct 14, 2:15 PM", user: "Shawn Stone", color: "#6366f1" },
-                  ].map((item, i) => (
-                    <div key={i} style={{ display: "flex", gap: 20 }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                        <div style={{ width: 12, height: 12, borderRadius: "50%", backgroundColor: item.color, border: `3px solid ${item.color}33`, flexShrink: 0 }} />
-                        {i < 2 && <div style={{ width: 2, flex: 1, backgroundColor: T.borderLight, margin: "4px 0" }} />}
-                      </div>
-                      <div style={{ paddingBottom: 24 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          <p style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>{item.action}</p>
-                          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{item.time}</span>
+                {!isCreation && (
+                  <>
+                    <h4 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 800 }}>Recent Activity</h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                      {[
+                        { action: "Status Updated", desc: "Lead status changed from 'Presentation' to 'Quoted'", time: "Today, 10:45 AM", user: "Shawn Stone", color: T.blue },
+                        { action: "Document Uploaded", desc: "Auto_Quote_Draft_V2.pdf was added to files", time: "Yesterday, 4:20 PM", user: "System", color: "#10b981" },
+                        { action: "Outbound Call", desc: "Discussed multi-policy discounts with prospect", time: "Oct 14, 2:15 PM", user: "Shawn Stone", color: "#6366f1" },
+                      ].map((item, i) => (
+                        <div key={i} style={{ display: "flex", gap: 20 }}>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                            <div style={{ width: 12, height: 12, borderRadius: "50%", backgroundColor: item.color, border: `3px solid ${item.color}33`, flexShrink: 0 }} />
+                            {i < 2 && <div style={{ width: 2, flex: 1, backgroundColor: T.borderLight, margin: "4px 0" }} />}
+                          </div>
+                          <div style={{ paddingBottom: 24 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                              <p style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>{item.action}</p>
+                              <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{item.time}</span>
+                            </div>
+                            <p style={{ margin: "0 0 8px", fontSize: 13, color: T.textMid, fontWeight: 600, lineHeight: 1.5 }}>{item.desc}</p>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div style={{ width: 18, height: 18, borderRadius: "50%", backgroundColor: T.pageBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800 }}>{item.user[0]}</div>
+                              <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 700 }}>{item.user}</span>
+                            </div>
+                          </div>
                         </div>
-                        <p style={{ margin: "0 0 8px", fontSize: 13, color: T.textMid, fontWeight: 600, lineHeight: 1.5 }}>{item.desc}</p>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <div style={{ width: 18, height: 18, borderRadius: "50%", backgroundColor: T.pageBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800 }}>{item.user[0]}</div>
-                          <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 700 }}>{item.user}</span>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
+                
+                {isCreation && (
+                   <div style={{ border: `2px dashed ${T.border}`, borderRadius: "24px", padding: 40, textAlign: "center", color: T.textMuted }}>
+                      <p style={{ fontWeight: 600 }}>Additional fields and full timeline will be available after lead creation.</p>
+                   </div>
+                )}
               </div>
             )}
 

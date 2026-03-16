@@ -56,12 +56,47 @@ const INITIAL_LEADS: Lead[] = [
   { id:"P-012", name:"Grace Nakamura",    type:"Home",       premium:3450,  source:"Web",      agent:"BS", agentColor:"#0ea5e9", daysInStage:7, stage:"Quoted" },
   { id:"P-013", name:"Kevin O'Brien",     type:"Life",       premium:5100,  source:"Referral", agent:"RD", agentColor:"#f59e0b", daysInStage:3, stage:"Contacted" },
   { id:"P-014", name:"Amanda Foster",     type:"Auto",       premium:790,   source:"Web",      agent:"OH", agentColor:"#f97316", daysInStage:15, stage:"Lost" },
+  { id:"P-015", name:"William Scott",     type:"Auto",       premium:1850,  source:"Web",      agent:"SS", agentColor:"#4285f4", daysInStage:0, stage:"Attempted Contact" },
+  { id:"P-016", name:"Emily Watson",      type:"Home",       premium:2400,  source:"Referral", agent:"ET", agentColor:"#ec4899", daysInStage:1, stage:"Attempted Contact" },
+  { id:"P-017", name:"Michael Chang",     type:"Life",       premium:5200,  source:"Walk-in",  agent:"LC", agentColor:"#8b5cf6", daysInStage:2, stage:"Discovery Call" },
+  { id:"P-018", name:"Sophie Miller",     type:"Health",     premium:3100,  source:"Phone",    agent:"BS", agentColor:"#0ea5e9", daysInStage:3, stage:"Discovery Call" },
+  { id:"P-019", name:"David Wilson",      type:"Commercial", premium:9200,  source:"Web",      agent:"RD", agentColor:"#f59e0b", daysInStage:4, stage:"Needs Quote" },
+  { id:"P-020", name:"Rachel Green",      type:"Auto",       premium:1050,  source:"Referral", agent:"OH", agentColor:"#f97316", daysInStage:2, stage:"Needs Quote" },
+  { id:"P-021", name:"Chris Evans",       type:"Home",       premium:1950,  source:"Email",    agent:"JP", agentColor:"#14b8a6", daysInStage:5, stage:"Underwriting" },
+  { id:"P-022", name:"Jessica Alba",      type:"Life",       premium:6800,  source:"Walk-in",  agent:"WM", agentColor:"#64748b", daysInStage:6, stage:"Underwriting" },
+  { id:"P-023", name:"Tony Stark",        type:"Health",     premium:3400,  source:"Web",      agent:"SS", agentColor:"#4285f4", daysInStage:8, stage:"Bound" },
+  { id:"P-024", name:"Bruce Wayne",       type:"Commercial", premium:15000, source:"Referral", agent:"ET", agentColor:"#ec4899", daysInStage:9, stage:"Bound" },
+  { id:"P-025", name:"Peter Parker",      type:"Auto",       premium:850,   source:"Phone",    agent:"LC", agentColor:"#8b5cf6", daysInStage:1, stage:"New Lead" },
+  { id:"P-026", name:"Wanda Maximoff",    type:"Home",       premium:2900,  source:"Web",      agent:"BS", agentColor:"#0ea5e9", daysInStage:4, stage:"Contacted" },
+  { id:"P-027", name:"Steve Rogers",      type:"Life",       premium:4200,  source:"Referral", agent:"RD", agentColor:"#f59e0b", daysInStage:2, stage:"Presentation" },
+  { id:"P-028", name:"Natasha Romanoff",  type:"Auto",       premium:1300,  source:"Web",      agent:"OH", agentColor:"#f97316", daysInStage:1, stage:"Quoted" },
+  { id:"P-029", name:"Clint Barton",      type:"Health",     premium:2100,  source:"Phone",    agent:"JP", agentColor:"#14b8a6", daysInStage:3, stage:"Discovery Call" },
+  { id:"P-030", name:"Thor Odinson",      type:"Commercial", premium:25000, source:"Walk-in",  agent:"WM", agentColor:"#64748b", daysInStage:0, stage:"New Lead" },
+  { id:"P-031", name:"Sam Wilson",        type:"Auto",       premium:1150,  source:"Email",    agent:"SS", agentColor:"#4285f4", daysInStage:2, stage:"Attempted Contact" },
+  { id:"P-032", name:"Bucky Barnes",      type:"Home",       premium:3100,  source:"Web",      agent:"ET", agentColor:"#ec4899", daysInStage:5, stage:"Needs Quote" },
+  { id:"P-033", name:"James Rhodes",      type:"Life",       premium:5800,  source:"Referral", agent:"LC", agentColor:"#8b5cf6", daysInStage:1, stage:"Underwriting" },
+  { id:"P-034", name:"Scott Lang",        type:"Health",     premium:1900,  source:"Phone",    agent:"BS", agentColor:"#0ea5e9", daysInStage:4, stage:"Bound" },
+  { id:"P-035", name:"Hope van Dyne",     type:"Commercial", premium:11000, source:"Web",      agent:"RD", agentColor:"#f59e0b", daysInStage:3, stage:"Won" },
+  { id:"P-036", name:"Carol Danvers",     type:"Auto",       premium:1550,  source:"Referral", agent:"OH", agentColor:"#f97316", daysInStage:1, stage:"New Lead" },
+  { id:"P-037", name:"T'Challa Udaku",    type:"Home",       premium:4500,  source:"Walk-in",  agent:"JP", agentColor:"#14b8a6", daysInStage:2, stage:"Contacted" },
+  { id:"P-038", name:"Nick Fury",         type:"Life",       premium:8000,  source:"Email",    agent:"WM", agentColor:"#64748b", daysInStage:0, stage:"Discovery Call" },
+  { id:"P-039", name:"Maria Hill",        type:"Health",     premium:2700,  source:"Phone",    agent:"SS", agentColor:"#4285f4", daysInStage:3, stage:"Presentation" },
 ];
 
 export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdateActions?: boolean }) {
   const [leads, setLeads] = useState(INITIAL_LEADS);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<Stage | null>(null);
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
+  const [pipeline, setPipeline] = useState<string>("Sales Pipeline");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [viewingLead, setViewingLead] = useState<{ id: string, name: string } | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [activeFilterTab, setActiveFilterTab] = useState<"Filters" | "Fields">("Filters");
+  const [activeTab, setActiveTab] = useState("Opportunities");
+  const itemsPerPage = 8;
 
   const byStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
   const stageValue = (stage: Stage) => byStage(stage).reduce((s, l) => s + l.premium, 0);
@@ -74,17 +109,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     setDragOver(null);
   };
 
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-  const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
   const toggleCollapse = (stage: Stage) => {
     setCollapsedStages((prev) => ({ ...prev, [stage]: !prev[stage] }));
   };
-
-  const [pipeline, setPipeline] = useState<string>("Sales Pipeline");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [viewingLead, setViewingLead] = useState<{ id: string, name: string } | null>(null);
-  const itemsPerPage = 8;
 
   const filteredLeads = leads.filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.type.toLowerCase().includes(search.toLowerCase()));
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
@@ -95,115 +122,63 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   }, [search]);
 
   useEffect(() => {
-    if (page > totalPages && totalPages > 0) {
-      setPage(totalPages);
-    }
-    if (filteredLeads.length === 0 && page !== 1) {
-      setPage(1);
-    }
+    if (page > totalPages && totalPages > 0) setPage(totalPages);
+    if (filteredLeads.length === 0 && page !== 1) setPage(1);
   }, [filteredLeads.length, page, totalPages]);
 
   const renderKanbanBoard = () => (
     <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
       <style>{`
         .kanban-container {
-          background-color: #ffffff;
-          border: 1.5px solid ${T.border};
-          border-radius: ${T.radiusXl}px;
-          padding-top: 24px;
+          background-color: transparent;
           overflow: hidden;
           display: flex;
           flex-direction: column;
           flex: 1;
           min-height: 0;
-          min-width: 0;
-          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
         }
         .kanban-board {
           display: flex;
-          gap: 20px;
+          gap: 16px;
           overflow-x: auto;
           overflow-y: hidden;
-          padding: 0 24px 8px 24px;
+          padding: 8px 4px;
           align-items: stretch;
           flex: 1;
           min-height: 0;
           scrollbar-width: thin;
           scrollbar-color: ${T.border} transparent;
         }
-        .kanban-board::-webkit-scrollbar { height: 8px; }
-        .kanban-board::-webkit-scrollbar-track { background: transparent; border-radius: 4px; }
-        .kanban-board::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
-        .kanban-board::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+        .kanban-board::-webkit-scrollbar { height: 6px; }
+        .kanban-board::-webkit-scrollbar-track { background: transparent; }
+        .kanban-board::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 10px; }
         
         .kanban-column-wrapper {
-          min-width: 220px;
-          width: 220px;
+          min-width: 300px;
+          width: 300px;
           flex-shrink: 0;
           display: flex;
           flex-direction: column;
-          background-color: #fbfcfe;
-          border-radius: ${T.radiusLg}px;
-          border: 1px solid ${T.border};
+          background-color: transparent;
           overflow: hidden;
-          transition: min-width 0.2s ease, width 0.2s ease;
+          transition: width 0.2s ease;
           height: 100%;
         }
         
         .kanban-column-body {
           overflow-y: auto;
-          flex: 1;
-          min-height: 0;
-          padding: 8px;
+          max-height: 600px;
+          padding: 12px 2px;
           display: flex;
           flex-direction: column;
-          gap: 8px;
-          scrollbar-width: thin;
+          gap: 12px;
         }
-        .kanban-column-body::-webkit-scrollbar { width: 6px; }
+        .kanban-column-body::-webkit-scrollbar { width: 5px; }
         .kanban-column-body::-webkit-scrollbar-track { background: transparent; }
-        .kanban-column-body::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 4px; border: 1px solid transparent; background-clip: padding-box; }
-        .kanban-column-body::-webkit-scrollbar-thumb:hover { background-color: #cbd5e1; }
+        .kanban-column-body::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 10px; }
       `}</style>
       
       <div className="kanban-container">
-        <div style={{ padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 20, flex: 1 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Workload</h2>
-            
-            {/* Integrated Search */}
-            <div style={{ position: "relative", flex: 1, maxWidth: 320 }}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
-                <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
-                <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <input 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
-                placeholder="Search leads..." 
-                style={{ 
-                  width: "100%", padding: "8px 12px 8px 34px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, 
-                  fontSize: 13, fontFamily: T.font, color: T.textDark, backgroundColor: T.pageBg, outline: "none"
-                }} 
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button 
-                onClick={() => setIsFilterOpen(true)}
-                style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, backgroundColor: "#fff", color: T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}
-              >Filter</button>
-              <button style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, backgroundColor: "#fff", color: T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}>Sort</button>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ display: "flex", backgroundColor: T.rowBg, borderRadius: T.radiusMd, padding: 4 }}>
-              <button onClick={() => setViewMode("kanban")} style={{ padding: "6px 12px", border: "none", borderRadius: T.radiusSm, cursor: "pointer", fontSize: 12, fontWeight: 700, backgroundColor: viewMode === "kanban" ? "#fff" : "transparent", color: viewMode === "kanban" ? T.blue : T.textMuted, boxShadow: viewMode === "kanban" ? T.shadowSm : "none", fontFamily: T.font, transition: "all 0.15s" }}>Kanban</button>
-              <button onClick={() => setViewMode("list")} style={{ padding: "6px 12px", border: "none", borderRadius: T.radiusSm, cursor: "pointer", fontSize: 12, fontWeight: 700, backgroundColor: viewMode === "list" ? "#fff" : "transparent", color: viewMode === "list" ? T.blue : T.textMuted, boxShadow: viewMode === "list" ? T.shadowSm : "none", fontFamily: T.font, transition: "all 0.15s" }}>List</button>
-            </div>
-          </div>
-        </div>
         <div className="kanban-board">
           {STAGES.map((stage) => {
             const cfg = STAGE_CONFIG[stage];
@@ -225,19 +200,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 }}
                 className="kanban-column-wrapper"
                 style={{ 
-                  borderColor: isOver ? cfg.color : T.border,
-                  backgroundColor: isOver ? cfg.bg : isCollapsed ? cfg.bg : "#fff",
-                  minWidth: isCollapsed ? 50 : 220,
-                  width: isCollapsed ? 50 : 220,
-                  maxHeight: isCollapsed ? "100%" : 380,
-                  height: isCollapsed ? "100%" : undefined
+                  minWidth: isCollapsed ? 50 : 280,
+                  width: isCollapsed ? 50 : 280,
                 }}
               >
                 {isCollapsed ? (
-                  <div style={{ padding: "16px 0", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", opacity: 0.8 }} onClick={() => toggleCollapse(stage)}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "0.8"}
-                  >
+                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "16px 0", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" }} onClick={() => toggleCollapse(stage)}>
                     <div style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, fontWeight: 800, marginBottom: 16 }}>
                       {stageLeads.length}
                     </div>
@@ -247,56 +215,88 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                   </div>
                 ) : (
                   <>
-                    <div style={{ backgroundColor: cfg.bg, padding: "10px 12px", borderBottom: `2px solid ${cfg.header}`, flexShrink: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                          <button onClick={() => toggleCollapse(stage)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", color: cfg.color }} title="Collapse Column">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          </button>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: cfg.color, textTransform: "uppercase" }}>{stage}</span>
+                    <div style={{ backgroundColor: "#fff", padding: "12px 16px", border: `1px solid ${T.border}`, borderTop: `4px solid ${cfg.color}`, borderRadius: "8px 8px 0 0", flexShrink: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{stage}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                           <button onClick={() => toggleCollapse(stage)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: T.textMuted }}>
+                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+                           </button>
                         </div>
-                        <span style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{stageLeads.length}</span>
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: T.textMuted }}>${stageValue(stage).toLocaleString()}</span>
+                      <div style={{ marginTop: 4, display: "flex", gap: 12, fontSize: 12 }}>
+                        <span style={{ color: T.textMuted, fontWeight: 600 }}>{stageLeads.length} Opportunities</span>
+                        <span style={{ color: T.textDark, fontWeight: 800 }}>${stageValue(stage).toLocaleString()}</span>
+                      </div>
                     </div>
 
-                <div className="kanban-column-body">
-                  {stageLeads.map((lead) => (
-                    <div
-                      key={lead.id}
-                      onClick={() => setViewingLead({ id: lead.id, name: lead.name })}
-                      draggable={canUpdateActions}
-                      onDragStart={() => { if (canUpdateActions) setDragId(lead.id); }}
-                      onDragEnd={() => { setDragId(null); setDragOver(null); }}
-                      style={{
-                        backgroundColor: T.cardBg, borderRadius: T.radiusSm, padding: "10px 10px",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)", cursor: canUpdateActions ? "grab" : "default",
-                        opacity: dragId === lead.id ? 0.5 : 1,
-                        borderLeft: `2.5px solid ${cfg.color}`,
-                        transition: "transform 0.15s, box-shadow 0.15s"
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.boxShadow = T.shadowMd; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)"; e.currentTarget.style.transform = "translateY(0)"; }}
-                    >
-                      <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 800, color: T.textDark, lineHeight: 1.2 }}>{lead.name}</p>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: TYPE_COLORS[lead.type] ?? T.textMuted, border: `1px solid ${TYPE_COLORS[lead.type]}33`, borderRadius: 4, padding: "0px 5px" }}>{lead.type}</span>
-                      </div>
-                      <p style={{ margin: "0 0 5px", fontSize: 11, fontWeight: 800, color: T.textDark }}>${lead.premium.toLocaleString()}</p>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ width: 18, height: 18, borderRadius: "50%", backgroundColor: lead.agentColor, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 800 }}>{lead.agent}</div>
-                        <span style={{ fontSize: 9, color: lead.daysInStage > 7 ? T.danger : T.textMuted, fontWeight: 700 }}>{lead.daysInStage}d</span>
-                      </div>
+                    <div className="kanban-column-body" style={{ backgroundColor: isOver ? cfg.bg + "40" : "transparent", transition: "background-color 0.2s" }}>
+                      {stageLeads.map((lead) => (
+                        <div
+                          key={lead.id}
+                          onClick={() => setViewingLead({ id: lead.id, name: lead.name })}
+                          draggable={canUpdateActions}
+                          onDragStart={() => { if (canUpdateActions) setDragId(lead.id); }}
+                          onDragEnd={() => { setDragId(null); setDragOver(null); }}
+                          style={{
+                            backgroundColor: "#fff", borderRadius: 8, padding: "16px",
+                            boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: `1px solid ${T.border}`,
+                            borderLeft: `3px solid ${cfg.color}`,
+                            cursor: canUpdateActions ? "grab" : "default",
+                            opacity: dragId === lead.id ? 0.5 : 1,
+                            transition: "all 0.15s",
+                            position: "relative"
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.boxShadow = T.shadowSm; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.06)"; }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, alignItems: "flex-start" }}>
+                            <div style={{ flex: 1, marginRight: 8 }}>
+                              <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.textDark, lineHeight: 1.4 }}>
+                                {lead.name} - (555) 000-{lead.id.split('-')[1]}
+                              </p>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: lead.agentColor, display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid #fff", boxShadow: "0 0 0 1px #e2e8f0", overflow: "hidden" }}>
+                                <span style={{ fontSize: 10, fontWeight: 800, color: "#fff" }}>{lead.agent}</span>
+                              </div>
+                              <input type="checkbox" onClick={(e) => e.stopPropagation()} style={{ width: 14, height: 14, accentColor: T.blue, cursor: "pointer", border: `1.5px solid ${T.border}`, borderRadius: 3 }} />
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+                            <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
+                               <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Opportunity Source:</span>
+                               <span style={{ color: T.textDark, fontWeight: 600 }}>{lead.source}-call center</span>
+                            </div>
+                            <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
+                               <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Opportunity Value:</span>
+                               <span style={{ color: T.textDark, fontWeight: 600 }}>${lead.premium.toLocaleString()}</span>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 12, borderTop: `1px solid ${T.borderLight}` }}>
+                             {[
+                               { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> },
+                               { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+                               { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>, count: 11 },
+                               { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, count: 52 },
+                               { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
+                               { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> }
+                             ].map((item, idx) => (
+                               <div key={idx} style={{ color: T.textMuted, display: "flex", alignItems: "center", position: "relative", cursor: "pointer" }}>
+                                 {item.count !== undefined && item.count > 0 && (
+                                   <div style={{ position: "absolute", top: -8, right: -10, backgroundColor: T.blue, color: "#fff", fontSize: 8, fontWeight: 800, minWidth: 16, height: 16, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid #fff", padding: "0 2px" }}>{item.count}</div>
+                                 )}
+                                 {item.icon}
+                               </div>
+                             ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  {stageLeads.length === 0 && (
-                    <div style={{ padding: "40px 0", textAlign: "center", border: `1px dashed ${T.border}`, borderRadius: T.radiusMd }}>
-                      <p style={{ margin: 0, fontSize: 10, color: T.textMuted, fontWeight: 600 }}>No leads</p>
-                    </div>
-                  )}
-                </div>
-                </>
-              )}
+                  </>
+                )}
               </div>
             );
           })}
@@ -305,222 +305,167 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     </div>
   );
 
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [activeFilterTab, setActiveFilterTab] = useState<"Filters" | "Fields">("Filters");
+  const [showAddLead, setShowAddLead] = useState(false);
 
   if (viewingLead) {
-    return (
-      <LeadViewComponent
-        leadId={viewingLead.id}
-        leadName={viewingLead.name}
-        onBack={() => setViewingLead(null)}
-      />
-    );
+    return <LeadViewComponent leadId={viewingLead.id} leadName={viewingLead.name} onBack={() => setViewingLead(null)} />;
+  }
+
+  if (showAddLead) {
+    return <LeadViewComponent isCreation onBack={() => setShowAddLead(false)} onSubmit={(newLead: any) => {
+      const mappedLead: Lead = {
+        id: `P-0${leads.length + 1}`,
+        name: newLead.name,
+        type: newLead.type,
+        premium: newLead.premium,
+        source: newLead.source,
+        agent: "SS",
+        agentColor: "#4285f4",
+        daysInStage: 0,
+        stage: newLead.stage as Stage
+      };
+      setLeads(prev => [mappedLead, ...prev]);
+      setShowAddLead(false);
+    }} />;
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, paddingBottom: 24, position: "relative" }}>
       {/* Drawer Overlay */}
       {isFilterOpen && (
-        <div 
-          onClick={() => setIsFilterOpen(false)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.15)", zIndex: 1000, backdropFilter: "blur(2px)", animation: "fadeIn 0.2s" }} 
-        />
+        <div onClick={() => setIsFilterOpen(false)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.15)", zIndex: 1000, backdropFilter: "blur(2px)" }} />
       )}
 
-      {/* Filter Sidebar (Slide-over) */}
-      <div style={{ 
-        position: "fixed", top: 0, right: isFilterOpen ? 0 : -420, width: 420, bottom: 0, 
-        backgroundColor: "#fff", zIndex: 1001, boxShadow: "-8px 0 32px rgba(0,0,0,0.05)",
-        transition: "right 0.3s cubic-bezier(0,0,0.2,1)", display: "flex", flexDirection: "column"
-      }}>
-        {/* Header */}
+      {/* Filter Sidebar */}
+      <div style={{ position: "fixed", top: 0, right: isFilterOpen ? 0 : -420, width: 420, bottom: 0, backgroundColor: "#fff", zIndex: 1001, boxShadow: "-8px 0 32px rgba(0,0,0,0.05)", transition: "right 0.3s ease", display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "24px", borderBottom: `1.5px solid ${T.borderLight}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Customise Card</h2>
-          <button 
-            onClick={() => setIsFilterOpen(false)}
-            style={{ background: T.rowBg, border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.textMuted }}
-          >
+          <button onClick={() => setIsFilterOpen(false)} style={{ background: T.rowBg, border: "none", borderRadius: "50%", width: 32, height: 32, cursor: "pointer" }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
-
-        {/* Content */}
         <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-          {/* Card Preview Area */}
-          <div style={{ marginBottom: 32 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginBottom: 16 }}>Card Preview</p>
-            <div style={{ backgroundColor: T.pageBg, borderRadius: 16, padding: "24px", border: `1.5px solid ${T.borderLight}` }}>
-              <div style={{ backgroundColor: "#fff", borderRadius: 12, padding: "20px", boxShadow: T.shadowSm, borderLeft: `4px solid ${T.blue}`, position: "relative" }}>
-                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 800 }}>Lead Name</p>
-                    <div style={{ width: 22, height: 22, borderRadius: "50%", backgroundColor: T.blueFaint, color: T.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>JW</div>
-                 </div>
-                 <span style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, backgroundColor: T.rowBg, borderRadius: 4, padding: "1px 6px", marginBottom: 12, display: "inline-block" }}>Automobile</span>
-                 
-                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                       <span style={{ color: T.textMuted, fontWeight: 600 }}>Policy Value:</span>
-                       <span style={{ fontWeight: 800 }}>$1,240.00</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                       <span style={{ color: T.textMuted, fontWeight: 600 }}>Source:</span>
-                       <span style={{ fontWeight: 800 }}>Web referral</span>
-                    </div>
-                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card Layout Radios */}
-          <div style={{ marginBottom: 32 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, marginBottom: 16 }}>Card Layout</p>
-            <div style={{ display: "flex", gap: 20 }}>
-              {["Default", "Compact", "Unlabeled"].map(mode => (
-                <label key={mode} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14, fontWeight: 600, color: T.textMid }}>
-                  <input type="radio" name="layout" defaultChecked={mode === "Default"} style={{ accentColor: T.blue, width: 16, height: 16 }} />
-                  {mode}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display: "flex", gap: 24, borderBottom: `1.5px solid ${T.borderLight}`, marginBottom: 20 }}>
-            {["Filters", "Fields"].map(tab => (
-              <button 
-                key={tab}
-                onClick={() => setActiveFilterTab(tab as any)}
-                style={{ 
-                  background: "none", border: "none", padding: "0 0 12px 0", cursor: "pointer", 
-                  fontSize: 14, fontWeight: 800, color: activeFilterTab === tab ? T.blue : T.textMuted,
-                  borderBottom: activeFilterTab === tab ? `2px solid ${T.blue}` : "none",
-                  transition: "color 0.2s"
-                }}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          {/* Search Fields */}
-          <div style={{ position: "relative", marginBottom: 20 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2.5" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input placeholder="Search fields..." style={{ width: "100%", padding: "10px 12px 10px 36px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, fontSize: 14, fontFamily: T.font }} />
-          </div>
-
-          {/* Field List */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {["Opportunity Name", "Premium Amount", "Policy Type", "Lead Source", "Carrier Name", "Creation Date", "Assigned Agent"].map((field, i) => (
-              <label key={field} style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
-                <div style={{ display: "flex", gap: 3 }}>
-                   {[1,2,3].map(j => <div key={j} style={{ width: 2, height: 2, backgroundColor: T.border }} />)}
-                   {[1,2,3].map(j => <div key={j} style={{ width: 2, height: 2, backgroundColor: T.border }} />)}
-                </div>
-                <input type="checkbox" defaultChecked={i < 4} style={{ accentColor: T.blue, width: 16, height: 16 }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: T.textMid }}>{field}</span>
-              </label>
-            ))}
-          </div>
+           {/* Filters Content Placeholder */}
+           <p style={{ color: T.textMuted, fontSize: 13 }}>Sidebar filters content matched GHL aesthetic...</p>
         </div>
-
-        {/* Footer Buttons */}
         <div style={{ padding: "16px 24px", borderTop: `1.5px solid ${T.borderLight}`, display: "flex", gap: 12, justifyContent: "flex-end", backgroundColor: "#f9fafb" }}>
-          <button 
-             onClick={() => setIsFilterOpen(false)}
-             style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: T.textMid }}
-          >Cancel</button>
-          <button 
-             onClick={() => setIsFilterOpen(false)}
-             style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}
-          >Apply</button>
+          <button onClick={() => setIsFilterOpen(false)} style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 20px", fontWeight: 700 }}>Cancel</button>
+          <button onClick={() => setIsFilterOpen(false)} style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontWeight: 700 }}>Apply</button>
         </div>
       </div>
 
-      <div style={{ marginBottom: 16, flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: T.textDark, margin: 0 }}>Lead Pipeline</h1>
-            <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ padding: "4px 10px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 12, fontWeight: 700, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-              <option value="Sales Pipeline">Sales Pipeline</option>
-              <option value="Renewals Pipeline">Renewals Pipeline</option>
-              <option value="Service Pipeline">Service Pipeline</option>
-            </select>
-          </div>
-          <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
-            {canUpdateActions ? "Drag cards to update stage" : "View-only mode"}
-          </p>
+      {/* Pipeline & Filter Toolbar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0", borderBottom: `1px solid ${T.pageBg}`, flexShrink: 0, gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: 10, fontSize: 13, fontWeight: 800, backgroundColor: "#fff", cursor: "pointer", outline: "none" }}>
+            <option value="Sales Pipeline">Sales Pipeline</option>
+          </select>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 10px", borderRadius: 20 }}>{leads.length} opportunities</span>
+          
+          <div style={{ width: 1, height: 24, backgroundColor: T.border, margin: "0 4px" }} />
+          
+          <button onClick={() => setIsFilterOpen(true)} style={{ padding: "8px 16px", border: `1.5px solid ${T.blue}30`, borderRadius: 20, backgroundColor: T.blueFaint, color: T.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Advanced Filters
+          </button>
+          <button style={{ padding: "8px 16px", border: `1.5px solid ${T.border}`, borderRadius: 20, backgroundColor: "#fff", color: T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+            Sort (1)
+          </button>
         </div>
-        <button style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}>
-          Add Lead
-        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden" }}>
+             <button onClick={() => setViewMode("kanban")} style={{ padding: "8px 10px", background: viewMode === "kanban" ? T.blueFaint : "#fff", color: viewMode === "kanban" ? T.blue : T.textMuted, border: "none", cursor: "pointer" }}>
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+             </button>
+             <button onClick={() => setViewMode("list")} style={{ padding: "8px 10px", background: viewMode === "list" ? T.blueFaint : "#fff", color: viewMode === "list" ? T.blue : T.textMuted, border: "none", borderLeft: `1px solid ${T.border}`, cursor: "pointer" }}>
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+             </button>
+          </div>
+          <button onClick={() => setShowAddLead(true)} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ Add lead</button>
+        </div>
       </div>
 
-      {/* Kanban / List Board */}
-      {viewMode === "kanban" ? (
-        renderKanbanBoard()
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflowY: "auto", paddingBottom: 24 }}>
-          <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>
-          {/* Integrated Search for List View */}
-          <div style={{ padding: "16px 24px", borderBottom: `1.5px solid ${T.border}`, display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
-               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }}>
-                 <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" /><path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
-               </svg>
-               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ width: "100%", padding: "7px 10px 7px 30px", border: `1.5px solid ${T.border}`, borderRadius: 6, fontSize: 12 }} />
-            </div>
-            <div style={{ display: "flex", backgroundColor: T.rowBg, borderRadius: T.radiusMd, padding: 3 }}>
-              <button onClick={() => setViewMode("kanban")} style={{ padding: "4px 10px", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 11, fontWeight: 700, backgroundColor: "transparent", color: T.textMuted }}>Kanban</button>
-              <button onClick={() => setViewMode("list")} style={{ padding: "4px 10px", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 11, fontWeight: 700, backgroundColor: "#fff", color: T.blue, boxShadow: T.shadowSm }}>List</button>
-            </div>
-          </div>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ backgroundColor: T.rowBg }}>
-                {["Lead Name", "Type", "Stage", "Premium", "Source", "Agent", "Days In Stage"].map(th => (
-                  <th key={th} style={{ padding: "14px 16px", fontSize: 11, fontWeight: 700, color: T.textMuted, textAlign: "left" }}>{th}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedLeads.map((lead, i) => (
-                <tr key={lead.id} onClick={() => setViewingLead({ id: lead.id, name: lead.name })} style={{ borderTop: `1px solid ${T.border}`, backgroundColor: i % 2 === 0 ? T.cardBg : "#fafbfd", cursor: "pointer", transition: "background-color 0.15s" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = i % 2 === 0 ? T.cardBg : "#fafbfd"; }}
-                >
-                  <td style={{ padding: "14px 16px", fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: TYPE_COLORS[lead.type] ?? T.textMuted, backgroundColor: TYPE_COLORS[lead.type] ? TYPE_COLORS[lead.type] + "15" : T.rowBg, borderRadius: 4, padding: "2px 8px" }}>{lead.type}</span>
-                  </td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <span style={{ backgroundColor: STAGE_CONFIG[lead.stage].bg, color: STAGE_CONFIG[lead.stage].color, border: `1px solid ${STAGE_CONFIG[lead.stage].color}44`, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700 }}>{lead.stage}</span>
-                  </td>
-                  <td style={{ padding: "14px 16px", fontSize: 13, fontWeight: 800, color: T.textDark }}>${lead.premium.toLocaleString()}</td>
-                  <td style={{ padding: "14px 16px", fontSize: 12, fontWeight: 600, color: T.textMuted }}>{lead.source}</td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: "50%", backgroundColor: lead.agentColor, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 800 }}>{lead.agent}</div>
-                    </div>
-                  </td>
-                  <td style={{ padding: "14px 16px", fontSize: 12, fontWeight: 600, color: lead.daysInStage > 7 ? T.danger : T.textMuted }}>{lead.daysInStage} days</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination
-            page={page}
-            totalItems={filteredLeads.length}
-            itemsPerPage={itemsPerPage}
-            itemLabel="leads"
-            onPageChange={setPage}
+      {/* Optimized Search Row */}
+      <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center", padding: "12px 0", flexShrink: 0 }}>
+        <div style={{ position: "relative", width: 320 }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
+            <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
+            <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <input 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            placeholder="Search Opportunities..." 
+            style={{ 
+              padding: "12px 42px 12px 44px", 
+              border: `1.5px solid ${T.border}`, 
+              borderRadius: T.radiusMd, 
+              fontSize: 14, 
+              fontFamily: T.font, 
+              color: T.textDark, 
+              width: "100%", 
+              backgroundColor: T.rowBg,
+              outline: "none",
+              transition: "all 0.2s"
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.backgroundColor = T.cardBg; e.currentTarget.style.boxShadow = `0 0 0 4px ${T.blue}15`; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.backgroundColor = T.rowBg; e.currentTarget.style.boxShadow = "none"; }}
           />
+          {search && (
+            <button 
+              onClick={() => setSearch("")}
+              style={{ 
+                position: "absolute", 
+                right: 12, 
+                top: "50%", 
+                transform: "translateY(-50%)", 
+                background: "none", 
+                border: "none", 
+                cursor: "pointer", 
+                color: T.textMuted,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 4,
+                borderRadius: "50%",
+                transition: "background-color 0.2s",
+                zIndex: 2
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* Main Board Area */}
+      {viewMode === "kanban" ? renderKanbanBoard() : (
+        <div style={{ flex: 1, backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
+           <table style={{ width: "100%", borderCollapse: "collapse" }}>
+             <thead>
+               <tr style={{ backgroundColor: T.rowBg }}>
+                 {["Lead Name", "Type", "Stage", "Premium", "Agent"].map(th => <th key={th} style={{ padding: "14px 16px", textAlign: "left", fontSize: 12, color: T.textMuted }}>{th}</th>)}
+               </tr>
+             </thead>
+             <tbody>
+               {paginatedLeads.map(lead => (
+                 <tr key={lead.id} style={{ borderTop: `1px solid ${T.border}` }}>
+                   <td style={{ padding: "14px 16px", fontWeight: 700 }}>{lead.name}</td>
+                   <td style={{ padding: "14px 16px" }}>{lead.type}</td>
+                   <td style={{ padding: "14px 16px" }}>{lead.stage}</td>
+                   <td style={{ padding: "14px 16px", fontWeight: 800 }}>${lead.premium.toLocaleString()}</td>
+                   <td style={{ padding: "14px 16px" }}>{lead.agent}</td>
+                 </tr>
+               ))}
+             </tbody>
+           </table>
+           <Pagination page={page} totalItems={filteredLeads.length} itemsPerPage={itemsPerPage} itemLabel="leads" onPageChange={setPage} />
         </div>
       )}
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      `}</style>
     </div>
   );
 }
