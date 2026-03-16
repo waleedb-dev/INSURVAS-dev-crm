@@ -154,7 +154,7 @@ export default function LeadViewComponent({ leadId, leadName, onBack }: LeadView
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 40 }}>
-                  <div style={{ border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
+                  <div style={{ backgroundColor: T.pageBg, border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
                     <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Conversion Probability</p>
                     <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginBottom: 12 }}>
                       <span style={{ fontSize: 36, fontWeight: 800, color: T.blue, lineHeight: 1 }}>{leadData.probability}</span>
@@ -164,7 +164,7 @@ export default function LeadViewComponent({ leadId, leadName, onBack }: LeadView
                       <div style={{ width: leadData.probability, height: "100%", backgroundColor: T.blue, borderRadius: 4 }} />
                     </div>
                   </div>
-                  <div style={{ border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
+                  <div style={{ backgroundColor: T.pageBg, border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
                     <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Assigned Agent</p>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ width: 44, height: 44, borderRadius: "50%", backgroundColor: "#f59e0b", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800 }}>SS</div>
@@ -195,7 +195,7 @@ export default function LeadViewComponent({ leadId, leadName, onBack }: LeadView
                         </div>
                         <p style={{ margin: "0 0 8px", fontSize: 13, color: T.textMid, fontWeight: 600, lineHeight: 1.5 }}>{item.desc}</p>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <div style={{ width: 18, height: 18, borderRadius: "50%", backgroundColor: T.rowBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800 }}>{item.user[0]}</div>
+                          <div style={{ width: 18, height: 18, borderRadius: "50%", backgroundColor: T.pageBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800 }}>{item.user[0]}</div>
                           <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 700 }}>{item.user}</span>
                         </div>
                       </div>

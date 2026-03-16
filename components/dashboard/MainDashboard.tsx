@@ -185,7 +185,7 @@ function MemberCard({ initials, name, role, level, color, onClick }: any) {
     <div
       onClick={onClick}
       style={{
-        backgroundColor: "#fbfcfe",
+        backgroundColor: T.pageBg,
         borderRadius: 14, padding: "16px 12px 14px",
         display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
         cursor: "pointer", transition: "all 0.18s",
