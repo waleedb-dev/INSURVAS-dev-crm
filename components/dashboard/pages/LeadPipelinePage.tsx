@@ -109,11 +109,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         .kanban-container {
           background-color: #ffffff;
           border: 1.5px solid ${T.border};
-          border-bottom: none;
-          border-top-left-radius: ${T.radiusXl};
-          border-top-right-radius: ${T.radiusXl};
-          border-bottom-left-radius: 0;
-          border-bottom-right-radius: 0;
+          border-radius: ${T.radiusXl}px;
           padding-top: 24px;
           overflow: hidden;
           display: flex;
@@ -147,7 +143,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           display: flex;
           flex-direction: column;
           background-color: #fbfcfe;
-          border-radius: ${T.radiusLg};
+          border-radius: ${T.radiusLg}px;
           border: 1px solid ${T.border};
           overflow: hidden;
           transition: min-width 0.2s ease, width 0.2s ease;
@@ -214,8 +210,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               >
                 {isCollapsed ? (
                   <div style={{ padding: "16px 0", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", opacity: 0.8 }} onClick={() => toggleCollapse(stage)}
-                    onMouseEnter={e => e.currentTarget.style.opacity = "1"}
-                    onMouseLeave={e => e.currentTarget.style.opacity = "0.8"}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "0.8"}
                   >
                     <div style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, fontWeight: 800, marginBottom: 16 }}>
                       {stageLeads.length}
@@ -292,7 +288,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 96px)", minHeight: 0, minWidth: 0, overflow: "hidden", marginBottom: -28 }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, paddingBottom: 24 }}>
       <div style={{ marginBottom: 24, flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Sales Funnel</p>
