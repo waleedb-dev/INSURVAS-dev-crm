@@ -98,7 +98,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
   return (
     <div style={{ padding: "0" }}>
       {/* Welcome + date - Figma Style */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%", maxWidth: 1125, marginBottom: 32 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%", maxWidth: 1224, marginBottom: 32 }}>
         <div>
           <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Welcome back, Evan!</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: T.textDark, margin: 0 }}>Dashboard</h1>
@@ -120,7 +120,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           borderRadius: T.radiusXl, 
           border: `1.5px solid ${T.border}`, 
           padding: "24px", 
-          width: 781, 
+          width: 850, 
           height: 470, 
           boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
           display: "flex",
@@ -133,7 +133,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
             </button>
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "8px 4px 12px 0" }}>
             {filteredMembers.length === 0 ? (
               <div style={{ padding: "40px 0", textAlign: "center" }}>
                 <p style={{ margin: 0, fontSize: 13, color: T.textMuted, fontWeight: 600 }}>No members found</p>
@@ -154,7 +154,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           borderRadius: T.radiusXl, 
           border: `1.5px solid ${T.border}`, 
           padding: "24px", 
-          width: 320,
+          width: 350,
           height: 470,
           boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
           display: "flex",
@@ -185,8 +185,8 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
       </div>
 
       <div style={{ display: "flex", gap: 24, marginTop: 32, alignItems: "stretch" }}>
-        {/* ── Bottom Left: Daily Deal Flow (781px) ── */}
-        <div style={{ width: 781, display: "flex", flexDirection: "column" }}>
+        {/* ── Bottom Left: Daily Deal Flow (850px) ── */}
+        <div style={{ width: 850, display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h2>
             <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
@@ -201,23 +201,24 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           </div>
         </div>
 
-        {/* ── Bottom Right: Activity Stream (320px) ── */}
-        <div style={{ width: 320, display: "flex", flexDirection: "column" }}>
+        {/* ── Bottom Right: Activity Stream (350px) ── */}
+        <div style={{ width: 350, display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <h3 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: 0 }}>Activity Stream</h3>
           </div>
           
-          <div style={{ 
-            backgroundColor: "#ffffff", 
-            borderRadius: T.radiusXl, 
-            border: `1.5px solid ${T.border}`, 
-            padding: "20px", 
-            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
-            display: "flex",
-            flexDirection: "column",
-            flex: 1
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ 
+        backgroundColor: "#ffffff", 
+        borderRadius: T.radiusXl, 
+        border: `1.5px solid ${T.border}`, 
+        padding: "16px 20px", 
+        boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        overflowY: "auto"
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "4px 0" }}>
               {ACTIVITIES.map((act) => (
                 <div key={act.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
