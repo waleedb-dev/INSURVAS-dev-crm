@@ -167,7 +167,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         
         .kanban-column-body {
           overflow-y: auto;
-          max-height: 600px;
+          max-height: calc(100vh - 320px);
+          min-height: 480px;
           padding: 12px 2px;
           display: flex;
           flex-direction: column;

@@ -19,6 +19,7 @@ const INIT:User[]=[
   {id:"U-009",name:"Oscar Holloway",email:"oscar@unlimited-ins.com",  role:"Agent",    status:"Active",    color:"#f97316",lastActive:"20 min ago",  policies:67},
   {id:"U-010",name:"Diana Palmer",  email:"diana@unlimited-ins.com",  role:"Manager",  status:"Active",    color:"#ec4899",lastActive:"45 min ago",  policies:103},
   {id:"U-011",name:"Chris Morton",  email:"chris@unlimited-ins.com",  role:"Read-Only",status:"Suspended", color:"#64748b",lastActive:"2 weeks ago", policies:0},
+  {id:"U-012",name:"User One",      email:"user1@unlimited-ins.com",  role:"Agent",    status:"Active",    color:T.blue,   lastActive:"Just now",    policies:0},
 ];
 
 export default function UsersAccessPage(){
@@ -81,89 +82,152 @@ export default function UsersAccessPage(){
   }
 
   return(
-    <div style={{ padding: "0 20px" }}>
-      <div style={{ borderBottom: `1px solid ${T.borderLight}`, padding: "16px 0", marginBottom: 24 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, color: T.blue, margin: 0 }}>My Staff</h1>
+    <div style={{ animation: "fadeIn 0.3s ease-out" }} onClick={() => setShowInvite(false)}>
+      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <div>
+          <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>System Administration — {new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" })}</p>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>My Staff & Access</h1>
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button
+            onClick={() => setShowInvite(true)}
+            style={{
+              backgroundColor: T.blue,
+              color: "#fff",
+              border: "none",
+              borderRadius: T.radiusMd,
+              padding: "10px 22px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: T.font,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              transition: "all 0.15s",
+              boxShadow: `0 4px 12px ${T.blue}44`
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 6px 16px ${T.blue}66`; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 4px 12px ${T.blue}44`; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            Add User
+          </button>
+        </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginBottom: 24, alignItems: "center" }}>
-        <select 
-          value={rf} 
-          onChange={e => setRf(e.target.value as any)}
-          style={{ padding: "10px 16px", border: `1px solid ${T.border}`, borderRadius: "8px", fontSize: 14, color: T.textMuted, backgroundColor: "#fff", cursor: "pointer", outline: "none", width: 180 }}
-        >
-          <option value="All">User Role</option>
-          {["Admin", "Manager", "Agent", "Read-Only"].map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-
-        <div style={{ position: "relative" }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}>
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-            placeholder="name, email, phone, ids" 
-            style={{ padding: "10px 12px 10px 36px", border: `1px solid ${T.border}`, borderRadius: "8px", fontSize: 14, color: T.textMuted, width: 240, outline: "none" }}
-          />
+      <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>
+        {/* Toolbar Row */}
+        <div style={{ padding: "20px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
+              <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
+              <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <input 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+              placeholder="Search by name, email, or ID…" 
+              style={{ 
+                padding: "12px 42px 12px 44px", 
+                border: `1.5px solid ${T.border}`, 
+                borderRadius: T.radiusMd, 
+                fontSize: 14, 
+                fontFamily: T.font, 
+                color: T.textDark, 
+                width: "100%", 
+                backgroundColor: T.rowBg,
+                outline: "none",
+                transition: "all 0.2s"
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.backgroundColor = T.cardBg; e.currentTarget.style.boxShadow = `0 0 0 4px ${T.blue}15`; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.backgroundColor = T.rowBg; e.currentTarget.style.boxShadow = "none"; }}
+            />
+            {search && (
+              <button 
+                onClick={() => setSearch("")}
+                style={{ 
+                  position: "absolute", 
+                  right: 12, 
+                  top: "50%", 
+                  transform: "translateY(-50%)", 
+                  background: "none", 
+                  border: "none", 
+                  cursor: "pointer", 
+                  color: T.textMuted,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 4,
+                  borderRadius: "50%",
+                  transition: "background-color 0.2s",
+                  zIndex: 2
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            )}
+          </div>
+          
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <select value={rf} onChange={(e) => setRf(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+              <option value="All">All Types</option>
+              {["Admin", "Manager", "Agent", "Read-Only"].map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
         </div>
 
-        <button 
-          onClick={() => setShowInvite(true)} 
-          style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          Add User
-        </button>
-      </div>
 
-      <div style={{ backgroundColor: "#fff", borderRadius: "12px", border: `1px solid ${T.border}`, overflow: "hidden" }}>
-
-
-        <table style={{width:"100%",borderCollapse:"collapse"}}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ backgroundColor: "#fafbfc", borderBottom: `1px solid ${T.border}` }}>
-              {["Name", "Email", "Phone", "User Type", "Action"].map(h => (
-                <th key={h} style={{ padding: "16px 20px", fontSize: 13, fontWeight: 700, color: T.textMuted, textAlign: "left" }}>{h}</th>
+            <tr style={{ backgroundColor: T.rowBg }}>
+              {["Name", "Email", "Phone", "User Type", "Status", "Actions"].map(h => (
+                <th key={h} style={{ padding: "14px 20px", fontSize: 11, fontWeight: 700, color: T.textMuted, textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {paginated.map((u, i) => (
-              <tr key={u.id} style={{ borderBottom: `1px solid ${T.borderLight}`, backgroundColor: "#fff" }}>
-                <td style={{ padding: "16px 20px" }}>
+              <tr key={u.id} style={{ borderBottom: `1px solid ${T.borderLight}`, backgroundColor: "#fff", transition: "all 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = T.blueFaint}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = "#fff"}
+              >
+                <td style={{ padding: "14px 20px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: u.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: u.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
                       {u.name.split(" ").map(n => n[0]).join("")}
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{u.name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{u.name}</span>
                   </div>
                 </td>
-                <td style={{ padding: "16px 20px" }}>
+                <td style={{ padding: "14px 20px" }}>
                   <div>
-                    <div style={{ fontSize: 14, color: T.textDark, fontWeight: 500, marginBottom: 2 }}>{u.email}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.textMuted, fontSize: 12 }}>
-                      {u.id}
-                      <button title="Copy ID" style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 0 }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                      </button>
-                    </div>
+                    <div style={{ fontSize: 13, color: T.textDark, fontWeight: 600, marginBottom: 2 }}>{u.email}</div>
+                    <div style={{ color: T.textMuted, fontSize: 11, fontWeight: 600 }}>{u.id}</div>
                   </div>
                 </td>
-                <td style={{ padding: "16px 20px", fontSize: 14, color: T.textMuted }}>{u.phone || "-"}</td>
-                <td style={{ padding: "16px 20px" }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>ACCOUNT-{u.role.toUpperCase()}</span>
+                <td style={{ padding: "14px 20px", fontSize: 13, color: T.textMid, fontWeight: 600 }}>{u.phone || "—"}</td>
+                <td style={{ padding: "14px 20px" }}>
+                  <span style={{ backgroundColor: ROLE_CFG[u.role].bg, color: ROLE_CFG[u.role].color, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 800 }}>ACCOUNT-{u.role.toUpperCase()}</span>
                 </td>
-                <td style={{ padding: "16px 20px" }}>
-                  <div style={{ display: "flex", gap: 16 }}>
-                    <button onClick={() => setEditingUser(u)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }} title="Edit">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <td style={{ padding: "14px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: u.status === "Active" ? "#16a34a" : "#dc2626" }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{u.status}</span>
+                  </div>
+                </td>
+                <td style={{ padding: "14px 20px" }}>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <button onClick={() => setEditingUser(u)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = T.blue} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
-                    <button style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }} title="Delete">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    <button onClick={() => toggle(u.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = u.status === "Active" ? T.warning : T.success} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                     </button>
-                    <button onClick={() => toggle(u.id)} style={{ background: "none", border: "none", cursor: "pointer", color: u.status === "Active" ? T.textMuted : T.danger }} title={u.status === "Active" ? "Disable" : "Enable"}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    <button style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = T.danger} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                     </button>
                   </div>
                 </td>
@@ -171,6 +235,7 @@ export default function UsersAccessPage(){
             ))}
           </tbody>
         </table>
+
         <Pagination
           page={page}
           totalItems={filtered.length}
