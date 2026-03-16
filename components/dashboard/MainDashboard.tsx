@@ -24,6 +24,14 @@ const MEMBERS = [
   { initials: "GT", name: "George Thompson",role: "Copywriter",     level: "Junior", color: "#6366f1", tasks: 5,  done: 1,  skills: ["Blogging"] },
   { initials: "KL", name: "Kate Lewis",     role: "UI/UX Designer", level: "Senior", color: "#f43f5e", tasks: 12, done: 10, skills: ["Strategy","Prototying"] },
   { initials: "DB", name: "David Bell",     role: "IOS Developer",  level: "Senior", color: "#84cc16", tasks: 15, done: 14, skills: ["Architecture"] },
+  { initials: "RM", name: "Rose Miller",    role: "QA Engineer",    level: "Middle", color: "#06b6d4", tasks: 22, done: 15, skills: ["Testing","Automation"] },
+  { initials: "FW", name: "Frank Wright",   role: "Backend Dev",    level: "Senior", color: "#3b82f6", tasks: 10, done: 2,  skills: ["Node.js","SQL"] },
+  { initials: "HJ", name: "Helen Jones",    role: "Product Manager",level: "Senior", color: "#8b5cf6", tasks: 8,  done: 7,  skills: ["Planning","Agile"] },
+  { initials: "MK", name: "Mark Knight",    role: "Backend Dev",    level: "Middle", color: "#10b981", tasks: 14, done: 11, skills: ["Go","Postgres"] },
+  { initials: "SR", name: "Sarah Reed",     role: "QA Engineer",    level: "Junior", color: "#f59e0b", tasks: 18, done: 16, skills: ["Manual Testing"] },
+  { initials: "TW", name: "Tom White",      role: "Support",        level: "Middle", color: "#64748b", tasks: 25, done: 20, skills: ["Zendesk","CRM"] },
+  { initials: "PB", name: "Peter Brown",    role: "Marketing",      level: "Middle", color: "#ea4335", tasks: 9,  done: 4,  skills: ["Ads","Social"] },
+  { initials: "CW", name: "Chloe Wood",     role: "HR",             level: "Senior", color: "#db2777", tasks: 5,  done: 5,  skills: ["Hiring"] },
 ];
 
 const PROJECTS = [
@@ -102,7 +110,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
   return (
     <div style={{ padding: "0" }}>
       {/* Welcome + date - Figma Style */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%", maxWidth: 1224, marginBottom: 32 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%", maxWidth: 1600, margin: "0 auto 32px" }}>
         <div>
           <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Welcome back, Evan!</p>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: T.textDark, margin: 0 }}>Dashboard</h1>
@@ -117,14 +125,15 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: 24, alignItems: "flex-start", maxWidth: 1600, margin: "0 auto" }}>
         {/* ── Left/main column: Workload (781x470) ── */}
         <div style={{ 
           backgroundColor: "#ffffff", 
           borderRadius: T.radiusXl, 
           border: `1.5px solid ${T.border}`, 
           padding: "24px", 
-          width: 850, 
+          width: "auto", 
+          flex: 2.4, 
           height: 470, 
           boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
           display: "flex",
@@ -158,7 +167,8 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           borderRadius: T.radiusXl, 
           border: `1.5px solid ${T.border}`, 
           padding: "24px", 
-          width: 350,
+          width: "auto",
+          flex: 1,
           height: 470,
           boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
           display: "flex",
@@ -188,9 +198,9 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 24, marginTop: 32, alignItems: "stretch" }}>
-        {/* ── Bottom Left: Daily Deal Flow (850px) ── */}
-        <div style={{ width: 850, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", gap: 24, marginTop: 32, alignItems: "stretch", maxWidth: 1600, margin: "32px auto 0" }}>
+        {/* ── Bottom Left: Daily Deal Flow  ── */}
+        <div style={{ flex: 2.4, display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h2>
             <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
@@ -205,8 +215,8 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           </div>
         </div>
 
-        {/* ── Bottom Right: Activity Stream (350px) ── */}
-        <div style={{ width: 350, display: "flex", flexDirection: "column" }}>
+        {/* ── Bottom Right: Activity Stream  ── */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <h3 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: 0 }}>Activity Stream</h3>
           </div>
