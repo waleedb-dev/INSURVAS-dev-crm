@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
 import { Pagination } from "@/components/ui";
+import UserEditorComponent from "./UserEditorComponent";
 
-interface User { id:string; name:string; email:string; role:"Admin"|"Manager"|"Agent"|"Read-Only"; status:"Active"|"Inactive"|"Suspended"; color:string; lastActive:string; policies:number; }
+interface User { id:string; name:string; email:string; role:string; status:"Active"|"Inactive"|"Suspended"; color:string; lastActive:string; policies:number; phone?:string; extension?:string; }
 type UserRole = User["role"];
 const ROLE_CFG:Record<UserRole,{bg:string;color:string}>={"Admin":{bg:"#fdf4ff",color:"#9333ea"},"Manager":{bg:T.blueLight,color:T.blue},"Agent":{bg:"#f0fdf4",color:"#16a34a"},"Read-Only":{bg:T.rowBg,color:T.textMuted}};
 const INIT:User[]=[
@@ -25,7 +26,7 @@ export default function UsersAccessPage(){
   const [search,setSearch]=useState("");
   const [rf,setRf]=useState<UserRole|"All">("All");
   const [showInvite, setShowInvite] = useState(false);
-  const [editRole, setEditRole] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [inviteRole, setInviteRole] = useState<UserRole>("Agent");
   const [page, setPage] = useState(1);
   const itemsPerPage = 8;
@@ -34,7 +35,7 @@ export default function UsersAccessPage(){
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
   const toggle=(id:string)=>setUsers(p=>p.map(u=>u.id===id?{...u,status:u.status==="Active"?"Inactive":"Active"}:u));
-  const changeRole=(uid:string,role:UserRole)=>{setUsers(p=>p.map(u=>u.id===uid?{...u,role}:u));setEditRole(null);};
+
 
   useEffect(() => {
     setPage(1);
@@ -49,89 +50,125 @@ export default function UsersAccessPage(){
     }
   }, [filtered.length, page, totalPages]);
 
+  if (showInvite || editingUser) {
+    return (
+      <UserEditorComponent
+        user={editingUser || undefined}
+        onClose={() => { setShowInvite(false); setEditingUser(null); }}
+        onSubmit={(data) => {
+          if (editingUser) {
+            setUsers(p => p.map(u => u.id === editingUser.id ? { ...u, name: `${data.firstName} ${data.lastName}`, email: data.email, phone: data.phone, extension: data.extension } : u));
+          } else {
+            const newUser: User = {
+              id: `U-${String(users.length + 1).padStart(3, '0')}`,
+              name: `${data.firstName} ${data.lastName}`,
+              email: data.email,
+              role: "Agent",
+              status: "Active",
+              color: T.blue,
+              lastActive: "Just now",
+              policies: 0,
+              phone: data.phone,
+              extension: data.extension
+            };
+            setUsers(p => [newUser, ...p]);
+          }
+          setShowInvite(false);
+          setEditingUser(null);
+        }}
+      />
+    );
+  }
+
   return(
-    <div>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24}}>
-        <div>
-          <p style={{fontSize:13,color:T.textMuted,fontWeight:600,margin:"0 0 4px"}}>Team Management</p>
-          <h1 style={{fontSize:26,fontWeight:800,color:T.textDark,margin:0}}>Users & Access</h1>
-        </div>
-        <button onClick={()=>setShowInvite(true)} style={{backgroundColor:T.blue,color:"#fff",border:"none",borderRadius:T.radiusMd,padding:"11px 22px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.font,display:"flex",alignItems:"center",gap:8}}>
-          + Invite User
-        </button>
+    <div style={{ padding: "0 20px" }}>
+      <div style={{ borderBottom: `1px solid ${T.borderLight}`, padding: "16px 0", marginBottom: 24 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, color: T.blue, margin: 0 }}>My Staff</h1>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
-        {[{l:"Total Users",v:users.length,c:T.blue},{l:"Active",v:users.filter(u=>u.status==="Active").length,c:"#16a34a"},{l:"Agents",v:users.filter(u=>u.role==="Agent").length,c:T.priorityHigh},{l:"Managers",v:users.filter(u=>u.role==="Manager").length,c:"#9333ea"}].map(({l,v,c})=>(
-          <div key={l} style={{backgroundColor:T.cardBg,borderRadius:T.radiusLg,padding:"16px 20px",boxShadow:T.shadowSm}}>
-            <p style={{margin:"0 0 4px",fontSize:12,color:T.textMuted,fontWeight:600}}>{l}</p>
-            <p style={{margin:0,fontSize:26,fontWeight:800,color:c}}>{v}</p>
-          </div>
-        ))}
-      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginBottom: 24, alignItems: "center" }}>
+        <select 
+          value={rf} 
+          onChange={e => setRf(e.target.value as any)}
+          style={{ padding: "10px 16px", border: `1px solid ${T.border}`, borderRadius: "8px", fontSize: 14, color: T.textMuted, backgroundColor: "#fff", cursor: "pointer", outline: "none", width: 180 }}
+        >
+          <option value="All">User Role</option>
+          {["Admin", "Manager", "Agent", "Read-Only"].map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
 
-      <div style={{backgroundColor:T.cardBg,borderRadius:T.radiusXl,boxShadow:T.shadowSm,overflow:"hidden"}}>
-        <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:10,alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{display:"flex",gap:6}}>
-            {(["All","Admin","Manager","Agent","Read-Only"] as const).map(r=>(
-              <button key={r} onClick={()=>setRf(r)} style={{padding:"5px 14px",borderRadius:20,border:"none",cursor:"pointer",backgroundColor:rf===r?T.blue:T.rowBg,color:rf===r?"#fff":T.textMuted,fontSize:12,fontWeight:700,fontFamily:T.font,transition:"all 0.15s"}}>{r}</button>
-            ))}
-          </div>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search users…" style={{padding:"7px 14px",border:`1.5px solid ${T.border}`,borderRadius:T.radiusSm,fontSize:13,fontFamily:T.font,color:T.textMid,width:200}}
-            onFocus={e=>{e.currentTarget.style.borderColor=T.blue;}} onBlur={e=>{e.currentTarget.style.borderColor=T.border;}}
+        <div style={{ position: "relative" }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}>
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input 
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
+            placeholder="name, email, phone, ids" 
+            style={{ padding: "10px 12px 10px 36px", border: `1px solid ${T.border}`, borderRadius: "8px", fontSize: 14, color: T.textMuted, width: 240, outline: "none" }}
           />
         </div>
 
+        <button 
+          onClick={() => setShowInvite(true)} 
+          style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Add User
+        </button>
+      </div>
+
+      <div style={{ backgroundColor: "#fff", borderRadius: "12px", border: `1px solid ${T.border}`, overflow: "hidden" }}>
+
+
         <table style={{width:"100%",borderCollapse:"collapse"}}>
           <thead>
-            <tr style={{backgroundColor:T.rowBg}}>
-              {["User","Email","Role","Policies","Status","Last Active","Actions"].map(h=>(
-                <th key={h} style={{padding:"10px 16px",fontSize:11,fontWeight:700,color:T.textMuted,textAlign:"left"}}>{h}</th>
+            <tr style={{ backgroundColor: "#fafbfc", borderBottom: `1px solid ${T.border}` }}>
+              {["Name", "Email", "Phone", "User Type", "Action"].map(h => (
+                <th key={h} style={{ padding: "16px 20px", fontSize: 13, fontWeight: 700, color: T.textMuted, textAlign: "left" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {paginated.map((u,i)=>{
-              const rc=ROLE_CFG[u.role];
-              const isEditing=editRole===u.id;
-              const dotColor=u.status==="Active"?"#16a34a":u.status==="Inactive"?"#ca8a04":"#dc2626";
-              return(
-                <tr key={u.id} style={{borderTop:`1px solid ${T.border}`,backgroundColor:i%2===0?T.cardBg:"#fafbfd"}}>
-                  <td style={{padding:"12px 16px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10}}>
-                      <div style={{width:34,height:34,borderRadius:"50%",backgroundColor:u.color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:800,flexShrink:0}}>{u.name.split(" ").map(n=>n[0]).join("")}</div>
-                      <span style={{fontSize:13,fontWeight:700,color:T.textDark}}>{u.name}</span>
+            {paginated.map((u, i) => (
+              <tr key={u.id} style={{ borderBottom: `1px solid ${T.borderLight}`, backgroundColor: "#fff" }}>
+                <td style={{ padding: "16px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: u.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
+                      {u.name.split(" ").map(n => n[0]).join("")}
                     </div>
-                  </td>
-                  <td style={{padding:"12px 16px",fontSize:12,color:T.textMuted,fontWeight:600}}>{u.email}</td>
-                  <td style={{padding:"12px 16px",position:"relative"}}>
-                    <button onClick={()=>setEditRole(isEditing?null:u.id)} style={{backgroundColor:rc.bg,color:rc.color,border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:T.font}}>
-                      {u.role} ▾
-                    </button>
-                    {isEditing&&(
-                      <div style={{position:"absolute",top:"100%",left:16,zIndex:100,backgroundColor:T.cardBg,border:`1px solid ${T.border}`,borderRadius:T.radiusMd,boxShadow:T.shadowLg,overflow:"hidden",minWidth:140,animation:"fadeInDown 0.14s ease"}}>
-                        {(["Admin","Manager","Agent","Read-Only"] as UserRole[]).map(r=>(
-                          <button key={r} onClick={()=>changeRole(u.id,r)} style={{display:"block",width:"100%",padding:"9px 14px",border:"none",background:r===u.role?T.blueFaint:"none",cursor:"pointer",fontFamily:T.font,fontSize:12,fontWeight:r===u.role?700:600,color:r===u.role?T.blue:T.textMid,textAlign:"left"}}>{r}</button>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{padding:"12px 16px",fontSize:13,fontWeight:700,color:T.textDark}}>{u.policies}</td>
-                  <td style={{padding:"12px 16px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <div style={{width:7,height:7,borderRadius:"50%",backgroundColor:dotColor}}/>
-                      <span style={{fontSize:12,fontWeight:600,color:T.textMid}}>{u.status}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{u.name}</span>
+                  </div>
+                </td>
+                <td style={{ padding: "16px 20px" }}>
+                  <div>
+                    <div style={{ fontSize: 14, color: T.textDark, fontWeight: 500, marginBottom: 2 }}>{u.email}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.textMuted, fontSize: 12 }}>
+                      {u.id}
+                      <button title="Copy ID" style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                      </button>
                     </div>
-                  </td>
-                  <td style={{padding:"12px 16px",fontSize:12,color:T.textMuted,fontWeight:600}}>{u.lastActive}</td>
-                  <td style={{padding:"12px 16px"}}>
-                    <button onClick={()=>toggle(u.id)} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:T.font,fontSize:11,fontWeight:700,color:u.status==="Active"?T.danger:"#16a34a"}}>
-                      {u.status==="Active"?"Deactivate":"Activate"}
+                  </div>
+                </td>
+                <td style={{ padding: "16px 20px", fontSize: 14, color: T.textMuted }}>{u.phone || "-"}</td>
+                <td style={{ padding: "16px 20px" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>ACCOUNT-{u.role.toUpperCase()}</span>
+                </td>
+                <td style={{ padding: "16px 20px" }}>
+                  <div style={{ display: "flex", gap: 16 }}>
+                    <button onClick={() => setEditingUser(u)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }} title="Edit">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
-                  </td>
-                </tr>
-              );
-            })}
+                    <button style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }} title="Delete">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    </button>
+                    <button onClick={() => toggle(u.id)} style={{ background: "none", border: "none", cursor: "pointer", color: u.status === "Active" ? T.textMuted : T.danger }} title={u.status === "Active" ? "Disable" : "Enable"}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
         <Pagination
@@ -143,61 +180,7 @@ export default function UsersAccessPage(){
         />
       </div>
 
-      {showInvite&&(
-        <div onClick={()=>setShowInvite(false)} style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.35)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",animation:"fadeIn 0.15s ease"}}>
-          <div onClick={e=>e.stopPropagation()} style={{backgroundColor:T.cardBg,borderRadius:T.radiusXl,padding:"36px",width:440,position:"relative",boxShadow:T.shadowXl,animation:"fadeInDown 0.18s ease"}}>
-            <button onClick={()=>setShowInvite(false)} style={{position:"absolute",top:18,right:18,background:"none",border:"none",cursor:"pointer",color:T.textMuted,fontSize:18}}>✕</button>
-            <h2 style={{margin:"0 0 24px",fontSize:20,fontWeight:800,color:T.textDark}}>Invite Team Member</h2>
-            {[["Username","text","johnsmith"],["Email Address","email","john@example.com"]].map(([l,t,p])=>(
-              <div key={l} style={{marginBottom:16}}>
-                <label style={{display:"block",fontSize:13,fontWeight:700,color:T.textMuted,marginBottom:6}}>{l}</label>
-                <input type={t} placeholder={p} style={{width:"100%",padding:"11px 14px",border:`1.5px solid ${T.border}`,borderRadius:T.radiusMd,fontSize:13,fontFamily:T.font,color:T.textMid,boxSizing:"border-box" as const,backgroundColor:T.rowBg}}
-                  onFocus={e=>{e.currentTarget.style.borderColor=T.blue;e.currentTarget.style.backgroundColor="#fff";}} onBlur={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.backgroundColor=T.rowBg;}}
-                />
-              </div>
-            ))}
-            <div style={{marginBottom:24,marginTop:20}}>
-              <label style={{display:"block",fontSize:13,fontWeight:700,color:T.textMuted,marginBottom:12}}>Select access role</label>
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {([
-                  { r:"Admin", d:"Full access to all CRM settings, billing, users, and pipelines." },
-                  { r:"Manager", d:"Can oversee team members, configure deal pipelines, and manage groups." },
-                  { r:"Agent", d:"Standard agent access. Can view assigned leads, deals, and daily tasks." },
-                  { r:"Read-Only", d:"Can only view dashboards and reports. No edit permissions." }
-                ] as const).map(({ r, d }) => {
-                  const isSel = inviteRole === r;
-                  return (
-                    <div key={r} onClick={() => setInviteRole(r)} style={{
-                      display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 16px",
-                      border: `1.5px solid ${isSel ? T.blue : T.border}`, borderRadius: T.radiusLg,
-                      backgroundColor: isSel ? "#f0f7ff" : "transparent", cursor: "pointer",
-                      transition: "all 0.15s"
-                    }}>
-                      <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${isSel ? T.blue : T.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink: 0, marginTop: 2, backgroundColor: "#fff" }}>
-                        {isSel && <div style={{width:10,height:10,borderRadius:"50%",backgroundColor:T.blue}}/>}
-                      </div>
-                      <div>
-                        <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 800, color: isSel ? T.blue : T.textDark }}>{r}</p>
-                        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: isSel ? "#3b82f6" : T.textMuted, lineHeight: 1.4 }}>{d}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setShowInvite(false)} style={{flex:1,padding:"12px",borderRadius:T.radiusMd,border:`1.5px solid ${T.border}`,background:"none",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.font,color:T.textMuted,transition:"background-color 0.15s"}}
-                onMouseEnter={(e)=>(e.currentTarget as HTMLElement).style.backgroundColor=T.rowBg}
-                onMouseLeave={(e)=>(e.currentTarget as HTMLElement).style.backgroundColor="transparent"}
-              >Cancel</button>
-              <button onClick={()=>setShowInvite(false)} style={{flex:2,padding:"12px",borderRadius:T.radiusMd,border:"none",backgroundColor:T.blue,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:T.font,transition:"opacity 0.15s"}}
-                onMouseEnter={(e)=>(e.currentTarget as HTMLElement).style.opacity="0.85"}
-                onMouseLeave={(e)=>(e.currentTarget as HTMLElement).style.opacity="1"}
-              >Send Invite</button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

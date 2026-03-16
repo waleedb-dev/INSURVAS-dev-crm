@@ -313,10 +313,60 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         </div>
       </div>
 
-      <div style={{ marginBottom: 20, flexShrink: 0, display: "flex", gap: 10 }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads by name or type..." style={{ flex: 1, maxWidth: 300, padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, outline: "none", fontSize: 13, fontFamily: T.font }} />
-        <button style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: "transparent", color: T.textMid, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: T.font }}>Filter</button>
-        <button style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: "transparent", color: T.textMid, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: T.font }}>Sort</button>
+      <div style={{ marginBottom: 20, flexShrink: 0, display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
+            <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
+            <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <input 
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
+            placeholder="Search leads by name or type..." 
+            style={{ 
+              width: "100%", 
+              padding: "11px 40px 11px 38px", 
+              border: `1.5px solid ${T.border}`, 
+              borderRadius: T.radiusMd, 
+              outline: "none", 
+              fontSize: 14, 
+              fontFamily: T.font, 
+              color: T.textDark,
+              backgroundColor: "#fff",
+              transition: "all 0.2s"
+            }} 
+            onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.boxShadow = `0 0 0 4px ${T.blue}15`; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+          />
+          {search && (
+            <button 
+              onClick={() => setSearch("")}
+              style={{ 
+                position: "absolute", 
+                right: 10, 
+                top: "50%", 
+                transform: "translateY(-50%)", 
+                background: "none", 
+                border: "none", 
+                cursor: "pointer", 
+                color: T.textMuted,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 4,
+                borderRadius: "50%",
+                transition: "background-color 0.2s",
+                zIndex: 2
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          )}
+        </div>
+        <button style={{ padding: "10px 16px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, backgroundColor: "#fff", color: T.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, transition: "all 0.15s" }}>Filter</button>
+        <button style={{ padding: "10px 16px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, backgroundColor: "#fff", color: T.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, transition: "all 0.15s" }}>Sort</button>
       </div>
 
       {/* Kanban / List Board */}

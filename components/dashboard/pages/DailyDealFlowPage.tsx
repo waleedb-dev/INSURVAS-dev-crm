@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
 import { Pagination } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
+import DealEditorComponent from "./DealEditorComponent";
 
 type DealStatus = "Approved" | "Under Review" | "Declined" | "Pending Docs" | "Submitted";
 type PolicyType = "Auto" | "Home" | "Life" | "Health" | "Commercial";
@@ -110,12 +111,39 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
   const agents = Array.from(new Set(deals.map(d => d.agent)));
   const policyTypes = Array.from(new Set(deals.map(d => d.policyType)));
 
+  const initialAgentColorMap = DEALS.reduce<Record<string, string>>((acc, deal) => {
+    acc[deal.agent] = deal.agentColor;
+    return acc;
+  }, {});
+
   if (viewingLead) {
     return (
       <LeadViewComponent
         leadId={viewingLead.id}
         leadName={viewingLead.name}
         onBack={() => setViewingLead(null)}
+      />
+    );
+  }
+
+  if (showAddDeal || editingDeal) {
+    return (
+      <DealEditorComponent
+        deal={editingDeal || undefined}
+        agents={agents}
+        existingCount={deals.length}
+        initialAgentColorMap={initialAgentColorMap}
+        onClose={() => { setShowAddDeal(false); setEditingDeal(null); }}
+        onSubmit={(deal) => {
+          if (editingDeal) {
+            setDeals((prev) => prev.map((item) => (item.id === deal.id ? deal : item)));
+          } else {
+            setDeals((prev) => [deal, ...prev]);
+            setPage(1);
+          }
+          setShowAddDeal(false);
+          setEditingDeal(null);
+        }}
       />
     );
   }
@@ -190,15 +218,56 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
       {/* Filters + Search */}
       <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>
         <div style={{ padding: "20px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>
-              <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="1.5" />
-              <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="1.5" strokeLinecap="round" />
+          <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
+              <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
+              <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
             </svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search deals, clients…" style={{ padding: "10px 14px 10px 36px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontFamily: T.font, color: T.textMid, width: "100%", backgroundColor: T.rowBg }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.backgroundColor = T.cardBg; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.backgroundColor = T.rowBg; }}
+            <input 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+              placeholder="Search deals, clients…" 
+              style={{ 
+                padding: "12px 42px 12px 44px", 
+                border: `1.5px solid ${T.border}`, 
+                borderRadius: T.radiusMd, 
+                fontSize: 14, 
+                fontFamily: T.font, 
+                color: T.textDark, 
+                width: "100%", 
+                backgroundColor: T.rowBg,
+                outline: "none",
+                transition: "all 0.2s"
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.backgroundColor = T.cardBg; e.currentTarget.style.boxShadow = `0 0 0 4px ${T.blue}15`; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.backgroundColor = T.rowBg; e.currentTarget.style.boxShadow = "none"; }}
             />
+            {search && (
+              <button 
+                onClick={() => setSearch("")}
+                style={{ 
+                  position: "absolute", 
+                  right: 12, 
+                  top: "50%", 
+                  transform: "translateY(-50%)", 
+                  background: "none", 
+                  border: "none", 
+                  cursor: "pointer", 
+                  color: T.textMuted,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 4,
+                  borderRadius: "50%",
+                  transition: "background-color 0.2s",
+                  zIndex: 2
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            )}
           </div>
           
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -216,6 +285,32 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
             </select>
           </div>
         </div>
+
+        {/* Active Filter Chips */}
+        {(filterStatus !== "All" || filterAgent !== "All" || filterType !== "All") && (
+          <div style={{ padding: "10px 20px", backgroundColor: "#fafcfe", borderBottom: `1px solid ${T.border}`, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Active Filters:</span>
+            
+            {filterStatus !== "All" && (
+              <FilterChip label={`Status: ${filterStatus}`} onClear={() => setFilterStatus("All")} />
+            )}
+            {filterAgent !== "All" && (
+              <FilterChip label={`Agent: ${filterAgent}`} onClear={() => setFilterAgent("All")} />
+            )}
+            {filterType !== "All" && (
+              <FilterChip label={`Policy: ${filterType}`} onClear={() => setFilterType("All")} />
+            )}
+
+            <button 
+              onClick={() => { setFilterStatus("All"); setFilterAgent("All"); setFilterType("All"); }}
+              style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", fontFamily: T.font, marginLeft: "auto" }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration = "underline"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.textDecoration = "none"}
+            >
+              Reset All
+            </button>
+          </div>
+        )}
 
         {/* Table */}
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -235,7 +330,12 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.blueFaint; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = i % 2 === 0 ? T.cardBg : "#fafbfd"; }}
                 >
-                  <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T.blue }}>{d.id}</td>
+                  <td 
+                    onClick={(e) => { e.stopPropagation(); setViewingLead({ id: d.id, name: d.client }); }}
+                    style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T.blue, textDecoration: "underline", cursor: "pointer" }}
+                  >
+                    {d.id}
+                  </td>
                   <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, color: T.textDark }}>{d.client}</td>
                   <td style={{ padding: "12px 16px" }}>
                     <span style={{ backgroundColor: pc.bg, color: pc.color, borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>{d.policyType}</span>
@@ -289,198 +389,43 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
           onPageChange={setPage}
         />
       </div>
-
-      {showAddDeal && (
-        <AddDealModal
-          agents={agents}
-          existingCount={deals.length}
-          onClose={() => setShowAddDeal(false)}
-          onSubmit={(deal) => {
-            setDeals((prev) => [deal, ...prev]);
-            setShowAddDeal(false);
-            setPage(1);
-          }}
-        />
-      )}
-
-      {editingDeal && (
-        <AddDealModal
-          deal={editingDeal}
-          agents={agents}
-          existingCount={deals.length}
-          onClose={() => setEditingDeal(null)}
-          onSubmit={(deal) => {
-            setDeals((prev) => prev.map((item) => (item.id === deal.id ? deal : item)));
-            setEditingDeal(null);
-          }}
-        />
-      )}
     </div>
   );
 }
 
-function AddDealModal({
-  deal,
-  agents,
-  existingCount,
-  onClose,
-  onSubmit,
-}: {
-  deal?: Deal;
-  agents: string[];
-  existingCount: number;
-  onClose: () => void;
-  onSubmit: (deal: Deal) => void;
-}) {
-  const [client, setClient] = useState(deal?.client ?? "");
-  const [policyType, setPolicyType] = useState<PolicyType>(deal?.policyType ?? "Auto");
-  const [agent, setAgent] = useState(deal?.agent ?? agents[0] ?? "Shawn Stone");
-  const [carrier, setCarrier] = useState(deal?.carrier ?? "");
-  const [premium, setPremium] = useState(deal ? String(deal.premium) : "");
-  const [submittedAt, setSubmittedAt] = useState(deal?.submittedAt ?? "");
-  const [status, setStatus] = useState<DealStatus>(deal?.status ?? "Submitted");
-
-  const initialMap = DEALS.reduce<Record<string, string>>((acc, deal) => {
-    acc[deal.agent] = deal.agentColor;
-    return acc;
-  }, {});
-
-  const handleSubmit = () => {
-    const premiumValue = Number(premium.replace(/,/g, ""));
-    if (!client.trim() || !carrier.trim() || !submittedAt.trim() || !Number.isFinite(premiumValue) || premiumValue <= 0) {
-      return;
-    }
-
-    const nextNumber = existingCount + 1;
-
-    onSubmit({
-      id: deal?.id ?? `DL-2024-${String(nextNumber).padStart(3, "0")}`,
-      client: client.trim(),
-      policyType,
-      agent,
-      agentColor: initialMap[agent] ?? T.blue,
-      premium: premiumValue,
-      submittedAt: submittedAt.trim(),
-      status,
-      carrier: carrier.trim(),
-    });
-  };
-
-  const inputStyle = {
-    width: "100%",
-    padding: "12px 14px",
-    border: `1.5px solid ${T.border}`,
-    borderRadius: T.radiusMd,
-    fontSize: 13,
-    color: T.textMid,
-    fontFamily: T.font,
-    backgroundColor: "#fff",
-    boxSizing: "border-box" as const,
-  };
-
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0,0,0,0.35)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-        animation: "fadeIn 0.18s ease",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          backgroundColor: T.cardBg,
-          borderRadius: T.radiusXl,
-          padding: "34px 34px 30px",
-          width: "100%",
-          maxWidth: 640,
-          boxShadow: T.shadowXl,
-          animation: "fadeInDown 0.18s ease",
-          position: "relative",
+    <div style={{ 
+      display: "flex", 
+      alignItems: "center", 
+      gap: 6, 
+      backgroundColor: "#fff", 
+      border: `1px solid ${T.border}`, 
+      borderRadius: 100, 
+      padding: "4px 4px 4px 12px", 
+      boxShadow: "0 1px 2px rgba(0,0,0,0.02)" 
+    }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: T.textMid }}>{label}</span>
+      <button 
+        onClick={onClear}
+        style={{ 
+          width: 20, 
+          height: 20, 
+          borderRadius: "50%", 
+          border: "none", 
+          backgroundColor: T.rowBg, 
+          color: T.textMuted, 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "center", 
+          cursor: "pointer",
+          transition: "all 0.15s"
         }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = T.danger + "15"; (e.currentTarget as HTMLElement).style.color = T.danger; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; (e.currentTarget as HTMLElement).style.color = T.textMuted; }}
       >
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          style={{ position: "absolute", top: 18, right: 18, background: "none", border: "none", cursor: "pointer", color: T.textMuted, fontSize: 18, lineHeight: 1 }}
-        >
-          ✕
-        </button>
-
-        <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 800, color: T.textDark }}>{deal ? "Edit Deal" : "Add Deal"}</h2>
-        <p style={{ margin: "0 0 24px", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
-          {deal ? "Update the selected deal and save your changes." : "Create a new policy deal and add it to the daily flow table."}
-        </p>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <Field label="Client Name">
-            <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="James Whitfield" style={inputStyle} />
-          </Field>
-          <Field label="Carrier">
-            <input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Progressive" style={inputStyle} />
-          </Field>
-          <Field label="Policy Type">
-            <select value={policyType} onChange={(e) => setPolicyType(e.target.value as PolicyType)} style={inputStyle}>
-              {(["Auto", "Home", "Life", "Health", "Commercial"] as PolicyType[]).map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Agent">
-            <select value={agent} onChange={(e) => setAgent(e.target.value)} style={inputStyle}>
-              {agents.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Premium">
-            <input value={premium} onChange={(e) => setPremium(e.target.value)} placeholder="1240" style={inputStyle} />
-          </Field>
-          <Field label="Submitted Time">
-            <input value={submittedAt} onChange={(e) => setSubmittedAt(e.target.value)} placeholder="02:30 PM" style={inputStyle} />
-          </Field>
-          <Field label="Status">
-            <select value={status} onChange={(e) => setStatus(e.target.value as DealStatus)} style={inputStyle}>
-              {(["Approved", "Under Review", "Pending Docs", "Submitted", "Declined"] as DealStatus[]).map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 28 }}>
-          <button
-            onClick={onClose}
-            style={{ backgroundColor: "transparent", color: T.textMuted, border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "12px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "12px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, boxShadow: "0 4px 14px rgba(66,133,244,0.35)" }}
-          >
-            {deal ? "Update Deal" : "Save Deal"}
-          </button>
-        </div>
-      </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label style={{ display: "block" }}>
-      <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>
-        {label}
-      </span>
-      {children}
-    </label>
   );
 }
