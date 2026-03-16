@@ -91,12 +91,13 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
   const [pipeline, setPipeline] = useState<string>("Sales Pipeline");
   const [search, setSearch] = useState("");
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [viewingLead, setViewingLead] = useState<{ id: string, name: string } | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<"Filters" | "Fields">("Filters");
   const [activeTab, setActiveTab] = useState("Opportunities");
-  const itemsPerPage = 12;
 
   const byStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
   const stageValue = (stage: Stage) => byStage(stage).reduce((s, l) => s + l.premium, 0);
@@ -456,11 +457,11 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                   {[
                     "Opportunity", "Smart Tags", "Contact", "Stage", 
                     "Opportunity Value", "Status", "Opportunity Owner", 
-                    "Tags", "Created", "Updated"
+                    "Tags", "Created", "Updated", "Actions"
                   ].map(h => (
-                    <th key={h} style={{ padding: "16px", textAlign: "left", fontSize: 11, fontWeight: 800, color: T.textDark, whiteSpace: "nowrap" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        {h} {h !== "Tags" && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>}
+                    <th key={h} style={{ padding: "16px", textAlign: h === "Actions" ? "center" : "left", fontSize: 11, fontWeight: 800, color: T.textDark, whiteSpace: "nowrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: h === "Actions" ? "center" : "flex-start", gap: 4 }}>
+                        {h} {h !== "Tags" && h !== "Actions" && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>}
                       </div>
                     </th>
                   ))}
@@ -508,6 +509,21 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                          <p style={{ margin: 0 }}>Mar 16, 2026</p>
                          <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>10:42 AM</p>
                       </div>
+                    </td>
+                    <td style={{ padding: "12px 16px", textAlign: "center", position: "relative" }}>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === lead.id ? null : lead.id); }} 
+                        style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+                      </button>
+                      {activeMenu === lead.id && (
+                        <div style={{ position: "absolute", top: "calc(100% - 4px)", right: 16, width: 140, backgroundColor: "#fff", borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1.5px solid ${T.border}`, zIndex: 100, overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
+                          <button onClick={() => { setViewingLead({ id: lead.id, name: lead.name }); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>View Details</button>
+                          <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Edit Lead</button>
+                          <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Delete</button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
