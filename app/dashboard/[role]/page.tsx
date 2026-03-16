@@ -7,7 +7,6 @@ import MainDashboard from "@/components/dashboard/MainDashboard";
 import NearestEventsPage from "@/components/dashboard/NearestEventsPage";
 import SupportModal from "@/components/dashboard/SupportModal";
 import DailyDealFlowPage from "@/components/dashboard/pages/DailyDealFlowPage";
-import AssigningPage from "@/components/dashboard/pages/AssigningPage";
 import LeadPipelinePage from "@/components/dashboard/pages/LeadPipelinePage";
 import UsersAccessPage from "@/components/dashboard/pages/UsersAccessPage";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -22,7 +21,6 @@ import {
 const ALL_PAGES: DashPage[] = [
   "dashboard",
   "daily-deal-flow",
-  "assigning",
   "lead-pipeline",
   "users-access",
   "nearest-events",
@@ -168,9 +166,6 @@ export default function RoleDashboardPage() {
         )}
         {resolvedActivePage === "daily-deal-flow" && (
           <DailyDealFlowPage canProcessActions={permissionKeys.has("action.daily_deal_flow.process")} />
-        )}
-        {resolvedActivePage === "assigning" && (
-          <AssigningPage canAssignActions={permissionKeys.has("action.assigning.assign")} />
         )}
         {resolvedActivePage === "lead-pipeline" && (
           <LeadPipelinePage canUpdateActions={permissionKeys.has("action.lead_pipeline.update")} />
