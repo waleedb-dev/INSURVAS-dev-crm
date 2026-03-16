@@ -217,6 +217,7 @@ export default function DashboardLayout({
       {/* ── Main area ──────────────────────────────────────────────────────── */}
       <div style={{
         marginLeft: sidebarW, flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh",
+        minWidth: 0,
         transition: "margin-left 0.22s cubic-bezier(.4,0,.2,1)",
       }}>
 
@@ -341,7 +342,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Page content */}
-        <main style={{ flex: 1, padding: "28px 28px" }}>
+        <main style={{ flex: 1, padding: "28px 28px", display: "flex", flexDirection: "column", minWidth: 0 }}>
           {children}
         </main>
       </div>

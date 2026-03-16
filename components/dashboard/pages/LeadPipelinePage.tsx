@@ -75,6 +75,11 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   };
 
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
+  const toggleCollapse = (stage: Stage) => {
+    setCollapsedStages((prev) => ({ ...prev, [stage]: !prev[stage] }));
+  };
+
   const [pipeline, setPipeline] = useState<string>("Sales Pipeline");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -99,33 +104,41 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   }, [filteredLeads.length, page, totalPages]);
 
   const renderKanbanBoard = () => (
-    <div style={{ paddingBottom: 16, paddingTop: 4 }}>
+    <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
       <style>{`
         .kanban-container {
           background-color: #ffffff;
           border: 1.5px solid ${T.border};
-          border-radius: ${T.radiusXl};
-          padding: 24px;
+          border-bottom: none;
+          border-top-left-radius: ${T.radiusXl};
+          border-top-right-radius: ${T.radiusXl};
+          border-bottom-left-radius: 0;
+          border-bottom-right-radius: 0;
+          padding-top: 24px;
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          width: min(100%, 1120px);
-          height: 520px;
+          flex: 1;
+          min-height: 0;
+          min-width: 0;
           box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
         }
         .kanban-board {
           display: flex;
           gap: 20px;
           overflow-x: auto;
-          padding-bottom: 12px;
-          align-items: flex-start;
+          overflow-y: hidden;
+          padding: 0 24px 8px 24px;
+          align-items: stretch;
           flex: 1;
+          min-height: 0;
           scrollbar-width: thin;
           scrollbar-color: ${T.border} transparent;
         }
-        .kanban-board::-webkit-scrollbar { height: 6px; }
-        .kanban-board::-webkit-scrollbar-track { background: #f8fafc; border-radius: 10px; }
-        .kanban-board::-webkit-scrollbar-thumb { background-color: ${T.border}; border-radius: 10px; }
+        .kanban-board::-webkit-scrollbar { height: 8px; }
+        .kanban-board::-webkit-scrollbar-track { background: transparent; border-radius: 4px; }
+        .kanban-board::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+        .kanban-board::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
         
         .kanban-column-wrapper {
           min-width: 250px;
@@ -137,24 +150,28 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           border-radius: ${T.radiusLg};
           border: 1px solid ${T.border};
           overflow: hidden;
-          max-height: 380px;
+          transition: min-width 0.2s ease, width 0.2s ease;
+          height: 100%;
         }
         
         .kanban-column-body {
           overflow-y: auto;
           flex: 1;
+          min-height: 0;
           padding: 12px;
           display: flex;
           flex-direction: column;
           gap: 12px;
           scrollbar-width: thin;
         }
-        .kanban-column-body::-webkit-scrollbar { width: 4px; }
-        .kanban-column-body::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 4px; }
+        .kanban-column-body::-webkit-scrollbar { width: 6px; }
+        .kanban-column-body::-webkit-scrollbar-track { background: transparent; }
+        .kanban-column-body::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 4px; border: 1px solid transparent; background-clip: padding-box; }
+        .kanban-column-body::-webkit-scrollbar-thumb:hover { background-color: #cbd5e1; }
       `}</style>
       
       <div className="kanban-container">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div style={{ padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Workload</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ display: "flex", backgroundColor: T.rowBg, borderRadius: T.radiusMd, padding: 4 }}>
@@ -170,33 +187,57 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           {STAGES.map((stage) => {
             const cfg = STAGE_CONFIG[stage];
             const stageLeads = byStage(stage).filter(l => filteredLeads.includes(l));
+            const isCollapsed = collapsedStages[stage];
             const isOver = dragOver === stage;
             return (
               <div
                 key={stage}
                 onDragOver={(e) => {
-                  if (!canUpdateActions) return;
+                  if (!canUpdateActions || isCollapsed) return;
                   e.preventDefault();
                   setDragOver(stage);
                 }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={() => {
-                  if (!canUpdateActions) return;
+                  if (!canUpdateActions || isCollapsed) return;
                   handleDrop(stage);
                 }}
                 className="kanban-column-wrapper"
                 style={{ 
                   borderColor: isOver ? cfg.color : T.border,
-                  backgroundColor: isOver ? cfg.bg : "#fff",
+                  backgroundColor: isOver ? cfg.bg : isCollapsed ? cfg.bg : "#fff",
+                  minWidth: isCollapsed ? 50 : 250,
+                  width: isCollapsed ? 50 : 250,
+                  maxHeight: isCollapsed ? "100%" : 380,
+                  height: isCollapsed ? "100%" : undefined
                 }}
               >
-                <div style={{ backgroundColor: cfg.bg, padding: "12px 14px", borderBottom: `2.5px solid ${cfg.header}`, flexShrink: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: cfg.color, textTransform: "uppercase" }}>{stage}</span>
-                    <span style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, fontWeight: 800 }}>{stageLeads.length}</span>
+                {isCollapsed ? (
+                  <div style={{ padding: "16px 0", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", opacity: 0.8 }} onClick={() => toggleCollapse(stage)}
+                    onMouseEnter={e => e.currentTarget.style.opacity = "1"}
+                    onMouseLeave={e => e.currentTarget.style.opacity = "0.8"}
+                  >
+                    <div style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, fontWeight: 800, marginBottom: 16 }}>
+                      {stageLeads.length}
+                    </div>
+                    <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: 13, fontWeight: 800, color: cfg.color, textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" }}>
+                      {stage}
+                    </div>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>${stageValue(stage).toLocaleString()}</span>
-                </div>
+                ) : (
+                  <>
+                    <div style={{ backgroundColor: cfg.bg, padding: "12px 14px", borderBottom: `2.5px solid ${cfg.header}`, flexShrink: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <button onClick={() => toggleCollapse(stage)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", color: cfg.color }} title="Collapse Column">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </button>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: cfg.color, textTransform: "uppercase" }}>{stage}</span>
+                        </div>
+                        <span style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, fontWeight: 800 }}>{stageLeads.length}</span>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>${stageValue(stage).toLocaleString()}</span>
+                    </div>
 
                 <div className="kanban-column-body">
                   {stageLeads.map((lead) => (
@@ -230,6 +271,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     </div>
                   )}
                 </div>
+                </>
+              )}
               </div>
             );
           })}
@@ -249,8 +292,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 96px)", minHeight: 0, minWidth: 0, overflow: "hidden", marginBottom: -28 }}>
+      <div style={{ marginBottom: 24, flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Sales Funnel</p>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -274,7 +317,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         </div>
       </div>
 
-      <div style={{ marginBottom: 20, display: "flex", gap: 10 }}>
+      <div style={{ marginBottom: 20, flexShrink: 0, display: "flex", gap: 10 }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads by name or type..." style={{ flex: 1, maxWidth: 300, padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, outline: "none", fontSize: 13, fontFamily: T.font }} />
         <button style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: "transparent", color: T.textMid, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: T.font }}>Filter</button>
         <button style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: "transparent", color: T.textMid, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: T.font }}>Sort</button>
@@ -284,7 +327,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       {viewMode === "kanban" ? (
         renderKanbanBoard()
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflowY: "auto", paddingBottom: 24 }}>
           <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
