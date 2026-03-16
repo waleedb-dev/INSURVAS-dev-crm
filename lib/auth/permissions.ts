@@ -70,7 +70,9 @@ export function canAccessPage(
     | "commissions"
     | "users-access"
     | "operations-guide"
-    | "pipeline-management",
+    | "pipeline-management"
+    | "carrier-management"
+    | "bpo-centres",
   role: RoleKey | null,
   permissionKeys: Set<PermissionKey>,
 ): boolean {
@@ -99,6 +101,10 @@ export function canAccessPage(
   }
 
   if (page === "pipeline-management") {
+    return role === "system_admin";
+  }
+
+  if (page === "carrier-management" || page === "bpo-centres") {
     return role === "system_admin";
   }
 

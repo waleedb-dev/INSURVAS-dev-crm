@@ -10,6 +10,8 @@ import DailyDealFlowPage from "@/components/dashboard/pages/DailyDealFlowPage";
 import LeadPipelinePage from "@/components/dashboard/pages/LeadPipelinePage";
 import UsersAccessPage from "@/components/dashboard/pages/UsersAccessPage";
 import PipelineSettingsPage from "@/components/dashboard/pages/PipelineSettingsPage";
+import CarrierManagementPage from "@/components/dashboard/pages/CarrierManagementPage";
+import BpoCentersPage from "@/components/dashboard/pages/BpoCentersPage";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
 import type { RoleKey } from "@/lib/auth/roles";
@@ -26,6 +28,8 @@ const ALL_PAGES: DashPage[] = [
   "users-access",
   "nearest-events",
   "pipeline-management",
+  "carrier-management",
+  "bpo-centres",
 ];
 
 export default function RoleDashboardPage() {
@@ -174,6 +178,8 @@ export default function RoleDashboardPage() {
         )}
         {resolvedActivePage === "users-access" && <UsersAccessPage />}
         {resolvedActivePage === "pipeline-management" && <PipelineSettingsPage />}
+        {resolvedActivePage === "carrier-management" && <CarrierManagementPage />}
+        {resolvedActivePage === "bpo-centres" && <BpoCentersPage />}
       </DashboardLayout>
 
       {showSupport && <SupportModal onClose={() => setShowSupport(false)} />}

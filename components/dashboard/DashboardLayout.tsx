@@ -6,7 +6,8 @@ import { T } from "@/lib/theme";
 export type DashPage =
   | "dashboard" | "nearest-events"
   | "daily-deal-flow" | "lead-pipeline"
-  | "users-access" | "pipeline-management";
+  | "users-access" | "pipeline-management"
+  | "carrier-management" | "bpo-centres";
 
 interface Props {
   activePage: DashPage;
@@ -31,6 +32,8 @@ const NAV_ITEMS: { id: DashPage; label: string; Icon: React.FC<{ active: boolean
   { id: "lead-pipeline",    label: "Lead Pipeline",    Icon: VacationsIcon },
   { id: "users-access",     label: "Users & Access",   Icon: MessengerIcon },
   { id: "pipeline-management", label: "Pipelines",     Icon: InfoPortalIcon },
+  { id: "carrier-management", label: "Carriers",       Icon: ProjectsIcon },
+  { id: "bpo-centres",      label: "BPO Centres",      Icon: VacationsIcon },
 ];
 
 const NOTIFICATIONS = [
