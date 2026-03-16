@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination } from "@/components/ui";
+import { Pagination, Table } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 import DealEditorComponent from "./DealEditorComponent";
 
@@ -312,74 +312,93 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
           </div>
         )}
 
-        {/* Table */}
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ backgroundColor: T.rowBg }}>
-              {["Deal ID","Client","Policy Type","Agent","Carrier","Premium","Submitted","Status","Actions"].map((h) => (
-                <th key={h} style={{ padding: "14px 16px", fontSize: 11, fontWeight: 700, color: T.textMuted, textAlign: h === "Actions" ? "center" : "left", whiteSpace: "nowrap" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {paginated.map((d, i) => {
-              const sc = STATUS_CONFIG[d.status];
-              const pc = POLICY_CONFIG[d.policyType];
-              return (
-                <tr key={d.id} style={{ borderTop: `1px solid ${T.border}`, backgroundColor: i % 2 === 0 ? T.cardBg : "#fafbfd", transition: "background-color 0.12s", cursor: "pointer" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.blueFaint; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = i % 2 === 0 ? T.cardBg : "#fafbfd"; }}
-                >
-                  <td 
-                    onClick={(e) => { e.stopPropagation(); setViewingLead({ id: d.id, name: d.client }); }}
-                    style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T.blue, textDecoration: "underline", cursor: "pointer" }}
-                  >
-                    {d.id}
-                  </td>
-                  <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, color: T.textDark }}>{d.client}</td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <span style={{ backgroundColor: pc.bg, color: pc.color, borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>{d.policyType}</span>
-                  </td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 24, height: 24, borderRadius: "50%", backgroundColor: d.agentColor, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 800, flexShrink: 0 }}>{d.agent.split(" ").map(n=>n[0]).join("")}</div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: T.textMid }}>{d.agent}</span>
+        <Table
+          data={paginated}
+          onRowClick={(d) => setViewingLead({ id: d.id, name: d.client })}
+          columns={[
+            {
+              header: "Deal ID",
+              key: "id",
+              render: (d) => <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, textDecoration: "underline" }}>{d.id}</span>
+            },
+            {
+              header: "Client",
+              key: "client",
+              render: (d) => <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{d.client}</span>
+            },
+            {
+              header: "Policy Type",
+              key: "policyType",
+              render: (d) => {
+                const pc = POLICY_CONFIG[d.policyType];
+                return <span style={{ backgroundColor: pc.bg, color: pc.color, borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>{d.policyType}</span>;
+              }
+            },
+            {
+              header: "Agent",
+              key: "agent",
+              render: (d) => (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", backgroundColor: d.agentColor, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 800, flexShrink: 0 }}>{d.agent.split(" ").map(n=>n[0]).join("")}</div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.textMid }}>{d.agent}</span>
+                </div>
+              )
+            },
+            {
+              header: "Carrier",
+              key: "carrier",
+              render: (d) => <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>{d.carrier}</span>
+            },
+            {
+              header: "Premium",
+              key: "premium",
+              render: (d) => <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>${d.premium.toLocaleString()}</span>
+            },
+            {
+              header: "Submitted",
+              key: "submittedAt",
+              render: (d) => <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{d.submittedAt}</span>
+            },
+            {
+              header: "Status",
+              key: "status",
+              render: (d) => {
+                const sc = STATUS_CONFIG[d.status];
+                return <span style={{ backgroundColor: "transparent", color: sc.color, border: `1px solid ${sc.color}44`, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{d.status}</span>;
+              }
+            },
+            {
+              header: "Actions",
+              key: "actions",
+              align: "center",
+              render: (d) => (
+                <div style={{ position: "relative" }}>
+                  <button onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === d.id ? null : d.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+                  </button>
+                   {activeMenu === d.id && (
+                    <div style={{ position: "absolute", top: "calc(100% - 10px)", right: 40, width: 140, backgroundColor: T.cardBg, borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 100, overflow: "hidden", animation: "fadeInDown 0.15s ease" }} onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => { setViewingLead({ id: d.id, name: d.client }); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                      >View Details</button>
+                      <button
+                          onClick={() => { setEditingDeal(d); setActiveMenu(null); }}
+                          style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                      >Edit Deal</button>
+                      <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.danger, textAlign: "left", transition: "background-color 0.15s" }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#fef2f2"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                      >Delete</button>
                     </div>
-                  </td>
-                  <td style={{ padding: "12px 16px", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>{d.carrier}</td>
-                  <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 800, color: T.textDark }}>${d.premium.toLocaleString()}</td>
-                  <td style={{ padding: "12px 16px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{d.submittedAt}</td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <span style={{ backgroundColor: "transparent", color: sc.color, border: `1px solid ${sc.color}44`, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{d.status}</span>
-                  </td>
-                  <td style={{ padding: "14px 16px", textAlign: "center", position: "relative" }}>
-                    <button onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === d.id ? null : d.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
-                    </button>
-                     {activeMenu === d.id && (
-                      <div style={{ position: "absolute", top: "calc(100% - 10px)", right: 40, width: 140, backgroundColor: T.cardBg, borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 100, overflow: "hidden", animation: "fadeInDown 0.15s ease" }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => { setViewingLead({ id: d.id, name: d.client }); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                        >View Details</button>
-                        <button
-                            onClick={() => { setEditingDeal(d); setActiveMenu(null); }}
-                            style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                        >Edit Deal</button>
-                        <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.danger, textAlign: "left", transition: "background-color 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#fef2f2"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                        >Delete</button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  )}
+                </div>
+              )
+            }
+          ]}
+        />
 
         <Pagination
           page={page}

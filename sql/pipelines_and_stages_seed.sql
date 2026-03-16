@@ -19,21 +19,89 @@ create table if not exists public.pipeline_stages (
   unique (pipeline_id, position)
 );
 
--- Seed 4 pipelines + stages
-with inserted_pipelines as (
-  insert into public.pipelines (name)
-  values
-    ('Chargeback Pipeline'),
-    ('Customer Pipeline'),
-    ('Marketing Pipeline'),
-    ('Transfer Portal')
-  on conflict (name) do update
-    set updated_at = now()
-  returning id, name
-)
+-- Grants for browser client access
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.pipelines to authenticated;
+grant select, insert, update, delete on public.pipeline_stages to authenticated;
+grant usage, select on sequence public.pipelines_id_seq to authenticated;
+grant usage, select on sequence public.pipeline_stages_id_seq to authenticated;
+
+-- RLS policies for browser client access
+alter table public.pipelines enable row level security;
+alter table public.pipeline_stages enable row level security;
+
+drop policy if exists pipelines_select_all_authenticated on public.pipelines;
+create policy pipelines_select_all_authenticated
+on public.pipelines
+for select
+to authenticated
+using (true);
+
+drop policy if exists pipelines_insert_all_authenticated on public.pipelines;
+create policy pipelines_insert_all_authenticated
+on public.pipelines
+for insert
+to authenticated
+with check (true);
+
+drop policy if exists pipelines_update_all_authenticated on public.pipelines;
+create policy pipelines_update_all_authenticated
+on public.pipelines
+for update
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists pipelines_delete_all_authenticated on public.pipelines;
+create policy pipelines_delete_all_authenticated
+on public.pipelines
+for delete
+to authenticated
+using (true);
+
+drop policy if exists pipeline_stages_select_all_authenticated on public.pipeline_stages;
+create policy pipeline_stages_select_all_authenticated
+on public.pipeline_stages
+for select
+to authenticated
+using (true);
+
+drop policy if exists pipeline_stages_insert_all_authenticated on public.pipeline_stages;
+create policy pipeline_stages_insert_all_authenticated
+on public.pipeline_stages
+for insert
+to authenticated
+with check (true);
+
+drop policy if exists pipeline_stages_update_all_authenticated on public.pipeline_stages;
+create policy pipeline_stages_update_all_authenticated
+on public.pipeline_stages
+for update
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists pipeline_stages_delete_all_authenticated on public.pipeline_stages;
+create policy pipeline_stages_delete_all_authenticated
+on public.pipeline_stages
+for delete
+to authenticated
+using (true);
+
+-- Seed pipelines
+insert into public.pipelines (name)
+values
+  ('Chargeback Pipeline'),
+  ('Customer Pipeline'),
+  ('Marketing Pipeline'),
+  ('Transfer Portal')
+on conflict (name) do update
+set updated_at = now();
+
+-- Seed stages
 insert into public.pipeline_stages (pipeline_id, name, position, show_in_reports)
 select p.id, s.name, s.position, true
-from inserted_pipelines p
+from public.pipelines p
 join (
   values
     -- Chargeback Pipeline

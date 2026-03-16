@@ -5,3 +5,4 @@ export { Checkbox, Radio, Switch, SegmentedControl } from "./Controls";
 export { Chip } from "./Chip";
 export { Badge, ProgressSpinner, Avatar } from "./Badge";
 export { Pagination } from "./Pagination";
+export { Table } from "./Table";

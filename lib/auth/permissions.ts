@@ -69,7 +69,8 @@ export function canAccessPage(
     | "lead-pipeline"
     | "commissions"
     | "users-access"
-    | "operations-guide",
+    | "operations-guide"
+    | "pipeline-management",
   role: RoleKey | null,
   permissionKeys: Set<PermissionKey>,
 ): boolean {
@@ -95,6 +96,10 @@ export function canAccessPage(
 
   if (page === "commissions") {
     return permissionKeys.has("page.commissions.access");
+  }
+
+  if (page === "pipeline-management") {
+    return role === "system_admin";
   }
 
   return false;

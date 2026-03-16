@@ -9,6 +9,7 @@ import SupportModal from "@/components/dashboard/SupportModal";
 import DailyDealFlowPage from "@/components/dashboard/pages/DailyDealFlowPage";
 import LeadPipelinePage from "@/components/dashboard/pages/LeadPipelinePage";
 import UsersAccessPage from "@/components/dashboard/pages/UsersAccessPage";
+import PipelineSettingsPage from "@/components/dashboard/pages/PipelineSettingsPage";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
 import type { RoleKey } from "@/lib/auth/roles";
@@ -24,6 +25,7 @@ const ALL_PAGES: DashPage[] = [
   "lead-pipeline",
   "users-access",
   "nearest-events",
+  "pipeline-management",
 ];
 
 export default function RoleDashboardPage() {
@@ -171,6 +173,7 @@ export default function RoleDashboardPage() {
           <LeadPipelinePage canUpdateActions={permissionKeys.has("action.lead_pipeline.update")} />
         )}
         {resolvedActivePage === "users-access" && <UsersAccessPage />}
+        {resolvedActivePage === "pipeline-management" && <PipelineSettingsPage />}
       </DashboardLayout>
 
       {showSupport && <SupportModal onClose={() => setShowSupport(false)} />}

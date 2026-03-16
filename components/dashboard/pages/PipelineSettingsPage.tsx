@@ -1,0 +1,434 @@
+"use client";
+
+import { useState, useEffect, useMemo } from "react";
+import { T } from "@/lib/theme";
+import { Avatar, Badge, Pagination, Table } from "@/components/ui";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+
+interface Stage {
+  id: string;
+  name: string;
+  position: number;
+  showInReports: boolean;
+}
+
+interface Pipeline {
+  id: string;
+  name: string;
+  stagesCount: number;
+  updatedAt: string;
+  stages: Stage[];
+}
+
+export default function PipelineManagementPage() {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [view, setView] = useState<"list" | "edit">("list");
+  const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activePipelineMenu, setActivePipelineMenu] = useState<string | null>(null);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [tempStageName, setTempStageName] = useState("");
+  const [isEditingPipelineName, setIsEditingPipelineName] = useState(false);
+  const [tempPipelineName, setTempPipelineName] = useState("");
+
+  useEffect(() => {
+    fetchPipelines();
+  }, []);
+
+  async function fetchPipelines() {
+    setLoading(true);
+    const { data: pipelinesData, error } = await supabase
+      .from("pipelines")
+      .select(`
+        id,
+        name,
+        updated_at,
+        pipeline_stages(count)
+      `)
+      .order("name");
+
+    if (error) {
+      console.error("Error fetching pipelines:", error.message, error.details, error.hint);
+    } else if (pipelinesData) {
+      const mapped = pipelinesData.map((p: any) => ({
+        id: String(p.id),
+        name: p.name,
+        stagesCount: p.pipeline_stages?.[0]?.count || 0,
+        updatedAt: new Date(p.updated_at).toLocaleString(),
+        stages: []
+      }));
+      setPipelines(mapped);
+    }
+    setLoading(false);
+  }
+
+  async function handleCreatePipeline() {
+    const name = prompt("Enter Pipeline Name:");
+    if (!name) return;
+
+    const { data, error } = await supabase
+      .from("pipelines")
+      .insert([{ name }])
+      .select()
+      .single();
+
+    if (error) {
+       console.error("Error creating pipeline:", error);
+    } else {
+       fetchPipelines();
+    }
+  }
+
+  async function handleOpenPipeline(p: Pipeline) {
+    setLoading(true);
+    const { data: stagesData, error } = await supabase
+      .from("pipeline_stages")
+      .select("*")
+      .eq("pipeline_id", p.id)
+      .order("position");
+
+    if (error) {
+       console.error("Error fetching stages:", error);
+    } else {
+       setSelectedPipeline({
+         ...p,
+         stages: stagesData.map((s: any) => ({
+           id: String(s.id),
+           name: s.name,
+           position: s.position,
+           showInReports: s.show_in_reports
+         }))
+       });
+       setView("edit");
+    }
+    setLoading(false);
+  }
+
+  async function handleAddStage() {
+     if (!selectedPipeline) return;
+     const newPosition = selectedPipeline.stages.length + 1;
+     const newStage = {
+       pipeline_id: selectedPipeline.id,
+       name: "New Stage",
+       position: newPosition,
+       show_in_reports: true
+     };
+
+     const { data, error } = await supabase
+       .from("pipeline_stages")
+       .insert([newStage])
+       .select()
+       .single();
+
+     if (error) {
+       console.error("Error adding stage:", {
+         code: error.code,
+         message: error.message,
+         details: error.details,
+         hint: error.hint,
+       });
+     } else if (data) {
+       const mappedStage: Stage = {
+         id: String(data.id),
+         name: data.name,
+         position: data.position,
+         showInReports: data.show_in_reports
+       };
+       setSelectedPipeline({
+         ...selectedPipeline,
+         stages: [...selectedPipeline.stages, mappedStage]
+       });
+       setEditingStageId(mappedStage.id);
+       setTempStageName(mappedStage.name);
+     }
+  }
+
+  async function handleDeleteStage(id: string) {
+    if (!selectedPipeline) return;
+    const { error } = await supabase
+      .from("pipeline_stages")
+      .delete()
+      .eq("id", id);
+    
+    if (error) {
+      console.error("Error deleting stage:", error);
+    } else {
+      setSelectedPipeline({
+        ...selectedPipeline,
+        stages: selectedPipeline.stages.filter(s => s.id !== id)
+      });
+    }
+  }
+
+  async function handleUpdateStage(id: string, updates: Partial<Stage>) {
+    if (!selectedPipeline) return;
+    
+    setSelectedPipeline({
+      ...selectedPipeline,
+      stages: selectedPipeline.stages.map(s => s.id === id ? { ...s, ...updates } : s)
+    });
+
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.showInReports !== undefined) dbUpdates.show_in_reports = updates.showInReports;
+
+    const { error } = await supabase
+      .from("pipeline_stages")
+      .update(dbUpdates)
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating stage:", error);
+    }
+    setEditingStageId(null);
+  }
+
+  async function handleUpdatePipelineName() {
+    if (!selectedPipeline || !tempPipelineName) return;
+    
+    // Optimistic update
+    setSelectedPipeline({ ...selectedPipeline, name: tempPipelineName });
+    setIsEditingPipelineName(false);
+
+    const { error } = await supabase
+      .from("pipelines")
+      .update({ name: tempPipelineName })
+      .eq("id", selectedPipeline.id);
+
+    if (error) {
+      console.error("Error updating pipeline name:", error);
+    }
+  }
+
+  if (view === "edit" && selectedPipeline) {
+    return (
+      <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }}>
+        {/* Detail Header */}
+        <div style={{ marginBottom: 24 }}>
+          <button 
+            onClick={() => setView("list")} 
+            style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", color: T.textMuted, fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Pipelines
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {isEditingPipelineName ? (
+              <input 
+                autoFocus
+                value={tempPipelineName}
+                onChange={(e) => setTempPipelineName(e.target.value)}
+                onBlur={handleUpdatePipelineName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleUpdatePipelineName();
+                  if (e.key === 'Escape') setIsEditingPipelineName(false);
+                }}
+                style={{ fontSize: 28, fontWeight: 800, border: `2px solid ${T.blue}`, borderRadius: 8, padding: "4px 12px", outline: "none", backgroundColor: "#fff" }}
+              />
+            ) : (
+              <>
+                <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>{selectedPipeline.name}</h1>
+                <button 
+                  onClick={() => { setIsEditingPipelineName(true); setTempPipelineName(selectedPipeline.name); }}
+                  style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 6, borderRadius: 6 }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Detail Tabs */}
+        <div style={{ display: "flex", gap: 32, borderBottom: `1.5px solid ${T.border}`, marginBottom: 24 }}>
+          <button style={{ padding: "12px 4px", border: "none", borderBottom: `3px solid ${T.blue}`, background: "none", color: T.blue, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Stages</button>
+        </div>
+
+        {/* Stages Toolbar */}
+        <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: `1.5px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ position: "relative", width: 280 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input placeholder="Search Stages" style={{ width: "100%", padding: "8px 12px 8px 36px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, outline: "none" }} />
+            </div>
+            <button onClick={handleAddStage} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ Add Stage</button>
+          </div>
+
+          <Table
+            data={selectedPipeline.stages}
+            columns={[
+              {
+                header: "",
+                key: "drag",
+                width: 40,
+                render: () => (
+                  <div style={{ cursor: "move" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                  </div>
+                )
+              },
+              {
+                header: (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 18, height: 18, backgroundColor: T.border, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: T.textMid }}>A</div>
+                    Stage Name
+                  </div>
+                ),
+                key: "name",
+                render: (stage) => (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {editingStageId === stage.id ? (
+                      <input 
+                        autoFocus
+                        value={tempStageName}
+                        onChange={(e) => setTempStageName(e.target.value)}
+                        onBlur={() => handleUpdateStage(stage.id, { name: tempStageName })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleUpdateStage(stage.id, { name: tempStageName });
+                          if (e.key === 'Escape') setEditingStageId(null);
+                        }}
+                        style={{ border: `1.5px solid ${T.blue}`, borderRadius: 4, padding: "2px 6px", fontSize: 13, fontWeight: 700, color: T.textDark, outline: "none", width: "100%" }}
+                      />
+                    ) : (
+                      <span 
+                        onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); }}
+                        style={{ fontWeight: 700, color: T.textDark, cursor: "text", padding: "2px 6px", borderRadius: 4, transition: "background-color 0.2s" }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                      >
+                        {stage.name}
+                      </span>
+                    )}
+                  </div>
+                )
+              },
+              {
+                header: (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                    Show in Reports
+                  </div>
+                ),
+                key: "showInReports",
+                render: (stage) => (
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <button 
+                      onClick={() => handleUpdateStage(stage.id, { showInReports: !stage.showInReports })}
+                      style={{ background: "none", border: "none", color: stage.showInReports ? T.blue : T.textMuted, cursor: "pointer" }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                    </button>
+                    <button style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+                  </div>
+                )
+              },
+              {
+                header: "Actions",
+                key: "actions",
+                align: "center",
+                width: 80,
+                render: (stage) => (
+                  <button 
+                    onClick={() => handleDeleteStage(stage.id)}
+                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  </button>
+                )
+              }
+            ]}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }} onClick={() => setActivePipelineMenu(null)}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+        <div>
+          <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 8px" }}>Pipelines</h1>
+          <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Pipelines help you manage Opportunities step by step, giving you a clear view of progress and sales outcomes.</p>
+        </div>
+        <button onClick={handleCreatePipeline} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>+ Create Pipeline</button>
+      </div>
+
+      <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
+        <div style={{ padding: "20px", borderBottom: `1.5px solid ${T.border}` }}>
+          <div style={{ position: "relative", width: 200 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input placeholder="Search" style={{ width: "100%", padding: "8px 12px 8px 36px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, outline: "none" }} />
+          </div>
+        </div>
+
+        <Table
+          data={pipelines}
+          onRowClick={(p) => handleOpenPipeline(p)}
+          columns={[
+            {
+              header: (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 18, height: 18, backgroundColor: T.border, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: T.textMid }}>A</div>
+                  Pipeline name
+                </div>
+              ),
+              key: "name",
+              render: (p) => <span style={{ fontWeight: 700, color: T.textDark }}>{p.name}</span>
+            },
+            {
+              header: (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                   <span style={{ fontSize: 16, color: T.border }}>#</span>
+                   No. of Stages
+                </div>
+              ),
+              key: "stagesCount",
+              align: "center",
+              render: (p) => <span style={{ fontWeight: 700, color: T.textMid }}>{p.stagesCount}</span>
+            },
+            {
+              header: (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                   Updated on
+                </div>
+              ),
+              key: "updatedAt",
+              render: (p) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{p.updatedAt}</span>
+            },
+            {
+              header: "Actions",
+              key: "actions",
+              align: "center",
+              render: (p) => (
+                <div style={{ position: "relative" }}>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setActivePipelineMenu(activePipelineMenu === p.id ? null : p.id); }} 
+                    style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 6, borderRadius: 6 }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+                  </button>
+                  {activePipelineMenu === p.id && (
+                    <div style={{ position: "absolute", top: "calc(100% - 4px)", right: 16, width: 140, backgroundColor: "#fff", borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1.5px solid ${T.border}`, zIndex: 100, overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => { handleOpenPipeline(p); setActivePipelineMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Edit Pipeline</button>
+                      <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Delete</button>
+                    </div>
+                  )}
+                </div>
+              )
+            }
+          ]}
+        />
+        
+        <div style={{ padding: "16px 20px", borderTop: `1.5px solid ${T.border}`, display: "flex", justifyContent: "flex-end" }}>
+           <Pagination page={1} totalItems={4} itemsPerPage={20} itemLabel="pipelines" onPageChange={() => {}} />
+        </div>
+      </div>
+    </div>
+  );
+}

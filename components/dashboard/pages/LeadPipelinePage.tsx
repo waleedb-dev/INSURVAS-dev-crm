@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination, Avatar, Badge } from "@/components/ui";
+import { Pagination, Avatar, Badge, Table } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 
 type Stage = "New Lead" | "Attempted Contact" | "Contacted" | "Discovery Call" | "Presentation" | "Needs Quote" | "Quoted" | "Underwriting" | "Bound" | "Won" | "Lost";
@@ -448,87 +448,106 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       {viewMode === "kanban" ? renderKanbanBoard() : (
         <div style={{ flex: 1, backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ flex: 1, overflowY: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ position: "sticky", top: 0, zIndex: 10, backgroundColor: "#fff" }}>
-                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
-                  <th style={{ padding: "16px", width: 40, textAlign: "center" }}>
-                    <input type="checkbox" style={{ width: 15, height: 15, accentColor: T.blue }} />
-                  </th>
-                  {[
-                    "Opportunity", "Smart Tags", "Contact", "Stage", 
-                    "Opportunity Value", "Status", "Opportunity Owner", 
-                    "Tags", "Created", "Updated", "Actions"
-                  ].map(h => (
-                    <th key={h} style={{ padding: "16px", textAlign: h === "Actions" ? "center" : "left", fontSize: 11, fontWeight: 800, color: T.textDark, whiteSpace: "nowrap" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: h === "Actions" ? "center" : "flex-start", gap: 4 }}>
-                        {h} {h !== "Tags" && h !== "Actions" && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>}
+          <Table
+            data={paginatedLeads}
+            onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name })}
+            columns={[
+              {
+                header: <input type="checkbox" style={{ width: 15, height: 15, accentColor: T.blue }} />,
+                key: "checkbox",
+                width: 40,
+                align: "center",
+                render: () => <input type="checkbox" onClick={(e) => e.stopPropagation()} style={{ width: 14, height: 14, accentColor: T.blue }} />
+              },
+              {
+                header: "Opportunity",
+                key: "name",
+                sortable: true,
+                render: (lead) => <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.blue }}>{lead.name} ...</p>
+              },
+              {
+                header: "Contact",
+                key: "contact",
+                render: (lead) => (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Avatar name={lead.name} size={26} style={{ border: `1px solid ${T.border}` }} />
+                    <span style={{ fontSize: 13, color: T.textMid }}>{lead.name}...</span>
+                  </div>
+                )
+              },
+              {
+                header: "Stage",
+                key: "stage",
+                sortable: true,
+                render: (lead) => <span style={{ fontSize: 13, color: T.textMid }}>{lead.stage}...</span>
+              },
+              {
+                header: "Opportunity Value",
+                key: "premium",
+                sortable: true,
+                render: (lead) => <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>${lead.premium.toLocaleString()}</span>
+              },
+              {
+                header: "Status",
+                key: "status",
+                render: () => <Badge label="open" variant="custom" color={T.textMid} bgColor={T.pageBg} />
+              },
+              {
+                header: "Opportunity Owner",
+                key: "agent",
+                render: (lead) => <Avatar name={lead.agent} size={28} style={{ backgroundColor: lead.agentColor }} />
+              },
+              {
+                header: "Tags",
+                key: "tags",
+                render: () => <span style={{ backgroundColor: T.rowBg, borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 700, color: T.textMuted }}>call center</span>
+              },
+              {
+                header: "Created",
+                key: "created",
+                sortable: true,
+                render: () => (
+                  <div style={{ fontSize: 11, color: T.textMid }}>
+                     <p style={{ margin: 0 }}>Mar 9, 2026</p>
+                     <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>03:51 PM</p>
+                  </div>
+                )
+              },
+              {
+                header: "Updated",
+                key: "updated",
+                sortable: true,
+                render: () => (
+                  <div style={{ fontSize: 11, color: T.textMid }}>
+                     <p style={{ margin: 0 }}>Mar 16, 2026</p>
+                     <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>10:42 AM</p>
+                  </div>
+                )
+              },
+              {
+                header: "Actions",
+                key: "actions",
+                align: "center",
+                render: (lead) => (
+                  <div style={{ position: "relative" }}>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === lead.id ? null : lead.id); }} 
+                      style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+                    </button>
+                    {activeMenu === lead.id && (
+                      <div style={{ position: "absolute", top: "calc(100% - 4px)", right: 16, width: 140, backgroundColor: "#fff", borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1.5px solid ${T.border}`, zIndex: 100, overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => { setViewingLead({ id: lead.id, name: lead.name }); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>View Details</button>
+                        <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Edit Lead</button>
+                        <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Delete</button>
                       </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedLeads.map(lead => (
-                  <tr key={lead.id} style={{ borderBottom: `1px solid ${T.borderLight}`, transition: "background-color 0.1s" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fafafa"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>
-                    <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <input type="checkbox" style={{ width: 14, height: 14, accentColor: T.blue }} />
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.blue, cursor: "pointer" }} onClick={() => setViewingLead({ id: lead.id, name: lead.name })}>{lead.name} ...</p>
-                    </td>
-                    <td style={{ padding: "12px 16px" }}></td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <Avatar name={lead.name} size={26} style={{ border: `1px solid ${T.border}` }} />
-                        <span style={{ fontSize: 13, color: T.textMid }}>{lead.name}...</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 13, color: T.textMid }}>{lead.stage}...</span>
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>${lead.premium.toLocaleString()}</span>
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <Badge label="open" variant="custom" color={T.textMid} bgColor={T.pageBg} />
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <Avatar name={lead.agent} size={28} style={{ backgroundColor: lead.agentColor }} />
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <span style={{ backgroundColor: T.rowBg, borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 700, color: T.textMuted }}>call center</span>
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <div style={{ fontSize: 11, color: T.textMid }}>
-                         <p style={{ margin: 0 }}>Mar 9, 2026</p>
-                         <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>03:51 PM</p>
-                      </div>
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <div style={{ fontSize: 11, color: T.textMid }}>
-                         <p style={{ margin: 0 }}>Mar 16, 2026</p>
-                         <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>10:42 AM</p>
-                      </div>
-                    </td>
-                    <td style={{ padding: "12px 16px", textAlign: "center", position: "relative" }}>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === lead.id ? null : lead.id); }} 
-                        style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
-                      </button>
-                      {activeMenu === lead.id && (
-                        <div style={{ position: "absolute", top: "calc(100% - 4px)", right: 16, width: 140, backgroundColor: "#fff", borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1.5px solid ${T.border}`, zIndex: 100, overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => { setViewingLead({ id: lead.id, name: lead.name }); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>View Details</button>
-                          <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Edit Lead</button>
-                          <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Delete</button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    )}
+                  </div>
+                )
+              }
+            ]}
+          />
           </div>
           <Pagination page={page} totalItems={filteredLeads.length} itemsPerPage={itemsPerPage} itemLabel="leads" onPageChange={setPage} />
         </div>

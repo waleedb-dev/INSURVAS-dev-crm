@@ -1,6 +1,6 @@
-"use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { T } from "@/lib/theme";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Lead {
   name: string;
@@ -9,6 +9,7 @@ interface Lead {
   premium: number;
   type: string;
   source: string;
+  pipeline: string;
   stage: string;
 }
 
@@ -23,7 +24,9 @@ interface LeadViewProps {
 type TabType = "Overview" | "Timeline" | "Documents" | "Notes" | "Policy Details";
 
 export default function LeadViewComponent({ leadId, leadName, isCreation, onSubmit, onBack }: LeadViewProps) {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [activeTab, setActiveTab] = useState<TabType>("Overview");
+  const [pipelines, setPipelines] = useState<{name: string, stages: string[]}[]>([]);
   
   // State for creation/edit
   const [formData, setFormData] = useState<Lead>({
@@ -33,8 +36,52 @@ export default function LeadViewComponent({ leadId, leadName, isCreation, onSubm
     premium: 0,
     type: "Auto Insurance",
     source: "Manual Entry",
+    pipeline: "Sales Pipeline",
     stage: "New Lead"
   });
+
+  useEffect(() => {
+    fetchPipelines();
+  }, []);
+
+  async function fetchPipelines() {
+    const { data: pipelinesData, error: pError } = await supabase
+      .from("pipelines")
+      .select("id, name");
+    
+    if (pError) {
+      console.error("Error fetching pipelines:", pError);
+      return;
+    }
+
+    const { data: stagesData, error: sError } = await supabase
+      .from("pipeline_stages")
+      .select("pipeline_id, name")
+      .order("position");
+
+    if (sError) {
+      console.error("Error fetching stages:", sError);
+      return;
+    }
+
+    const built = pipelinesData.map(p => ({
+      name: p.name,
+      stages: stagesData.filter(s => s.pipeline_id === p.id).map(s => s.name)
+    }));
+    
+    setPipelines(built);
+    
+    // Set default if empty
+    if (isCreation && built.length > 0 && !formData.pipeline) {
+      setFormData(prev => ({
+        ...prev,
+        pipeline: built[0].name,
+        stage: built[0].stages[0] || ""
+      }));
+    }
+  }
+
+  const currentPipeline = pipelines.find(p => p.name === formData.pipeline) || pipelines[0];
 
   const leadData = {
     status: formData.stage,
@@ -218,20 +265,38 @@ export default function LeadViewComponent({ leadId, leadName, isCreation, onSubm
                   <div style={{ backgroundColor: T.pageBg, border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
                     <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Lead Lifecycle</p>
                     {isCreation ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                         <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Initial Pipeline Stage</label>
-                         <select value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})} style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700 }}>
-                           <option value="New Lead">New Lead</option>
-                           <option value="Quoted">Quoted</option>
-                           <option value="Follow Up">Follow Up</option>
-                         </select>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                           <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Pipeline</label>
+                           <select 
+                             value={formData.pipeline} 
+                             onChange={e => {
+                               const pName = e.target.value;
+                               const p = pipelines.find(pl => pl.name === pName);
+                               setFormData({...formData, pipeline: pName, stage: p ? p.stages[0] : ""});
+                             }} 
+                             style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700, outline: "none" }}
+                           >
+                             {pipelines.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                           </select>
+                         </div>
+                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                           <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Stage</label>
+                           <select 
+                             value={formData.stage} 
+                             onChange={e => setFormData({...formData, stage: e.target.value})} 
+                             style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700, outline: "none" }}
+                           >
+                             {currentPipeline?.stages.map(s => <option key={s} value={s}>{s}</option>)}
+                           </select>
+                         </div>
                       </div>
                     ) : (
                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <div style={{ width: 44, height: 44, borderRadius: "50%", backgroundColor: "#f59e0b", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800 }}>SS</div>
                         <div>
                           <p style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>{leadData.agent}</p>
-                          <p style={{ margin: 0, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Assigned Advisor</p>
+                          <p style={{ margin: 0, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Assigned Advisor • {formData.pipeline}</p>
                         </div>
                       </div>
                     )}
