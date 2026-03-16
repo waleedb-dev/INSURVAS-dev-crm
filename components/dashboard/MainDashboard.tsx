@@ -20,6 +20,10 @@ const MEMBERS = [
   { initials: "JP", name: "Joel Phillips",  role: "UI/UX Designer", level: "Middle", color: "#14b8a6", tasks: 7,  done: 4,  skills: ["Figma","Design Systems"] },
   { initials: "WM", name: "Wayne Marsh",    role: "Copywriter",     level: "Junior", color: "#64748b", tasks: 3,  done: 1,  skills: ["Blogging","Research"] },
   { initials: "OH", name: "Oscar Holloway", role: "UI/UX Designer", level: "Middle", color: "#f97316", tasks: 9,  done: 6,  skills: ["Figma","Motion","Illustration"] },
+  { initials: "AM", name: "Alice Murphy",   role: "IOS Developer",  level: "Middle", color: "#10b981", tasks: 6,  done: 4,  skills: ["SwiftUI","Combine"] },
+  { initials: "GT", name: "George Thompson",role: "Copywriter",     level: "Junior", color: "#6366f1", tasks: 5,  done: 1,  skills: ["Blogging"] },
+  { initials: "KL", name: "Kate Lewis",     role: "UI/UX Designer", level: "Senior", color: "#f43f5e", tasks: 12, done: 10, skills: ["Strategy","Prototying"] },
+  { initials: "DB", name: "David Bell",     role: "IOS Developer",  level: "Senior", color: "#84cc16", tasks: 15, done: 14, skills: ["Architecture"] },
 ];
 
 const PROJECTS = [
@@ -139,7 +143,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                 <p style={{ margin: 0, fontSize: 13, color: T.textMuted, fontWeight: 600 }}>No members found</p>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
                 {filteredMembers.map((m) => (
                   <MemberCard key={m.name} {...m} onClick={() => setSelectedMember(m)} />
                 ))}
@@ -255,26 +259,37 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function MemberCard({ initials, name, role, level, color, onClick }: any) {
+function MemberCard({ initials, name, role, level, color, tasks, done, onClick }: any) {
+  const isHighLoad = tasks - done > 3;
   return (
     <div
       onClick={onClick}
       style={{
         backgroundColor: T.pageBg,
-        borderRadius: 14, padding: "16px 12px 14px",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-        cursor: "pointer", transition: "all 0.18s",
-        border: `1px solid ${T.border}`,
+        borderRadius: 16, padding: "16px 12px",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+        cursor: "pointer", transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        border: `1.5px solid ${T.border}`,
+        position: "relative"
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = "translateY(-2px)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = "translateY(0)"; }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = `0 12px 20px -10px ${color}33`; e.currentTarget.style.backgroundColor = "#fff"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.backgroundColor = T.pageBg; }}
     >
-      <div style={{ width: 48, height: 48, borderRadius: "50%", border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color + "15", marginBottom: 4 }}>
-        <span style={{ fontSize: 14, fontWeight: 800, color }}>{initials}</span>
+      <div style={{ position: "absolute", top: 12, right: 12, width: 8, height: 8, borderRadius: "50%", backgroundColor: isHighLoad ? T.danger : "#22c55e" }} title={isHighLoad ? "High Load" : "Balanced Load"} />
+      
+      <div style={{ width: 44, height: 44, borderRadius: "50%", border: `2.5px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color + "10", marginBottom: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 900, color }}>{initials}</span>
       </div>
-      <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: T.textDark, textAlign: "center" }}>{name}</p>
-      <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: T.textMuted, textAlign: "center" }}>{role}</p>
-      <span style={{ borderRadius: 4, padding: "1px 6px", fontSize: 10, fontWeight: 700, color: T.textMuted, backgroundColor: T.rowBg, marginTop: 4 }}>{level}</span>
+      <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: T.textDark, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%" }}>{name}</p>
+      <p style={{ margin: "0 0 8px", fontSize: 10, fontWeight: 600, color: T.textMuted, textAlign: "center" }}>{role}</p>
+      
+      <div style={{ width: "100%", backgroundColor: "#fff", height: 4, borderRadius: 2, marginBottom: 4 }}>
+        <div style={{ width: `${(done/tasks)*100}%`, backgroundColor: color, height: "100%", borderRadius: 2 }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+        <span style={{ fontSize: 9, fontWeight: 800, color: T.textMuted }}>{done}/{tasks} tasks</span>
+        <span style={{ borderRadius: 4, padding: "1px 5px", fontSize: 9, fontWeight: 800, color: T.textMuted, backgroundColor: T.rowBg }}>{level}</span>
+      </div>
     </div>
   );
 }
