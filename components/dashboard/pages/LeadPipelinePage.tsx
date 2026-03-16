@@ -96,7 +96,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<"Filters" | "Fields">("Filters");
   const [activeTab, setActiveTab] = useState("Opportunities");
-  const itemsPerPage = 8;
+  const itemsPerPage = 12;
 
   const byStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
   const stageValue = (stage: Stage) => byStage(stage).reduce((s, l) => s + l.premium, 0);

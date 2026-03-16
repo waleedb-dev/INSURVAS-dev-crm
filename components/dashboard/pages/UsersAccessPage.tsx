@@ -30,7 +30,7 @@ export default function UsersAccessPage(){
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [inviteRole, setInviteRole] = useState<UserRole>("Agent");
   const [page, setPage] = useState(1);
-  const itemsPerPage = 8;
+  const itemsPerPage = 12;
 
   const filtered=users.filter(u=>(rf==="All"||u.role===rf)&&(!search||u.name.toLowerCase().includes(search.toLowerCase())||u.email.toLowerCase().includes(search.toLowerCase())));
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -82,7 +82,7 @@ export default function UsersAccessPage(){
   }
 
   return(
-    <div style={{ animation: "fadeIn 0.3s ease-out" }} onClick={() => setShowInvite(false)}>
+    <div style={{ animation: "fadeIn 0.3s ease-out" }}>
       <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>System Administration — {new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" })}</p>
@@ -90,7 +90,7 @@ export default function UsersAccessPage(){
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <button
-            onClick={() => setShowInvite(true)}
+            onClick={(e) => { e.stopPropagation(); setShowInvite(true); }}
             style={{
               backgroundColor: T.blue,
               color: "#fff",
