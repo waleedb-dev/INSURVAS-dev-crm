@@ -101,6 +101,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [filterStage, setFilterStage] = useState<Stage | "All">("All");
   const [filterType, setFilterType] = useState("All");
   const [filterAgent, setFilterAgent] = useState("All");
+  const [quickEditLead, setQuickEditLead] = useState<Lead | null>(null);
+  const [activeQuickEditTab, setActiveQuickEditTab] = useState<"Opportunity Details" | "Notes">("Opportunity Details");
 
   const byStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
   const stageValue = (stage: Stage) => byStage(stage).reduce((s, l) => s + l.premium, 0);
@@ -271,6 +273,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                               <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: lead.agentColor, display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid #fff", boxShadow: "0 0 0 1px #e2e8f0", overflow: "hidden" }}>
                                 <span style={{ fontSize: 10, fontWeight: 800, color: "#fff" }}>{lead.agent}</span>
                               </div>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); setQuickEditLead(lead); }}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center" }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              </button>
                               <input type="checkbox" onClick={(e) => e.stopPropagation()} style={{ width: 14, height: 14, accentColor: T.blue, cursor: "pointer", border: `1.5px solid ${T.border}`, borderRadius: 3 }} />
                             </div>
                           </div>
@@ -521,6 +529,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     {activeMenu === lead.id && (
                       <div style={{ position: "absolute", top: "calc(100% - 4px)", right: 16, width: 140, backgroundColor: "#fff", borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1.5px solid ${T.border}`, zIndex: 100, overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => { setViewingLead({ id: lead.id, name: lead.name }); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>View Details</button>
+                        <button onClick={() => { setQuickEditLead(lead); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Quick Edit</button>
                         <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Edit Lead</button>
                         <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Delete</button>
                       </div>
@@ -531,6 +540,144 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
             ]}
           />
         </DataGrid>
+      )}
+ 
+      {/* Quick Edit Modal */}
+      {quickEditLead && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, backdropFilter: "blur(4px)" }}>
+          <div style={{ backgroundColor: "#fff", borderRadius: "12px", width: "100%", maxWidth: 1000, height: "100%", maxHeight: 800, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 50px rgba(0,0,0,0.2)" }}>
+            {/* Header */}
+            <div style={{ padding: "24px 32px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 8px" }}>Edit "{quickEditLead.name} - (555) 000-{quickEditLead.id.split('-')[1]}"</h2>
+                <p style={{ margin: 0, fontSize: 13, color: T.textMuted, fontWeight: 600 }}>Add and edit opportunity details, tasks, notes and appointments.</p>
+              </div>
+              <button onClick={() => setQuickEditLead(null)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+
+            {/* Content Area */}
+            <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+              {/* Left Sidebar */}
+              <div style={{ width: 220, borderRight: `1px solid ${T.borderLight}`, padding: "16px 8px", backgroundColor: "#fcfdff" }}>
+                {(["Opportunity Details", "Notes"] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveQuickEditTab(tab)}
+                    style={{
+                      width: "100%", padding: "12px 16px", border: "none", borderRadius: "8px", textAlign: "left", fontSize: 13, fontWeight: 700,
+                      cursor: "pointer",
+                      backgroundColor: activeQuickEditTab === tab ? T.blueFaint : "transparent",
+                      color: activeQuickEditTab === tab ? T.blue : T.textMuted,
+                      marginBottom: 4, transition: "all 0.2s"
+                    }}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              {/* Right Form Area */}
+              <div style={{ flex: 1, padding: "32px", overflowY: "auto", backgroundColor: "#fff" }}>
+                {activeQuickEditTab === "Opportunity Details" ? (
+                  <div style={{ maxWidth: 800 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                       <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark, display: "flex", alignItems: "center", gap: 8 }}>
+                         Contact details <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                       </h3>
+                       <label style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+                          <input type="checkbox" style={{ width: 16, height: 16 }} /> Hide Empty Fields
+                       </label>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 40 }}>
+                       <div>
+                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Primary Contact Name <span style={{ color: T.danger }}>*</span></label>
+                         <input defaultValue={quickEditLead.name} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                       </div>
+                       <div>
+                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Primary Email</label>
+                         <input placeholder="Enter Email" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                       </div>
+                       <div>
+                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Primary Phone</label>
+                         <input defaultValue={`+1 (555) 000-${quickEditLead.id.split('-')[1]}`} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                       </div>
+                       <div>
+                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Additional Contacts (Max: 10)</label>
+                         <select style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600, color: T.textMuted }}>
+                            <option>Add additional contacts</option>
+                         </select>
+                       </div>
+                    </div>
+
+                    <h3 style={{ margin: "0 0 24px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Opportunity Details</h3>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                       <div style={{ gridColumn: "span 2" }}>
+                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity Name <span style={{ color: T.danger }}>*</span></label>
+                         <input defaultValue={`${quickEditLead.name} - (555) 000-${quickEditLead.id.split('-')[1]}`} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                       </div>
+                       <div>
+                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Pipeline</label>
+                         <select defaultValue="Sales Pipeline" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
+                            <option>Sales Pipeline</option>
+                            <option>Life Insurance Pipeline</option>
+                         </select>
+                       </div>
+                       <div>
+                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Stage</label>
+                         <select defaultValue={quickEditLead.stage} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
+                            {STAGES.map(s => <option key={s}>{s}</option>)}
+                         </select>
+                       </div>
+                       <div>
+                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Status</label>
+                         <select defaultValue="Open" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
+                            <option>Open</option>
+                            <option>Won</option>
+                            <option>Lost</option>
+                            <option>Abandoned</option>
+                         </select>
+                       </div>
+                       <div>
+                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity Value</label>
+                         <div style={{ position: "relative" }}>
+                            <span style={{ position: "absolute", left: 14, top: 12, fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                            <input type="number" defaultValue={quickEditLead.premium} style={{ width: "100%", padding: "12px 12px 12px 28px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                         </div>
+                       </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ maxWidth: 800 }}>
+                     <h3 style={{ margin: "0 0 24px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Internal Notes</h3>
+                     <textarea 
+                       placeholder="Add a private note about this opportunity..."
+                       style={{ width: "100%", height: 300, padding: "20px", borderRadius: "12px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 500, fontFamily: T.font, resize: "none", outline: "none" }}
+                     />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "16px 32px", borderTop: `1.5px solid ${T.borderLight}`, backgroundColor: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 500 }}>
+                 <div style={{ marginBottom: 4 }}>Created By: <span style={{ color: T.blue, cursor: "pointer" }}>Workflow</span></div>
+                 <div style={{ marginBottom: 4 }}>Created on: Mar 16, 2026, 10:42 AM</div>
+                 <div>Audit Logs: <span style={{ color: T.blue, cursor: "pointer" }}>EwpkwFdsevOzTEv1ffpr</span></div>
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button onClick={() => setQuickEditLead(null)} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "8px", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", color: T.danger, cursor: "pointer" }}>
+                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+                </button>
+                <button onClick={() => setQuickEditLead(null)} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "8px", padding: "0 24px", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+                <button onClick={() => setQuickEditLead(null)} style={{ background: T.blue, color: "#fff", border: "none", borderRadius: "8px", padding: "0 32px", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.2)" }}>Update</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
