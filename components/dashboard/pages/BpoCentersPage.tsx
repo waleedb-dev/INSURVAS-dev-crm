@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { Button, Dropdown, Input, Pagination, Table, DataGrid } from "@/components/ui";
+import { Button, Dropdown, Input, Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface UserLink {
@@ -38,6 +38,7 @@ export default function BpoCentersPage() {
   const [view, setView] = useState<"list" | "edit">("list");
   const [selectedAdminUserId, setSelectedAdminUserId] = useState("");
   const [selectedAgentUserId, setSelectedAgentUserId] = useState("");
+  const [filterAdmin, setFilterAdmin] = useState<"All" | "Assigned" | "Unassigned">("All");
   const itemsPerPage = 10;
 
   function buildCenterDetail(centerId: string, sourceCenters = centers, sourceUsers = users): CenterDetail | null {
@@ -107,6 +108,10 @@ export default function BpoCentersPage() {
 
     setLoading(false);
   }
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterAdmin]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -287,9 +292,11 @@ export default function BpoCentersPage() {
       label: `${user.name} (${user.id.slice(0, 8)})`,
     }));
 
-  const filteredCenters = centers.filter((center) =>
-    center.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filteredCenters = centers.filter((center) => {
+    const matchesSearch = center.name.toLowerCase().includes(search.toLowerCase());
+    const matchesAdmin = filterAdmin === "All" ? true : filterAdmin === "Assigned" ? !!center.admin : !center.admin;
+    return matchesSearch && matchesAdmin;
+  });
   const totalPages = Math.max(1, Math.ceil(filteredCenters.length / itemsPerPage));
   const currentPage = Math.min(page, totalPages);
   const paginatedCenters = filteredCenters.slice(
@@ -486,8 +493,20 @@ export default function BpoCentersPage() {
         </button>
       </div>      <DataGrid
         search={search}
-        onSearchChange={(s) => { setSearch(s); setPage(1); }}
+        onSearchChange={(s) => setSearch(s)}
         searchPlaceholder="Search Centres"
+        filters={
+          <select value={filterAdmin} onChange={(e) => setFilterAdmin(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+            <option value="All">All Admins</option>
+            <option value="Assigned">Assigned</option>
+            <option value="Unassigned">Unassigned</option>
+          </select>
+        }
+        activeFilters={
+          filterAdmin !== "All" && (
+            <FilterChip label={`Admin: ${filterAdmin}`} onClear={() => setFilterAdmin("All")} />
+          )
+        }
         pagination={
           <Pagination
             page={currentPage}

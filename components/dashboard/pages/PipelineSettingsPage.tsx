@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { T } from "@/lib/theme";
-import { Avatar, Badge, Pagination, Table, DataGrid } from "@/components/ui";
+import { Avatar, Badge, Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Stage {
@@ -31,6 +31,8 @@ export default function PipelineManagementPage() {
   const [tempStageName, setTempStageName] = useState("");
   const [isEditingPipelineName, setIsEditingPipelineName] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState("");
+  const [search, setSearch] = useState("");
+  const [filterStages, setFilterStages] = useState<"All" | "Empty" | "With Stages">("All");
 
   useEffect(() => {
     fetchPipelines();
@@ -336,6 +338,12 @@ export default function PipelineManagementPage() {
     );
   }
 
+  const filteredPipelines = pipelines.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const matchesStages = filterStages === "All" ? true : filterStages === "Empty" ? p.stagesCount === 0 : p.stagesCount > 0;
+    return matchesSearch && matchesStages;
+  });
+
   return (
     <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }} onClick={() => setActivePipelineMenu(null)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
@@ -347,15 +355,27 @@ export default function PipelineManagementPage() {
       </div>
 
       <DataGrid
-        search=""
-        onSearchChange={() => {}}
+        search={search}
+        onSearchChange={setSearch}
         searchPlaceholder="Search Pipelines"
+        filters={
+          <select value={filterStages} onChange={(e) => setFilterStages(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+            <option value="All">All Pipelines</option>
+            <option value="With Stages">With Stages</option>
+            <option value="Empty">Empty</option>
+          </select>
+        }
+        activeFilters={
+          filterStages !== "All" && (
+            <FilterChip label={`Stages: ${filterStages}`} onClear={() => setFilterStages("All")} />
+          )
+        }
         pagination={
-          <Pagination page={1} totalItems={pipelines.length} itemsPerPage={20} itemLabel="pipelines" onPageChange={() => {}} />
+          <Pagination page={1} totalItems={filteredPipelines.length} itemsPerPage={20} itemLabel="pipelines" onPageChange={() => {}} />
         }
       >
         <Table
-          data={pipelines}
+          data={filteredPipelines}
           onRowClick={(p) => handleOpenPipeline(p)}
           columns={[
             {
