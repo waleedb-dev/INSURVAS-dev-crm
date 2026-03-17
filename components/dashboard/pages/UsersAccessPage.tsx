@@ -1,31 +1,72 @@
 "use client";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
+import { Pagination, Table, DataGrid, FilterChip, Toast } from "@/components/ui";
 import UserEditorComponent from "./UserEditorComponent";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useMemo } from "react";
 
-interface User { id:string; name:string; email:string; role:string; status:"Active"|"Inactive"|"Suspended"; color:string; lastActive:string; policies:number; phone?:string; extension?:string; }
-type UserRole = User["role"];
-const ROLE_CFG:Record<UserRole,{bg:string;color:string}>={"Admin":{bg:"#fdf4ff",color:"#9333ea"},"Manager":{bg:T.blueLight,color:T.blue},"Agent":{bg:"#f0fdf4",color:"#16a34a"},"Read-Only":{bg:T.rowBg,color:T.textMuted}};
-const INIT:User[]=[
-  {id:"U-001",name:"Evan Yates",    email:"evan@unlimited-ins.com",   role:"Admin",    status:"Active",    color:"#4285f4",lastActive:"Just now",    policies:0},
-  {id:"U-002",name:"Shawn Stone",   email:"shawn@unlimited-ins.com",  role:"Agent",    status:"Active",    color:"#4285f4",lastActive:"2 min ago",   policies:48},
-  {id:"U-003",name:"Emily Tyler",   email:"emily@unlimited-ins.com",  role:"Agent",    status:"Active",    color:"#ec4899",lastActive:"5 min ago",   policies:62},
-  {id:"U-004",name:"Louis Castro",  email:"louis@unlimited-ins.com",  role:"Manager",  status:"Active",    color:"#8b5cf6",lastActive:"12 min ago",  policies:91},
-  {id:"U-005",name:"Blake Silva",   email:"blake@unlimited-ins.com",  role:"Agent",    status:"Active",    color:"#0ea5e9",lastActive:"30 min ago",  policies:74},
-  {id:"U-006",name:"Randy Delgado", email:"randy@unlimited-ins.com",  role:"Agent",    status:"Active",    color:"#f59e0b",lastActive:"1 hr ago",    policies:28},
-  {id:"U-007",name:"Joel Phillips", email:"joel@unlimited-ins.com",   role:"Agent",    status:"Inactive",  color:"#14b8a6",lastActive:"Yesterday",   policies:55},
-  {id:"U-008",name:"Wayne Marsh",   email:"wayne@unlimited-ins.com",  role:"Agent",    status:"Active",    color:"#64748b",lastActive:"3 hrs ago",   policies:19},
-  {id:"U-009",name:"Oscar Holloway",email:"oscar@unlimited-ins.com",  role:"Agent",    status:"Active",    color:"#f97316",lastActive:"20 min ago",  policies:67},
-  {id:"U-010",name:"Diana Palmer",  email:"diana@unlimited-ins.com",  role:"Manager",  status:"Active",    color:"#ec4899",lastActive:"45 min ago",  policies:103},
-  {id:"U-011",name:"Chris Morton",  email:"chris@unlimited-ins.com",  role:"Read-Only",status:"Suspended", color:"#64748b",lastActive:"2 weeks ago", policies:0},
-  {id:"U-012",name:"User One",      email:"user1@unlimited-ins.com",  role:"Agent",    status:"Active",    color:T.blue,   lastActive:"Just now",    policies:0},
-];
+interface User { id:string; name:string; email:string; role:string; roleId?:string; status:"Active"|"Inactive"|"Suspended"; color:string; lastActive:string; policies:number; phone?:string; extension?:string; }
+type UserRole = string;
+const ROLE_CFG:Record<string,{bg:string;color:string}>={
+  "system_admin":{bg:"#fdf4ff",color:"#9333ea"},
+  "sales_manager":{bg:T.blueLight,color:T.blue},
+  "sales_agent_licensed":{bg:"#f0fdf4",color:"#16a34a"},
+  "Admin":{bg:"#fdf4ff",color:"#9333ea"},
+  "Manager":{bg:T.blueLight,color:T.blue},
+  "Agent":{bg:"#f0fdf4",color:"#16a34a"},
+  "Read-Only":{bg:T.rowBg,color:T.textMuted}
+};
+const INIT:User[]=[];
 
 export default function UsersAccessPage(){
-  const [users,setUsers]=useState(INIT);
+  const rolesFromDb = useRoles();
+  const [dbRoles, setDbRoles] = useState<{id:string, name:string}[]>([]);
+  const [users,setUsers]=useState<User[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+
+  useEffect(() => {
+    if (rolesFromDb.length > 0) setDbRoles(rolesFromDb);
+  }, [rolesFromDb]);
+
+  useEffect(() => {
+    async function fetchUsers() {
+      const { data, error } = await supabase
+        .from("users")
+        .select(`
+          id, 
+          first_name, 
+          last_name, 
+          email, 
+          phone, 
+          role:roles(name, key),
+          role_id,
+          status,
+          created_at
+        `)
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        const mapped: User[] = data.map((u: any) => ({
+          id: u.id,
+          name: `${u.first_name} ${u.last_name}`,
+          email: u.email,
+          role: u.role?.name || "Agent",
+          roleId: u.role_id,
+          status: u.status === "active" ? "Active" : u.status === "inactive" ? "Inactive" : "Suspended",
+          color: T.blue,
+          lastActive: u.created_at ? new Date(u.created_at).toLocaleDateString() : "Just now",
+          policies: 0,
+          phone: u.phone
+        }));
+        setUsers(mapped);
+      }
+    }
+    fetchUsers();
+  }, [supabase]);
   const [search,setSearch]=useState("");
-  const [rf,setRf]=useState<UserRole|"All">("All");
+  const [rf,setRf]=useState<string>("All");
   const [sf,setSf]=useState<User["status"]|"All">("All");
   const [showInvite, setShowInvite] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -58,25 +99,30 @@ export default function UsersAccessPage(){
         user={editingUser || undefined}
         onClose={() => { setShowInvite(false); setEditingUser(null); }}
         onSubmit={(data) => {
+          const roleName = dbRoles.find(r => r.id === data.roleId)?.name || "Agent";
           if (editingUser) {
-            setUsers(p => p.map(u => u.id === editingUser.id ? { ...u, name: `${data.firstName} ${data.lastName}`, email: data.email, phone: data.phone, extension: data.extension } : u));
+            setUsers(p => p.map(u => u.id === editingUser.id ? { ...u, name: `${data.firstName} ${data.lastName}`, email: data.email, role: roleName, roleId: data.roleId, phone: data.phone } : u));
           } else {
             const newUser: User = {
               id: `U-${String(users.length + 1).padStart(3, '0')}`,
               name: `${data.firstName} ${data.lastName}`,
               email: data.email,
-              role: "Agent",
+              role: roleName,
+              roleId: data.roleId,
               status: "Active",
               color: T.blue,
               lastActive: "Just now",
               policies: 0,
-              phone: data.phone,
-              extension: data.extension
+              phone: data.phone
             };
             setUsers(p => [newUser, ...p]);
           }
           setShowInvite(false);
           setEditingUser(null);
+          setToast({
+            message: editingUser ? "Profile updated successfully" : "New user added successfully",
+            type: "success"
+          });
         }}
       />
     );
@@ -123,9 +169,9 @@ export default function UsersAccessPage(){
         searchPlaceholder="Search by name, email, or ID…"
         filters={
           <>
-            <select value={rf} onChange={(e) => setRf(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+            <select value={rf} onChange={(e) => setRf(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
               <option value="All">All Roles</option>
-              {["Admin", "Manager", "Agent", "Read-Only"].map(r => <option key={r} value={r}>{r}</option>)}
+              {dbRoles.length > 0 ? dbRoles.map(r => <option key={r.id} value={r.name}>{r.name}</option>) : ["Admin", "Manager", "Agent", "Read-Only"].map(r => <option key={r} value={r}>{r}</option>)}
             </select>
             <select value={sf} onChange={(e) => setSf(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
               <option value="All">All Statuses</option>
@@ -181,10 +227,10 @@ export default function UsersAccessPage(){
               key: "phone",
               render: (u) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{u.phone || "—"}</span>
             },
-            {
+             {
               header: "User Type",
               key: "role",
-              render: (u) => <span style={{ backgroundColor: ROLE_CFG[u.role].bg, color: ROLE_CFG[u.role].color, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 800 }}>ACCOUNT-{u.role.toUpperCase()}</span>
+              render: (u) => <span style={{ backgroundColor: ROLE_CFG[u.role]?.bg || T.rowBg, color: ROLE_CFG[u.role]?.color || T.textMuted, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 800 }}>{u.role.toUpperCase()}</span>
             },
             {
               header: "Status",
@@ -219,6 +265,27 @@ export default function UsersAccessPage(){
       </DataGrid>
 
 
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
+}
+
+function useRoles() {
+  const [roles, setRoles] = useState<{id:string, name:string}[]>([]);
+  const supabase = useMemo(() => {
+    try {
+      return getSupabaseBrowserClient();
+    } catch(e) {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("roles").select("id, name").then(({ data }) => {
+      if (data) setRoles(data);
+    });
+  }, [supabase]);
+
+  return roles;
 }

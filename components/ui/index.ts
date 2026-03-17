@@ -7,3 +7,4 @@ export { Badge, ProgressSpinner, Avatar } from "./Badge";
 export { Pagination } from "./Pagination";
 export { Table } from "./Table";
 export { DataGrid, FilterChip } from "./DataGrid";
+export { Toast } from "./Toast";
