@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { Button, Dropdown, Input, Pagination, Table } from "@/components/ui";
+import { Button, Dropdown, Input, Pagination, Table, DataGrid } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface UserLink {
@@ -298,165 +298,175 @@ export default function BpoCentersPage() {
   );
 
   if (view === "edit" && selectedCenter) {
+    const isNew = selectedCenter.id === 'new';
+
     return (
-      <div style={{ animation: "fadeIn 0.3s ease-out" }}>
-        <div style={{ marginBottom: 24 }}>
-          <button 
-            onClick={() => setView("list")} 
-            style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", color: T.textMuted, fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            Back to BPO Centres
-          </button>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>
-              {selectedCenter.id === 'new' ? "Add New BPO Centre" : selectedCenter.name}
-            </h1>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 32, borderBottom: `1.5px solid ${T.border}`, marginBottom: 24 }}>
-          <button style={{ padding: "12px 4px", border: "none", borderBottom: `3px solid ${T.blue}`, background: "none", color: T.blue, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>General Settings</button>
-          {selectedCenter.id !== 'new' && <button style={{ padding: "12px 4px", border: "none", background: "none", color: T.textMuted, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Stats & Reports</button>}
-        </div>
-
-        <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, padding: 32, maxWidth: 640, marginBottom: 24 }}>
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8, textTransform: "uppercase" }}>Centre Name</label>
-            <input 
-              autoFocus
-              value={editingCenterName}
-              onChange={(e) => setEditingCenterName(e.target.value)}
-              placeholder="e.g. Karachi BPO North"
-              style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15, outline: "none", color: T.textDark, fontWeight: 600 }}
-              onKeyDown={e => e.key === 'Enter' && (selectedCenter.id === 'new' ? handleCreateCenter() : handleRenameCenter())}
-            />
-          </div>
-          <div style={{ display: "flex", gap: 12, paddingTop: 12, borderTop: `1.5px solid ${T.borderLight}` }}>
+      <div style={{ padding: "0", animation: "fadeIn 0.4s ease-out" }}>
+        {/* Header Section */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <button 
-              onClick={selectedCenter.id === 'new' ? handleCreateCenter : handleRenameCenter}
-              style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+              onClick={() => setView("list")} 
+              style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 12, color: T.textDark, cursor: "pointer", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}
             >
-              {selectedCenter.id === 'new' ? "Create Centre" : "Save Changes"}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </button>
-            <button onClick={() => setView("list")} style={{ backgroundColor: "transparent", color: T.textMid, border: `1.5px solid ${T.border}`, borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Cancel</button>
-            {selectedCenter.id !== 'new' && (
-              <button 
-                onClick={() => void handleDeleteCenter(selectedCenter.id)}
-                style={{ marginLeft: "auto", background: "none", border: "none", color: "#ef4444", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
-              >
-                Delete Centre
-              </button>
-            )}
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                BPO Management <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M9 18l6-6-6-6"/></svg> <span style={{ color: T.blue }}>{isNew ? "New Centre" : "Edit Centre"}</span>
+              </div>
+              <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
+                {isNew ? "BPO Centre Onboarding" : "Centre Configuration"}
+              </h1>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button 
+              onClick={() => setView("list")} 
+              style={{ padding: "12px 24px", borderRadius: 10, border: `1.5px solid ${T.border}`, backgroundColor: "#fff", color: T.textDark, fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={isNew ? handleCreateCenter : handleRenameCenter}
+              style={{ padding: "12px 32px", borderRadius: 10, border: "none", backgroundColor: T.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,102,255,0.25)" }}
+            >
+              {isNew ? "Create Centre" : "Save Changes"}
+            </button>
           </div>
         </div>
 
-        {selectedCenter.id !== 'new' && (
-          <>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
-              {/* ... admin/agent linkers ... */}
-              <div style={{ backgroundColor: "#fff", borderRadius: 16, border: `1.5px solid ${T.border}`, padding: 20 }}>
-                <h2 style={{ margin: "0 0 14px", fontSize: 18, fontWeight: 800, color: T.textDark }}>
-                  Centre Admin
-                </h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ padding: 14, borderRadius: 12, backgroundColor: T.rowBg }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: T.textMuted, marginBottom: 6 }}>CURRENT ADMIN</div>
-                    {selectedCenter.admin ? (
-                      <>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{selectedCenter.admin.name}</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted }}>{selectedCenter.admin.id}</div>
-                      </>
-                    ) : (
-                      <div style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>No admin linked yet.</div>
-                    )}
-                  </div>
-                  <Dropdown
-                    options={adminOptions}
-                    value={selectedAdminUserId}
-                    onChange={setSelectedAdminUserId}
-                    placeholder="Select admin user"
-                    style={{ width: "100%" }}
-                  />
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <Button onClick={handleAssignAdmin} disabled={!selectedAdminUserId}>
-                      Link Admin
-                    </Button>
-                    <Button variant="ghost" onClick={handleRemoveAdmin} disabled={!selectedCenter.admin}>
-                      Remove Admin
-                    </Button>
-                  </div>
-                </div>
+        {/* Workspace Layout */}
+        <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
+          
+          {/* Sidebar Profiler */}
+          <div style={{ width: 320, backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 24, padding: 32, textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,0.03)" }}>
+            <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 20px" }}>
+              <div style={{ width: "100%", height: "100%", borderRadius: "50%", backgroundColor: T.blue, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 42, fontWeight: 800 }}>
+                {editingCenterName ? editingCenterName.charAt(0).toUpperCase() : "?"}
               </div>
-
-              <div style={{ backgroundColor: "#fff", borderRadius: 16, border: `1.5px solid ${T.border}`, padding: 20 }}>
-                <h2 style={{ margin: "0 0 14px", fontSize: 18, fontWeight: 800, color: T.textDark }}>
-                  Add Agent
-                </h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <Dropdown
-                    options={agentOptions}
-                    value={selectedAgentUserId}
-                    onChange={setSelectedAgentUserId}
-                    placeholder="Select call centre agent"
-                    style={{ width: "100%" }}
-                  />
-                  <Button onClick={handleAddAgent} disabled={!selectedAgentUserId}>
-                    Link Agent
-                  </Button>
-                </div>
+              <div style={{ position: "absolute", bottom: 0, right: 0, width: 32, height: 32, backgroundColor: "#fff", borderRadius: "50%", border: `1.5px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
               </div>
             </div>
-
-            <div style={{ marginTop: 20, backgroundColor: "#fff", borderRadius: 16, border: `1.5px solid ${T.border}`, overflow: "hidden" }}>
-              <div style={{ padding: "18px 20px", borderBottom: `1.5px solid ${T.border}` }}>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>
-                  Linked Agents
-                </h2>
+            <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 8px", color: T.textDark }}>{editingCenterName || "Unnamed Centre"}</h3>
+            <div style={{ display: "inline-block", padding: "6px 12px", backgroundColor: T.rowBg, borderRadius: 8, fontSize: 11, fontWeight: 800, color: T.textMuted, letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 24 }}>GLOBAL-BPO</div>
+            
+            <div style={{ borderTop: `1.5px solid ${T.borderLight}`, paddingTop: 24, textAlign: "left" }}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", marginBottom: 4 }}>LOCATED AT</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>—</div>
               </div>
-              <Table
-                data={selectedCenter.agents}
-                columns={[
-                  {
-                    header: "Agent Name",
-                    key: "name",
-                    render: (agent) => (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", marginBottom: 4 }}>TOTAL AGENTS</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{isNew ? "0 Linked" : `${selectedCenter.agentCount} Agents`}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content Area */}
+          <div style={{ flex: 1, backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 24, overflow: "hidden", boxShadow: "0 10px 30px rgba(0,0,0,0.03)" }}>
+            
+            {/* Tabs Header */}
+            <div style={{ display: "flex", borderBottom: `1.5px solid ${T.border}`, padding: "0 20px" }}>
+              {["Centre Info", "Admin & Access", "Routing Logic", "Metrics", "Config"].map((tab, i) => (
+                <div key={tab} style={{ padding: "20px 24px", fontSize: 14, fontWeight: 800, color: i === 0 ? T.blue : T.textMuted, position: "relative", cursor: "pointer" }}>
+                  {tab}
+                  {i === 0 && <div style={{ position: "absolute", bottom: -1.5, left: 0, right: 0, height: 3, backgroundColor: T.blue, borderRadius: "3px 3px 0 0" }} />}
+                </div>
+              ))}
+            </div>
+
+            {/* Content Body */}
+            <div style={{ padding: 40 }}>
+              <div style={{ marginBottom: 40 }}>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: "0 0 24px" }}>Primary Identity</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>CENTRE NAME *</label>
+                    <input 
+                      autoFocus
+                      value={editingCenterName}
+                      onChange={(e) => setEditingCenterName(e.target.value)}
+                      placeholder="e.g. Islamabad North Hub"
+                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "44", transition: "all 0.2s" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>NETWORK CODE</label>
+                    <input 
+                      disabled
+                      placeholder="e.g. BPO-PK-01"
+                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "88", color: T.textMuted }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>BUSINESS EMAIL ADDRESS *</label>
+                  <input 
+                    disabled
+                    placeholder="hq- Islamabad@unlimited-ins.com"
+                    style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "88", color: T.textMuted }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: "0 0 24px" }}>Communication Channels</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>PRIMARY DIRECT LINE</label>
+                    <input 
+                      disabled
+                      placeholder="+1 (555) 000-0000"
+                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "88", color: T.textMuted }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>INTERNAL EXT.</label>
+                    <input 
+                      disabled
+                      placeholder="881"
+                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "88", color: T.textMuted }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced Controls (Only for Existing) */}
+              {!isNew && (
+                <div style={{ marginTop: 48, paddingTop: 40, borderTop: `1.5px solid ${T.borderLight}` }}>
+                   <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: "0 0 24px" }}>Manage Access</h2>
+                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{agent.name}</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted }}>{agent.id}</div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>ASSIGN HUB ADMINISTRATOR</label>
+                        <Dropdown
+                          options={adminOptions}
+                          value={selectedAdminUserId}
+                          onChange={setSelectedAdminUserId}
+                          placeholder="Search users..."
+                          style={{ width: "100%" }}
+                        />
+                        <button onClick={handleAssignAdmin} disabled={!selectedAdminUserId} style={{ marginTop: 12, width: "100%", padding: "12px", borderRadius: 10, border: "none", backgroundColor: T.rowBg, color: T.textDark, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Assign Admin</button>
                       </div>
-                    ),
-                  },
-                  {
-                    header: "Role",
-                    key: "roleKey",
-                    render: (agent) => (
-                      <span style={{ fontSize: 12, fontWeight: 800, color: T.blue }}>
-                        {agent.roleKey ?? "unassigned"}
-                      </span>
-                    ),
-                  },
-                  {
-                    header: "Actions",
-                    key: "actions",
-                    align: "center",
-                    width: 140,
-                    render: (agent) => (
-                      <Button variant="ghost" size="sm" onClick={() => void handleRemoveAgent(agent.id)}>
-                        Remove
-                      </Button>
-                    ),
-                  },
-                ]}
-              />
-              {selectedCenter.agents.length === 0 && (
-                <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 700 }}>
-                  No agents linked to this centre.
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>ONBOARD HUB AGENT</label>
+                        <Dropdown
+                          options={agentOptions}
+                          value={selectedAgentUserId}
+                          onChange={setSelectedAgentUserId}
+                          placeholder="Search users..."
+                          style={{ width: "100%" }}
+                        />
+                        <button onClick={handleAddAgent} disabled={!selectedAgentUserId} style={{ marginTop: 12, width: "100%", padding: "12px", borderRadius: 10, border: "none", backgroundColor: T.blue + "11", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Link Agent</button>
+                      </div>
+                   </div>
                 </div>
               )}
             </div>
-          </>
-        )}
+          </div>
+
+        </div>
       </div>
     );
   }
@@ -474,137 +484,106 @@ export default function BpoCentersPage() {
         >
           + Add Centre
         </button>
-      </div>
-
-      <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-        <div style={{ padding: "20px", borderBottom: `1.5px solid ${T.border}` }}>
-          <div style={{ position: "relative", width: 220 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            <input 
-              placeholder="Search Centres" 
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              style={{ width: "100%", padding: "8px 12px 8px 36px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, outline: "none" }} 
-            />
-          </div>
-        </div>
-
-          <Table
-            data={paginatedCenters}
-            onRowClick={(center) => {
-              const detail = buildCenterDetail(center.id);
-              if (detail) {
-                setSelectedCenter(detail);
-                setEditingCenterName(detail.name);
-                setView("edit");
-              }
-            }}
-            columns={[
-              {
-                header: (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 18, height: 18, backgroundColor: T.border, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: T.textMid }}>B</div>
-                    Centre Name
-                  </div>
-                ),
-                key: "name",
-                render: (center) => <span style={{ fontWeight: 800, color: T.textDark }}>{center.name}</span>,
-              },
-              {
-                header: (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    Admin User
-                  </div>
-                ),
-                key: "admin",
-                render: (center) =>
-                  center.admin ? (
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{center.admin.name}</div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted }}>{center.admin.id.slice(0, 8)}</div>
-                    </div>
-                  ) : (
-                    <span style={{ color: T.textMuted, fontWeight: 700 }}>Unassigned</span>
-                  ),
-              },
-              {
-                header: (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                    <span style={{ fontSize: 16, color: T.border }}>#</span>
-                    Agents
-                  </div>
-                ),
-                key: "agentCount",
-                align: "center",
-                render: (center) => <span style={{ fontWeight: 800, color: T.textMid }}>{center.agentCount}</span>,
-              },
-              {
-                header: (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><path d="M3 10h18"/></svg>
-                    Created
-                  </div>
-                ),
-                key: "createdAt",
-                render: (center) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{center.createdAt}</span>
-              },
-              {
-                header: "Actions",
-                key: "actions",
-                align: "center",
-                width: 100,
-                render: (center) => (
-                  <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const detail = buildCenterDetail(center.id);
-                        if (detail) {
-                          setSelectedCenter(detail);
-                          setEditingCenterName(detail.name);
-                          setView("edit");
-                        }
-                      }}
-                      style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6, borderRadius: 6 }} 
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} 
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleDeleteCenter(center.id);
-                      }}
-                      style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                    </button>
-                  </div>
-                ),
-              },
-            ]}
+      </div>      <DataGrid
+        search={search}
+        onSearchChange={(s) => { setSearch(s); setPage(1); }}
+        searchPlaceholder="Search Centres"
+        pagination={
+          <Pagination
+            page={currentPage}
+            totalItems={filteredCenters.length}
+            itemsPerPage={itemsPerPage}
+            itemLabel="centres"
+            onPageChange={setPage}
           />
+        }
+      >
+        <Table
+          data={paginatedCenters}
+          onRowClick={(center) => {
+            const detail = buildCenterDetail(center.id);
+            if (detail) {
+              setSelectedCenter(detail);
+              setEditingCenterName(detail.name);
+              setView("edit");
+            }
+          }}
+          columns={[
+            {
+              header: "Centre Name",
+              key: "name",
+              render: (center) => <span style={{ fontWeight: 800, color: T.textDark }}>{center.name}</span>,
+            },
+            {
+              header: "Admin User",
+              key: "admin",
+              render: (center) =>
+                center.admin ? (
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{center.admin.name}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted }}>{center.admin.id.slice(0, 8)}</div>
+                  </div>
+                ) : (
+                  <span style={{ color: T.textMuted, fontWeight: 700 }}>Unassigned</span>
+                ),
+            },
+            {
+              header: "Agents",
+              key: "agentCount",
+              align: "center",
+              render: (center) => <span style={{ fontWeight: 800, color: T.textMid }}>{center.agentCount}</span>,
+            },
+            {
+              header: "Created",
+              key: "createdAt",
+              render: (center) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{center.createdAt}</span>
+            },
+            {
+              header: "Actions",
+              key: "actions",
+              align: "center",
+              width: 100,
+              render: (center) => (
+                <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const detail = buildCenterDetail(center.id);
+                      if (detail) {
+                        setSelectedCenter(detail);
+                        setEditingCenterName(detail.name);
+                        setView("edit");
+                      }
+                    }}
+                    style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} 
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleDeleteCenter(center.id);
+                    }}
+                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+        />
 
-          {!loading && filteredCenters.length === 0 && (
-            <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 700 }}>
-              No centres found.
-            </div>
-          )}
-
-          <div style={{ padding: "16px 20px", borderTop: `1.5px solid ${T.border}` }}>
-            <Pagination
-              page={currentPage}
-              totalItems={filteredCenters.length}
-              itemsPerPage={itemsPerPage}
-              itemLabel="centres"
-              onPageChange={setPage}
-            />
+        {!loading && filteredCenters.length === 0 && (
+          <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 700 }}>
+            No centres found.
           </div>
-        </div>
+        )}
+      </DataGrid>
     </div>
   );
 }

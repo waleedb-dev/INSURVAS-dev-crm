@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { Button, Input, Pagination, Table } from "@/components/ui";
+import { Button, Input, Pagination, Table, DataGrid } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Carrier {
@@ -184,93 +184,73 @@ export default function CarrierManagementPage() {
         </button>
       </div>
 
-      <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-        <div style={{ padding: "20px", borderBottom: `1.5px solid ${T.border}` }}>
-          <div style={{ position: "relative", width: 220 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            <input 
-              placeholder="Search Carriers" 
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              style={{ width: "100%", padding: "8px 12px 8px 36px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, outline: "none" }} 
-            />
-          </div>
-        </div>
-
-          <Table
-            data={paginatedCarriers}
-            hoverEffect={false}
-            onRowClick={(c) => handleOpenEdit(c)}
-            columns={[
-              {
-                header: (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 18, height: 18, backgroundColor: T.border, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: T.textMid }}>A</div>
-                    Carrier Name
-                  </div>
-                ),
-                key: "name",
-                render: (carrier) => (
-                    <span style={{ fontWeight: 700, color: T.textDark }}>
-                      {carrier.name}
-                    </span>
-                )
-              },
-              {
-                header: (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><path d="M3 10h18"/></svg>
-                    Added on
-                  </div>
-                ),
-                key: "createdAt",
-                render: (carrier) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{carrier.createdAt}</span>
-              },
-              {
-                header: "Actions",
-                key: "actions",
-                align: "center",
-                width: 100,
-                render: (carrier) => (
-                  <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleOpenEdit(carrier); }}
-                      style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6, borderRadius: 6 }} 
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} 
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleDeleteCarrier(carrier.id); }}
-                      style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                    </button>
-                  </div>
-                )
-              }
-            ]}
+      <DataGrid
+        search={search}
+        onSearchChange={(s) => { setSearch(s); setPage(1); }}
+        searchPlaceholder="Search Carriers"
+        pagination={
+          <Pagination
+            page={currentPage}
+            totalItems={filteredCarriers.length}
+            itemsPerPage={itemsPerPage}
+            itemLabel="carriers"
+            onPageChange={setPage}
           />
+        }
+      >
+        <Table
+          data={paginatedCarriers}
+          hoverEffect={false}
+          onRowClick={(c) => handleOpenEdit(c)}
+          columns={[
+            {
+              header: "Carrier Name",
+              key: "name",
+              render: (carrier) => (
+                  <span style={{ fontWeight: 700, color: T.textDark }}>
+                    {carrier.name}
+                  </span>
+              )
+            },
+            {
+              header: "Added on",
+              key: "createdAt",
+              render: (carrier) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{carrier.createdAt}</span>
+            },
+            {
+              header: "Actions",
+              key: "actions",
+              align: "center",
+              render: (carrier) => (
+                <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleOpenEdit(carrier); }}
+                    style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} 
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDeleteCarrier(carrier.id); }}
+                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  </button>
+                </div>
+              )
+            }
+          ]}
+        />
 
-          {!loading && filteredCarriers.length === 0 && (
-            <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 700 }}>
-              No carriers found.
-            </div>
-          )}
-
-          <div style={{ padding: "16px 20px", borderTop: `1.5px solid ${T.border}` }}>
-            <Pagination
-              page={currentPage}
-              totalItems={filteredCarriers.length}
-              itemsPerPage={itemsPerPage}
-              itemLabel="carriers"
-              onPageChange={setPage}
-            />
+        {!loading && filteredCarriers.length === 0 && (
+          <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 700 }}>
+            No carriers found.
           </div>
-        </div>
+        )}
+      </DataGrid>
     </div>
   );
 }

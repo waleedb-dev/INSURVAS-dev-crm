@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { T } from "@/lib/theme";
-import { Avatar, Badge, Pagination, Table } from "@/components/ui";
+import { Avatar, Badge, Pagination, Table, DataGrid } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Stage {
@@ -247,103 +247,91 @@ export default function PipelineManagementPage() {
           <button style={{ padding: "12px 4px", border: "none", borderBottom: `3px solid ${T.blue}`, background: "none", color: T.blue, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Stages</button>
         </div>
 
-        {/* Stages Toolbar */}
-        <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px", borderBottom: `1.5px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ position: "relative", width: 280 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-              <input placeholder="Search Stages" style={{ width: "100%", padding: "8px 12px 8px 36px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, outline: "none" }} />
-            </div>
-            <button onClick={handleAddStage} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ Add Stage</button>
-          </div>
-
-          <Table
-            data={selectedPipeline.stages}
-            columns={[
-              {
-                header: "",
-                key: "drag",
-                width: 40,
-                render: () => (
-                  <div style={{ cursor: "move" }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
-                  </div>
-                )
-              },
-              {
-                header: (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 18, height: 18, backgroundColor: T.border, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: T.textMid }}>A</div>
-                    Stage Name
-                  </div>
-                ),
-                key: "name",
-                render: (stage) => (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {editingStageId === stage.id ? (
-                      <input 
-                        autoFocus
-                        value={tempStageName}
-                        onChange={(e) => setTempStageName(e.target.value)}
-                        onBlur={() => handleUpdateStage(stage.id, { name: tempStageName })}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleUpdateStage(stage.id, { name: tempStageName });
-                          if (e.key === 'Escape') setEditingStageId(null);
-                        }}
-                        style={{ border: `1.5px solid ${T.blue}`, borderRadius: 4, padding: "2px 6px", fontSize: 13, fontWeight: 700, color: T.textDark, outline: "none", width: "100%" }}
-                      />
-                    ) : (
-                      <span 
-                        onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); }}
-                        style={{ fontWeight: 700, color: T.textDark, cursor: "text", padding: "2px 6px", borderRadius: 4, transition: "background-color 0.2s" }}
-                        onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
-                        onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                      >
-                        {stage.name}
-                      </span>
-                    )}
-                  </div>
-                )
-              },
-              {
-                header: (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-                    Show in Reports
-                  </div>
-                ),
-                key: "showInReports",
-                render: (stage) => (
-                  <div style={{ display: "flex", gap: 12 }}>
-                    <button 
-                      onClick={() => handleUpdateStage(stage.id, { showInReports: !stage.showInReports })}
-                      style={{ background: "none", border: "none", color: stage.showInReports ? T.blue : T.textMuted, cursor: "pointer" }}
+      <DataGrid
+        search=""
+        onSearchChange={() => {}}
+        searchPlaceholder="Search Stages"
+        filters={
+          <button onClick={handleAddStage} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>+ Add Stage</button>
+        }
+      >
+        <Table
+          data={selectedPipeline.stages}
+          columns={[
+            {
+              header: "",
+              key: "drag",
+              width: 40,
+              render: () => (
+                <div style={{ cursor: "move" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                </div>
+              )
+            },
+            {
+              header: "Stage Name",
+              key: "name",
+              render: (stage) => (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {editingStageId === stage.id ? (
+                    <input 
+                      autoFocus
+                      value={tempStageName}
+                      onChange={(e) => setTempStageName(e.target.value)}
+                      onBlur={() => handleUpdateStage(stage.id, { name: tempStageName })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleUpdateStage(stage.id, { name: tempStageName });
+                        if (e.key === 'Escape') setEditingStageId(null);
+                      }}
+                      style={{ border: `1.5px solid ${T.blue}`, borderRadius: 4, padding: "2px 6px", fontSize: 13, fontWeight: 700, color: T.textDark, outline: "none", width: "100%" }}
+                    />
+                  ) : (
+                    <span 
+                      onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); }}
+                      style={{ fontWeight: 700, color: T.textDark, cursor: "text", padding: "2px 6px", borderRadius: 4, transition: "background-color 0.2s" }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                     >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-                    </button>
-                    <button style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
-                  </div>
-                )
-              },
-              {
-                header: "Actions",
-                key: "actions",
-                align: "center",
-                width: 80,
-                render: (stage) => (
+                      {stage.name}
+                    </span>
+                  )}
+                </div>
+              )
+            },
+            {
+              header: "Show in Reports",
+              key: "showInReports",
+              render: (stage) => (
+                <div style={{ display: "flex", gap: 12 }}>
                   <button 
-                    onClick={() => handleDeleteStage(stage.id)}
-                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                    onClick={() => handleUpdateStage(stage.id, { showInReports: !stage.showInReports })}
+                    style={{ background: "none", border: "none", color: stage.showInReports ? T.blue : T.textMuted, cursor: "pointer" }}
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
                   </button>
-                )
-              }
-            ]}
-          />
-        </div>
+                  <button style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+                </div>
+              )
+            },
+            {
+              header: "Actions",
+              key: "actions",
+              align: "center",
+              width: 80,
+              render: (stage) => (
+                <button 
+                  onClick={() => handleDeleteStage(stage.id)}
+                  style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                </button>
+              )
+            }
+          ]}
+        />
+      </DataGrid>
       </div>
     );
   }
@@ -358,46 +346,31 @@ export default function PipelineManagementPage() {
         <button onClick={handleCreatePipeline} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>+ Create Pipeline</button>
       </div>
 
-      <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-        <div style={{ padding: "20px", borderBottom: `1.5px solid ${T.border}` }}>
-          <div style={{ position: "relative", width: 200 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            <input placeholder="Search" style={{ width: "100%", padding: "8px 12px 8px 36px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, outline: "none" }} />
-          </div>
-        </div>
-
+      <DataGrid
+        search=""
+        onSearchChange={() => {}}
+        searchPlaceholder="Search Pipelines"
+        pagination={
+          <Pagination page={1} totalItems={pipelines.length} itemsPerPage={20} itemLabel="pipelines" onPageChange={() => {}} />
+        }
+      >
         <Table
           data={pipelines}
           onRowClick={(p) => handleOpenPipeline(p)}
           columns={[
             {
-              header: (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 18, height: 18, backgroundColor: T.border, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: T.textMid }}>A</div>
-                  Pipeline name
-                </div>
-              ),
+              header: "Pipeline name",
               key: "name",
               render: (p) => <span style={{ fontWeight: 700, color: T.textDark }}>{p.name}</span>
             },
             {
-              header: (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                   <span style={{ fontSize: 16, color: T.border }}>#</span>
-                   No. of Stages
-                </div>
-              ),
+              header: "No. of Stages",
               key: "stagesCount",
               align: "center",
               render: (p) => <span style={{ fontWeight: 700, color: T.textMid }}>{p.stagesCount}</span>
             },
             {
-              header: (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                   Updated on
-                </div>
-              ),
+              header: "Updated on",
               key: "updatedAt",
               render: (p) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{p.updatedAt}</span>
             },
@@ -424,11 +397,7 @@ export default function PipelineManagementPage() {
             }
           ]}
         />
-        
-        <div style={{ padding: "16px 20px", borderTop: `1.5px solid ${T.border}`, display: "flex", justifyContent: "flex-end" }}>
-           <Pagination page={1} totalItems={4} itemsPerPage={20} itemLabel="pipelines" onPageChange={() => {}} />
-        </div>
-      </div>
+      </DataGrid>
     </div>
   );
 }

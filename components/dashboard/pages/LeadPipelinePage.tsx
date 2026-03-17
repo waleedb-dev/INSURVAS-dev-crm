@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination, Avatar, Badge, Table } from "@/components/ui";
+import { Pagination, Avatar, Badge, Table, DataGrid, FilterChip } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 
 type Stage = "New Lead" | "Attempted Contact" | "Contacted" | "Discovery Call" | "Presentation" | "Needs Quote" | "Quoted" | "Underwriting" | "Bound" | "Won" | "Lost";
@@ -98,6 +98,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<"Filters" | "Fields">("Filters");
   const [activeTab, setActiveTab] = useState("Opportunities");
+  const [filterStage, setFilterStage] = useState<Stage | "All">("All");
+  const [filterType, setFilterType] = useState("All");
+  const [filterAgent, setFilterAgent] = useState("All");
 
   const byStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
   const stageValue = (stage: Stage) => byStage(stage).reduce((s, l) => s + l.premium, 0);
@@ -114,13 +117,19 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     setCollapsedStages((prev) => ({ ...prev, [stage]: !prev[stage] }));
   };
 
-  const filteredLeads = leads.filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.type.toLowerCase().includes(search.toLowerCase()));
+  const filteredLeads = leads.filter(l => {
+    const matchesSearch = !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.type.toLowerCase().includes(search.toLowerCase());
+    const matchesStage = filterStage === "All" || l.stage === filterStage;
+    const matchesType = filterType === "All" || l.type === filterType;
+    const matchesAgent = filterAgent === "All" || l.agent === filterAgent;
+    return matchesSearch && matchesStage && matchesType && matchesAgent;
+  });
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   const paginatedLeads = filteredLeads.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, filterStage, filterType, filterAgent]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) setPage(totalPages);
@@ -389,65 +398,42 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         </div>
       </div>
 
-      {/* Optimized Search Row */}
-      <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center", padding: "12px 0", flexShrink: 0 }}>
-        <div style={{ position: "relative", width: 320 }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
-            <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
-            <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <input 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
-            placeholder="Search Opportunities..." 
-            style={{ 
-              padding: "12px 42px 12px 44px", 
-              border: `1.5px solid ${T.border}`, 
-              borderRadius: T.radiusMd, 
-              fontSize: 14, 
-              fontFamily: T.font, 
-              color: T.textDark, 
-              width: "100%", 
-              backgroundColor: T.rowBg,
-              outline: "none",
-              transition: "all 0.2s"
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.backgroundColor = T.cardBg; e.currentTarget.style.boxShadow = `0 0 0 4px ${T.blue}15`; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.backgroundColor = T.rowBg; e.currentTarget.style.boxShadow = "none"; }}
-          />
-          {search && (
-            <button 
-              onClick={() => setSearch("")}
-              style={{ 
-                position: "absolute", 
-                right: 12, 
-                top: "50%", 
-                transform: "translateY(-50%)", 
-                background: "none", 
-                border: "none", 
-                cursor: "pointer", 
-                color: T.textMuted,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 4,
-                borderRadius: "50%",
-                transition: "background-color 0.2s",
-                zIndex: 2
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* Main Board Area */}
       {viewMode === "kanban" ? renderKanbanBoard() : (
-        <div style={{ flex: 1, backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <div style={{ flex: 1, overflowY: "auto" }}>
+        <DataGrid
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search Opportunities..."
+          filters={
+            <>
+              <select value={filterStage} onChange={(e) => setFilterStage(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+                <option value="All">All Stages</option>
+                {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+                <option value="All">All Types</option>
+                {Object.keys(TYPE_COLORS).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <select value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+                <option value="All">All Owners</option>
+                {Array.from(new Set(leads.map(l => l.agent))).map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </>
+          }
+          activeFilters={
+            (filterStage !== "All" || filterType !== "All" || filterAgent !== "All") && (
+              <>
+                {filterStage !== "All" && <FilterChip label={`Stage: ${filterStage}`} onClear={() => setFilterStage("All")} />}
+                {filterType !== "All" && <FilterChip label={`Type: ${filterType}`} onClear={() => setFilterType("All")} />}
+                {filterAgent !== "All" && <FilterChip label={`Owner: ${filterAgent}`} onClear={() => setFilterAgent("All")} />}
+              </>
+            )
+          }
+          pagination={
+            <Pagination page={page} totalItems={filteredLeads.length} itemsPerPage={itemsPerPage} itemLabel="leads" onPageChange={setPage} />
+          }
+        >
           <Table
             data={paginatedLeads}
             onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name })}
@@ -548,9 +534,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               }
             ]}
           />
-          </div>
-          <Pagination page={page} totalItems={filteredLeads.length} itemsPerPage={itemsPerPage} itemLabel="leads" onPageChange={setPage} />
-        </div>
+        </DataGrid>
       )}
     </div>
   );

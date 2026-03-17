@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination } from "@/components/ui";
+import { Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
 import UserEditorComponent from "./UserEditorComponent";
 
 interface User { id:string; name:string; email:string; role:string; status:"Active"|"Inactive"|"Suspended"; color:string; lastActive:string; policies:number; phone?:string; extension?:string; }
@@ -26,13 +26,14 @@ export default function UsersAccessPage(){
   const [users,setUsers]=useState(INIT);
   const [search,setSearch]=useState("");
   const [rf,setRf]=useState<UserRole|"All">("All");
+  const [sf,setSf]=useState<User["status"]|"All">("All");
   const [showInvite, setShowInvite] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [inviteRole, setInviteRole] = useState<UserRole>("Agent");
   const [page, setPage] = useState(1);
   const itemsPerPage = 12;
 
-  const filtered=users.filter(u=>(rf==="All"||u.role===rf)&&(!search||u.name.toLowerCase().includes(search.toLowerCase())||u.email.toLowerCase().includes(search.toLowerCase())));
+  const filtered=users.filter(u=>(rf==="All"||u.role===rf)&&(sf==="All"||u.status===sf)&&(!search||u.name.toLowerCase().includes(search.toLowerCase())||u.email.toLowerCase().includes(search.toLowerCase())));
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
   const toggle=(id:string)=>setUsers(p=>p.map(u=>u.id===id?{...u,status:u.status==="Active"?"Inactive":"Active"}:u));
@@ -40,7 +41,7 @@ export default function UsersAccessPage(){
 
   useEffect(() => {
     setPage(1);
-  }, [rf, search]);
+  }, [rf, sf, search]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) {
@@ -116,134 +117,106 @@ export default function UsersAccessPage(){
         </div>
       </div>
 
-      <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>
-        {/* Toolbar Row */}
-        <div style={{ padding: "20px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
-              <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
-              <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <input 
-              value={search} 
-              onChange={(e) => setSearch(e.target.value)} 
-              placeholder="Search by name, email, or ID…" 
-              style={{ 
-                padding: "12px 42px 12px 44px", 
-                border: `1.5px solid ${T.border}`, 
-                borderRadius: T.radiusMd, 
-                fontSize: 14, 
-                fontFamily: T.font, 
-                color: T.textDark, 
-                width: "100%", 
-                backgroundColor: T.rowBg,
-                outline: "none",
-                transition: "all 0.2s"
-              }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.backgroundColor = T.cardBg; e.currentTarget.style.boxShadow = `0 0 0 4px ${T.blue}15`; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.backgroundColor = T.rowBg; e.currentTarget.style.boxShadow = "none"; }}
-            />
-            {search && (
-              <button 
-                onClick={() => setSearch("")}
-                style={{ 
-                  position: "absolute", 
-                  right: 12, 
-                  top: "50%", 
-                  transform: "translateY(-50%)", 
-                  background: "none", 
-                  border: "none", 
-                  cursor: "pointer", 
-                  color: T.textMuted,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 4,
-                  borderRadius: "50%",
-                  transition: "background-color 0.2s",
-                  zIndex: 2
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
-            )}
-          </div>
-          
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+      <DataGrid
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by name, email, or ID…"
+        filters={
+          <>
             <select value={rf} onChange={(e) => setRf(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-              <option value="All">All Types</option>
+              <option value="All">All Roles</option>
               {["Admin", "Manager", "Agent", "Read-Only"].map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-          </div>
-        </div>
-
-
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ backgroundColor: T.rowBg }}>
-              {["Name", "Email", "Phone", "User Type", "Status", "Actions"].map(h => (
-                <th key={h} style={{ padding: "14px 20px", fontSize: 11, fontWeight: 700, color: T.textMuted, textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {paginated.map((u, i) => (
-              <tr key={u.id} style={{ borderBottom: `1px solid ${T.borderLight}`, backgroundColor: "#fff", transition: "all 0.15s" }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = T.blueFaint}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = "#fff"}
-              >
-                <td style={{ padding: "14px 20px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: u.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
-                      {u.name.split(" ").map(n => n[0]).join("")}
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{u.name}</span>
+            <select value={sf} onChange={(e) => setSf(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+              <option value="All">All Statuses</option>
+              {["Active", "Inactive", "Suspended"].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </>
+        }
+        activeFilters={
+          (rf !== "All" || sf !== "All") && (
+            <>
+              {rf !== "All" && <FilterChip label={`Role: ${rf}`} onClear={() => setRf("All")} />}
+              {sf !== "All" && <FilterChip label={`Status: ${sf}`} onClear={() => setSf("All")} />}
+            </>
+          )
+        }
+        pagination={
+          <Pagination
+            page={page}
+            totalItems={filtered.length}
+            itemsPerPage={itemsPerPage}
+            itemLabel="users"
+            onPageChange={setPage}
+          />
+        }
+      >
+        <Table
+          data={paginated}
+          columns={[
+            {
+              header: "Name",
+              key: "name",
+              render: (u) => (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: u.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                    {u.name.split(" ").map(n => n[0]).join("")}
                   </div>
-                </td>
-                <td style={{ padding: "14px 20px" }}>
-                  <div>
-                    <div style={{ fontSize: 13, color: T.textDark, fontWeight: 600, marginBottom: 2 }}>{u.email}</div>
-                    <div style={{ color: T.textMuted, fontSize: 11, fontWeight: 600 }}>{u.id}</div>
-                  </div>
-                </td>
-                <td style={{ padding: "14px 20px", fontSize: 13, color: T.textMid, fontWeight: 600 }}>{u.phone || "—"}</td>
-                <td style={{ padding: "14px 20px" }}>
-                  <span style={{ backgroundColor: ROLE_CFG[u.role].bg, color: ROLE_CFG[u.role].color, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 800 }}>ACCOUNT-{u.role.toUpperCase()}</span>
-                </td>
-                <td style={{ padding: "14px 20px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: u.status === "Active" ? "#16a34a" : "#dc2626" }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{u.status}</span>
-                  </div>
-                </td>
-                <td style={{ padding: "14px 20px" }}>
-                  <div style={{ display: "flex", gap: 12 }}>
-                    <button onClick={() => setEditingUser(u)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = T.blue} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
-                    <button onClick={() => toggle(u.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = u.status === "Active" ? T.warning : T.success} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                    </button>
-                    <button style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = T.danger} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <Pagination
-          page={page}
-          totalItems={filtered.length}
-          itemsPerPage={itemsPerPage}
-          itemLabel="users"
-          onPageChange={setPage}
+                  <span style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{u.name}</span>
+                </div>
+              )
+            },
+            {
+              header: "Email",
+              key: "email",
+              render: (u) => (
+                <div>
+                  <div style={{ fontSize: 13, color: T.textDark, fontWeight: 600, marginBottom: 2 }}>{u.email}</div>
+                  <div style={{ color: T.textMuted, fontSize: 11, fontWeight: 600 }}>{u.id}</div>
+                </div>
+              )
+            },
+            {
+              header: "Phone",
+              key: "phone",
+              render: (u) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{u.phone || "—"}</span>
+            },
+            {
+              header: "User Type",
+              key: "role",
+              render: (u) => <span style={{ backgroundColor: ROLE_CFG[u.role].bg, color: ROLE_CFG[u.role].color, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 800 }}>ACCOUNT-{u.role.toUpperCase()}</span>
+            },
+            {
+              header: "Status",
+              key: "status",
+              render: (u) => (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: u.status === "Active" ? "#16a34a" : "#dc2626" }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{u.status}</span>
+                </div>
+              )
+            },
+            {
+              header: "Actions",
+              key: "actions",
+              align: "center",
+              render: (u) => (
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button onClick={() => setEditingUser(u)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = T.blue} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button onClick={() => toggle(u.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = u.status === "Active" ? T.warning : T.success} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  </button>
+                  <button style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = T.danger} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  </button>
+                </div>
+              )
+            }
+          ]}
         />
-      </div>
+      </DataGrid>
 
 
     </div>

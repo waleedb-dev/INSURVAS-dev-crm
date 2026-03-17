@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination, Table } from "@/components/ui";
+import { Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 import DealEditorComponent from "./DealEditorComponent";
 
@@ -215,62 +215,12 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
         ))}
       </div>
 
-      {/* Filters + Search */}
-      <div style={{ backgroundColor: T.cardBg, borderRadius: T.radiusXl, boxShadow: T.shadowSm, overflow: "hidden" }}>
-        <div style={{ padding: "20px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", zIndex: 1 }}>
-              <circle cx="7" cy="7" r="5.5" stroke={T.textMuted} strokeWidth="2" />
-              <path d="M11 11L14 14" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <input 
-              value={search} 
-              onChange={(e) => setSearch(e.target.value)} 
-              placeholder="Search deals, clients…" 
-              style={{ 
-                padding: "12px 42px 12px 44px", 
-                border: `1.5px solid ${T.border}`, 
-                borderRadius: T.radiusMd, 
-                fontSize: 14, 
-                fontFamily: T.font, 
-                color: T.textDark, 
-                width: "100%", 
-                backgroundColor: T.rowBg,
-                outline: "none",
-                transition: "all 0.2s"
-              }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.backgroundColor = T.cardBg; e.currentTarget.style.boxShadow = `0 0 0 4px ${T.blue}15`; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.backgroundColor = T.rowBg; e.currentTarget.style.boxShadow = "none"; }}
-            />
-            {search && (
-              <button 
-                onClick={() => setSearch("")}
-                style={{ 
-                  position: "absolute", 
-                  right: 12, 
-                  top: "50%", 
-                  transform: "translateY(-50%)", 
-                  background: "none", 
-                  border: "none", 
-                  cursor: "pointer", 
-                  color: T.textMuted,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 4,
-                  borderRadius: "50%",
-                  transition: "background-color 0.2s",
-                  zIndex: 2
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
-            )}
-          </div>
-          
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+      <DataGrid
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search deals, clients…"
+        filters={
+          <>
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
               <option value="All">All Statuses</option>
               {["Approved", "Under Review", "Pending Docs", "Submitted", "Declined"].map(s => <option key={s} value={s}>{s}</option>)}
@@ -283,35 +233,42 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
               <option value="All">All Policies</option>
               {policyTypes.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
-          </div>
-        </div>
+          </>
+        }
+        activeFilters={
+          (filterStatus !== "All" || filterAgent !== "All" || filterType !== "All") ? (
+            <>
+              {filterStatus !== "All" && (
+                <FilterChip label={`Status: ${filterStatus}`} onClear={() => setFilterStatus("All")} />
+              )}
+              {filterAgent !== "All" && (
+                <FilterChip label={`Agent: ${filterAgent}`} onClear={() => setFilterAgent("All")} />
+              )}
+              {filterType !== "All" && (
+                <FilterChip label={`Policy: ${filterType}`} onClear={() => setFilterType("All")} />
+              )}
 
-        {/* Active Filter Chips */}
-        {(filterStatus !== "All" || filterAgent !== "All" || filterType !== "All") && (
-          <div style={{ padding: "10px 20px", backgroundColor: "#fafcfe", borderBottom: `1px solid ${T.border}`, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Active Filters:</span>
-            
-            {filterStatus !== "All" && (
-              <FilterChip label={`Status: ${filterStatus}`} onClear={() => setFilterStatus("All")} />
-            )}
-            {filterAgent !== "All" && (
-              <FilterChip label={`Agent: ${filterAgent}`} onClear={() => setFilterAgent("All")} />
-            )}
-            {filterType !== "All" && (
-              <FilterChip label={`Policy: ${filterType}`} onClear={() => setFilterType("All")} />
-            )}
-
-            <button 
-              onClick={() => { setFilterStatus("All"); setFilterAgent("All"); setFilterType("All"); }}
-              style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", fontFamily: T.font, marginLeft: "auto" }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration = "underline"}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.textDecoration = "none"}
-            >
-              Reset All
-            </button>
-          </div>
-        )}
-
+              <button 
+                onClick={() => { setFilterStatus("All"); setFilterAgent("All"); setFilterType("All"); }}
+                style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", fontFamily: T.font, marginLeft: "auto" }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration = "underline"}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.textDecoration = "none"}
+              >
+                Reset All
+              </button>
+            </>
+          ) : null
+        }
+        pagination={
+          <Pagination
+            page={page}
+            totalItems={filtered.length}
+            itemsPerPage={itemsPerPage}
+            itemLabel="deals"
+            onPageChange={setPage}
+          />
+        }
+      >
         <Table
           data={paginated}
           onRowClick={(d) => setViewingLead({ id: d.id, name: d.client })}
@@ -399,52 +356,8 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
             }
           ]}
         />
-
-        <Pagination
-          page={page}
-          totalItems={filtered.length}
-          itemsPerPage={itemsPerPage}
-          itemLabel="deals"
-          onPageChange={setPage}
-        />
-      </div>
+      </DataGrid>
     </div>
   );
 }
 
-function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
-  return (
-    <div style={{ 
-      display: "flex", 
-      alignItems: "center", 
-      gap: 6, 
-      backgroundColor: "#fff", 
-      border: `1px solid ${T.border}`, 
-      borderRadius: 100, 
-      padding: "4px 4px 4px 12px", 
-      boxShadow: "0 1px 2px rgba(0,0,0,0.02)" 
-    }}>
-      <span style={{ fontSize: 12, fontWeight: 600, color: T.textMid }}>{label}</span>
-      <button 
-        onClick={onClear}
-        style={{ 
-          width: 20, 
-          height: 20, 
-          borderRadius: "50%", 
-          border: "none", 
-          backgroundColor: T.rowBg, 
-          color: T.textMuted, 
-          display: "flex", 
-          alignItems: "center", 
-          justifyContent: "center", 
-          cursor: "pointer",
-          transition: "all 0.15s"
-        }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = T.danger + "15"; (e.currentTarget as HTMLElement).style.color = T.danger; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; (e.currentTarget as HTMLElement).style.color = T.textMuted; }}
-      >
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-      </button>
-    </div>
-  );
-}
