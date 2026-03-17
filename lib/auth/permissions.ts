@@ -20,6 +20,10 @@ type RolePermissionRow = {
   permissions: { key: string } | { key: string }[] | null;
 };
 
+type UserPermissionRow = {
+  permissions: { key: string } | { key: string }[] | null;
+};
+
 export function isPermissionKey(value: string): value is PermissionKey {
   return PERMISSION_SET.has(value);
 }
@@ -38,16 +42,23 @@ export async function getCurrentUserPermissionKeys(
     return new Set<PermissionKey>();
   }
 
-  const { data, error } = await supabase
-    .from("role_permissions")
-    .select("permissions!inner(key)")
-    .eq("role_id", user.role_id);
+  const [{ data: roleData, error: roleError }, { data: userData, error: userError2 }] =
+    await Promise.all([
+      supabase
+        .from("role_permissions")
+        .select("permissions!inner(key)")
+        .eq("role_id", user.role_id),
+      supabase
+        .from("user_permissions")
+        .select("permissions!inner(key)")
+        .eq("user_id", userId),
+    ]);
 
-  if (error || !data?.length) {
+  if (roleError && userError2) {
     return new Set<PermissionKey>();
   }
 
-  const keys = (data as RolePermissionRow[])
+  const keys = [...(roleData as RolePermissionRow[] | null) ?? [], ...(userData as UserPermissionRow[] | null) ?? []]
     .flatMap((row) => {
       if (Array.isArray(row.permissions)) {
         return row.permissions.map((permission) => permission.key);

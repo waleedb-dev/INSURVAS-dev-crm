@@ -25,9 +25,18 @@ create table if not exists public.role_permissions (
   primary key (role_id, permission_id)
 );
 
+create table if not exists public.user_permissions (
+  user_id uuid not null references public.users(id) on delete cascade,
+  permission_id uuid not null references public.permissions(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, permission_id)
+);
+
 create index if not exists idx_permissions_resource_action on public.permissions(resource, action);
 create index if not exists idx_role_permissions_role_id on public.role_permissions(role_id);
 create index if not exists idx_role_permissions_permission_id on public.role_permissions(permission_id);
+create index if not exists idx_user_permissions_user_id on public.user_permissions(user_id);
+create index if not exists idx_user_permissions_permission_id on public.user_permissions(permission_id);
 
 -- 2) Permission seed (4 pages/modules + action checks)
 insert into public.permissions (key, resource, action, description) values
@@ -103,12 +112,24 @@ set search_path = public
 as $$
   select exists (
     select 1
-    from public.users u
-    join public.role_permissions rp on rp.role_id = u.role_id
-    join public.permissions p on p.id = rp.permission_id
-    where u.id = auth.uid()
-      and p.is_active = true
+    from public.permissions p
+    where p.is_active = true
       and p.key = p_permission_key
+      and (
+        exists (
+          select 1
+          from public.users u
+          join public.role_permissions rp on rp.role_id = u.role_id
+          where u.id = auth.uid()
+            and rp.permission_id = p.id
+        )
+        or exists (
+          select 1
+          from public.user_permissions up
+          where up.user_id = auth.uid()
+            and up.permission_id = p.id
+        )
+      )
   );
 $$;
 
@@ -121,18 +142,31 @@ set search_path = public
 as $$
   select exists (
     select 1
-    from public.users u
-    join public.role_permissions rp on rp.role_id = u.role_id
-    join public.permissions p on p.id = rp.permission_id
-    where u.id = auth.uid()
-      and p.is_active = true
+    from public.permissions p
+    where p.is_active = true
       and p.key = any (p_permission_keys)
+      and (
+        exists (
+          select 1
+          from public.users u
+          join public.role_permissions rp on rp.role_id = u.role_id
+          where u.id = auth.uid()
+            and rp.permission_id = p.id
+        )
+        or exists (
+          select 1
+          from public.user_permissions up
+          where up.user_id = auth.uid()
+            and up.permission_id = p.id
+        )
+      )
   );
 $$;
 
 -- 5) RLS and policies
 alter table public.permissions enable row level security;
 alter table public.role_permissions enable row level security;
+alter table public.user_permissions enable row level security;
 
 drop policy if exists permissions_select_all_authenticated on public.permissions;
 create policy permissions_select_all_authenticated
@@ -165,6 +199,28 @@ using (public.has_any_role(array['system_admin','hr']));
 drop policy if exists role_permissions_write_system_admin on public.role_permissions;
 create policy role_permissions_write_system_admin
 on public.role_permissions
+for all
+to authenticated
+using (public.has_role('system_admin'))
+with check (public.has_role('system_admin'));
+
+drop policy if exists user_permissions_select_own_user on public.user_permissions;
+create policy user_permissions_select_own_user
+on public.user_permissions
+for select
+to authenticated
+using (user_id = auth.uid());
+
+drop policy if exists user_permissions_select_admin_hr on public.user_permissions;
+create policy user_permissions_select_admin_hr
+on public.user_permissions
+for select
+to authenticated
+using (public.has_any_role(array['system_admin','hr']));
+
+drop policy if exists user_permissions_write_system_admin on public.user_permissions;
+create policy user_permissions_write_system_admin
+on public.user_permissions
 for all
 to authenticated
 using (public.has_role('system_admin'))
