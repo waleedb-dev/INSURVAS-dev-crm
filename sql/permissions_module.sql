@@ -47,7 +47,9 @@ insert into public.permissions (key, resource, action, description) values
   ('page.lead_pipeline.access', 'lead_pipeline', 'access', 'Can access Lead Pipeline page'),
   ('action.lead_pipeline.update', 'lead_pipeline', 'update', 'Can update lead pipeline states'),
   ('page.commissions.access', 'commissions', 'access', 'Can access Commissions page'),
-  ('action.commissions.approve', 'commissions', 'approve', 'Can approve commissions')
+  ('action.commissions.approve', 'commissions', 'approve', 'Can approve commissions'),
+  ('page.transfer_leads.access', 'transfer_leads', 'access', 'Can access Transfer Leads page'),
+  ('action.transfer_leads.create', 'transfer_leads', 'create', 'Can create new transfer lead records')
 on conflict (key) do update
 set
   resource = excluded.resource,
@@ -87,8 +89,12 @@ with mapping(role_key, permission_key) as (
     ('call_center_admin', 'page.assigning.access'),
     ('call_center_admin', 'action.assigning.assign'),
     ('call_center_admin', 'page.lead_pipeline.access'),
+    ('call_center_admin', 'page.transfer_leads.access'),
+    ('call_center_admin', 'action.transfer_leads.create'),
 
     ('call_center_agent', 'page.lead_pipeline.access'),
+    ('call_center_agent', 'page.transfer_leads.access'),
+    ('call_center_agent', 'action.transfer_leads.create'),
 
     ('accounting', 'page.commissions.access'),
     ('accounting', 'action.commissions.approve')

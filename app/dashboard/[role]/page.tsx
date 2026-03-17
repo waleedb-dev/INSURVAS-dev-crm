@@ -8,6 +8,7 @@ import NearestEventsPage from "@/components/dashboard/NearestEventsPage";
 import SupportModal from "@/components/dashboard/SupportModal";
 import DailyDealFlowPage from "@/components/dashboard/pages/DailyDealFlowPage";
 import LeadPipelinePage from "@/components/dashboard/pages/LeadPipelinePage";
+import CallCenterLeadIntakePage from "@/components/dashboard/pages/CallCenterLeadIntakePage";
 import UsersAccessPage from "@/components/dashboard/pages/UsersAccessPage";
 import PipelineSettingsPage from "@/components/dashboard/pages/PipelineSettingsPage";
 import CarrierManagementPage from "@/components/dashboard/pages/CarrierManagementPage";
@@ -25,6 +26,7 @@ const ALL_PAGES: DashPage[] = [
   "dashboard",
   "daily-deal-flow",
   "lead-pipeline",
+  "call-center-lead-intake",
   "users-access",
   "nearest-events",
   "pipeline-management",
@@ -175,6 +177,11 @@ export default function RoleDashboardPage() {
         )}
         {resolvedActivePage === "lead-pipeline" && (
           <LeadPipelinePage canUpdateActions={permissionKeys.has("action.lead_pipeline.update")} />
+        )}
+        {resolvedActivePage === "call-center-lead-intake" && (
+          <CallCenterLeadIntakePage
+            canCreateLeads={permissionKeys.has("action.transfer_leads.create")}
+          />
         )}
         {resolvedActivePage === "users-access" && <UsersAccessPage />}
         {resolvedActivePage === "pipeline-management" && <PipelineSettingsPage />}

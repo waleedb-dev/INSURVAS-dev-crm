@@ -19,11 +19,13 @@ interface LeadViewProps {
   isCreation?: boolean;
   onSubmit?: (lead: Lead) => void;
   onBack: () => void;
+  defaultPipeline?: string;
+  defaultStage?: string;
 }
 
 type TabType = "Overview" | "Timeline" | "Documents" | "Notes" | "Policy Details";
 
-export default function LeadViewComponent({ leadId, leadName, isCreation, onSubmit, onBack }: LeadViewProps) {
+export default function LeadViewComponent({ leadId, leadName, isCreation, onSubmit, onBack, defaultPipeline, defaultStage }: LeadViewProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [activeTab, setActiveTab] = useState<TabType>("Overview");
   const [pipelines, setPipelines] = useState<{name: string, stages: string[]}[]>([]);
@@ -36,8 +38,8 @@ export default function LeadViewComponent({ leadId, leadName, isCreation, onSubm
     premium: 0,
     type: "Auto Insurance",
     source: "Manual Entry",
-    pipeline: "Sales Pipeline",
-    stage: "New Lead"
+    pipeline: defaultPipeline || "Sales Pipeline",
+    stage: defaultStage || "New Lead"
   });
 
   useEffect(() => {
@@ -71,12 +73,17 @@ export default function LeadViewComponent({ leadId, leadName, isCreation, onSubm
     
     setPipelines(built);
     
-    // Set default if empty
-    if (isCreation && built.length > 0 && !formData.pipeline) {
+    if (isCreation && built.length > 0) {
+      const requestedPipeline = defaultPipeline || formData.pipeline;
+      const selectedPipeline = built.find((pipeline) => pipeline.name === requestedPipeline) || built[0];
+      const hasRequestedStage = selectedPipeline.stages.includes(defaultStage || formData.stage);
+
       setFormData(prev => ({
         ...prev,
-        pipeline: built[0].name,
-        stage: built[0].stages[0] || ""
+        pipeline: selectedPipeline.name,
+        stage: hasRequestedStage
+          ? (defaultStage || prev.stage)
+          : (selectedPipeline.stages[0] || "")
       }));
     }
   }

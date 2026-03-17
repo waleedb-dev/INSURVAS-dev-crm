@@ -10,6 +10,8 @@ export const PERMISSION_KEYS = [
   "action.lead_pipeline.update",
   "page.commissions.access",
   "action.commissions.approve",
+  "page.transfer_leads.access",
+  "action.transfer_leads.create",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -78,6 +80,7 @@ export function canAccessPage(
     | "daily-deal-flow"
     | "assigning"
     | "lead-pipeline"
+    | "call-center-lead-intake"
     | "commissions"
     | "users-access"
     | "operations-guide"
@@ -105,6 +108,10 @@ export function canAccessPage(
 
   if (page === "lead-pipeline") {
     return permissionKeys.has("page.lead_pipeline.access");
+  }
+
+  if (page === "call-center-lead-intake") {
+    return permissionKeys.has("page.transfer_leads.access");
   }
 
   if (page === "commissions") {

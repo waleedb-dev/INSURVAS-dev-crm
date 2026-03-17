@@ -6,6 +6,7 @@ import { T } from "@/lib/theme";
 export type DashPage =
   | "dashboard" | "nearest-events"
   | "daily-deal-flow" | "lead-pipeline"
+  | "call-center-lead-intake"
   | "users-access" | "pipeline-management"
   | "carrier-management" | "bpo-centres";
 
@@ -30,6 +31,7 @@ const NAV_ITEMS: { id: DashPage; label: string; Icon: React.FC<{ active: boolean
   { id: "dashboard",        label: "Overview",         Icon: DashboardIcon },
   { id: "daily-deal-flow",  label: "Daily Deal Flow",  Icon: ProjectsIcon },
   { id: "lead-pipeline",    label: "Lead Pipeline",    Icon: VacationsIcon },
+  { id: "call-center-lead-intake", label: "Transfer Leads", Icon: EmployeesIcon },
   { id: "users-access",     label: "Users & Access",   Icon: MessengerIcon },
   { id: "pipeline-management", label: "Pipelines",     Icon: InfoPortalIcon },
   { id: "carrier-management", label: "Carriers",       Icon: ProjectsIcon },
