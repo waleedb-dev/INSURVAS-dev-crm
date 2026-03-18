@@ -469,6 +469,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                     onToggle={setActiveMenu}
                     items={[
                       { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name }) },
+                      { label: "Edit Lead", onClick: () => setViewingLead({ id: lead.id, name: lead.name }) },
                       { label: "Delete", danger: true },
                     ]}
                   />
