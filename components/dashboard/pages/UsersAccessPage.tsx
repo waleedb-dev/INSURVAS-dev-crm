@@ -19,6 +19,39 @@ const ROLE_CFG:Record<string,{bg:string;color:string}>={
 };
 const INIT:User[]=[];
 
+const fetchUsers = async (supabaseClient: any) => {
+  const { data, error } = await supabaseClient
+    .from("users")
+    .select(`
+      id, 
+      first_name, 
+      last_name, 
+      email, 
+      phone, 
+      role:roles(name, key),
+      role_id,
+      status,
+      created_at
+    `)
+    .order("created_at", { ascending: false });
+
+  if (data) {
+    return data.map((u: any) => ({
+      id: u.id,
+      name: `${u.first_name} ${u.last_name}`,
+      email: u.email,
+      role: u.role?.name || "Agent",
+      roleId: u.role_id,
+      status: u.status === "active" ? "Active" : u.status === "inactive" ? "Inactive" : "Suspended",
+      color: T.blue,
+      lastActive: u.created_at ? new Date(u.created_at).toLocaleDateString() : "Just now",
+      policies: 0,
+      phone: u.phone
+    }));
+  }
+  return [];
+};
+
 export default function UsersAccessPage(){
   const rolesFromDb = useRoles();
   const [dbRoles, setDbRoles] = useState<{id:string, name:string}[]>([]);
@@ -27,44 +60,13 @@ export default function UsersAccessPage(){
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
 
   useEffect(() => {
-    if (rolesFromDb.length > 0) setDbRoles(rolesFromDb);
-  }, [rolesFromDb]);
-
-  useEffect(() => {
-    async function fetchUsers() {
-      const { data, error } = await supabase
-        .from("users")
-        .select(`
-          id, 
-          first_name, 
-          last_name, 
-          email, 
-          phone, 
-          role:roles(name, key),
-          role_id,
-          status,
-          created_at
-        `)
-        .order("created_at", { ascending: false });
-
-      if (data) {
-        const mapped: User[] = data.map((u: any) => ({
-          id: u.id,
-          name: `${u.first_name} ${u.last_name}`,
-          email: u.email,
-          role: u.role?.name || "Agent",
-          roleId: u.role_id,
-          status: u.status === "active" ? "Active" : u.status === "inactive" ? "Inactive" : "Suspended",
-          color: T.blue,
-          lastActive: u.created_at ? new Date(u.created_at).toLocaleDateString() : "Just now",
-          policies: 0,
-          phone: u.phone
-        }));
-        setUsers(mapped);
-      }
+    async function load() {
+      if (rolesFromDb.length > 0) setDbRoles(rolesFromDb);
+      const userData = await fetchUsers(supabase);
+      setUsers(userData);
     }
-    fetchUsers();
-  }, [supabase]);
+    load();
+  }, [rolesFromDb, supabase]);
   const [search,setSearch]=useState("");
   const [rf,setRf]=useState<string>("All");
   const [sf,setSf]=useState<User["status"]|"All">("All");
@@ -98,29 +100,14 @@ export default function UsersAccessPage(){
       <UserEditorComponent
         user={editingUser || undefined}
         onClose={() => { setShowInvite(false); setEditingUser(null); }}
-        onSubmit={(data) => {
-          const roleName = dbRoles.find(r => r.id === data.roleId)?.name || "Agent";
-          if (editingUser) {
-            setUsers(p => p.map(u => u.id === editingUser.id ? { ...u, name: `${data.firstName} ${data.lastName}`, email: data.email, role: roleName, roleId: data.roleId, phone: data.phone } : u));
-          } else {
-            const newUser: User = {
-              id: `U-${String(users.length + 1).padStart(3, '0')}`,
-              name: `${data.firstName} ${data.lastName}`,
-              email: data.email,
-              role: roleName,
-              roleId: data.roleId,
-              status: "Active",
-              color: T.blue,
-              lastActive: "Just now",
-              policies: 0,
-              phone: data.phone
-            };
-            setUsers(p => [newUser, ...p]);
-          }
+        onSubmit={async (data) => {
+          // Refetch users from database to update list
+          const userData = await fetchUsers(supabase);
+          setUsers(userData);
           setShowInvite(false);
           setEditingUser(null);
           setToast({
-            message: editingUser ? "Profile updated successfully" : "New user added successfully",
+            message: data.isUpdate ? "Profile updated successfully" : "New user added successfully",
             type: "success"
           });
         }}
