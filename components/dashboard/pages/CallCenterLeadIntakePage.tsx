@@ -69,6 +69,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [leads, setLeads] = useState<IntakeLead[]>([]);
   const [viewingLead, setViewingLead] = useState<{ id: string; name: string } | null>(null);
+  const [editingLead, setEditingLead] = useState<{ rowId: string; formData: TransferLeadFormData } | null>(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("All");
   const [filterSource, setFilterSource] = useState("All");
@@ -225,11 +226,137 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     await refreshLeads();
   };
 
+  const handleEditLead = async (rowId: string) => {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline, stage")
+      .eq("id", rowId)
+      .maybeSingle();
+
+    if (error || !data) {
+      setToast({ message: error?.message || "Failed to load lead for editing", type: "error" });
+      return;
+    }
+
+    const mapped: TransferLeadFormData = {
+      leadUniqueId: data.lead_unique_id || "",
+      leadValue: data.lead_value != null ? String(data.lead_value) : "",
+      leadSource: FIXED_BPO_LEAD_SOURCE,
+      submissionDate: data.submission_date || "",
+      firstName: data.first_name || "",
+      lastName: data.last_name || "",
+      street1: data.street1 || "",
+      street2: data.street2 || "",
+      city: data.city || "",
+      state: data.state || "",
+      zipCode: data.zip_code || "",
+      phone: data.phone || "",
+      birthState: data.birth_state || "",
+      dateOfBirth: data.date_of_birth || "",
+      age: data.age || "",
+      social: data.social || "",
+      driverLicenseNumber: data.driver_license_number || "",
+      existingCoverageLast2Years: data.existing_coverage_last_2_years || "",
+      previousApplications2Years: data.previous_applications_2_years || "",
+      height: data.height || "",
+      weight: data.weight || "",
+      doctorName: data.doctor_name || "",
+      tobaccoUse: data.tobacco_use || "",
+      healthConditions: data.health_conditions || "",
+      medications: data.medications || "",
+      monthlyPremium: data.monthly_premium || "",
+      coverageAmount: data.coverage_amount || "",
+      carrier: data.carrier || "",
+      productType: data.product_type || "",
+      draftDate: data.draft_date || "",
+      beneficiaryInformation: data.beneficiary_information || "",
+      bankAccountType: data.bank_account_type || "",
+      institutionName: data.institution_name || "",
+      routingNumber: data.routing_number || "",
+      accountNumber: data.account_number || "",
+      futureDraftDate: data.future_draft_date || "",
+      additionalInformation: data.additional_information || "",
+      pipeline: data.pipeline || "Transfer Portal",
+      stage: data.stage || "Transfer API",
+    };
+
+    setEditingLead({ rowId, formData: mapped });
+  };
+
+  const handleUpdateLead = async (payload: TransferLeadFormData) => {
+    if (!editingLead?.rowId) return;
+
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        lead_unique_id: payload.leadUniqueId || buildLeadUniqueId(payload),
+        lead_value: Number(payload.leadValue || 0),
+        lead_source: FIXED_BPO_LEAD_SOURCE,
+        submission_date: payload.submissionDate,
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        street1: payload.street1,
+        street2: payload.street2 || null,
+        city: payload.city,
+        state: payload.state,
+        zip_code: payload.zipCode,
+        phone: payload.phone,
+        birth_state: payload.birthState,
+        date_of_birth: payload.dateOfBirth,
+        age: payload.age,
+        social: payload.social,
+        driver_license_number: payload.driverLicenseNumber,
+        existing_coverage_last_2_years: payload.existingCoverageLast2Years,
+        previous_applications_2_years: payload.previousApplications2Years,
+        height: payload.height,
+        weight: payload.weight,
+        doctor_name: payload.doctorName,
+        tobacco_use: payload.tobaccoUse,
+        health_conditions: payload.healthConditions,
+        medications: payload.medications,
+        monthly_premium: payload.monthlyPremium,
+        coverage_amount: payload.coverageAmount,
+        carrier: payload.carrier,
+        product_type: payload.productType,
+        draft_date: payload.draftDate,
+        beneficiary_information: payload.beneficiaryInformation,
+        bank_account_type: payload.bankAccountType || null,
+        institution_name: payload.institutionName,
+        routing_number: payload.routingNumber,
+        account_number: payload.accountNumber,
+        future_draft_date: payload.futureDraftDate,
+        additional_information: payload.additionalInformation || null,
+        pipeline: payload.pipeline || "Transfer Portal",
+        stage: payload.stage || "Transfer API",
+      })
+      .eq("id", editingLead.rowId);
+
+    if (error) {
+      setToast({ message: error.message || "Failed to update lead", type: "error" });
+      return;
+    }
+
+    setToast({ message: "Lead updated successfully", type: "success" });
+    setEditingLead(null);
+    await refreshLeads();
+  };
+
   if (showCreateLead) {
     return (
       <TransferLeadApplicationForm
         onBack={() => setShowCreateLead(false)}
         onSubmit={handleCreateLead}
+      />
+    );
+  }
+
+  if (editingLead) {
+    return (
+      <TransferLeadApplicationForm
+        onBack={() => setEditingLead(null)}
+        onSubmit={handleUpdateLead}
+        initialData={editingLead.formData}
+        submitButtonLabel="Update Lead"
       />
     );
   }
@@ -469,7 +596,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                     onToggle={setActiveMenu}
                     items={[
                       { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name }) },
-                      { label: "Edit Lead", onClick: () => setViewingLead({ id: lead.id, name: lead.name }) },
+                      { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
                       { label: "Delete", danger: true },
                     ]}
                   />

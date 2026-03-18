@@ -84,9 +84,13 @@ const labelStyle: CSSProperties = {
 export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
+  initialData,
+  submitButtonLabel,
 }: {
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void;
+  initialData?: Partial<TransferLeadFormData>;
+  submitButtonLabel?: string;
 }) {
   const supabase = getSupabaseBrowserClient();
   const [carriers, setCarriers] = useState<Array<{ id: number; name: string }>>([]);
@@ -131,7 +135,19 @@ export default function TransferLeadApplicationForm({
     additionalInformation: "",
     pipeline: "Transfer Portal",
     stage: "Transfer API",
+    ...initialData,
+    leadSource: FIXED_BPO_LEAD_SOURCE,
   });
+
+  useEffect(() => {
+    if (!initialData) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      ...initialData,
+      leadSource: FIXED_BPO_LEAD_SOURCE,
+    }));
+  }, [initialData]);
 
   useEffect(() => {
     const fetchCarriers = async () => {
@@ -162,11 +178,13 @@ export default function TransferLeadApplicationForm({
     const namePart = `${formData.firstName}${formData.lastName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
     const phoneDigits = formData.phone.replace(/\D/g, "");
     const socialDigits = formData.social.replace(/\D/g, "");
-    if (!namePart || phoneDigits.length < 4 || socialDigits.length < 4) return "";
+    if (!namePart || phoneDigits.length < 4 || socialDigits.length < 4) {
+      return formData.leadUniqueId || "";
+    }
     const phoneLast4 = phoneDigits.slice(-4);
     const socialLast4 = socialDigits.slice(-4);
     return `${namePart}-${phoneLast4}-${socialLast4}`;
-  }, [formData.firstName, formData.lastName, formData.phone, formData.social]);
+  }, [formData.firstName, formData.lastName, formData.phone, formData.social, formData.leadUniqueId]);
 
   const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
@@ -418,7 +436,7 @@ export default function TransferLeadApplicationForm({
             transition: "all 0.15s",
           }}
         >
-          Submit Application
+          {submitButtonLabel || "Submit Application"}
         </button>
       </div>
     </div>
