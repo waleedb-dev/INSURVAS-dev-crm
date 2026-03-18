@@ -17,6 +17,7 @@ type IntakeLead = {
   source: string;
   pipeline: string;
   stage: string;
+  createdBy: string;
   createdAt: string;
 };
 
@@ -79,9 +80,27 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
 
   const refreshLeads = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user?.id) {
+      setLeads([]);
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("users")
+      .select("full_name")
+      .eq("id", session.user.id)
+      .maybeSingle();
+
+    const createdByName = profile?.full_name?.trim() || session.user.email || "Call Agent";
+
     const { data, error } = await supabase
       .from("leads")
       .select("id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, created_at")
+      .eq("submitted_by", session.user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -99,6 +118,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       source: lead.lead_source || "Unknown",
       pipeline: lead.pipeline || "Transfer Portal",
       stage: lead.stage || "Transfer API",
+      createdBy: createdByName,
       createdAt: lead.created_at ? new Date(lead.created_at).toLocaleString() : "Just now",
     }));
 
@@ -416,6 +436,15 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
               render: (lead) => (
                 <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>
                   ${lead.premium.toLocaleString()}
+                </span>
+              ),
+            },
+            {
+              header: "Created By",
+              key: "createdBy",
+              render: (lead) => (
+                <span style={{ fontSize: 12, color: T.textMid, fontWeight: 700 }}>
+                  {lead.createdBy}
                 </span>
               ),
             },
