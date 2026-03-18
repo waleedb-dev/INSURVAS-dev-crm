@@ -6,8 +6,7 @@ import UserEditorComponent from "./UserEditorComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useMemo } from "react";
 
-interface User { id:string; name:string; email:string; role:string; roleId?:string; status:"Active"|"Inactive"|"Suspended"; color:string; lastActive:string; policies:number; phone?:string; extension?:string; }
-type UserRole = string;
+interface User { id:string; name:string; email:string; role:string; roleId?:string; roleKey?:string; status:"Active"|"Inactive"|"Suspended"; color:string; lastActive:string; policies:number; phone?:string; extension?:string; }
 const ROLE_CFG:Record<string,{bg:string;color:string}>={
   "system_admin":{bg:"#fdf4ff",color:"#9333ea"},
   "sales_manager":{bg:T.blueLight,color:T.blue},
@@ -17,17 +16,15 @@ const ROLE_CFG:Record<string,{bg:string;color:string}>={
   "Agent":{bg:"#f0fdf4",color:"#16a34a"},
   "Read-Only":{bg:T.rowBg,color:T.textMuted}
 };
-const INIT:User[]=[];
 
 const fetchUsers = async (supabaseClient: any) => {
   const { data, error } = await supabaseClient
     .from("users")
     .select(`
       id, 
-      first_name, 
-      last_name, 
-      email, 
-      phone, 
+      full_name, 
+      email,
+      phone,
       role:roles(name, key),
       role_id,
       status,
@@ -36,55 +33,100 @@ const fetchUsers = async (supabaseClient: any) => {
     .order("created_at", { ascending: false });
 
   if (data) {
-    return data.map((u: any) => ({
+    return data
+    .map((u: any) => ({
       id: u.id,
-      name: `${u.first_name} ${u.last_name}`,
-      email: u.email,
+      name: u.full_name || "Unnamed User",
+      email: u.email || "",
       role: u.role?.name || "Agent",
       roleId: u.role_id,
+      roleKey: u.role?.key,
       status: u.status === "active" ? "Active" : u.status === "inactive" ? "Inactive" : "Suspended",
       color: T.blue,
       lastActive: u.created_at ? new Date(u.created_at).toLocaleDateString() : "Just now",
       policies: 0,
-      phone: u.phone
-    }));
+      phone: u.phone || ""
+    }))
+    .filter((u: any) => u.roleKey !== "system_admin");
   }
   return [];
 };
 
 export default function UsersAccessPage(){
   const rolesFromDb = useRoles();
-  const [dbRoles, setDbRoles] = useState<{id:string, name:string}[]>([]);
+  const [dbRoles, setDbRoles] = useState<{id:string, name:string, key:string}[]>([]);
   const [users,setUsers]=useState<User[]>([]);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+
+  const refreshUsers = async () => {
+    const userData = await fetchUsers(supabase);
+    setUsers(userData);
+  };
+
+  const callAdminUserAction = async (body: Record<string, unknown>) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      throw new Error("You are not logged in. Please sign in again and retry.");
+    }
+
+    const { data, error } = await supabase.functions.invoke("manage_user_admin_v3", {
+      body,
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (error) throw new Error(error.message || "User action failed");
+    if (!data?.success) throw new Error(data?.error || data?.message || "User action failed");
+    return data;
+  };
 
   useEffect(() => {
     async function load() {
       if (rolesFromDb.length > 0) setDbRoles(rolesFromDb);
-      const userData = await fetchUsers(supabase);
-      setUsers(userData);
+      await refreshUsers();
     }
     load();
   }, [rolesFromDb, supabase]);
   const [search,setSearch]=useState("");
   const [rf,setRf]=useState<string>("All");
-  const [sf,setSf]=useState<User["status"]|"All">("All");
   const [showInvite, setShowInvite] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [inviteRole, setInviteRole] = useState<UserRole>("Agent");
   const [page, setPage] = useState(1);
   const itemsPerPage = 12;
 
-  const filtered=users.filter(u=>(rf==="All"||u.role===rf)&&(sf==="All"||u.status===sf)&&(!search||u.name.toLowerCase().includes(search.toLowerCase())||u.email.toLowerCase().includes(search.toLowerCase())));
+  const filtered=users.filter(u=>(rf==="All"||u.role===rf)&&(!search||u.name.toLowerCase().includes(search.toLowerCase())||u.id.toLowerCase().includes(search.toLowerCase())||(u.phone || "").toLowerCase().includes(search.toLowerCase())));
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
-  const toggle=(id:string)=>setUsers(p=>p.map(u=>u.id===id?{...u,status:u.status==="Active"?"Inactive":"Active"}:u));
+
+  const handleDeleteUser = async (u: User) => {
+    const confirmed = window.confirm(`Delete user ${u.name}? This will remove auth access and cannot be undone.`);
+    if (!confirmed) return;
+
+    setIsActionLoading(true);
+    try {
+      await callAdminUserAction({ action: "delete_user", user_id: u.id });
+      await refreshUsers();
+      setToast({ message: "User deleted successfully", type: "success" });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Failed to delete user",
+        type: "error",
+      });
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
 
 
   useEffect(() => {
     setPage(1);
-  }, [rf, sf, search]);
+  }, [rf, search]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) {
@@ -102,8 +144,7 @@ export default function UsersAccessPage(){
         onClose={() => { setShowInvite(false); setEditingUser(null); }}
         onSubmit={async (data) => {
           // Refetch users from database to update list
-          const userData = await fetchUsers(supabase);
-          setUsers(userData);
+          await refreshUsers();
           setShowInvite(false);
           setEditingUser(null);
           setToast({
@@ -153,24 +194,19 @@ export default function UsersAccessPage(){
       <DataGrid
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search by name, email, or ID…"
+        searchPlaceholder="Search by name, phone, or ID..."
         filters={
           <>
             <select value={rf} onChange={(e) => setRf(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
               <option value="All">All Roles</option>
               {dbRoles.length > 0 ? dbRoles.map(r => <option key={r.id} value={r.name}>{r.name}</option>) : ["Admin", "Manager", "Agent", "Read-Only"].map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-            <select value={sf} onChange={(e) => setSf(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-              <option value="All">All Statuses</option>
-              {["Active", "Inactive", "Suspended"].map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
           </>
         }
         activeFilters={
-          (rf !== "All" || sf !== "All") && (
+          rf !== "All" && (
             <>
               {rf !== "All" && <FilterChip label={`Role: ${rf}`} onClear={() => setRf("All")} />}
-              {sf !== "All" && <FilterChip label={`Status: ${sf}`} onClear={() => setSf("All")} />}
             </>
           )
         }
@@ -220,16 +256,6 @@ export default function UsersAccessPage(){
               render: (u) => <span style={{ backgroundColor: ROLE_CFG[u.role]?.bg || T.rowBg, color: ROLE_CFG[u.role]?.color || T.textMuted, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 800 }}>{u.role.toUpperCase()}</span>
             },
             {
-              header: "Status",
-              key: "status",
-              render: (u) => (
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: u.status === "Active" ? "#16a34a" : "#dc2626" }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{u.status}</span>
-                </div>
-              )
-            },
-            {
               header: "Actions",
               key: "actions",
               align: "center",
@@ -238,10 +264,7 @@ export default function UsersAccessPage(){
                   <button onClick={() => setEditingUser(u)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = T.blue} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   </button>
-                  <button onClick={() => toggle(u.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = u.status === "Active" ? T.warning : T.success} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                  </button>
-                  <button style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = T.danger} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
+                  <button disabled={isActionLoading} onClick={() => handleDeleteUser(u)} style={{ background: "none", border: "none", cursor: isActionLoading ? "not-allowed" : "pointer", color: T.textMuted, transition: "color 0.2s", opacity: isActionLoading ? 0.5 : 1 }} onMouseEnter={e => e.currentTarget.style.color = T.danger} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                   </button>
                 </div>
@@ -258,7 +281,7 @@ export default function UsersAccessPage(){
 }
 
 function useRoles() {
-  const [roles, setRoles] = useState<{id:string, name:string}[]>([]);
+  const [roles, setRoles] = useState<{id:string, name:string, key:string}[]>([]);
   const supabase = useMemo(() => {
     try {
       return getSupabaseBrowserClient();
@@ -269,8 +292,8 @@ function useRoles() {
 
   useEffect(() => {
     if (!supabase) return;
-    supabase.from("roles").select("id, name").then(({ data }) => {
-      if (data) setRoles(data);
+    supabase.from("roles").select("id, name, key").then(({ data }) => {
+      if (data) setRoles(data.filter((r: any) => r.key !== "system_admin"));
     });
   }, [supabase]);
 

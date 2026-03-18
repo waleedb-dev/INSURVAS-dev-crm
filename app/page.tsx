@@ -23,13 +23,21 @@ export default function SignInPage() {
     setErrorMessage(null);
     setIsSubmitting(true);
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPassword = password.trim();
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: normalizedEmail,
+      password: normalizedPassword,
     });
 
     if (error || !data.user) {
-      setErrorMessage(error?.message ?? "Unable to sign in.");
+      const message = error?.message ?? "Unable to sign in.";
+      if (message.toLowerCase().includes("invalid login credentials")) {
+        setErrorMessage("Invalid credentials. For newly created users, use lowercase first name + 123! (example: ahmed123!).");
+      } else {
+        setErrorMessage(message);
+      }
       setIsSubmitting(false);
       return;
     }

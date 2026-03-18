@@ -28,8 +28,16 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   const [activeTab, setActiveTab] = useState<TabType>("User Info");
   
   // Identity State
-  const [firstName, setFirstName] = useState(user?.name.split(" ")[0] ?? "");
-  const [lastName, setLastName] = useState(user?.name.split(" ").slice(1).join(" ") ?? "");
+  const [firstName, setFirstName] = useState(() => {
+    if (!user?.name) return "";
+    const parts = user.name.split(" ");
+    return parts[0] || "";
+  });
+  const [lastName, setLastName] = useState(() => {
+    if (!user?.name) return "";
+    const parts = user.name.split(" ");
+    return parts.slice(1).join(" ") || "";
+  });
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [extension, setExtension] = useState(user?.extension ?? "");
@@ -73,14 +81,29 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   }, [supabase]);
 
   useEffect(() => {
-    if (selectedRoleId) {
-      async function fetchRolePermissions() {
-        const { data } = await supabase.from("role_permissions").select("permission_id").eq("role_id", selectedRoleId);
-        if (data) setSelectedPermissions(new Set(data.map(rp => rp.permission_id)));
+    async function fetchEffectivePermissions() {
+      if (!selectedRoleId) {
+        setSelectedPermissions(new Set());
+        return;
       }
-      fetchRolePermissions();
+
+      const [{ data: roleData }, { data: userData }] = await Promise.all([
+        supabase.from("role_permissions").select("permission_id").eq("role_id", selectedRoleId),
+        user?.id
+          ? supabase.from("user_permissions").select("permission_id").eq("user_id", user.id)
+          : Promise.resolve({ data: [] as { permission_id: string }[] }),
+      ]);
+
+      const merged = new Set<string>([
+        ...(roleData || []).map((rp: { permission_id: string }) => rp.permission_id),
+        ...(userData || []).map((up: { permission_id: string }) => up.permission_id),
+      ]);
+
+      setSelectedPermissions(merged);
     }
-  }, [selectedRoleId, supabase]);
+
+    fetchEffectivePermissions();
+  }, [selectedRoleId, supabase, user?.id]);
 
   const togglePermission = (id: string) => {
     const next = new Set(selectedPermissions);
@@ -118,43 +141,39 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
     setError(null);
     
     try {
+      const fullName = `${firstName} ${lastName}`.trim();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("You are not logged in. Please sign in again and retry.");
+      }
+      
       if (user?.id) {
         // ── UPDATE EXISTING USER ──
-        const { error: updateError } = await supabase
-          .from("users")
-          .update({
-            first_name: firstName,
-            last_name: lastName,
-            email: email,
-            phone: phone || null,
-            extension: extension || null,
+        const { data: result, error: invokeError } = await supabase.functions.invoke("manage_user_admin_v3", {
+          body: {
+            action: "update_user",
+            user_id: user.id,
+            full_name: fullName,
+            phone,
             role_id: selectedRoleId,
-            call_center_id: isCallCenterRole ? selectedCenterId : null
-          })
-          .eq("id", user.id);
+            call_center_id: isCallCenterRole ? selectedCenterId : null,
+            permissions: Array.from(selectedPermissions),
+          },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
 
-        if (updateError) throw new Error(updateError.message);
+        if (invokeError) {
+          throw new Error(invokeError.message || "Failed to update user");
+        }
 
-        // Update user_permissions (delete old, insert new)
-        const { error: deletePermsError } = await supabase
-          .from("user_permissions")
-          .delete()
-          .eq("user_id", user.id);
-        
-        if (deletePermsError) throw new Error(deletePermsError.message);
-
-        // Insert new permissions
-        if (selectedPermissions.size > 0) {
-          const { error: insertPermsError } = await supabase
-            .from("user_permissions")
-            .insert(
-              Array.from(selectedPermissions).map(permId => ({
-                user_id: user.id,
-                permission_id: permId
-              }))
-            );
-          
-          if (insertPermsError) throw new Error(insertPermsError.message);
+        if (!result?.success) {
+          throw new Error(result?.error || result?.message || "Failed to update user");
         }
 
         onSubmit({
@@ -170,42 +189,34 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           isUpdate: true
         });
       } else {
-        // ── CREATE NEW USER ──
-        // First, create entry in public.users (auth.users must be created separately via edge function or admin panel)
-        const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        const { error: createError } = await supabase
-          .from("users")
-          .insert({
-            id: userId,
-            first_name: firstName,
-            last_name: lastName,
-            email: email,
-            phone: phone || null,
-            extension: extension || null,
-            role_id: selectedRoleId,
-            call_center_id: isCallCenterRole ? selectedCenterId : null,
-            status: "active"
-          });
+        // ── CREATE NEW USER VIA EDGE FUNCTION ──
+        // Call create_user_with_auth function which handles auth.users + public.users
+        const payload = {
+          email,
+          full_name: fullName,
+          phone,
+          role_id: selectedRoleId,
+          call_center_id: isCallCenterRole ? selectedCenterId : null,
+          permissions: Array.from(selectedPermissions),
+        };
 
-        if (createError) throw new Error(createError.message);
+        const { data: result, error: invokeError } = await supabase.functions.invoke("create_user_auth_admin_v6", {
+          body: payload,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
 
-        // Insert permissions
-        if (selectedPermissions.size > 0) {
-          const { error: insertPermsError } = await supabase
-            .from("user_permissions")
-            .insert(
-              Array.from(selectedPermissions).map(permId => ({
-                user_id: userId,
-                permission_id: permId
-              }))
-            );
-          
-          if (insertPermsError) throw new Error(insertPermsError.message);
+        if (invokeError) {
+          throw new Error(invokeError.message || "Failed to create user");
+        }
+
+        if (!result?.success || !result?.user?.id) {
+          throw new Error(result?.error || result?.message || "Failed to create user");
         }
 
         onSubmit({
-          id: userId,
+          id: result.user.id,
           firstName,
           lastName,
           email,
@@ -247,13 +258,6 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
             <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0 }}>{user ? `Managing ${user.name}` : "Team Member Onboarding"}</h1>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <button onClick={onClose} disabled={isLoading} style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: isLoading ? "not-allowed" : "pointer", color: T.textDark, opacity: isLoading ? 0.6 : 1 }}>Cancel</button>
-          <button onClick={handleFinalSubmit} disabled={isLoading} style={{ backgroundColor: isLoading ? T.border : T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: isLoading ? "not-allowed" : "pointer", boxShadow: isLoading ? "none" : `0 4px 12px ${T.blue}44`, opacity: isLoading ? 0.6 : 1, display: "flex", alignItems: "center", gap: 8, transition: "all 0.2s" }}>
-            {isLoading && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" style={{ opacity: 0.25 }} /><path d="M12 2a10 10 0 0 1 0 20" style={{ animation: "spin 1s linear infinite" }} /></svg>}
-            {isLoading ? "Saving..." : user ? "Save Changes" : "Finish Setup"}
-          </button>
-        </div>
       </div>
 
       <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
@@ -294,6 +298,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                     <div><label style={labelStyle}>Given Name <span style={{ color: T.danger }}>*</span></label><input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="e.g. John" style={inputStyle} /></div>
                     <div><label style={labelStyle}>Family Name <span style={{ color: T.danger }}>*</span></label><input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="e.g. Doe" style={inputStyle} /></div>
                     <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Email Address <span style={{ color: T.danger }}>*</span></label><input value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" style={inputStyle} /></div>
+                    <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Phone Number</label><input value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g. (555) 123-4567" style={inputStyle} /></div>
                   </div>
                   <h3 style={{ margin: "40px 0 32px", fontSize: 18, fontWeight: 800 }}>Role & Organization</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
