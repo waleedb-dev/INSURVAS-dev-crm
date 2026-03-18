@@ -20,6 +20,7 @@ interface ActionMenuProps {
 
 export function ActionMenu({ items, id, activeId, onToggle }: ActionMenuProps) {
   const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const isOpen = activeId === id;
 
@@ -38,12 +39,23 @@ export function ActionMenu({ items, id, activeId, onToggle }: ActionMenuProps) {
   // Close on outside click or scroll
   useEffect(() => {
     if (!isOpen) return;
-    const close = () => onToggle(null);
-    document.addEventListener("mousedown", close, true);
-    document.addEventListener("scroll", close, true);
+    const closeOnOutsideMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      const clickedInsideMenu = !!(target && menuRef.current?.contains(target));
+      const clickedButton = !!(target && btnRef.current?.contains(target));
+
+      if (!clickedInsideMenu && !clickedButton) {
+        onToggle(null);
+      }
+    };
+
+    const closeOnScroll = () => onToggle(null);
+
+    document.addEventListener("mousedown", closeOnOutsideMouseDown, true);
+    document.addEventListener("scroll", closeOnScroll, true);
     return () => {
-      document.removeEventListener("mousedown", close, true);
-      document.removeEventListener("scroll", close, true);
+      document.removeEventListener("mousedown", closeOnOutsideMouseDown, true);
+      document.removeEventListener("scroll", closeOnScroll, true);
     };
   }, [isOpen, onToggle]);
 
@@ -77,6 +89,7 @@ export function ActionMenu({ items, id, activeId, onToggle }: ActionMenuProps) {
 
       {isOpen && coords && typeof document !== "undefined" && createPortal(
         <div
+          ref={menuRef}
           onClick={(e) => e.stopPropagation()}
           style={{
             position: "absolute",
