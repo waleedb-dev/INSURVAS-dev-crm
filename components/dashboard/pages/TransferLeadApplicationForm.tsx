@@ -51,6 +51,17 @@ const usStates = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
 ];
 
+const productTypeOptions = [
+  "Preferred",
+  "Standard",
+  "Graded",
+  "Modified",
+  "GI",
+  "Immediate",
+  "Level",
+  "ROP",
+];
+
 const fieldStyle: CSSProperties = {
   width: "100%",
   padding: "11px 12px",
@@ -316,7 +327,16 @@ export default function TransferLeadApplicationForm({
               ))}
             </select>
           </Field>
-          <Field label="Product Type*"><input value={formData.productType} onChange={(e) => setFormData({ ...formData, productType: e.target.value })} style={fieldStyle} /></Field>
+          <Field label="Product Type*">
+            <select value={formData.productType} onChange={(e) => setFormData({ ...formData, productType: e.target.value })} style={fieldStyle}>
+              <option value="">Please Select</option>
+              {productTypeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </Field>
 
           <Field label="Draft Date*"><input type="date" value={formData.draftDate} onChange={(e) => setFormData({ ...formData, draftDate: e.target.value })} style={fieldStyle} /></Field>
           <Field label="Future Draft Date*"><input type="date" value={formData.futureDraftDate} onChange={(e) => setFormData({ ...formData, futureDraftDate: e.target.value })} style={fieldStyle} /></Field>
