@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { T } from "@/lib/theme";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export type TransferLeadFormData = {
   leadUniqueId: string;
@@ -76,6 +77,9 @@ export default function TransferLeadApplicationForm({
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void;
 }) {
+  const supabase = getSupabaseBrowserClient();
+  const [carriers, setCarriers] = useState<Array<{ id: number; name: string }>>([]);
+
   const [formData, setFormData] = useState<TransferLeadFormData>({
     leadUniqueId: "",
     leadValue: "",
@@ -117,6 +121,21 @@ export default function TransferLeadApplicationForm({
     pipeline: "Transfer Portal",
     stage: "Transfer API",
   });
+
+  useEffect(() => {
+    const fetchCarriers = async () => {
+      const { data, error } = await supabase
+        .from("carriers")
+        .select("id, name")
+        .order("name");
+
+      if (!error && data) {
+        setCarriers(data);
+      }
+    };
+
+    void fetchCarriers();
+  }, [supabase]);
 
   const requiredMissing = useMemo(() => {
     const requiredKeys: Array<keyof TransferLeadFormData> = [
@@ -287,7 +306,16 @@ export default function TransferLeadApplicationForm({
           <Field label="Monthly Premium*"><input value={formData.monthlyPremium} onChange={(e) => setFormData({ ...formData, monthlyPremium: e.target.value })} style={fieldStyle} /></Field>
           <Field label="Coverage Amount*"><input value={formData.coverageAmount} onChange={(e) => setFormData({ ...formData, coverageAmount: e.target.value })} style={fieldStyle} /></Field>
 
-          <Field label="Carrier*"><input value={formData.carrier} onChange={(e) => setFormData({ ...formData, carrier: e.target.value })} style={fieldStyle} /></Field>
+          <Field label="Carrier*">
+            <select value={formData.carrier} onChange={(e) => setFormData({ ...formData, carrier: e.target.value })} style={fieldStyle}>
+              <option value="">Please Select</option>
+              {carriers.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Product Type*"><input value={formData.productType} onChange={(e) => setFormData({ ...formData, productType: e.target.value })} style={fieldStyle} /></Field>
 
           <Field label="Draft Date*"><input type="date" value={formData.draftDate} onChange={(e) => setFormData({ ...formData, draftDate: e.target.value })} style={fieldStyle} /></Field>
