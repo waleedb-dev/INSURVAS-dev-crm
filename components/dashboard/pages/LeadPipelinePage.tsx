@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination, Avatar, Badge, Table, DataGrid, FilterChip } from "@/components/ui";
+import { ActionMenu, Pagination, Avatar, Badge, Table, DataGrid, FilterChip } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 
 type Stage = "New Lead" | "Attempted Contact" | "Contacted" | "Discovery Call" | "Presentation" | "Needs Quote" | "Quoted" | "Underwriting" | "Bound" | "Won" | "Lost";
@@ -519,21 +519,18 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 key: "actions",
                 align: "center",
                 render: (lead) => (
-                  <div style={{ position: "relative" }}>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === lead.id ? null : lead.id); }} 
-                      style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
-                    </button>
-                    {activeMenu === lead.id && (
-                      <div style={{ position: "absolute", top: "calc(100% - 4px)", right: 16, width: 140, backgroundColor: "#fff", borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1.5px solid ${T.border}`, zIndex: 100, overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => { setViewingLead({ id: lead.id, name: lead.name }); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>View Details</button>
-                        <button onClick={() => { setQuickEditLead(lead); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Quick Edit</button>
-                        <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Edit Lead</button>
-                        <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Delete</button>
-                      </div>
-                    )}
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <ActionMenu
+                      id={lead.id}
+                      activeId={activeMenu}
+                      onToggle={setActiveMenu}
+                      items={[
+                        { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name }) },
+                        { label: "Quick Edit", onClick: () => setQuickEditLead(lead) },
+                        { label: "Edit Lead" },
+                        { label: "Delete", danger: true },
+                      ]}
+                    />
                   </div>
                 )
               }

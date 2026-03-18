@@ -33,7 +33,7 @@ export function Table<T extends { id: string | number }>({
   hoverEffect = true,
 }: TableProps<T>) {
   return (
-    <div style={{ width: "100%", overflowX: "auto", ...containerStyle }}>
+    <div style={{ width: "100%", overflow: "visible", ...containerStyle }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead style={stickyHeader ? { position: "sticky", top: 0, zIndex: 10, backgroundColor: "#fff" } : {}}>
           <tr style={{ borderBottom: `1px solid ${T.border}`, backgroundColor: T.pageBg, ...headerStyle }}>

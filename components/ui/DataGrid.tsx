@@ -29,9 +29,9 @@ export function DataGrid({
       backgroundColor: T.cardBg, 
       borderRadius: T.radiusXl, 
       boxShadow: T.shadowSm, 
-      overflow: "hidden",
       display: "flex",
       flexDirection: "column",
+      position: "relative",
       ...style 
     }}>
       {/* Filters + Search Header */}
@@ -42,7 +42,9 @@ export function DataGrid({
         gap: 16, 
         alignItems: "center", 
         justifyContent: "space-between",
-        flexShrink: 0
+        flexShrink: 0,
+        borderRadius: `${T.radiusXl}px ${T.radiusXl}px 0 0`,
+        overflow: "hidden"
       }}>
         {/* Search Input */}
         <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
@@ -123,13 +125,13 @@ export function DataGrid({
       )}
 
       {/* Grid Content (Table) */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ flex: 1, overflowX: "auto", overflowY: "visible" }}>
         {children}
       </div>
 
       {/* Footer (Pagination) */}
       {pagination && (
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ flexShrink: 0, borderRadius: `0 0 ${T.radiusXl}px ${T.radiusXl}px`, overflow: "hidden" }}>
           {pagination}
         </div>
       )}

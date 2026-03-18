@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
+import { ActionMenu, Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 import DealEditorComponent from "./DealEditorComponent";
 
@@ -329,28 +329,17 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
               key: "actions",
               align: "center",
               render: (d) => (
-                <div style={{ position: "relative" }}>
-                  <button onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === d.id ? null : d.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, padding: 4 }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
-                  </button>
-                   {activeMenu === d.id && (
-                    <div style={{ position: "absolute", top: "calc(100% - 10px)", right: 40, width: 140, backgroundColor: T.cardBg, borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 100, overflow: "hidden", animation: "fadeInDown 0.15s ease" }} onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => { setViewingLead({ id: d.id, name: d.client }); setActiveMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                      >View Details</button>
-                      <button
-                          onClick={() => { setEditingDeal(d); setActiveMenu(null); }}
-                          style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                      >Edit Deal</button>
-                      <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.danger, textAlign: "left", transition: "background-color 0.15s" }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#fef2f2"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                      >Delete</button>
-                    </div>
-                  )}
+                <div onClick={(e) => e.stopPropagation()}>
+                  <ActionMenu
+                    id={d.id}
+                    activeId={activeMenu}
+                    onToggle={setActiveMenu}
+                    items={[
+                      { label: "View Details", onClick: () => setViewingLead({ id: d.id, name: d.client }) },
+                      { label: "Edit Deal", onClick: () => setEditingDeal(d) },
+                      { label: "Delete", danger: true },
+                    ]}
+                  />
                 </div>
               )
             }

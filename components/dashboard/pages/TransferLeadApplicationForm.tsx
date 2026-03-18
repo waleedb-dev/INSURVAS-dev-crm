@@ -52,25 +52,23 @@ const usStates = [
 ];
 
 const productTypeOptions = [
-  "Preferred",
-  "Standard",
-  "Graded",
-  "Modified",
-  "GI",
-  "Immediate",
-  "Level",
-  "ROP",
+  "Preferred", "Standard", "Graded", "Modified", "GI", "Immediate", "Level", "ROP",
 ];
+
+const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
 
 const fieldStyle: CSSProperties = {
   width: "100%",
-  padding: "11px 12px",
+  padding: "11px 14px",
   borderRadius: 8,
   border: `1.5px solid ${T.border}`,
   fontSize: 14,
   color: T.textDark,
   outline: "none",
   fontFamily: T.font,
+  backgroundColor: "#fff",
+  transition: "border-color 0.15s, box-shadow 0.15s",
+  boxSizing: "border-box",
 };
 
 const labelStyle: CSSProperties = {
@@ -78,7 +76,9 @@ const labelStyle: CSSProperties = {
   fontWeight: 700,
   color: T.textMuted,
   marginBottom: 6,
+  display: "block",
   textTransform: "uppercase",
+  letterSpacing: "0.4px",
 };
 
 export default function TransferLeadApplicationForm({
@@ -94,7 +94,7 @@ export default function TransferLeadApplicationForm({
   const [formData, setFormData] = useState<TransferLeadFormData>({
     leadUniqueId: "",
     leadValue: "",
-    leadSource: "",
+    leadSource: FIXED_BPO_LEAD_SOURCE,
     submissionDate: "",
     firstName: "",
     lastName: "",
@@ -139,12 +139,8 @@ export default function TransferLeadApplicationForm({
         .from("carriers")
         .select("id, name")
         .order("name");
-
-      if (!error && data) {
-        setCarriers(data);
-      }
+      if (!error && data) setCarriers(data);
     };
-
     void fetchCarriers();
   }, [supabase]);
 
@@ -157,37 +153,254 @@ export default function TransferLeadApplicationForm({
       "coverageAmount", "carrier", "productType", "draftDate", "beneficiaryInformation", "institutionName", "routingNumber",
       "accountNumber", "futureDraftDate",
     ];
-
     return requiredKeys.some((key) => !String(formData[key] || "").trim());
   }, [formData]);
 
   const phoneError = formData.phone.length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone);
+
   const computedLeadUniqueId = useMemo(() => {
     const namePart = `${formData.firstName}${formData.lastName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
     const phoneDigits = formData.phone.replace(/\D/g, "");
     const socialDigits = formData.social.replace(/\D/g, "");
-
-    if (!namePart || phoneDigits.length < 4 || socialDigits.length < 4) {
-      return "";
-    }
-
+    if (!namePart || phoneDigits.length < 4 || socialDigits.length < 4) return "";
     const phoneLast4 = phoneDigits.slice(-4);
     const socialLast4 = socialDigits.slice(-4);
     return `${namePart}-${phoneLast4}-${socialLast4}`;
   }, [formData.firstName, formData.lastName, formData.phone, formData.social]);
 
+  const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={onBack} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 10, width: 40, height: 40, cursor: "pointer", color: T.textMid }}>
-            ←
-          </button>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 22, color: T.textDark, fontWeight: 800 }}>Ascendra BPO Application</h1>
-            <p style={{ margin: "4px 0 0", color: T.textMuted, fontWeight: 600 }}>All information needed to track sales for Live Transfers</p>
-          </div>
+    <div style={{ fontFamily: T.font }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 24, gap: 16 }}>
+        <button
+          onClick={onBack}
+          style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 10, width: 40, height: 40, cursor: "pointer", color: T.textMid, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 5l-7 7 7 7" />
+          </svg>
+        </button>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22, color: T.textDark, fontWeight: 800 }}>Ascendra BPO Application</h1>
+          <p style={{ margin: "4px 0 0", color: T.textMuted, fontWeight: 600, fontSize: 13 }}>All information needed to track sales for Live Transfers</p>
         </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+        {/* Section: Lead Info */}
+        <Section title="Lead Information" icon={
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>
+        }>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Lead Unique ID" full>
+              <input value={computedLeadUniqueId} readOnly placeholder="Auto-generated from name + phone + SSN last 4" style={{ ...fieldStyle, backgroundColor: T.rowBg, color: T.textMuted }} />
+            </Field>
+            <Field label="Lead Value *">
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                <input type="number" min="0" step="0.01" value={formData.leadValue} onChange={set("leadValue")} style={{ ...fieldStyle, paddingLeft: 28 }} />
+              </div>
+            </Field>
+            <Field label="Lead Source *">
+              <input value={formData.leadSource} readOnly style={{ ...fieldStyle, backgroundColor: T.rowBg, color: T.textMuted }} />
+            </Field>
+            <Field label="Date of Submission *">
+              <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyle} />
+            </Field>
+          </div>
+        </Section>
+
+        {/* Section: Personal Info */}
+        <Section title="Personal Information" icon={
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        }>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="First Name *">
+              <input value={formData.firstName} onChange={set("firstName")} style={fieldStyle} />
+            </Field>
+            <Field label="Last Name *">
+              <input value={formData.lastName} onChange={set("lastName")} style={fieldStyle} />
+            </Field>
+            <Field label="Date of Birth *">
+              <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyle} />
+            </Field>
+            <Field label="Age *">
+              <input value={formData.age} onChange={set("age")} style={fieldStyle} />
+            </Field>
+            <Field label="Social Security Number *">
+              <input value={formData.social} onChange={set("social")} placeholder="XXX-XX-XXXX" style={fieldStyle} />
+            </Field>
+            <Field label="Driver License Number *">
+              <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyle} />
+            </Field>
+          </div>
+        </Section>
+
+        {/* Section: Contact & Address */}
+        <Section title="Contact & Address" icon={
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        }>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Phone Number *" full>
+              <input
+                placeholder="(000) 000-0000"
+                value={formData.phone}
+                onChange={set("phone")}
+                style={{ ...fieldStyle, borderColor: phoneError ? T.danger : T.border }}
+              />
+              <div style={{ fontSize: 11, color: phoneError ? T.danger : T.textMuted, marginTop: 4 }}>
+                {phoneError ? "Please enter a valid phone number. Format: (000) 000-0000." : "Format: (000) 000-0000."}
+              </div>
+            </Field>
+            <Field label="Street Address *" full>
+              <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyle} />
+            </Field>
+            <Field label="Address Line 2" full>
+              <input placeholder="Apt, Suite, Unit (optional)" value={formData.street2} onChange={set("street2")} style={fieldStyle} />
+            </Field>
+            <Field label="City *">
+              <input value={formData.city} onChange={set("city")} style={fieldStyle} />
+            </Field>
+            <Field label="State *">
+              <select value={formData.state} onChange={set("state")} style={fieldStyle}>
+                <option value="">Please Select</option>
+                {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </Field>
+            <Field label="Zip Code *">
+              <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyle} />
+            </Field>
+            <Field label="Birth State *">
+              <select value={formData.birthState} onChange={set("birthState")} style={fieldStyle}>
+                <option value="">Please Select</option>
+                {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </Field>
+          </div>
+        </Section>
+
+        {/* Section: Health */}
+        <Section title="Health Information" icon={
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        }>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Any existing / previous coverage in last 2 years? *">
+              <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v }))} />
+            </Field>
+            <Field label="Any previous applications in 2 years? *">
+              <YesNo value={formData.previousApplications2Years} onChange={(v) => setFormData((p) => ({ ...p, previousApplications2Years: v }))} />
+            </Field>
+            <Field label="Height *">
+              <input placeholder='e.g. 5&apos;10"' value={formData.height} onChange={set("height")} style={fieldStyle} />
+            </Field>
+            <Field label="Weight *">
+              <input placeholder="e.g. 175 lbs" value={formData.weight} onChange={set("weight")} style={fieldStyle} />
+            </Field>
+            <Field label="Doctor's Name *">
+              <input value={formData.doctorName} onChange={set("doctorName")} style={fieldStyle} />
+            </Field>
+            <Field label="Tobacco Use *">
+              <YesNo value={formData.tobaccoUse} onChange={(v) => setFormData((p) => ({ ...p, tobaccoUse: v }))} />
+            </Field>
+            <Field label="Health Conditions *" full>
+              <textarea value={formData.healthConditions} onChange={set("healthConditions")} style={{ ...fieldStyle, minHeight: 80, resize: "vertical" }} />
+            </Field>
+            <Field label="Medications *" full>
+              <textarea value={formData.medications} onChange={set("medications")} style={{ ...fieldStyle, minHeight: 80, resize: "vertical" }} />
+            </Field>
+          </div>
+        </Section>
+
+        {/* Section: Policy */}
+        <Section title="Policy Details" icon={
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        }>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Monthly Premium *">
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                <input value={formData.monthlyPremium} onChange={set("monthlyPremium")} style={{ ...fieldStyle, paddingLeft: 28 }} />
+              </div>
+            </Field>
+            <Field label="Coverage Amount *">
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                <input value={formData.coverageAmount} onChange={set("coverageAmount")} style={{ ...fieldStyle, paddingLeft: 28 }} />
+              </div>
+            </Field>
+            <Field label="Carrier *">
+              <select value={formData.carrier} onChange={set("carrier")} style={fieldStyle}>
+                <option value="">Please Select</option>
+                {carriers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Product Type *">
+              <select value={formData.productType} onChange={set("productType")} style={fieldStyle}>
+                <option value="">Please Select</option>
+                {productTypeOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </Field>
+            <Field label="Draft Date *">
+              <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyle} />
+            </Field>
+            <Field label="Future Draft Date *">
+              <input type="date" value={formData.futureDraftDate} onChange={set("futureDraftDate")} style={fieldStyle} />
+            </Field>
+            <Field label="Beneficiary Information *" full>
+              <textarea value={formData.beneficiaryInformation} onChange={set("beneficiaryInformation")} style={{ ...fieldStyle, minHeight: 72, resize: "vertical" }} />
+            </Field>
+          </div>
+        </Section>
+
+        {/* Section: Banking */}
+        <Section title="Banking Information" icon={
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        }>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Bank Account Type">
+              <select value={formData.bankAccountType} onChange={set("bankAccountType")} style={fieldStyle}>
+                <option value="">Please Select</option>
+                <option value="Checking">Checking</option>
+                <option value="Savings">Savings</option>
+              </select>
+            </Field>
+            <Field label="Institution Name *">
+              <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyle} />
+            </Field>
+            <Field label="Routing Number *">
+              <input value={formData.routingNumber} onChange={set("routingNumber")} style={fieldStyle} />
+            </Field>
+            <Field label="Account Number *">
+              <input value={formData.accountNumber} onChange={set("accountNumber")} style={fieldStyle} />
+            </Field>
+          </div>
+        </Section>
+
+        {/* Section: Additional */}
+        <Section title="Additional Information" icon={
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        }>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Additional Notes" full>
+              <textarea value={formData.additionalInformation} onChange={set("additionalInformation")} style={{ ...fieldStyle, minHeight: 96, resize: "vertical" }} />
+            </Field>
+          </div>
+        </Section>
+
+      </div>
+
+      {/* Submit */}
+      <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
+        <button
+          onClick={onBack}
+          style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "11px 24px", fontWeight: 700, cursor: "pointer", fontFamily: T.font, fontSize: 14, color: T.textMid }}
+        >
+          Cancel
+        </button>
         <button
           onClick={() => onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId })}
           disabled={requiredMissing || phoneError}
@@ -196,176 +409,30 @@ export default function TransferLeadApplicationForm({
             color: "#fff",
             border: "none",
             borderRadius: T.radiusMd,
-            padding: "10px 20px",
+            padding: "11px 28px",
             fontWeight: 800,
             cursor: requiredMissing || phoneError ? "not-allowed" : "pointer",
+            fontFamily: T.font,
+            fontSize: 14,
+            boxShadow: requiredMissing || phoneError ? "none" : `0 4px 12px ${T.blue}44`,
+            transition: "all 0.15s",
           }}
         >
-          Submit
+          Submit Application
         </button>
       </div>
+    </div>
+  );
+}
 
-      <div style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, padding: 24 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <Field label="Lead Unique ID*" full>
-            <input value={computedLeadUniqueId} readOnly placeholder="Auto-generated from name + phone + SSN last 4" style={{ ...fieldStyle, backgroundColor: T.rowBg }} />
-          </Field>
-
-          <Field label="Lead Value*">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.leadValue}
-              onChange={(e) => setFormData({ ...formData, leadValue: e.target.value })}
-              style={fieldStyle}
-            />
-          </Field>
-          <Field label="Lead Source*">
-            <select value={formData.leadSource} onChange={(e) => setFormData({ ...formData, leadSource: e.target.value })} style={fieldStyle}>
-              <option value="">Please Select</option>
-              <option value="Live Transfer">Live Transfer</option>
-              <option value="Inbound Call">Inbound Call</option>
-              <option value="Manual Entry">Manual Entry</option>
-              <option value="Web Form">Web Form</option>
-              <option value="Referral">Referral</option>
-            </select>
-          </Field>
-
-          <Field label="Date of Submission*">
-            <input type="date" value={formData.submissionDate} onChange={(e) => setFormData({ ...formData, submissionDate: e.target.value })} style={fieldStyle} />
-          </Field>
-          <Field label="Date of Birth*">
-            <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} style={fieldStyle} />
-          </Field>
-
-          <Field label="First Name*">
-            <input value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} style={fieldStyle} />
-          </Field>
-          <Field label="Last Name*">
-            <input value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} style={fieldStyle} />
-          </Field>
-
-          <Field label="Address*" full>
-            <input placeholder="Street Address" value={formData.street1} onChange={(e) => setFormData({ ...formData, street1: e.target.value })} style={fieldStyle} />
-          </Field>
-          <Field label="Address Line 2" full>
-            <input placeholder="Street Address Line 2" value={formData.street2} onChange={(e) => setFormData({ ...formData, street2: e.target.value })} style={fieldStyle} />
-          </Field>
-
-          <Field label="City*">
-            <input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} style={fieldStyle} />
-          </Field>
-          <Field label="State*">
-            <select value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} style={fieldStyle}>
-              <option value="">Please Select</option>
-              {usStates.map((state) => <option key={state} value={state}>{state}</option>)}
-            </select>
-          </Field>
-
-          <Field label="Zip Code*">
-            <input value={formData.zipCode} onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })} style={fieldStyle} />
-          </Field>
-          <Field label="Number*">
-            <input
-              placeholder="(000) 000-0000"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              style={{ ...fieldStyle, borderColor: phoneError ? T.danger : T.border }}
-            />
-            <div style={{ fontSize: 11, color: phoneError ? T.danger : T.textMuted, marginTop: 4 }}>
-              {phoneError ? "Please enter a valid phone number. Format: (000) 000-0000." : "Format: (000) 000-0000."}
-            </div>
-          </Field>
-
-          <Field label="Birth State*">
-            <select value={formData.birthState} onChange={(e) => setFormData({ ...formData, birthState: e.target.value })} style={fieldStyle}>
-              <option value="">Please Select</option>
-              {usStates.map((state) => <option key={state} value={state}>{state}</option>)}
-            </select>
-          </Field>
-          <Field label="Age*">
-            <input value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} style={fieldStyle} />
-          </Field>
-
-          <Field label="Social*">
-            <input value={formData.social} onChange={(e) => setFormData({ ...formData, social: e.target.value })} style={fieldStyle} />
-          </Field>
-          <Field label="Driver License Number*">
-            <input value={formData.driverLicenseNumber} onChange={(e) => setFormData({ ...formData, driverLicenseNumber: e.target.value })} style={fieldStyle} />
-          </Field>
-
-          <Field label="Any existing / previous coverage in last 2 years?*">
-            <YesNo value={formData.existingCoverageLast2Years} onChange={(value) => setFormData({ ...formData, existingCoverageLast2Years: value })} />
-          </Field>
-          <Field label="Any previous applications in 2 years?*">
-            <YesNo value={formData.previousApplications2Years} onChange={(value) => setFormData({ ...formData, previousApplications2Years: value })} />
-          </Field>
-
-          <Field label="Height*"><input value={formData.height} onChange={(e) => setFormData({ ...formData, height: e.target.value })} style={fieldStyle} /></Field>
-          <Field label="Weight*"><input value={formData.weight} onChange={(e) => setFormData({ ...formData, weight: e.target.value })} style={fieldStyle} /></Field>
-          <Field label="Doctors Name*"><input value={formData.doctorName} onChange={(e) => setFormData({ ...formData, doctorName: e.target.value })} style={fieldStyle} /></Field>
-          <Field label="Tabacco Use*"><YesNo value={formData.tobaccoUse} onChange={(value) => setFormData({ ...formData, tobaccoUse: value })} /></Field>
-
-          <Field label="Health Conditions*" full>
-            <textarea value={formData.healthConditions} onChange={(e) => setFormData({ ...formData, healthConditions: e.target.value })} style={{ ...fieldStyle, minHeight: 80 }} />
-          </Field>
-          <Field label="Medications*" full>
-            <textarea value={formData.medications} onChange={(e) => setFormData({ ...formData, medications: e.target.value })} style={{ ...fieldStyle, minHeight: 80 }} />
-          </Field>
-
-          <Field label="Monthly Premium*"><input value={formData.monthlyPremium} onChange={(e) => setFormData({ ...formData, monthlyPremium: e.target.value })} style={fieldStyle} /></Field>
-          <Field label="Coverage Amount*"><input value={formData.coverageAmount} onChange={(e) => setFormData({ ...formData, coverageAmount: e.target.value })} style={fieldStyle} /></Field>
-
-          <Field label="Carrier*">
-            <select value={formData.carrier} onChange={(e) => setFormData({ ...formData, carrier: e.target.value })} style={fieldStyle}>
-              <option value="">Please Select</option>
-              {carriers.map((c) => (
-                <option key={c.id} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Product Type*">
-            <select value={formData.productType} onChange={(e) => setFormData({ ...formData, productType: e.target.value })} style={fieldStyle}>
-              <option value="">Please Select</option>
-              {productTypeOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Draft Date*"><input type="date" value={formData.draftDate} onChange={(e) => setFormData({ ...formData, draftDate: e.target.value })} style={fieldStyle} /></Field>
-          <Field label="Future Draft Date*"><input type="date" value={formData.futureDraftDate} onChange={(e) => setFormData({ ...formData, futureDraftDate: e.target.value })} style={fieldStyle} /></Field>
-
-          <Field label="Beneficiary Information*" full>
-            <textarea value={formData.beneficiaryInformation} onChange={(e) => setFormData({ ...formData, beneficiaryInformation: e.target.value })} style={{ ...fieldStyle, minHeight: 72 }} />
-          </Field>
-
-          <Field label="Bank Account Type">
-            <select value={formData.bankAccountType} onChange={(e) => setFormData({ ...formData, bankAccountType: e.target.value })} style={fieldStyle}>
-              <option value="">Please Select</option>
-              <option value="Checking">Checking</option>
-              <option value="Savings">Savings</option>
-            </select>
-          </Field>
-          <Field label="Institution Name*"><input value={formData.institutionName} onChange={(e) => setFormData({ ...formData, institutionName: e.target.value })} style={fieldStyle} /></Field>
-
-          <Field label="Rout*"><input value={formData.routingNumber} onChange={(e) => setFormData({ ...formData, routingNumber: e.target.value })} style={fieldStyle} /></Field>
-          <Field label="Acc*"><input value={formData.accountNumber} onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })} style={fieldStyle} /></Field>
-
-          <Field label="Additional Information*" full>
-            <textarea value={formData.additionalInformation} onChange={(e) => setFormData({ ...formData, additionalInformation: e.target.value })} style={{ ...fieldStyle, minHeight: 96 }} />
-          </Field>
-        </div>
-
-        <div style={{ marginTop: 20, paddingTop: 14, borderTop: `1px solid ${T.borderLight}`, fontSize: 13, color: T.textMuted, fontWeight: 700 }}>
-          THANK YOU FOR YOUR SUBMISSION!!!
-        </div>
+function Section({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+  return (
+    <div style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusLg, overflow: "hidden" }}>
+      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", alignItems: "center", gap: 10, backgroundColor: "#fafcff" }}>
+        <span style={{ color: T.blue }}>{icon}</span>
+        <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.textDark }}>{title}</h2>
       </div>
+      <div style={{ padding: "20px" }}>{children}</div>
     </div>
   );
 }
@@ -373,7 +440,7 @@ export default function TransferLeadApplicationForm({
 function Field({ label, children, full = false }: { label: string; children: ReactNode; full?: boolean }) {
   return (
     <div style={{ gridColumn: full ? "span 2" : "span 1" }}>
-      <div style={labelStyle}>{label}</div>
+      <label style={labelStyle}>{label}</label>
       {children}
     </div>
   );
@@ -381,7 +448,18 @@ function Field({ label, children, full = false }: { label: string; children: Rea
 
 function YesNo({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} style={fieldStyle}>
+    <select value={value} onChange={(e) => onChange(e.target.value)} style={{
+      width: "100%",
+      padding: "11px 14px",
+      borderRadius: 8,
+      border: `1.5px solid ${T.border}`,
+      fontSize: 14,
+      color: T.textDark,
+      outline: "none",
+      fontFamily: T.font,
+      backgroundColor: "#fff",
+      boxSizing: "border-box",
+    }}>
       <option value="">Please Select</option>
       <option value="Yes">Yes</option>
       <option value="No">No</option>
