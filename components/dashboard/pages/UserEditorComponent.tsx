@@ -248,8 +248,11 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           </div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <button onClick={onClose} style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: T.textDark }}>Cancel</button>
-          <button onClick={handleFinalSubmit} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>{user ? "Save Changes" : "Finish Setup"}</button>
+          <button onClick={onClose} disabled={isLoading} style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: isLoading ? "not-allowed" : "pointer", color: T.textDark, opacity: isLoading ? 0.6 : 1 }}>Cancel</button>
+          <button onClick={handleFinalSubmit} disabled={isLoading} style={{ backgroundColor: isLoading ? T.border : T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: isLoading ? "not-allowed" : "pointer", boxShadow: isLoading ? "none" : `0 4px 12px ${T.blue}44`, opacity: isLoading ? 0.6 : 1, display: "flex", alignItems: "center", gap: 8, transition: "all 0.2s" }}>
+            {isLoading && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" style={{ opacity: 0.25 }} /><path d="M12 2a10 10 0 0 1 0 20" style={{ animation: "spin 1s linear infinite" }} /></svg>}
+            {isLoading ? "Saving..." : user ? "Save Changes" : "Finish Setup"}
+          </button>
         </div>
       </div>
 
