@@ -49,6 +49,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   const [selectedRoleId, setSelectedRoleId] = useState<string>(user?.roleId ?? "");
   const [selectedCenterId, setSelectedCenterId] = useState<string>("");
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set());
+  const [rolePermissionIds, setRolePermissionIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,8 +95,11 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           : Promise.resolve({ data: [] as { permission_id: string }[] }),
       ]);
 
+      const roleSet = new Set<string>((roleData || []).map((rp: { permission_id: string }) => rp.permission_id));
+      setRolePermissionIds(roleSet);
+
       const merged = new Set<string>([
-        ...(roleData || []).map((rp: { permission_id: string }) => rp.permission_id),
+        ...roleSet,
         ...(userData || []).map((up: { permission_id: string }) => up.permission_id),
       ]);
 
@@ -106,6 +110,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   }, [selectedRoleId, supabase, user?.id]);
 
   const togglePermission = (id: string) => {
+    if (rolePermissionIds.has(id)) return; // inherited from role; not directly removable here
     const next = new Set(selectedPermissions);
     if (next.has(id)) next.delete(id); else next.add(id);
     setSelectedPermissions(next);
@@ -185,7 +190,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           extension,
           roleId: selectedRoleId,
           centerId: isCallCenterRole ? selectedCenterId : null,
-          permissions: Array.from(selectedPermissions),
+            permissions: Array.from(selectedPermissions),
           isUpdate: true
         });
       } else {
@@ -224,7 +229,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           extension,
           roleId: selectedRoleId,
           centerId: isCallCenterRole ? selectedCenterId : null,
-          permissions: Array.from(selectedPermissions),
+            permissions: Array.from(selectedPermissions).filter((id) => !rolePermissionIds.has(id)),
           isUpdate: false
         });
       }
@@ -327,14 +332,19 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                     <span style={{ fontSize: 12, fontWeight: 800, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 12px", borderRadius: 20 }}>{selectedPermissions.size} selected</span>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
-                    {permissions.map(p => (
-                      <div key={p.id} onClick={() => togglePermission(p.id)} style={{ padding: "16px 20px", borderRadius: 12, border: `1.5px solid ${selectedPermissions.has(p.id) ? T.blue : T.border}`, backgroundColor: selectedPermissions.has(p.id) ? T.blueFaint : "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                    {permissions.map(p => {
+                      const isInherited = rolePermissionIds.has(p.id);
+                      return (
+                      <div key={p.id} onClick={() => togglePermission(p.id)} style={{ padding: "16px 20px", borderRadius: 12, border: `1.5px solid ${selectedPermissions.has(p.id) ? T.blue : T.border}`, backgroundColor: selectedPermissions.has(p.id) ? T.blueFaint : "transparent", cursor: isInherited ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 12, opacity: isInherited ? 0.85 : 1 }}>
                         <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${selectedPermissions.has(p.id) ? T.blue : T.border}`, backgroundColor: selectedPermissions.has(p.id) ? T.blue : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {selectedPermissions.has(p.id) && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4"><path d="M20 6L9 17l-5-5"/></svg>}
                         </div>
-                        <div><p style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>{p.name}</p></div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>{p.name}</p>
+                          {isInherited && <p style={{ margin: "4px 0 0", fontSize: 11, fontWeight: 700, color: T.textMuted }}>Inherited from role</p>}
+                        </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </div>
               )}

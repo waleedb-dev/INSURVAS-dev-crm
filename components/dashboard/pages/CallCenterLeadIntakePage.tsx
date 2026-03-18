@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { DataGrid, FilterChip, Pagination, Table } from "@/components/ui";
+import { DataGrid, FilterChip, Pagination, Table, Toast } from "@/components/ui";
 import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type IntakeLead = {
   id: string;
   name: string;
-  email: string;
   phone: string;
   premium: number;
   type: string;
@@ -18,41 +18,55 @@ type IntakeLead = {
   createdAt: string;
 };
 
-const INITIAL_LEADS: IntakeLead[] = [
-  {
-    id: "TL-001",
-    name: "Mason Carter",
-    email: "mason.carter@example.com",
-    phone: "+1 (555) 120-4567",
-    premium: 1300,
-    type: "Auto",
-    source: "Inbound Call",
-    pipeline: "Transfer Portal",
-    stage: "Transfer API",
-    createdAt: "Today, 09:20 AM",
-  },
-  {
-    id: "TL-002",
-    name: "Olivia Reed",
-    email: "olivia.reed@example.com",
-    phone: "+1 (555) 245-9911",
-    premium: 2450,
-    type: "Home",
-    source: "Manual Entry",
-    pipeline: "Transfer Portal",
-    stage: "Transfer API",
-    createdAt: "Today, 10:05 AM",
-  },
-];
+function buildLeadUniqueId(payload: TransferLeadFormData): string {
+  const namePart = `${payload.firstName}${payload.lastName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const phoneDigits = payload.phone.replace(/\D/g, "");
+  const socialDigits = payload.social.replace(/\D/g, "");
+  const phoneLast4 = phoneDigits.slice(-4);
+  const socialLast4 = socialDigits.slice(-4);
+  return `${namePart}-${phoneLast4}-${socialLast4}`;
+}
 
 export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { canCreateLeads?: boolean }) {
-  const [leads, setLeads] = useState<IntakeLead[]>(INITIAL_LEADS);
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [leads, setLeads] = useState<IntakeLead[]>([]);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("All");
   const [filterSource, setFilterSource] = useState("All");
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const itemsPerPage = 10;
+
+  const refreshLeads = async () => {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setToast({ message: error.message || "Failed to load leads", type: "error" });
+      return;
+    }
+
+    const mapped: IntakeLead[] = (data || []).map((lead: any) => ({
+      id: lead.lead_unique_id || "N/A",
+      name: `${lead.first_name || ""} ${lead.last_name || ""}`.trim() || "Unnamed Lead",
+      phone: lead.phone || "",
+      premium: Number(lead.lead_value) || 0,
+      type: lead.product_type || "Transfer",
+      source: lead.lead_source || "Unknown",
+      pipeline: lead.pipeline || "Transfer Portal",
+      stage: lead.stage || "Transfer API",
+      createdAt: lead.created_at ? new Date(lead.created_at).toLocaleString() : "Just now",
+    }));
+
+    setLeads(mapped);
+  };
+
+  useEffect(() => {
+    refreshLeads();
+  }, [supabase]);
 
   const types = Array.from(new Set(leads.map((lead) => lead.type)));
   const sources = Array.from(new Set(leads.map((lead) => lead.source)));
@@ -64,7 +78,6 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     const matchSearch =
       !query ||
       lead.name.toLowerCase().includes(query) ||
-      lead.email.toLowerCase().includes(query) ||
       lead.phone.toLowerCase().includes(query) ||
       lead.id.toLowerCase().includes(query);
 
@@ -87,26 +100,70 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     }
   }, [filtered.length, page, totalPages]);
 
-  const handleCreateLead = (payload: TransferLeadFormData) => {
-    const nextId = `TL-${String(leads.length + 1).padStart(3, "0")}`;
-    const fullName = `${payload.firstName} ${payload.lastName}`.trim();
+  const handleCreateLead = async (payload: TransferLeadFormData) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    const createdLead: IntakeLead = {
-      id: nextId,
-      name: fullName,
-      email: `${payload.firstName.toLowerCase()}.${payload.lastName.toLowerCase()}@example.com`,
+    if (!session?.user?.id) {
+      setToast({ message: "You are not logged in", type: "error" });
+      return;
+    }
+
+    const leadUniqueId = payload.leadUniqueId || buildLeadUniqueId(payload);
+
+    const { error } = await supabase.from("leads").insert({
+      lead_unique_id: leadUniqueId,
+      lead_value: Number(payload.leadValue || 0),
+      lead_source: payload.leadSource,
+      submission_date: payload.submissionDate,
+      first_name: payload.firstName,
+      last_name: payload.lastName,
+      street1: payload.street1,
+      street2: payload.street2 || null,
+      city: payload.city,
+      state: payload.state,
+      zip_code: payload.zipCode,
       phone: payload.phone,
-      premium: Number(payload.monthlyPremium) || 0,
-      type: payload.productType || "Transfer",
-      source: "Live Transfer",
+      birth_state: payload.birthState,
+      date_of_birth: payload.dateOfBirth,
+      age: payload.age,
+      social: payload.social,
+      driver_license_number: payload.driverLicenseNumber,
+      existing_coverage_last_2_years: payload.existingCoverageLast2Years,
+      previous_applications_2_years: payload.previousApplications2Years,
+      height: payload.height,
+      weight: payload.weight,
+      doctor_name: payload.doctorName,
+      tobacco_use: payload.tobaccoUse,
+      health_conditions: payload.healthConditions,
+      medications: payload.medications,
+      monthly_premium: payload.monthlyPremium,
+      coverage_amount: payload.coverageAmount,
+      carrier: payload.carrier,
+      product_type: payload.productType,
+      draft_date: payload.draftDate,
+      beneficiary_information: payload.beneficiaryInformation,
+      bank_account_type: payload.bankAccountType || null,
+      institution_name: payload.institutionName,
+      routing_number: payload.routingNumber,
+      account_number: payload.accountNumber,
+      future_draft_date: payload.futureDraftDate,
+      additional_information: payload.additionalInformation || null,
       pipeline: payload.pipeline || "Transfer Portal",
       stage: payload.stage || "Transfer API",
-      createdAt: "Just now",
-    };
+      submitted_by: session.user.id,
+    });
 
-    setLeads((prev) => [createdLead, ...prev]);
+    if (error) {
+      setToast({ message: error.message || "Failed to save lead", type: "error" });
+      return;
+    }
+
+    setToast({ message: "Lead saved successfully", type: "success" });
     setShowCreateLead(false);
     setPage(1);
+    await refreshLeads();
   };
 
   if (showCreateLead) {
@@ -157,7 +214,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       <DataGrid
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search leads by name, phone, email, or ID..."
+        searchPlaceholder="Search leads by name, phone, source, or ID..."
         filters={
           <>
             <select
@@ -215,11 +272,11 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
             },
             {
               header: "Contact",
-              key: "email",
+              key: "phone",
               render: (lead) => (
                 <div>
                   <div style={{ fontSize: 12, color: T.textDark, fontWeight: 700 }}>{lead.phone}</div>
-                  <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>{lead.email}</div>
+                  <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>{lead.source}</div>
                 </div>
               ),
             },
@@ -251,6 +308,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
           ]}
         />
       </DataGrid>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

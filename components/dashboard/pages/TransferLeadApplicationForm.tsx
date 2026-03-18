@@ -5,6 +5,9 @@ import type { CSSProperties, ReactNode } from "react";
 import { T } from "@/lib/theme";
 
 export type TransferLeadFormData = {
+  leadUniqueId: string;
+  leadValue: string;
+  leadSource: string;
   submissionDate: string;
   firstName: string;
   lastName: string;
@@ -74,6 +77,9 @@ export default function TransferLeadApplicationForm({
   onSubmit: (data: TransferLeadFormData) => void;
 }) {
   const [formData, setFormData] = useState<TransferLeadFormData>({
+    leadUniqueId: "",
+    leadValue: "",
+    leadSource: "",
     submissionDate: "",
     firstName: "",
     lastName: "",
@@ -114,6 +120,7 @@ export default function TransferLeadApplicationForm({
 
   const requiredMissing = useMemo(() => {
     const requiredKeys: Array<keyof TransferLeadFormData> = [
+      "leadValue", "leadSource",
       "submissionDate", "firstName", "lastName", "street1", "city", "state", "zipCode", "phone", "birthState",
       "dateOfBirth", "age", "social", "driverLicenseNumber", "existingCoverageLast2Years", "previousApplications2Years",
       "height", "weight", "doctorName", "tobaccoUse", "healthConditions", "medications", "monthlyPremium",
@@ -125,6 +132,19 @@ export default function TransferLeadApplicationForm({
   }, [formData]);
 
   const phoneError = formData.phone.length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone);
+  const computedLeadUniqueId = useMemo(() => {
+    const namePart = `${formData.firstName}${formData.lastName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const phoneDigits = formData.phone.replace(/\D/g, "");
+    const socialDigits = formData.social.replace(/\D/g, "");
+
+    if (!namePart || phoneDigits.length < 4 || socialDigits.length < 4) {
+      return "";
+    }
+
+    const phoneLast4 = phoneDigits.slice(-4);
+    const socialLast4 = socialDigits.slice(-4);
+    return `${namePart}-${phoneLast4}-${socialLast4}`;
+  }, [formData.firstName, formData.lastName, formData.phone, formData.social]);
 
   return (
     <div>
@@ -139,7 +159,7 @@ export default function TransferLeadApplicationForm({
           </div>
         </div>
         <button
-          onClick={() => onSubmit(formData)}
+          onClick={() => onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId })}
           disabled={requiredMissing || phoneError}
           style={{
             backgroundColor: requiredMissing || phoneError ? T.border : T.blue,
@@ -157,6 +177,31 @@ export default function TransferLeadApplicationForm({
 
       <div style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, padding: 24 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <Field label="Lead Unique ID*" full>
+            <input value={computedLeadUniqueId} readOnly placeholder="Auto-generated from name + phone + SSN last 4" style={{ ...fieldStyle, backgroundColor: T.rowBg }} />
+          </Field>
+
+          <Field label="Lead Value*">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.leadValue}
+              onChange={(e) => setFormData({ ...formData, leadValue: e.target.value })}
+              style={fieldStyle}
+            />
+          </Field>
+          <Field label="Lead Source*">
+            <select value={formData.leadSource} onChange={(e) => setFormData({ ...formData, leadSource: e.target.value })} style={fieldStyle}>
+              <option value="">Please Select</option>
+              <option value="Live Transfer">Live Transfer</option>
+              <option value="Inbound Call">Inbound Call</option>
+              <option value="Manual Entry">Manual Entry</option>
+              <option value="Web Form">Web Form</option>
+              <option value="Referral">Referral</option>
+            </select>
+          </Field>
+
           <Field label="Date of Submission*">
             <input type="date" value={formData.submissionDate} onChange={(e) => setFormData({ ...formData, submissionDate: e.target.value })} style={fieldStyle} />
           </Field>
