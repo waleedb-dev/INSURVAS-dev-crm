@@ -15,6 +15,7 @@ type IntakeLead = {
   premium: number;
   type: string;
   source: string;
+  centerName: string;
   pipeline: string;
   stage: string;
   createdBy: string;
@@ -77,6 +78,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
   const [showCreateLead, setShowCreateLead] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [defaultTransferStageId, setDefaultTransferStageId] = useState<number | null>(null);
   const itemsPerPage = 10;
 
 
@@ -100,7 +102,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
     const { data, error } = await supabase
       .from("leads")
-      .select("id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, created_at")
+      .select("id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, call_centers(name)")
       .eq("submitted_by", session.user.id)
       .order("created_at", { ascending: false });
 
@@ -117,6 +119,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       premium: Number(lead.lead_value) || 0,
       type: lead.product_type || "Transfer",
       source: lead.lead_source || "Unknown",
+      centerName: lead.call_centers?.name || "Unassigned",
       pipeline: lead.pipeline || "Transfer Portal",
       stage: lead.stage || "Transfer API",
       createdBy: createdByName,
@@ -128,6 +131,31 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
   useEffect(() => {
     refreshLeads();
+  }, [supabase]);
+
+  useEffect(() => {
+    const fetchDefaultTransferStage = async () => {
+      const { data, error } = await supabase
+        .from("pipelines")
+        .select("id")
+        .eq("name", "Transfer Portal")
+        .maybeSingle();
+
+      if (error || !data?.id) return;
+
+      const { data: stageData, error: stageError } = await supabase
+        .from("pipeline_stages")
+        .select("id")
+        .eq("pipeline_id", data.id)
+        .eq("name", "Transfer API")
+        .maybeSingle();
+
+      if (!stageError && stageData?.id) {
+        setDefaultTransferStageId(stageData.id);
+      }
+    };
+
+    void fetchDefaultTransferStage();
   }, [supabase]);
 
   const types = Array.from(new Set(leads.map((lead) => lead.type)));
@@ -169,6 +197,12 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       setToast({ message: "You are not logged in", type: "error" });
       return;
     }
+
+    const { data: userProfile } = await supabase
+      .from("users")
+      .select("call_center_id")
+      .eq("id", session.user.id)
+      .maybeSingle();
 
     const leadUniqueId = payload.leadUniqueId || buildLeadUniqueId(payload);
 
@@ -212,6 +246,8 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       additional_information: payload.additionalInformation || null,
       pipeline: payload.pipeline || "Transfer Portal",
       stage: payload.stage || "Transfer API",
+      stage_id: defaultTransferStageId,
+      call_center_id: userProfile?.call_center_id || null,
       submitted_by: session.user.id,
     });
 
@@ -286,6 +322,18 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
   const handleUpdateLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
 
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const { data: userProfile } = session?.user?.id
+      ? await supabase
+          .from("users")
+          .select("call_center_id")
+          .eq("id", session.user.id)
+          .maybeSingle()
+      : { data: null as { call_center_id?: string | null } | null };
+
     const { error } = await supabase
       .from("leads")
       .update({
@@ -328,6 +376,8 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
         additional_information: payload.additionalInformation || null,
         pipeline: payload.pipeline || "Transfer Portal",
         stage: payload.stage || "Transfer API",
+        stage_id: defaultTransferStageId,
+        call_center_id: userProfile?.call_center_id || null,
       })
       .eq("id", editingLead.rowId);
 
@@ -546,6 +596,15 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                   </span>
                 );
               },
+            },
+            {
+              header: "Centre",
+              key: "centerName",
+              render: (lead) => (
+                <span style={{ fontSize: 12, color: T.textMid, fontWeight: 700 }}>
+                  {lead.centerName}
+                </span>
+              ),
             },
             {
               header: "Pipeline",
