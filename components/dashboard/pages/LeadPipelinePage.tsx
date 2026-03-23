@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { ActionMenu, Pagination, Avatar, Badge, Table, DataGrid, FilterChip } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Stage = "New Lead" | "Attempted Contact" | "Contacted" | "Discovery Call" | "Presentation" | "Needs Quote" | "Quoted" | "Underwriting" | "Bound" | "Won" | "Lost";
 
@@ -84,12 +85,14 @@ const INITIAL_LEADS: Lead[] = [
 ];
 
 export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdateActions?: boolean }) {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [leads, setLeads] = useState(INITIAL_LEADS);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<Stage | null>(null);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
   const [pipeline, setPipeline] = useState<string>("Sales Pipeline");
+  const [pipelines, setPipelines] = useState<string[]>(["Sales Pipeline"]);
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -137,6 +140,33 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     if (page > totalPages && totalPages > 0) setPage(totalPages);
     if (filteredLeads.length === 0 && page !== 1) setPage(1);
   }, [filteredLeads.length, page, totalPages]);
+
+  useEffect(() => {
+    const fetchPipelines = async () => {
+      const { data, error } = await supabase
+        .from("pipelines")
+        .select("name")
+        .order("name");
+
+      if (error || !data) {
+        return;
+      }
+
+      const names = data
+        .map((p: { name: string | null }) => p.name)
+        .filter((n): n is string => Boolean(n));
+
+      if (names.length === 0) return;
+
+      setPipelines(names);
+
+      if (!names.includes(pipeline)) {
+        setPipeline(names[0]);
+      }
+    };
+
+    void fetchPipelines();
+  }, [supabase, pipeline]);
 
   const renderKanbanBoard = () => (
     <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
@@ -372,8 +402,16 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       {/* Pipeline & Filter Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0", borderBottom: `1px solid ${T.pageBg}`, flexShrink: 0, gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: 10, fontSize: 13, fontWeight: 800, backgroundColor: "#fff", cursor: "pointer", outline: "none" }}>
-            <option value="Sales Pipeline">Sales Pipeline</option>
+          <select
+            value={pipeline}
+            onChange={(e) => setPipeline(e.target.value)}
+            style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: 10, fontSize: 13, fontWeight: 800, backgroundColor: "#fff", cursor: "pointer", outline: "none" }}
+          >
+            {pipelines.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
           </select>
           <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 10px", borderRadius: 20 }}>{leads.length} opportunities</span>
           
