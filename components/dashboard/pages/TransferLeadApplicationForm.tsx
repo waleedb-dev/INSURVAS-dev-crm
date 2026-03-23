@@ -45,6 +45,7 @@ export type TransferLeadFormData = {
   additionalInformation: string;
   pipeline: string;
   stage: string;
+  isDraft?: boolean;
 };
 
 const usStates = [
@@ -84,11 +85,13 @@ const labelStyle: CSSProperties = {
 export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
+  onSaveDraft,
   initialData,
   submitButtonLabel,
 }: {
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void;
+  onSaveDraft?: (data: TransferLeadFormData) => void;
   initialData?: Partial<TransferLeadFormData>;
   submitButtonLabel?: string;
 }) {
@@ -135,6 +138,7 @@ export default function TransferLeadApplicationForm({
     additionalInformation: "",
     pipeline: "Transfer Portal",
     stage: "Transfer API",
+    isDraft: initialData?.isDraft ?? false,
     ...initialData,
     leadSource: FIXED_BPO_LEAD_SOURCE,
   });
@@ -419,6 +423,24 @@ export default function TransferLeadApplicationForm({
         >
           Cancel
         </button>
+        {onSaveDraft && (
+          <button
+            onClick={() => onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true })}
+            style={{
+              background: "#fff",
+              border: `1.5px solid ${T.blue}`,
+              borderRadius: T.radiusMd,
+              padding: "11px 24px",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: T.font,
+              fontSize: 14,
+              color: T.blue,
+            }}
+          >
+            Save Draft
+          </button>
+        )}
         <button
           onClick={() => onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId })}
           disabled={requiredMissing || phoneError}

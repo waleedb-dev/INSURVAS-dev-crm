@@ -157,8 +157,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       if (pipeline === "Transfer Portal") {
         const { data, error } = await supabase
           .from("leads")
-          .select("id, lead_unique_id, first_name, last_name, lead_value, monthly_premium, product_type, lead_source, stage")
+          .select("id, lead_unique_id, first_name, last_name, lead_value, monthly_premium, product_type, lead_source, stage, is_draft")
           .eq("pipeline", "Transfer Portal")
+          .eq("is_draft", false)
           .order("created_at", { ascending: false });
 
         if (error || !data || data.length === 0) {

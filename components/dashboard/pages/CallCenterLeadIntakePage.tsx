@@ -20,6 +20,7 @@ type IntakeLead = {
   stage: string;
   createdBy: string;
   createdAt: string;
+  isDraft?: boolean;
 };
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
@@ -102,7 +103,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
     const { data, error } = await supabase
       .from("leads")
-      .select("id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, call_centers(name)")
+      .select("id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name)")
       .eq("submitted_by", session.user.id)
       .order("created_at", { ascending: false });
 
@@ -124,6 +125,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       stage: lead.stage || "Transfer API",
       createdBy: createdByName,
       createdAt: lead.created_at ? new Date(lead.created_at).toLocaleString() : "Just now",
+      isDraft: lead.is_draft ?? false,
     }));
 
     setLeads(mapped);
@@ -247,6 +249,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       pipeline: payload.pipeline || "Transfer Portal",
       stage: payload.stage || "Transfer API",
       stage_id: defaultTransferStageId,
+      is_draft: false,
       call_center_id: userProfile?.call_center_id || null,
       submitted_by: session.user.id,
     });
@@ -262,10 +265,85 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     await refreshLeads();
   };
 
+  const handleCreateDraftLead = async (payload: TransferLeadFormData) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user?.id) {
+      setToast({ message: "You are not logged in", type: "error" });
+      return;
+    }
+
+    const { data: userProfile } = await supabase
+      .from("users")
+      .select("call_center_id")
+      .eq("id", session.user.id)
+      .maybeSingle();
+
+    const leadUniqueId = payload.leadUniqueId || buildLeadUniqueId(payload);
+
+    const { error } = await supabase.from("leads").insert({
+      lead_unique_id: leadUniqueId,
+      lead_value: Number(payload.leadValue || 0),
+      lead_source: FIXED_BPO_LEAD_SOURCE,
+      submission_date: payload.submissionDate || null,
+      first_name: payload.firstName || null,
+      last_name: payload.lastName || null,
+      street1: payload.street1 || null,
+      street2: payload.street2 || null,
+      city: payload.city || null,
+      state: payload.state || null,
+      zip_code: payload.zipCode || null,
+      phone: payload.phone || null,
+      birth_state: payload.birthState || null,
+      date_of_birth: payload.dateOfBirth || null,
+      age: payload.age || null,
+      social: payload.social || null,
+      driver_license_number: payload.driverLicenseNumber || null,
+      existing_coverage_last_2_years: payload.existingCoverageLast2Years || null,
+      previous_applications_2_years: payload.previousApplications2Years || null,
+      height: payload.height || null,
+      weight: payload.weight || null,
+      doctor_name: payload.doctorName || null,
+      tobacco_use: payload.tobaccoUse || null,
+      health_conditions: payload.healthConditions || null,
+      medications: payload.medications || null,
+      monthly_premium: payload.monthlyPremium || null,
+      coverage_amount: payload.coverageAmount || null,
+      carrier: payload.carrier || null,
+      product_type: payload.productType || null,
+      draft_date: payload.draftDate || null,
+      beneficiary_information: payload.beneficiaryInformation || null,
+      bank_account_type: payload.bankAccountType || null,
+      institution_name: payload.institutionName || null,
+      routing_number: payload.routingNumber || null,
+      account_number: payload.accountNumber || null,
+      future_draft_date: payload.futureDraftDate || null,
+      additional_information: payload.additionalInformation || null,
+      pipeline: payload.pipeline || "Transfer Portal",
+      stage: payload.stage || "Transfer API",
+      stage_id: defaultTransferStageId,
+      is_draft: true,
+      call_center_id: userProfile?.call_center_id || null,
+      submitted_by: session.user.id,
+    });
+
+    if (error) {
+      setToast({ message: error.message || "Failed to save draft", type: "error" });
+      return;
+    }
+
+    setToast({ message: "Draft saved", type: "success" });
+    setShowCreateLead(false);
+    setPage(1);
+    await refreshLeads();
+  };
+
   const handleEditLead = async (rowId: string) => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline, stage")
+      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline, stage, is_draft")
       .eq("id", rowId)
       .maybeSingle();
 
@@ -314,6 +392,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       additionalInformation: data.additional_information || "",
       pipeline: data.pipeline || "Transfer Portal",
       stage: data.stage || "Transfer API",
+      isDraft: data.is_draft ?? false,
     };
 
     setEditingLead({ rowId, formData: mapped });
@@ -377,6 +456,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
         pipeline: payload.pipeline || "Transfer Portal",
         stage: payload.stage || "Transfer API",
         stage_id: defaultTransferStageId,
+        is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
       })
       .eq("id", editingLead.rowId);
@@ -391,11 +471,85 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     await refreshLeads();
   };
 
+  const handleUpdateDraftLead = async (payload: TransferLeadFormData) => {
+    if (!editingLead?.rowId) return;
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const { data: userProfile } = session?.user?.id
+      ? await supabase
+          .from("users")
+          .select("call_center_id")
+          .eq("id", session.user.id)
+          .maybeSingle()
+      : { data: null as { call_center_id?: string | null } | null };
+
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        lead_unique_id: payload.leadUniqueId || buildLeadUniqueId(payload),
+        lead_value: Number(payload.leadValue || 0),
+        lead_source: FIXED_BPO_LEAD_SOURCE,
+        submission_date: payload.submissionDate || null,
+        first_name: payload.firstName || null,
+        last_name: payload.lastName || null,
+        street1: payload.street1 || null,
+        street2: payload.street2 || null,
+        city: payload.city || null,
+        state: payload.state || null,
+        zip_code: payload.zipCode || null,
+        phone: payload.phone || null,
+        birth_state: payload.birthState || null,
+        date_of_birth: payload.dateOfBirth || null,
+        age: payload.age || null,
+        social: payload.social || null,
+        driver_license_number: payload.driverLicenseNumber || null,
+        existing_coverage_last_2_years: payload.existingCoverageLast2Years || null,
+        previous_applications_2_years: payload.previousApplications2Years || null,
+        height: payload.height || null,
+        weight: payload.weight || null,
+        doctor_name: payload.doctorName || null,
+        tobacco_use: payload.tobaccoUse || null,
+        health_conditions: payload.healthConditions || null,
+        medications: payload.medications || null,
+        monthly_premium: payload.monthlyPremium || null,
+        coverage_amount: payload.coverageAmount || null,
+        carrier: payload.carrier || null,
+        product_type: payload.productType || null,
+        draft_date: payload.draftDate || null,
+        beneficiary_information: payload.beneficiaryInformation || null,
+        bank_account_type: payload.bankAccountType || null,
+        institution_name: payload.institutionName || null,
+        routing_number: payload.routingNumber || null,
+        account_number: payload.accountNumber || null,
+        future_draft_date: payload.futureDraftDate || null,
+        additional_information: payload.additionalInformation || null,
+        pipeline: payload.pipeline || "Transfer Portal",
+        stage: payload.stage || "Transfer API",
+        stage_id: defaultTransferStageId,
+        is_draft: true,
+        call_center_id: userProfile?.call_center_id || null,
+      })
+      .eq("id", editingLead.rowId);
+
+    if (error) {
+      setToast({ message: error.message || "Failed to save draft", type: "error" });
+      return;
+    }
+
+    setToast({ message: "Draft updated", type: "success" });
+    setEditingLead(null);
+    await refreshLeads();
+  };
+
   if (showCreateLead) {
     return (
       <TransferLeadApplicationForm
         onBack={() => setShowCreateLead(false)}
         onSubmit={handleCreateLead}
+        onSaveDraft={handleCreateDraftLead}
       />
     );
   }
@@ -405,6 +559,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       <TransferLeadApplicationForm
         onBack={() => setEditingLead(null)}
         onSubmit={handleUpdateLead}
+        onSaveDraft={handleUpdateDraftLead}
         initialData={editingLead.formData}
         submitButtonLabel="Update Lead"
       />
