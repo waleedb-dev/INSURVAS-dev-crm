@@ -5,7 +5,7 @@ import { ActionMenu, Pagination, Avatar, Badge, Table, DataGrid, FilterChip } fr
 import LeadViewComponent from "./LeadViewComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type Stage = "New Lead" | "Attempted Contact" | "Contacted" | "Discovery Call" | "Presentation" | "Needs Quote" | "Quoted" | "Underwriting" | "Bound" | "Won" | "Lost";
+type Stage = string;
 
 interface Lead {
   id: string;
@@ -19,12 +19,11 @@ interface Lead {
   stage: Stage;
 }
 
-const STAGES: Stage[] = [
+const DEFAULT_STAGES: Stage[] = [
   "New Lead", "Attempted Contact", "Contacted", "Discovery Call", "Presentation",
   "Needs Quote", "Quoted", "Underwriting", "Bound", "Won", "Lost"
 ];
-
-const STAGE_CONFIG: Record<Stage, { color: string; bg: string; header: string }> = {
+const STAGE_CONFIG: Record<string, { color: string; bg: string; header: string }> = {
   "New Lead":          { color: "#3b82f6", bg: "#eff6ff", header: "#dbeafe" },
   "Attempted Contact": { color: "#6366f1", bg: "#eef2ff", header: "#e0e7ff" },
   "Contacted":         { color: "#8b5cf6", bg: "#f5f3ff", header: "#ede9fe" },
@@ -37,6 +36,15 @@ const STAGE_CONFIG: Record<Stage, { color: string; bg: string; header: string }>
   "Won":               { color: "#16a34a", bg: "#f0fdf4", header: "#dcfce7" },
   "Lost":              { color: "#dc2626", bg: "#fef2f2", header: "#fee2e2" },
 };
+
+const STAGE_COLOR_SEQUENCE = Object.values(STAGE_CONFIG);
+
+function getStageConfig(stage: string, index: number) {
+  const fromMap = STAGE_CONFIG[stage];
+  if (fromMap) return fromMap;
+  const fallback = STAGE_COLOR_SEQUENCE[index % STAGE_COLOR_SEQUENCE.length];
+  return fallback ?? { color: T.blue, bg: T.blueFaint, header: T.blueFaint };
+}
 
 const TYPE_COLORS: Record<string, string> = {
   Auto: "#3b82f6", Home: "#9333ea", Life: "#16a34a", Health: "#ea580c", Commercial: "#64748b",
@@ -91,8 +99,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [dragOver, setDragOver] = useState<Stage | null>(null);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
-  const [pipeline, setPipeline] = useState<string>("Sales Pipeline");
-  const [pipelines, setPipelines] = useState<string[]>(["Sales Pipeline"]);
+  const [pipeline, setPipeline] = useState<string>("");
+  const [pipelines, setPipelines] = useState<string[]>([]);
+  const [stages, setStages] = useState<Stage[]>(DEFAULT_STAGES);
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -142,6 +151,17 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   }, [filteredLeads.length, page, totalPages]);
 
   useEffect(() => {
+    if (!stages.length) return;
+
+    const remapped = INITIAL_LEADS.map((lead, index) => ({
+      ...lead,
+      stage: stages[index % stages.length],
+    }));
+
+    setLeads(remapped);
+  }, [pipeline, stages]);
+
+  useEffect(() => {
     const fetchPipelines = async () => {
       const { data, error } = await supabase
         .from("pipelines")
@@ -156,7 +176,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         .map((p: { name: string | null }) => p.name)
         .filter((n): n is string => Boolean(n));
 
-      if (names.length === 0) return;
+      if (names.length === 0) {
+        setPipelines([]);
+        return;
+      }
 
       setPipelines(names);
 
@@ -166,6 +189,47 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     };
 
     void fetchPipelines();
+  }, [supabase, pipeline]);
+
+  useEffect(() => {
+    const fetchStages = async () => {
+      const { data: pipelineRow, error } = await supabase
+        .from("pipelines")
+        .select("id")
+        .eq("name", pipeline)
+        .maybeSingle();
+
+      if (error || !pipelineRow?.id) {
+        setStages(DEFAULT_STAGES);
+        return;
+      }
+
+      const { data: stageRows, error: stageError } = await supabase
+        .from("pipeline_stages")
+        .select("name")
+        .eq("pipeline_id", pipelineRow.id)
+        .order("position");
+
+      if (stageError || !stageRows || stageRows.length === 0) {
+        setStages(DEFAULT_STAGES);
+        return;
+      }
+
+      const names = stageRows
+        .map((row: { name: string | null }) => row.name)
+        .filter((name): name is string => Boolean(name));
+
+      if (names.length === 0) {
+        setStages(DEFAULT_STAGES);
+        return;
+      }
+
+      setStages(names);
+
+      setFilterStage((current) => (current === "All" || names.includes(current) ? current : "All"));
+    };
+
+    void fetchStages();
   }, [supabase, pipeline]);
 
   const renderKanbanBoard = () => (
@@ -223,8 +287,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       
       <div className="kanban-container">
         <div className="kanban-board">
-          {STAGES.map((stage) => {
-            const cfg = STAGE_CONFIG[stage];
+          {stages.map((stage, index) => {
+            const cfg = getStageConfig(stage, index);
             const stageLeads = byStage(stage).filter(l => filteredLeads.includes(l));
             const isCollapsed = collapsedStages[stage];
             const isOver = dragOver === stage;
@@ -467,7 +531,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
             <>
               <select value={filterStage} onChange={(e) => setFilterStage(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
                 <option value="All">All Stages</option>
-                {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                {stages.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
                 <option value="All">All Types</option>
@@ -678,9 +742,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                        </div>
                        <div>
                          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Stage</label>
-                         <select defaultValue={quickEditLead.stage} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                            {STAGES.map(s => <option key={s}>{s}</option>)}
-                         </select>
+                           <select defaultValue={quickEditLead.stage} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
+                             {stages.map(s => <option key={s}>{s}</option>)}
+                           </select>
                        </div>
                        <div>
                          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Status</label>
