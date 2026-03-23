@@ -200,15 +200,39 @@ create policy role_permissions_select_admin_hr
 on public.role_permissions
 for select
 to authenticated
-using (public.has_any_role(array['system_admin','hr']));
+using (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and (r.key = 'system_admin' or r.key = 'hr')
+  )
+);
 
 drop policy if exists role_permissions_write_system_admin on public.role_permissions;
 create policy role_permissions_write_system_admin
 on public.role_permissions
 for all
 to authenticated
-using (public.has_role('system_admin'))
-with check (public.has_role('system_admin'));
+using (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and r.key = 'system_admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and r.key = 'system_admin'
+  )
+);
 
 drop policy if exists user_permissions_select_own_user on public.user_permissions;
 create policy user_permissions_select_own_user
@@ -222,13 +246,37 @@ create policy user_permissions_select_admin_hr
 on public.user_permissions
 for select
 to authenticated
-using (public.has_any_role(array['system_admin','hr']));
+using (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and (r.key = 'system_admin' or r.key = 'hr')
+  )
+);
 
 drop policy if exists user_permissions_write_system_admin on public.user_permissions;
 create policy user_permissions_write_system_admin
 on public.user_permissions
 for all
 to authenticated
-using (public.has_role('system_admin'))
-with check (public.has_role('system_admin'));
+using (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and r.key = 'system_admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and r.key = 'system_admin'
+  )
+);
 

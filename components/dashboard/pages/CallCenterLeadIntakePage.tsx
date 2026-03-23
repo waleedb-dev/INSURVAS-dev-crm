@@ -6,6 +6,7 @@ import { ActionMenu, DataGrid, FilterChip, Pagination, Table, Toast } from "@/co
 import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
 import LeadViewComponent from "./LeadViewComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
 
 type IntakeLead = {
   rowId: string;
@@ -93,19 +94,24 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       return;
     }
 
-    const { data: profile } = await supabase
+    const { data: userProfile } = await supabase
       .from("users")
-      .select("full_name")
+      .select("full_name, call_center_id")
       .eq("id", session.user.id)
       .maybeSingle();
 
-    const createdByName = profile?.full_name?.trim() || session.user.email || "Call Agent";
+    const role = await getCurrentUserPrimaryRole(supabase, session.user.id);
 
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from("leads")
-      .select("id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name)")
-      .eq("submitted_by", session.user.id)
+      .select("id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name), users!submitted_by(full_name)")
       .order("created_at", { ascending: false });
+
+    const query = role === "call_center_admin" && userProfile?.call_center_id
+      ? baseQuery.eq("call_center_id", userProfile.call_center_id)
+      : baseQuery.eq("submitted_by", session.user.id);
+
+    const { data, error } = await query;
 
     if (error) {
       setToast({ message: error.message || "Failed to load leads", type: "error" });
@@ -123,7 +129,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       centerName: lead.call_centers?.name || "Unassigned",
       pipeline: lead.pipeline || "Transfer Portal",
       stage: lead.stage || "Transfer API",
-      createdBy: createdByName,
+      createdBy: lead.users?.full_name?.trim() || "Unknown",
       createdAt: lead.created_at ? new Date(lead.created_at).toLocaleString() : "Just now",
       isDraft: lead.is_draft ?? false,
     }));

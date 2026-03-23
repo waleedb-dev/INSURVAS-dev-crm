@@ -137,7 +137,47 @@ create policy users_select_admin_hr
 on public.users
 for select
 to authenticated
-using (public.has_any_role(array['system_admin','hr']));
+using (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and (r.key = 'system_admin' or r.key = 'hr')
+  )
+);
+
+drop policy if exists users_select_system_admin_all on public.users;
+create policy users_select_system_admin_all
+on public.users
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and r.key = 'system_admin'
+  )
+);
+
+drop policy if exists users_select_call_center_admin_same_center on public.users;
+create policy users_select_call_center_admin_same_center
+on public.users
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.users u_self
+    join public.roles r on r.id = u_self.role_id
+    where u_self.id = auth.uid()
+      and r.key = 'call_center_admin'
+      and u_self.call_center_id is not null
+      and u_self.call_center_id = users.call_center_id
+  )
+);
 
 drop policy if exists users_update_own on public.users;
 create policy users_update_own
@@ -152,8 +192,31 @@ create policy users_update_admin_hr
 on public.users
 for update
 to authenticated
-using (public.has_any_role(array['system_admin','hr']))
-with check (public.has_any_role(array['system_admin','hr']));
+using (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and (r.key = 'system_admin' or r.key = 'hr')
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = auth.uid()
+      and (r.key = 'system_admin' or r.key = 'hr')
+  )
+);
+
+drop policy if exists users_insert_own on public.users;
+create policy users_insert_own
+on public.users
+for insert
+to authenticated
+with check (id = auth.uid());
 
 drop policy if exists roles_select_all_authenticated on public.roles;
 create policy roles_select_all_authenticated
@@ -161,4 +224,34 @@ on public.roles
 for select
 to authenticated
 using (true);
+
+-- 8) Default role assignment for new users and backfill
+create or replace function public.assign_default_role_to_user()
+returns trigger
+language plpgsql
+as $$
+declare
+  default_role_id uuid;
+begin
+  if new.role_id is null then
+    select id into default_role_id from public.roles where key = 'call_center_agent' limit 1;
+    if default_role_id is not null then
+      new.role_id := default_role_id;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_assign_default_role on public.users;
+create trigger trg_assign_default_role
+before insert on public.users
+for each row execute function public.assign_default_role_to_user();
+
+-- Backfill any existing user rows missing a role
+update public.users
+set role_id = (
+  select id from public.roles where key = 'call_center_agent' limit 1
+)
+where role_id is null;
 
