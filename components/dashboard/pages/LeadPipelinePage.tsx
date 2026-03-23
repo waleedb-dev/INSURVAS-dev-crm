@@ -153,13 +153,54 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   useEffect(() => {
     if (!stages.length) return;
 
-    const remapped = INITIAL_LEADS.map((lead, index) => ({
-      ...lead,
-      stage: stages[index % stages.length],
-    }));
+    const loadLeadsForPipeline = async () => {
+      if (pipeline === "Transfer Portal") {
+        const { data, error } = await supabase
+          .from("leads")
+          .select("id, lead_unique_id, first_name, last_name, lead_value, monthly_premium, product_type, lead_source, stage")
+          .eq("pipeline", "Transfer Portal")
+          .order("created_at", { ascending: false });
 
-    setLeads(remapped);
-  }, [pipeline, stages]);
+        if (error || !data || data.length === 0) {
+          const remappedFallback = INITIAL_LEADS.map((lead, index) => ({
+            ...lead,
+            stage: stages[index % stages.length],
+          }));
+          setLeads(remappedFallback);
+          return;
+        }
+
+        const mapped: Lead[] = data.map((row: any, index: number) => {
+          const fullName = `${row.first_name || ""} ${row.last_name || ""}`.trim() || "Unnamed Lead";
+          const premiumValue = Number(row.lead_value ?? row.monthly_premium ?? 0) || 0;
+          const stageName: Stage = row.stage && stages.includes(row.stage) ? row.stage : (stages[0] as Stage);
+
+          return {
+            id: row.lead_unique_id || row.id,
+            name: fullName,
+            type: row.product_type || "Transfer",
+            premium: premiumValue,
+            source: row.lead_source || "Transfer Portal",
+            agent: "BPO",
+            agentColor: "#4285f4",
+            daysInStage: 0,
+            stage: stageName,
+          };
+        });
+
+        setLeads(mapped);
+      } else {
+        const remapped = INITIAL_LEADS.map((lead, index) => ({
+          ...lead,
+          stage: stages[index % stages.length],
+        }));
+
+        setLeads(remapped);
+      }
+    };
+
+    void loadLeadsForPipeline();
+  }, [pipeline, stages, supabase]);
 
   useEffect(() => {
     const fetchPipelines = async () => {
