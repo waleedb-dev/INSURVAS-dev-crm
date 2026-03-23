@@ -546,33 +546,42 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
   if (showCreateLead) {
     return (
-      <TransferLeadApplicationForm
-        onBack={() => setShowCreateLead(false)}
-        onSubmit={handleCreateLead}
-        onSaveDraft={handleCreateDraftLead}
-      />
+      <>
+        <TransferLeadApplicationForm
+          onBack={() => setShowCreateLead(false)}
+          onSubmit={handleCreateLead}
+          onSaveDraft={handleCreateDraftLead}
+        />
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      </>
     );
   }
 
   if (editingLead) {
     return (
-      <TransferLeadApplicationForm
-        onBack={() => setEditingLead(null)}
-        onSubmit={handleUpdateLead}
-        onSaveDraft={handleUpdateDraftLead}
-        initialData={editingLead.formData}
-        submitButtonLabel="Update Lead"
-      />
+      <>
+        <TransferLeadApplicationForm
+          onBack={() => setEditingLead(null)}
+          onSubmit={handleUpdateLead}
+          onSaveDraft={handleUpdateDraftLead}
+          initialData={editingLead.formData}
+          submitButtonLabel="Update Lead"
+        />
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      </>
     );
   }
 
   if (viewingLead) {
     return (
-      <LeadViewComponent
-        leadId={viewingLead.id}
-        leadName={viewingLead.name}
-        onBack={() => setViewingLead(null)}
-      />
+      <>
+        <LeadViewComponent
+          leadId={viewingLead.id}
+          leadName={viewingLead.name}
+          onBack={() => setViewingLead(null)}
+        />
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      </>
     );
   }
 
