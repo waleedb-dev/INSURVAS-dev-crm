@@ -328,18 +328,7 @@ export default function BpoCentersPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <button 
-              onClick={() => setView("list")} 
-              style={{ padding: "12px 24px", borderRadius: 10, border: `1.5px solid ${T.border}`, backgroundColor: "#fff", color: T.textDark, fontSize: 14, fontWeight: 800, cursor: "pointer" }}
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={isNew ? handleCreateCenter : handleRenameCenter}
-              style={{ padding: "12px 32px", borderRadius: 10, border: "none", backgroundColor: T.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,102,255,0.25)" }}
-            >
-              {isNew ? "Create Centre" : "Save Changes"}
-            </button>
+            {/* Removed Cancel and Save/Create buttons */}
           </div>
         </div>
 
@@ -357,18 +346,7 @@ export default function BpoCentersPage() {
               </div>
             </div>
             <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 8px", color: T.textDark }}>{editingCenterName || "Unnamed Centre"}</h3>
-            {/* Removed GLOBAL-BPO label */}
-            
-            <div style={{ borderTop: `1.5px solid ${T.borderLight}`, paddingTop: 24, textAlign: "left" }}>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", marginBottom: 4 }}>LOCATED AT</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>—</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", marginBottom: 4 }}>TOTAL AGENTS</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{isNew ? "0 Linked" : `${selectedCenter.agentCount} Agents`}</div>
-              </div>
-            </div>
+            {/* Removed LOCATED AT and TOTAL AGENTS sections */}
           </div>
 
           {/* Main Content Area */}
@@ -386,8 +364,8 @@ export default function BpoCentersPage() {
 
             {/* Content Body */}
             <div style={{ padding: 40 }}>
+
               <div style={{ marginBottom: 40 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: "0 0 24px" }}>Primary Identity</h2>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>CENTRE NAME *</label>
@@ -400,76 +378,55 @@ export default function BpoCentersPage() {
                     />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>NETWORK CODE</label>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>DIRECT LINE (DID) *</label>
                     <input 
-                      disabled
-                      placeholder="e.g. BPO-PK-01"
-                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "88", color: T.textMuted }}
+                      type="tel"
+                      value={selectedCenter.did || ""}
+                      onChange={e => setSelectedCenter({ ...selectedCenter, did: e.target.value.replace(/[^0-9+]/g, "") })}
+                      placeholder="e.g. +15550000000"
+                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "44", transition: "all 0.2s" }}
                     />
                   </div>
                 </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>BUSINESS EMAIL ADDRESS *</label>
-                  <input 
-                    disabled
-                    placeholder="hq- Islamabad@unlimited-ins.com"
-                    style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "88", color: T.textMuted }}
-                  />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>SLACK CHANNEL *</label>
+                    <input 
+                      value={selectedCenter.slack_channel || ""}
+                      onChange={e => setSelectedCenter({ ...selectedCenter, slack_channel: e.target.value })}
+                      placeholder="#bpo-centre-slack"
+                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "44", transition: "all 0.2s" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>EMAIL *</label>
+                    <input 
+                      type="email"
+                      value={selectedCenter.email || ""}
+                      onChange={e => setSelectedCenter({ ...selectedCenter, email: e.target.value })}
+                      placeholder="centre@email.com"
+                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "44", transition: "all 0.2s" }}
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: "0 0 24px" }}>Communication Channels</h2>
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>PRIMARY DIRECT LINE</label>
-                    <input 
-                      disabled
-                      placeholder="+1 (555) 000-0000"
-                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "88", color: T.textMuted }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>INTERNAL EXT.</label>
-                    <input 
-                      disabled
-                      placeholder="881"
-                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "88", color: T.textMuted }}
-                    />
-                  </div>
+                <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
+                  <button 
+                    onClick={() => setView("list")}
+                    style={{ marginRight: 16, padding: "12px 32px", borderRadius: 10, border: `1.5px solid ${T.border}`, backgroundColor: "#fff", color: T.textDark, fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={isNew ? handleCreateCenter : handleRenameCenter}
+                    style={{ padding: "12px 32px", borderRadius: 10, border: "none", backgroundColor: T.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,102,255,0.25)" }}
+                  >
+                    {isNew ? "Create Centre" : "Save Changes"}
+                  </button>
                 </div>
               </div>
 
               {/* Advanced Controls (Only for Existing) */}
-              {!isNew && (
-                <div style={{ marginTop: 48, paddingTop: 40, borderTop: `1.5px solid ${T.borderLight}` }}>
-                   <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: "0 0 24px" }}>Manage Access</h2>
-                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                      <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>ASSIGN HUB ADMINISTRATOR</label>
-                        <Dropdown
-                          options={adminOptions}
-                          value={selectedAdminUserId}
-                          onChange={setSelectedAdminUserId}
-                          placeholder="Search users..."
-                          style={{ width: "100%" }}
-                        />
-                        <button onClick={handleAssignAdmin} disabled={!selectedAdminUserId} style={{ marginTop: 12, width: "100%", padding: "12px", borderRadius: 10, border: "none", backgroundColor: T.rowBg, color: T.textDark, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Assign Admin</button>
-                      </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>ONBOARD HUB AGENT</label>
-                        <Dropdown
-                          options={agentOptions}
-                          value={selectedAgentUserId}
-                          onChange={setSelectedAgentUserId}
-                          placeholder="Search users..."
-                          style={{ width: "100%" }}
-                        />
-                        <button onClick={handleAddAgent} disabled={!selectedAgentUserId} style={{ marginTop: 12, width: "100%", padding: "12px", borderRadius: 10, border: "none", backgroundColor: T.blue + "11", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Link Agent</button>
-                      </div>
-                   </div>
-                </div>
-              )}
+              {/* Removed Manage Access section */}
             </div>
           </div>
 
