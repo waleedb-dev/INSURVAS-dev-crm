@@ -89,10 +89,12 @@ with mapping(role_key, permission_key) as (
     ('call_center_admin', 'page.assigning.access'),
     ('call_center_admin', 'action.assigning.assign'),
     ('call_center_admin', 'page.lead_pipeline.access'),
+    ('call_center_admin', 'action.lead_pipeline.update'),
     ('call_center_admin', 'page.transfer_leads.access'),
     ('call_center_admin', 'action.transfer_leads.create'),
 
     ('call_center_agent', 'page.lead_pipeline.access'),
+    ('call_center_agent', 'action.lead_pipeline.update'),
     ('call_center_agent', 'page.transfer_leads.access'),
     ('call_center_agent', 'action.transfer_leads.create'),
 

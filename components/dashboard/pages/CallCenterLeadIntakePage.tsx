@@ -76,6 +76,20 @@ function buildLeadUniqueId(payload: TransferLeadFormData): string {
   return `${namePart}-${phoneLast4}-${socialLast4}`;
 }
 
+async function insertDailyDealFlowEntry(
+  supabase: ReturnType<typeof getSupabaseBrowserClient>,
+  row: { leadId: string; leadUniqueId: string; leadName: string; centerName: string; callCenterId: string | null }
+) {
+  const { error } = await supabase.from("daily_deal_flow").insert({
+    lead_id: row.leadId,
+    lead_unique_id: row.leadUniqueId || null,
+    lead_name: row.leadName,
+    center_name: row.centerName || null,
+    call_center_id: row.callCenterId,
+  });
+  if (error) console.warn("daily_deal_flow insert:", error.message);
+}
+
 export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { canCreateLeads?: boolean }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [leads, setLeads] = useState<IntakeLead[]>([]);
@@ -281,59 +295,74 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
     const insertLead = async (finalPayload: TransferLeadFormData, asDuplicate: boolean) => {
       const existingAdditional = (finalPayload.additionalInformation || "").trim();
-      return supabase.from("leads").insert({
-        lead_unique_id: leadUniqueId,
-        lead_value: Number(finalPayload.leadValue || 0),
-        lead_source: FIXED_BPO_LEAD_SOURCE,
-        submission_date: finalPayload.submissionDate,
-        first_name: finalPayload.firstName,
-        last_name: finalPayload.lastName,
-        street1: finalPayload.street1,
-        street2: finalPayload.street2 || null,
-        city: finalPayload.city,
-        state: finalPayload.state,
-        zip_code: finalPayload.zipCode,
-        phone: finalPayload.phone,
-        birth_state: finalPayload.birthState,
-        date_of_birth: finalPayload.dateOfBirth,
-        age: finalPayload.age,
-        social: finalPayload.social,
-        driver_license_number: finalPayload.driverLicenseNumber,
-        existing_coverage_last_2_years: finalPayload.existingCoverageLast2Years,
-        previous_applications_2_years: finalPayload.previousApplications2Years,
-        height: finalPayload.height,
-        weight: finalPayload.weight,
-        doctor_name: finalPayload.doctorName,
-        tobacco_use: finalPayload.tobaccoUse,
-        health_conditions: finalPayload.healthConditions,
-        medications: finalPayload.medications,
-        monthly_premium: finalPayload.monthlyPremium,
-        coverage_amount: finalPayload.coverageAmount,
-        carrier: finalPayload.carrier,
-        product_type: finalPayload.productType,
-        draft_date: finalPayload.draftDate,
-        beneficiary_information: finalPayload.beneficiaryInformation,
-        bank_account_type: finalPayload.bankAccountType || null,
-        institution_name: finalPayload.institutionName,
-        routing_number: finalPayload.routingNumber,
-        account_number: finalPayload.accountNumber,
-        future_draft_date: finalPayload.futureDraftDate,
-        additional_information: existingAdditional || null,
-        tags: asDuplicate ? ["duplicate"] : [],
-        pipeline: finalPayload.pipeline || "Transfer Portal",
-        stage: finalPayload.stage || "Transfer API",
-        stage_id: defaultTransferStageId,
-        is_draft: false,
-        call_center_id: userProfile?.call_center_id || null,
-        submitted_by: session.user.id,
-      });
+      return supabase
+        .from("leads")
+        .insert({
+          lead_unique_id: leadUniqueId,
+          lead_value: Number(finalPayload.leadValue || 0),
+          lead_source: FIXED_BPO_LEAD_SOURCE,
+          submission_date: finalPayload.submissionDate,
+          first_name: finalPayload.firstName,
+          last_name: finalPayload.lastName,
+          street1: finalPayload.street1,
+          street2: finalPayload.street2 || null,
+          city: finalPayload.city,
+          state: finalPayload.state,
+          zip_code: finalPayload.zipCode,
+          phone: finalPayload.phone,
+          birth_state: finalPayload.birthState,
+          date_of_birth: finalPayload.dateOfBirth,
+          age: finalPayload.age,
+          social: finalPayload.social,
+          driver_license_number: finalPayload.driverLicenseNumber,
+          existing_coverage_last_2_years: finalPayload.existingCoverageLast2Years,
+          previous_applications_2_years: finalPayload.previousApplications2Years,
+          height: finalPayload.height,
+          weight: finalPayload.weight,
+          doctor_name: finalPayload.doctorName,
+          tobacco_use: finalPayload.tobaccoUse,
+          health_conditions: finalPayload.healthConditions,
+          medications: finalPayload.medications,
+          monthly_premium: finalPayload.monthlyPremium,
+          coverage_amount: finalPayload.coverageAmount,
+          carrier: finalPayload.carrier,
+          product_type: finalPayload.productType,
+          draft_date: finalPayload.draftDate,
+          beneficiary_information: finalPayload.beneficiaryInformation,
+          bank_account_type: finalPayload.bankAccountType || null,
+          institution_name: finalPayload.institutionName,
+          routing_number: finalPayload.routingNumber,
+          account_number: finalPayload.accountNumber,
+          future_draft_date: finalPayload.futureDraftDate,
+          additional_information: existingAdditional || null,
+          tags: asDuplicate ? ["duplicate"] : [],
+          pipeline: finalPayload.pipeline || "Transfer Portal",
+          stage: finalPayload.stage || "Transfer API",
+          stage_id: defaultTransferStageId,
+          is_draft: false,
+          call_center_id: userProfile?.call_center_id || null,
+          submitted_by: session.user.id,
+        })
+        .select("id")
+        .single();
     };
 
-    const { error } = await insertLead(payload, false);
+    const { data: insertedLead, error } = await insertLead(payload, false);
 
     if (error) {
       setToast({ message: error.message || "Failed to save lead", type: "error" });
       return;
+    }
+
+    if (insertedLead?.id) {
+      const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
+      await insertDailyDealFlowEntry(supabase, {
+        leadId: insertedLead.id,
+        leadUniqueId: leadUniqueId,
+        leadName,
+        centerName: callCenterName,
+        callCenterId: userProfile?.call_center_id ?? null,
+      });
     }
 
     setToast({ message: "Lead saved successfully", type: "success" });
@@ -363,56 +392,71 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     const leadUniqueId = pendingCreatePayload.leadUniqueId || buildLeadUniqueId(pendingCreatePayload);
     const existingAdditional = (pendingCreatePayload.additionalInformation || "").trim();
 
-    const { error } = await supabase.from("leads").insert({
-      lead_unique_id: leadUniqueId,
-      lead_value: Number(pendingCreatePayload.leadValue || 0),
-      lead_source: FIXED_BPO_LEAD_SOURCE,
-      submission_date: pendingCreatePayload.submissionDate,
-      first_name: pendingCreatePayload.firstName,
-      last_name: pendingCreatePayload.lastName,
-      street1: pendingCreatePayload.street1,
-      street2: pendingCreatePayload.street2 || null,
-      city: pendingCreatePayload.city,
-      state: pendingCreatePayload.state,
-      zip_code: pendingCreatePayload.zipCode,
-      phone: pendingCreatePayload.phone,
-      birth_state: pendingCreatePayload.birthState,
-      date_of_birth: pendingCreatePayload.dateOfBirth,
-      age: pendingCreatePayload.age,
-      social: pendingCreatePayload.social,
-      driver_license_number: pendingCreatePayload.driverLicenseNumber,
-      existing_coverage_last_2_years: pendingCreatePayload.existingCoverageLast2Years,
-      previous_applications_2_years: pendingCreatePayload.previousApplications2Years,
-      height: pendingCreatePayload.height,
-      weight: pendingCreatePayload.weight,
-      doctor_name: pendingCreatePayload.doctorName,
-      tobacco_use: pendingCreatePayload.tobaccoUse,
-      health_conditions: pendingCreatePayload.healthConditions,
-      medications: pendingCreatePayload.medications,
-      monthly_premium: pendingCreatePayload.monthlyPremium,
-      coverage_amount: pendingCreatePayload.coverageAmount,
-      carrier: pendingCreatePayload.carrier,
-      product_type: pendingCreatePayload.productType,
-      draft_date: pendingCreatePayload.draftDate,
-      beneficiary_information: pendingCreatePayload.beneficiaryInformation,
-      bank_account_type: pendingCreatePayload.bankAccountType || null,
-      institution_name: pendingCreatePayload.institutionName,
-      routing_number: pendingCreatePayload.routingNumber,
-      account_number: pendingCreatePayload.accountNumber,
-      future_draft_date: pendingCreatePayload.futureDraftDate,
-      additional_information: existingAdditional || null,
-      tags: ["duplicate"],
-      pipeline: pendingCreatePayload.pipeline || "Transfer Portal",
-      stage: pendingCreatePayload.stage || "Transfer API",
-      stage_id: defaultTransferStageId,
-      is_draft: false,
-      call_center_id: userProfile?.call_center_id || null,
-      submitted_by: session.user.id,
-    });
+    const { data: dupInserted, error } = await supabase
+      .from("leads")
+      .insert({
+        lead_unique_id: leadUniqueId,
+        lead_value: Number(pendingCreatePayload.leadValue || 0),
+        lead_source: FIXED_BPO_LEAD_SOURCE,
+        submission_date: pendingCreatePayload.submissionDate,
+        first_name: pendingCreatePayload.firstName,
+        last_name: pendingCreatePayload.lastName,
+        street1: pendingCreatePayload.street1,
+        street2: pendingCreatePayload.street2 || null,
+        city: pendingCreatePayload.city,
+        state: pendingCreatePayload.state,
+        zip_code: pendingCreatePayload.zipCode,
+        phone: pendingCreatePayload.phone,
+        birth_state: pendingCreatePayload.birthState,
+        date_of_birth: pendingCreatePayload.dateOfBirth,
+        age: pendingCreatePayload.age,
+        social: pendingCreatePayload.social,
+        driver_license_number: pendingCreatePayload.driverLicenseNumber,
+        existing_coverage_last_2_years: pendingCreatePayload.existingCoverageLast2Years,
+        previous_applications_2_years: pendingCreatePayload.previousApplications2Years,
+        height: pendingCreatePayload.height,
+        weight: pendingCreatePayload.weight,
+        doctor_name: pendingCreatePayload.doctorName,
+        tobacco_use: pendingCreatePayload.tobaccoUse,
+        health_conditions: pendingCreatePayload.healthConditions,
+        medications: pendingCreatePayload.medications,
+        monthly_premium: pendingCreatePayload.monthlyPremium,
+        coverage_amount: pendingCreatePayload.coverageAmount,
+        carrier: pendingCreatePayload.carrier,
+        product_type: pendingCreatePayload.productType,
+        draft_date: pendingCreatePayload.draftDate,
+        beneficiary_information: pendingCreatePayload.beneficiaryInformation,
+        bank_account_type: pendingCreatePayload.bankAccountType || null,
+        institution_name: pendingCreatePayload.institutionName,
+        routing_number: pendingCreatePayload.routingNumber,
+        account_number: pendingCreatePayload.accountNumber,
+        future_draft_date: pendingCreatePayload.futureDraftDate,
+        additional_information: existingAdditional || null,
+        tags: ["duplicate"],
+        pipeline: pendingCreatePayload.pipeline || "Transfer Portal",
+        stage: pendingCreatePayload.stage || "Transfer API",
+        stage_id: defaultTransferStageId,
+        is_draft: false,
+        call_center_id: userProfile?.call_center_id || null,
+        submitted_by: session.user.id,
+      })
+      .select("id")
+      .single();
 
     if (error) {
       setToast({ message: error.message || "Failed to save duplicate lead", type: "error" });
       return;
+    }
+
+    if (dupInserted?.id) {
+      const leadName = `${pendingCreatePayload.firstName} ${pendingCreatePayload.lastName}`.trim() || "Unnamed Lead";
+      await insertDailyDealFlowEntry(supabase, {
+        leadId: dupInserted.id,
+        leadUniqueId: leadUniqueId,
+        leadName,
+        centerName: callCenterName,
+        callCenterId: userProfile?.call_center_id ?? null,
+      });
     }
 
     setShowDuplicateDialog(false);

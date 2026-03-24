@@ -1,95 +1,65 @@
 "use client";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { ActionMenu, Pagination, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
-import DealEditorComponent from "./DealEditorComponent";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type DealStatus = "Approved" | "Under Review" | "Declined" | "Pending Docs" | "Submitted";
-type PolicyType = "Auto" | "Home" | "Life" | "Health" | "Commercial";
-
-interface Deal {
+type DailyDealRow = {
   id: string;
-  client: string;
-  policyType: PolicyType;
-  agent: string;
-  agentColor: string;
-  premium: number;
-  submittedAt: string;
-  status: DealStatus;
-  carrier: string;
-}
-
-const DEALS: Deal[] = [
-  { id:"DL-2024-001", client:"James Whitfield",   policyType:"Auto",       agent:"Shawn Stone",    agentColor:"#4285f4", premium:1240,  submittedAt:"09:14 AM", status:"Approved",      carrier:"Progressive" },
-  { id:"DL-2024-002", client:"Maria Gonzalez",    policyType:"Home",       agent:"Emily Tyler",    agentColor:"#ec4899", premium:2180,  submittedAt:"09:32 AM", status:"Under Review",  carrier:"State Farm" },
-  { id:"DL-2024-003", client:"Robert Chen",       policyType:"Life",       agent:"Louis Castro",   agentColor:"#8b5cf6", premium:4500,  submittedAt:"09:47 AM", status:"Approved",      carrier:"New York Life" },
-  { id:"DL-2024-004", client:"Angela Brooks",     policyType:"Health",     agent:"Blake Silva",    agentColor:"#0ea5e9", premium:3200,  submittedAt:"10:05 AM", status:"Pending Docs",  carrier:"Blue Cross" },
-  { id:"DL-2024-005", client:"Tom Harrington",    policyType:"Commercial", agent:"Randy Delgado",  agentColor:"#f59e0b", premium:8750,  submittedAt:"10:18 AM", status:"Under Review",  carrier:"Travelers" },
-  { id:"DL-2024-006", client:"Sarah Kim",         policyType:"Auto",       agent:"Oscar Holloway", agentColor:"#f97316", premium:980,   submittedAt:"10:33 AM", status:"Approved",      carrier:"Geico" },
-  { id:"DL-2024-007", client:"Derek Mason",       policyType:"Home",       agent:"Joel Phillips",  agentColor:"#14b8a6", premium:1875,  submittedAt:"10:51 AM", status:"Declined",      carrier:"Allstate" },
-  { id:"DL-2024-008", client:"Priya Patel",       policyType:"Life",       agent:"Wayne Marsh",    agentColor:"#64748b", premium:6200,  submittedAt:"11:04 AM", status:"Submitted",     carrier:"MetLife" },
-  { id:"DL-2024-009", client:"Carlos Rivera",     policyType:"Health",     agent:"Shawn Stone",    agentColor:"#4285f4", premium:2900,  submittedAt:"11:22 AM", status:"Approved",      carrier:"Aetna" },
-  { id:"DL-2024-010", client:"Linda Tran",        policyType:"Commercial", agent:"Emily Tyler",    agentColor:"#ec4899", premium:12400, submittedAt:"11:38 AM", status:"Pending Docs",  carrier:"Hartford" },
-  { id:"DL-2024-011", client:"Nathan Ford",       policyType:"Auto",       agent:"Louis Castro",   agentColor:"#8b5cf6", premium:1100,  submittedAt:"11:55 AM", status:"Approved",      carrier:"Progressive" },
-  { id:"DL-2024-012", client:"Grace Nakamura",    policyType:"Home",       agent:"Blake Silva",    agentColor:"#0ea5e9", premium:3450,  submittedAt:"12:10 PM", status:"Under Review",  carrier:"State Farm" },
-];
-
-const COMMISSIONS = [
-  { id:"C-001", amount:148.8,   status:"Paid" },
-  { id:"C-002", amount:218.0,   status:"Pending" },
-  { id:"C-003", amount:675.0,   status:"Paid" },
-  { id:"C-004", amount:256.0,   status:"Under Review" },
-  { id:"C-005", amount:875.0,   status:"Pending" },
-  { id:"C-006", amount:117.6,   status:"Paid" },
-  { id:"C-007", amount:187.5,   status:"On Hold" },
-  { id:"C-008", amount:930.0,   status:"Pending" },
-  { id:"C-009", amount:232.0,   status:"Paid" },
-  { id:"C-010", amount:1240.0,  status:"Under Review" },
-  { id:"C-011", amount:132.0,   status:"Paid" },
-  { id:"C-012", amount:345.0,   status:"Paid" },
-];
-
-const STATUS_CONFIG: Record<DealStatus, { bg: string; color: string }> = {
-  "Approved":     { bg: "#dcfce7", color: "#16a34a" },
-  "Under Review": { bg: "#fef9c3", color: "#ca8a04" },
-  "Declined":     { bg: "#fee2e2", color: "#dc2626" },
-  "Pending Docs": { bg: "#ffe4c4", color: "#c2410c" },
-  "Submitted":    { bg: T.blueLight, color: T.blue },
+  flow_date: string;
+  created_at: string;
+  lead_id: string;
+  lead_unique_id: string | null;
+  lead_name: string;
+  center_name: string | null;
 };
 
-const POLICY_CONFIG: Record<PolicyType, { bg: string; color: string }> = {
-  "Auto":       { bg: "#eff6ff", color: "#2563eb" },
-  "Home":       { bg: "#fdf4ff", color: "#9333ea" },
-  "Life":       { bg: "#f0fdf4", color: "#16a34a" },
-  "Health":     { bg: "#fff7ed", color: "#ea580c" },
-  "Commercial": { bg: "#f8fafc", color: "#475569" },
-};
-
-export default function DailyDealFlowPage({ canProcessActions = true }: { canProcessActions?: boolean }) {
-  const [deals, setDeals] = useState(DEALS);
-  const [filterStatus, setFilterStatus] = useState<DealStatus | "All">("All");
-  const [filterAgent, setFilterAgent] = useState("All");
-  const [filterType, setFilterType] = useState("All");
+export default function DailyDealFlowPage({ canProcessActions: _canProcessActions = true }: { canProcessActions?: boolean }) {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [rows, setRows] = useState<DailyDealRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const itemsPerPage = 12;
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [viewingLead, setViewingLead] = useState<{ id: string, name: string } | null>(null);
-  const [showAddDeal, setShowAddDeal] = useState(false);
-  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [viewingLead, setViewingLead] = useState<{ id: string; name: string } | null>(null);
 
-  const total   = COMMISSIONS.reduce((s, c) => s + c.amount, 0);
-  const paid    = COMMISSIONS.filter((c) => c.status === "Paid").reduce((s, c) => s + c.amount, 0);
-  const pending = COMMISSIONS.filter((c) => c.status === "Pending").reduce((s, c) => s + c.amount, 0);
+  const loadRows = async () => {
+    setLoading(true);
+    setLoadError(null);
+    const { data, error } = await supabase
+      .from("daily_deal_flow")
+      .select("id, flow_date, created_at, lead_id, lead_unique_id, lead_name, center_name")
+      .order("flow_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
-  const filtered = deals.filter((d) => {
-    const matchStatus = filterStatus === "All" || d.status === filterStatus;
-    const matchAgent = filterAgent === "All" || d.agent === filterAgent;
-    const matchType = filterType === "All" || d.policyType === filterType;
-    const matchSearch = !search || d.client.toLowerCase().includes(search.toLowerCase()) || d.agent.toLowerCase().includes(search.toLowerCase()) || d.id.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchAgent && matchType && matchSearch;
+    if (error) {
+      setLoadError(error.message);
+      setRows([]);
+    } else {
+      setRows((data || []) as DailyDealRow[]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    void loadRows();
+  }, [supabase]);
+
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const totalToday = useMemo(() => rows.filter((r) => r.flow_date === todayStr).length, [rows, todayStr]);
+
+  const filtered = rows.filter((r) => {
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      r.lead_name.toLowerCase().includes(q) ||
+      (r.lead_unique_id || "").toLowerCase().includes(q) ||
+      (r.center_name || "").toLowerCase().includes(q) ||
+      r.flow_date.includes(q)
+    );
   });
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -97,24 +67,12 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
 
   useEffect(() => {
     setPage(1);
-  }, [filterStatus, filterAgent, filterType, search]);
+  }, [search]);
 
   useEffect(() => {
-    if (page > totalPages && totalPages > 0) {
-      setPage(totalPages);
-    }
-    if (filtered.length === 0 && page !== 1) {
-      setPage(1);
-    }
+    if (page > totalPages && totalPages > 0) setPage(totalPages);
+    if (filtered.length === 0 && page !== 1) setPage(1);
   }, [filtered.length, page, totalPages]);
-
-  const agents = Array.from(new Set(deals.map(d => d.agent)));
-  const policyTypes = Array.from(new Set(deals.map(d => d.policyType)));
-
-  const initialAgentColorMap = DEALS.reduce<Record<string, string>>((acc, deal) => {
-    acc[deal.agent] = deal.agentColor;
-    return acc;
-  }, {});
 
   if (viewingLead) {
     return (
@@ -126,89 +84,70 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
     );
   }
 
-  if (showAddDeal || editingDeal) {
-    return (
-      <DealEditorComponent
-        deal={editingDeal || undefined}
-        agents={agents}
-        existingCount={deals.length}
-        initialAgentColorMap={initialAgentColorMap}
-        onClose={() => { setShowAddDeal(false); setEditingDeal(null); }}
-        onSubmit={(deal) => {
-          if (editingDeal) {
-            setDeals((prev) => prev.map((item) => (item.id === deal.id ? deal : item)));
-          } else {
-            setDeals((prev) => [deal, ...prev]);
-            setPage(1);
-          }
-          setShowAddDeal(false);
-          setEditingDeal(null);
-        }}
-      />
-    );
-  }
-
   return (
     <div onClick={() => setActiveMenu(null)}>
       <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Today — {new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" })}</p>
+          <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>
+            Today — {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          </p>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h1>
+          <p style={{ fontSize: 13, color: T.textMuted, margin: "8px 0 0", maxWidth: 560 }}>
+            Entries appear when a lead is submitted from Transfer Leads (BPO intake). Columns: date, lead id, name, and center.
+          </p>
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <button
-            disabled={!canProcessActions}
-            title={!canProcessActions ? "Missing permission: action.daily_deal_flow.process" : undefined}
-            style={{
-              backgroundColor: "transparent",
-              color: canProcessActions ? T.blue : T.border,
-              border: `1.5px solid ${canProcessActions ? T.blue : T.border}`,
-              borderRadius: T.radiusMd,
-              padding: "10px 18px",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: canProcessActions ? "pointer" : "not-allowed",
-              fontFamily: T.font,
-              transition: "all 0.15s"
-            }}
-          >
-            Export CSV
-          </button>
-          <button
-            onClick={() => setShowAddDeal(true)}
-            disabled={!canProcessActions}
-            title={!canProcessActions ? "Missing permission: action.daily_deal_flow.process" : undefined}
-            style={{
-              backgroundColor: canProcessActions ? T.blue : T.border,
-              color: "#fff",
-              border: "none",
-              borderRadius: T.radiusMd,
-              padding: "10px 22px",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: canProcessActions ? "pointer" : "not-allowed",
-              fontFamily: T.font,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              transition: "all 0.15s"
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-            Add Deal
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => void loadRows()}
+          disabled={loading}
+          style={{
+            backgroundColor: T.rowBg,
+            color: T.textMid,
+            border: `1.5px solid ${T.border}`,
+            borderRadius: T.radiusMd,
+            padding: "10px 18px",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: loading ? "wait" : "pointer",
+            fontFamily: T.font,
+          }}
+        >
+          Refresh
+        </button>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+      {loadError && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "12px 16px",
+            borderRadius: T.radiusMd,
+            background: "#fef2f2",
+            color: "#b91c1c",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {loadError} — Run the SQL migration <code style={{ fontSize: 12 }}>sql/daily_deal_flow.sql</code> in Supabase if the table is missing.
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
         {[
-          { label: "Total Earned (YTD)", value: `$${(total * 8.4).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`, color: T.blue },
-          { label: "Paid This Month",    value: `$${paid.toFixed(2)}`,    color: "#16a34a" },
-          { label: "Pending Payment",    value: `$${pending.toFixed(2)}`, color: "#ca8a04" },
-          { label: "Avg Commission",     value: `$${(total / COMMISSIONS.length).toFixed(0)}`, color: "#7c3aed" },
+          { label: "Total entries", value: String(rows.length), color: T.blue },
+          { label: "Today", value: String(totalToday), color: "#16a34a" },
+          { label: "Filtered", value: String(filtered.length), color: "#7c3aed" },
         ].map(({ label, value, color }) => (
-          <div key={label} style={{ backgroundColor: T.cardBg, borderRadius: T.radiusLg, padding: "18px 20px", boxShadow: T.shadowSm, borderLeft: `4px solid ${color}` }}>
+          <div
+            key={label}
+            style={{
+              backgroundColor: T.cardBg,
+              borderRadius: T.radiusLg,
+              padding: "18px 20px",
+              boxShadow: T.shadowSm,
+              borderLeft: `4px solid ${color}`,
+            }}
+          >
             <p style={{ margin: "0 0 6px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{label}</p>
             <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color }}>{value}</p>
           </div>
@@ -218,138 +157,84 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
       <DataGrid
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search deals, clients…"
-        filters={
-          <>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-              <option value="All">All Statuses</option>
-              {["Approved", "Under Review", "Pending Docs", "Submitted", "Declined"].map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-              <option value="All">All Agents</option>
-              {agents.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-              <option value="All">All Policies</option>
-              {policyTypes.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </>
-        }
-        activeFilters={
-          (filterStatus !== "All" || filterAgent !== "All" || filterType !== "All") ? (
-            <>
-              {filterStatus !== "All" && (
-                <FilterChip label={`Status: ${filterStatus}`} onClear={() => setFilterStatus("All")} />
-              )}
-              {filterAgent !== "All" && (
-                <FilterChip label={`Agent: ${filterAgent}`} onClear={() => setFilterAgent("All")} />
-              )}
-              {filterType !== "All" && (
-                <FilterChip label={`Policy: ${filterType}`} onClear={() => setFilterType("All")} />
-              )}
-
-              <button 
-                onClick={() => { setFilterStatus("All"); setFilterAgent("All"); setFilterType("All"); }}
-                style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", fontFamily: T.font, marginLeft: "auto" }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.textDecoration = "underline"}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.textDecoration = "none"}
-              >
-                Reset All
-              </button>
-            </>
-          ) : null
-        }
+        searchPlaceholder="Search name, lead id, center, date…"
+        filters={null}
+        activeFilters={search ? <FilterChip label={`Search: ${search}`} onClear={() => setSearch("")} /> : null}
         pagination={
-          <Pagination
-            page={page}
-            totalItems={filtered.length}
-            itemsPerPage={itemsPerPage}
-            itemLabel="deals"
-            onPageChange={setPage}
-          />
+          <Pagination page={page} totalItems={filtered.length} itemsPerPage={itemsPerPage} itemLabel="entries" onPageChange={setPage} />
         }
       >
         <Table
           data={paginated}
-          onRowClick={(d) => setViewingLead({ id: d.id, name: d.client })}
+          onRowClick={(r) =>
+            setViewingLead({ id: r.lead_unique_id || r.lead_id, name: r.lead_name })
+          }
           columns={[
             {
-              header: "Deal ID",
-              key: "id",
-              render: (d) => <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, textDecoration: "underline" }}>{d.id}</span>
+              header: "Date",
+              key: "flow_date",
+              render: (r) => (
+                <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark }}>
+                  {r.flow_date}
+                  <span style={{ display: "block", fontSize: 11, color: T.textMuted, fontWeight: 500 }}>
+                    {new Date(r.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </span>
+              ),
             },
             {
-              header: "Client",
-              key: "client",
-              render: (d) => <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{d.client}</span>
+              header: "Lead ID",
+              key: "lead_unique_id",
+              render: (r) => (
+                <span style={{ fontSize: 12, fontWeight: 700, color: T.blue }}>{r.lead_unique_id || "—"}</span>
+              ),
             },
             {
-              header: "Policy Type",
-              key: "policyType",
-              render: (d) => {
-                const pc = POLICY_CONFIG[d.policyType];
-                return <span style={{ backgroundColor: pc.bg, color: pc.color, borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>{d.policyType}</span>;
-              }
+              header: "Name",
+              key: "lead_name",
+              render: (r) => <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{r.lead_name}</span>,
             },
             {
-              header: "Agent",
-              key: "agent",
-              render: (d) => (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: "50%", backgroundColor: d.agentColor, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 800, flexShrink: 0 }}>{d.agent.split(" ").map(n=>n[0]).join("")}</div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: T.textMid }}>{d.agent}</span>
-                </div>
-              )
-            },
-            {
-              header: "Carrier",
-              key: "carrier",
-              render: (d) => <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>{d.carrier}</span>
-            },
-            {
-              header: "Premium",
-              key: "premium",
-              render: (d) => <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>${d.premium.toLocaleString()}</span>
-            },
-            {
-              header: "Submitted",
-              key: "submittedAt",
-              render: (d) => <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{d.submittedAt}</span>
-            },
-            {
-              header: "Status",
-              key: "status",
-              render: (d) => {
-                const sc = STATUS_CONFIG[d.status];
-                return <span style={{ backgroundColor: "transparent", color: sc.color, border: `1px solid ${sc.color}44`, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{d.status}</span>;
-              }
+              header: "Center",
+              key: "center_name",
+              render: (r) => (
+                <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{r.center_name || "—"}</span>
+              ),
             },
             {
               header: "Actions",
               key: "actions",
               align: "center",
-              render: (d) => (
+              render: (r) => (
                 <div onClick={(e) => e.stopPropagation()}>
                   <ActionMenu
-                    id={d.id}
+                    id={r.id}
                     activeId={activeMenu}
                     onToggle={setActiveMenu}
                     items={[
-                      { label: "View Details", onClick: () => setViewingLead({ id: d.id, name: d.client }) },
-                      { label: "Edit Deal", onClick: () => setEditingDeal(d) },
-                      { label: "Delete", danger: true },
+                      {
+                        label: "View lead",
+                        onClick: () => setViewingLead({ id: r.lead_unique_id || r.lead_id, name: r.lead_name }),
+                      },
                     ]}
                   />
                 </div>
-              )
-            }
+              ),
+            },
           ]}
         />
-        {filtered.length === 0 && (
-          <EmptyState title="No deals found" description="Try changing your search or active filters." compact />
+        {!loading && filtered.length === 0 && (
+          <EmptyState
+            title={rows.length === 0 ? "No daily deal entries yet" : "No matching entries"}
+            description={
+              rows.length === 0
+                ? "Submit a lead from Transfer Leads to populate this list."
+                : "Try a different search."
+            }
+            compact
+          />
         )}
       </DataGrid>
     </div>
   );
 }
-
