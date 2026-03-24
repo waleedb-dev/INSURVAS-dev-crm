@@ -401,9 +401,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                               </p>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: lead.agentColor, display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid #fff", boxShadow: "0 0 0 1px #e2e8f0", overflow: "hidden" }}>
-                                <span style={{ fontSize: 10, fontWeight: 800, color: "#fff" }}>{lead.agent}</span>
-                              </div>
                               <button 
                                 onClick={(e) => { e.stopPropagation(); setQuickEditLead(lead); }}
                                 style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -559,40 +556,42 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
 
       {/* Main Board Area */}
-      {viewMode === "kanban" ? renderKanbanBoard() : (
-        <DataGrid
-          search={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Search Opportunities..."
-          filters={
+      <DataGrid
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search Opportunities..."
+        filters={
+          <>
+            <select value={filterStage} onChange={(e) => setFilterStage(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+              <option value="All">All Stages</option>
+              {stages.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+              <option value="All">All Types</option>
+              {Object.keys(TYPE_COLORS).map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+              <option value="All">All Owners</option>
+              {Array.from(new Set(leads.map(l => l.agent))).map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </>
+        }
+        activeFilters={
+          (filterStage !== "All" || filterType !== "All" || filterAgent !== "All") && (
             <>
-              <select value={filterStage} onChange={(e) => setFilterStage(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-                <option value="All">All Stages</option>
-                {stages.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-                <option value="All">All Types</option>
-                {Object.keys(TYPE_COLORS).map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <select value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-                <option value="All">All Owners</option>
-                {Array.from(new Set(leads.map(l => l.agent))).map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
+              {filterStage !== "All" && <FilterChip label={`Stage: ${filterStage}`} onClear={() => setFilterStage("All")} />}
+              {filterType !== "All" && <FilterChip label={`Type: ${filterType}`} onClear={() => setFilterType("All")} />}
+              {filterAgent !== "All" && <FilterChip label={`Owner: ${filterAgent}`} onClear={() => setFilterAgent("All")} />}
             </>
-          }
-          activeFilters={
-            (filterStage !== "All" || filterType !== "All" || filterAgent !== "All") && (
-              <>
-                {filterStage !== "All" && <FilterChip label={`Stage: ${filterStage}`} onClear={() => setFilterStage("All")} />}
-                {filterType !== "All" && <FilterChip label={`Type: ${filterType}`} onClear={() => setFilterType("All")} />}
-                {filterAgent !== "All" && <FilterChip label={`Owner: ${filterAgent}`} onClear={() => setFilterAgent("All")} />}
-              </>
-            )
-          }
-          pagination={
+          )
+        }
+        pagination={
+          viewMode === "list" ? (
             <Pagination page={page} totalItems={filteredLeads.length} itemsPerPage={itemsPerPage} itemLabel="leads" onPageChange={setPage} />
-          }
-        >
+          ) : undefined
+        }
+      >
+        {viewMode === "kanban" ? renderKanbanBoard() : (
           <Table
             data={paginatedLeads}
             onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name })}
@@ -691,8 +690,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               }
             ]}
           />
-        </DataGrid>
-      )}
+        )}
+      </DataGrid>
  
       {/* Quick Edit Modal */}
       {quickEditLead && (
