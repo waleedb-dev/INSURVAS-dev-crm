@@ -146,7 +146,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
           </p>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h1>
           <p style={{ fontSize: 13, color: T.textMuted, margin: "8px 0 0", maxWidth: 560 }}>
-            Entries appear when a lead is submitted from Transfer Leads (BPO intake). Columns: date, lead id, name, and center.
+            Entries appear when a lead is submitted from Transfer Leads (BPO intake). Columns: lead id, date, name, and center.
           </p>
           {scopeHint && (
             <p style={{ fontSize: 12, color: T.blue, fontWeight: 700, margin: "10px 0 0", maxWidth: 560 }}>
@@ -215,7 +215,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
       <DataGrid
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search name, lead id, center, date…"
+        searchPlaceholder="Search lead id, name, center, date…"
         filters={null}
         activeFilters={search ? <FilterChip label={`Search: ${search}`} onClear={() => setSearch("")} /> : null}
         pagination={
@@ -229,6 +229,13 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
           }
           columns={[
             {
+              header: "Lead ID",
+              key: "lead_unique_id",
+              render: (r) => (
+                <span style={{ fontSize: 12, fontWeight: 700, color: T.blue }}>{r.lead_unique_id || "—"}</span>
+              ),
+            },
+            {
               header: "Date",
               key: "flow_date",
               render: (r) => (
@@ -238,13 +245,6 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
                     {new Date(r.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </span>
-              ),
-            },
-            {
-              header: "Lead ID",
-              key: "lead_unique_id",
-              render: (r) => (
-                <span style={{ fontSize: 12, fontWeight: 700, color: T.blue }}>{r.lead_unique_id || "—"}</span>
               ),
             },
             {
