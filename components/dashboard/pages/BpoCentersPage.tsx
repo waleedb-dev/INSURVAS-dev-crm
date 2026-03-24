@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import { T } from "@/lib/theme";
-import { Button, Dropdown, Input, Pagination, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
+import { Button, Dropdown, Input, Pagination, Table, DataGrid, FilterChip, EmptyState, Toast } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface UserLink {
@@ -47,6 +47,7 @@ export default function BpoCentersPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function buildCenterDetail(centerId: string, sourceCenters = centers, sourceUsers = users): CenterDetail | null {
@@ -218,9 +219,11 @@ export default function BpoCentersPage() {
 
     if (error) {
       console.error("Error updating center:", error);
+      setToast({ message: `Failed to save centre changes: ${error.message}`, type: "error" });
       return;
     }
 
+    setToast({ message: "Centre updated successfully.", type: "success" });
     await fetchDirectory();
   }
 
@@ -408,11 +411,11 @@ export default function BpoCentersPage() {
                         .update({ logo_url: publicUrl })
                         .eq("id", selectedCenter.id);
                       if (logoPersistError) {
-                        alert("Logo uploaded but failed to save to centre: " + logoPersistError.message);
+                        setToast({ message: "Logo uploaded but failed to save to centre: " + logoPersistError.message, type: "error" });
                       }
                     }
                   } else if (error) {
-                    alert('Logo upload failed: ' + error.message);
+                    setToast({ message: "Logo upload failed: " + error.message, type: "error" });
                   }
                   setLogoUploading(false);
                 }}
@@ -512,6 +515,7 @@ export default function BpoCentersPage() {
           </div>
 
         </div>
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>
     );
   }
@@ -641,6 +645,7 @@ export default function BpoCentersPage() {
           <EmptyState title="No centres found" description="Add a centre or adjust your search filters." compact />
         )}
       </DataGrid>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

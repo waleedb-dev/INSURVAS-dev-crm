@@ -88,12 +88,14 @@ export default function TransferLeadApplicationForm({
   onSaveDraft,
   initialData,
   submitButtonLabel,
+  centerName = ""
 }: {
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void;
   onSaveDraft?: (data: TransferLeadFormData) => void;
   initialData?: Partial<TransferLeadFormData>;
   submitButtonLabel?: string;
+  centerName?: string;
 }) {
   const supabase = getSupabaseBrowserClient();
   const [carriers, setCarriers] = useState<Array<{ id: number; name: string }>>([]);
@@ -171,7 +173,6 @@ export default function TransferLeadApplicationForm({
 
   const requiredMissing = useMemo(() => {
     const requiredKeys: Array<keyof TransferLeadFormData> = [
-      "leadValue", "leadSource",
       "submissionDate", "firstName", "lastName", "street1", "city", "state", "zipCode", "phone", "birthState",
       "dateOfBirth", "age", "social", "driverLicenseNumber", "existingCoverageLast2Years", "previousApplications2Years",
       "height", "weight", "doctorName", "tobaccoUse", "healthConditions", "medications", "monthlyPremium",
@@ -184,16 +185,18 @@ export default function TransferLeadApplicationForm({
   const phoneError = formData.phone.length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone);
 
   const computedLeadUniqueId = useMemo(() => {
-    const namePart = `${formData.firstName}${formData.lastName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+    // 2 number phones + three letter from names + SSN last 2 digits + center ki 2 letters
     const phoneDigits = formData.phone.replace(/\D/g, "");
+    const phone2 = phoneDigits.slice(0, 2);
+    const nameLetters = `${formData.firstName}${formData.lastName}`.replace(/[^a-zA-Z]/g, "").slice(0, 3).toLowerCase();
     const socialDigits = formData.social.replace(/\D/g, "");
-    if (!namePart || phoneDigits.length < 4 || socialDigits.length < 4) {
+    const ssn2 = socialDigits.slice(-2);
+    const center2 = (centerName || "").replace(/[^a-zA-Z]/g, "").slice(0, 2).toLowerCase();
+    if (!phone2 || nameLetters.length < 3 || ssn2.length < 2 || center2.length < 2) {
       return formData.leadUniqueId || "";
     }
-    const phoneLast4 = phoneDigits.slice(-4);
-    const socialLast4 = socialDigits.slice(-4);
-    return `${namePart}-${phoneLast4}-${socialLast4}`;
-  }, [formData.firstName, formData.lastName, formData.phone, formData.social, formData.leadUniqueId]);
+    return `${phone2}${nameLetters}${ssn2}${center2}`;
+  }, [formData.firstName, formData.lastName, formData.phone, formData.social, formData.leadUniqueId, centerName]);
 
   const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
@@ -226,17 +229,19 @@ export default function TransferLeadApplicationForm({
             <Field label="Lead Unique ID" full>
               <input value={computedLeadUniqueId} readOnly placeholder="Auto-generated from name + phone + SSN last 4" style={{ ...fieldStyle, backgroundColor: T.rowBg, color: T.textMuted }} />
             </Field>
-            <Field label="Lead Value *">
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
-                <input type="number" min="0" step="0.01" value={formData.leadValue} onChange={set("leadValue")} style={{ ...fieldStyle, paddingLeft: 28 }} />
-              </div>
-            </Field>
-            <Field label="Lead Source *">
-              <input value={formData.leadSource} readOnly style={{ ...fieldStyle, backgroundColor: T.rowBg, color: T.textMuted }} />
-            </Field>
             <Field label="Date of Submission *">
               <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyle} />
+            </Field>
+            <Field label="Phone Number *">
+              <input
+                placeholder="(000) 000-0000"
+                value={formData.phone}
+                onChange={set("phone")}
+                style={{ ...fieldStyle, borderColor: phoneError ? T.danger : T.border }}
+              />
+              <div style={{ fontSize: 11, color: phoneError ? T.danger : T.textMuted, marginTop: 4 }}>
+                {phoneError ? "Please enter a valid phone number. Format: (000) 000-0000." : "Format: (000) 000-0000."}
+              </div>
             </Field>
           </div>
         </Section>
@@ -272,17 +277,6 @@ export default function TransferLeadApplicationForm({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         }>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Phone Number *" full>
-              <input
-                placeholder="(000) 000-0000"
-                value={formData.phone}
-                onChange={set("phone")}
-                style={{ ...fieldStyle, borderColor: phoneError ? T.danger : T.border }}
-              />
-              <div style={{ fontSize: 11, color: phoneError ? T.danger : T.textMuted, marginTop: 4 }}>
-                {phoneError ? "Please enter a valid phone number. Format: (000) 000-0000." : "Format: (000) 000-0000."}
-              </div>
-            </Field>
             <Field label="Street Address *" full>
               <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyle} />
             </Field>

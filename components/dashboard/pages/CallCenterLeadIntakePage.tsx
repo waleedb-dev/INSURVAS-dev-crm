@@ -834,7 +834,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
             },
           ]}
         />
-        {!loading && filtered.length === 0 && (
+        {filtered.length === 0 && (
           <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
         )}
       </DataGrid>
