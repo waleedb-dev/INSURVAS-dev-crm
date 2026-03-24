@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { T } from "@/lib/theme";
 import { Button, Dropdown, Input, Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -16,6 +16,10 @@ interface CenterRow {
   id: string;
   name: string;
   createdAt: string;
+  did: string | null;
+  slack_channel: string | null;
+  email: string | null;
+  logo_url: string | null;
   admin: UserLink | null;
   agentCount: number;
 }
@@ -40,6 +44,10 @@ export default function BpoCentersPage() {
   const [selectedAgentUserId, setSelectedAgentUserId] = useState("");
   const [filterAdmin, setFilterAdmin] = useState<"All" | "Assigned" | "Unassigned">("All");
   const itemsPerPage = 10;
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function buildCenterDetail(centerId: string, sourceCenters = centers, sourceUsers = users): CenterDetail | null {
     const center = sourceCenters.find((item) => item.id === centerId);
@@ -56,7 +64,7 @@ export default function BpoCentersPage() {
   async function fetchDirectory() {
     const [{ data: rolesData, error: rolesError }, { data: centersData, error: centersError }, { data: usersData, error: usersError }] = await Promise.all([
       supabase.from("roles").select("id, key"),
-      supabase.from("call_centers").select("id, name, created_at").order("name"),
+      supabase.from("call_centers").select("id, name, created_at, did, slack_channel, email, logo_url").order("name"),
       supabase.from("users").select("id, full_name, call_center_id, role_id"),
     ]);
 
@@ -91,6 +99,10 @@ export default function BpoCentersPage() {
         id: center.id,
         name: center.name,
         createdAt: new Date(center.created_at).toLocaleString(),
+        did: center.did ?? null,
+        slack_channel: center.slack_channel ?? null,
+        email: center.email ?? null,
+        logo_url: center.logo_url ?? null,
         admin,
         agentCount: agents.length,
       };
@@ -104,6 +116,7 @@ export default function BpoCentersPage() {
       const refreshed = buildCenterDetail(selectedCenter.id, centerRows, normalizedUsers);
       setSelectedCenter(refreshed);
       setEditingCenterName(refreshed?.name ?? "");
+      setLogoUrl(refreshed?.logo_url ?? null);
     }
 
     setLoading(false);
@@ -126,11 +139,16 @@ export default function BpoCentersPage() {
       id: "new",
       name: "",
       createdAt: "",
+      did: "",
+      slack_channel: "",
+      email: "",
+      logo_url: null,
       admin: null,
       agentCount: 0,
       agents: []
     } as any);
     setEditingCenterName("");
+    setLogoUrl(null);
     setView("edit");
   }
 
@@ -138,13 +156,20 @@ export default function BpoCentersPage() {
     const trimmed = editingCenterName.trim();
     if (!trimmed) return;
 
-    const { error } = await supabase.from("call_centers").insert([{ name: trimmed }]);
+    const { error } = await supabase.from("call_centers").insert([{
+      name: trimmed,
+      did: selectedCenter?.did?.trim() || null,
+      slack_channel: selectedCenter?.slack_channel?.trim() || null,
+      email: selectedCenter?.email?.trim() || null,
+      logo_url: logoUrl || selectedCenter?.logo_url || null,
+    }]);
     if (error) {
       console.error("Error creating center:", error);
       return;
     }
 
     setEditingCenterName("");
+    setLogoUrl(null);
     setSelectedCenter(null);
     setView("list");
     await fetchDirectory();
@@ -182,7 +207,13 @@ export default function BpoCentersPage() {
 
     const { error } = await supabase
       .from("call_centers")
-      .update({ name: editingCenterName.trim() })
+      .update({
+        name: editingCenterName.trim(),
+        did: selectedCenter.did?.trim() || null,
+        slack_channel: selectedCenter.slack_channel?.trim() || null,
+        email: selectedCenter.email?.trim() || null,
+        logo_url: logoUrl || selectedCenter.logo_url || null,
+      })
       .eq("id", selectedCenter.id);
 
     if (error) {
@@ -338,12 +369,62 @@ export default function BpoCentersPage() {
           {/* Sidebar Profiler */}
           <div style={{ width: 320, backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 24, padding: 32, textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,0.03)" }}>
             <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 20px" }}>
-              <div style={{ width: "100%", height: "100%", borderRadius: "50%", backgroundColor: T.blue, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 42, fontWeight: 800 }}>
-                {editingCenterName ? editingCenterName.charAt(0).toUpperCase() : "?"}
+              <div style={{ width: "100%", height: "100%", borderRadius: "50%", backgroundColor: T.blue, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 42, fontWeight: 800, overflow: "hidden" }}>
+                {logoUrl || selectedCenter?.logo_url ? (
+                  <img src={logoUrl || selectedCenter.logo_url} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  editingCenterName ? editingCenterName.charAt(0).toUpperCase() : "?"
+                )}
+                {logoUploading && (
+                  <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700 }}>Uploading...</div>
+                )}
               </div>
-              <div style={{ position: "absolute", bottom: 0, right: 0, width: 32, height: 32, backgroundColor: "#fff", borderRadius: "50%", border: `1.5px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                onChange={async e => {
+                  const file = e.target.files?.[0] || null;
+                  if (!file) return;
+                  setLogoUploading(true);
+                  // Upload to Supabase Storage
+                  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                  const uniqueName = `${Date.now()}_${crypto.randomUUID()}_${safeName}`;
+                  const { data, error } = await supabase.storage
+                    .from('bpo-logos')
+                    .upload(`logos/${uniqueName}`, file, { upsert: false });
+                  if (data) {
+                    const { data: publicUrlData } = supabase.storage
+                      .from('bpo-logos')
+                      .getPublicUrl(data.path);
+                    const publicUrl = publicUrlData.publicUrl;
+                    setLogoUrl(publicUrl);
+                    // Optionally update selectedCenter.logo_url for preview
+                    setSelectedCenter(prev => prev ? { ...prev, logo_url: publicUrl } : prev);
+                    if (selectedCenter?.id && selectedCenter.id !== "new") {
+                      const { error: logoPersistError } = await supabase
+                        .from("call_centers")
+                        .update({ logo_url: publicUrl })
+                        .eq("id", selectedCenter.id);
+                      if (logoPersistError) {
+                        alert("Logo uploaded but failed to save to centre: " + logoPersistError.message);
+                      }
+                    }
+                  } else if (error) {
+                    alert('Logo upload failed: ' + error.message);
+                  }
+                  setLogoUploading(false);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{ position: "absolute", bottom: 0, right: 0, width: 32, height: 32, backgroundColor: "#fff", borderRadius: "50%", border: `1.5px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.1)", cursor: "pointer", padding: 0 }}
+                title="Upload Logo"
+              >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </div>
+              </button>
             </div>
             <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 8px", color: T.textDark }}>{editingCenterName || "Unnamed Centre"}</h3>
             {/* Removed LOCATED AT and TOTAL AGENTS sections */}
@@ -481,6 +562,7 @@ export default function BpoCentersPage() {
             if (detail) {
               setSelectedCenter(detail);
               setEditingCenterName(detail.name);
+              setLogoUrl(detail.logo_url ?? null);
               setView("edit");
             }
           }}
@@ -528,6 +610,7 @@ export default function BpoCentersPage() {
                       if (detail) {
                         setSelectedCenter(detail);
                         setEditingCenterName(detail.name);
+                        setLogoUrl(detail.logo_url ?? null);
                         setView("edit");
                       }
                     }}
