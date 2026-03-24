@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { ActionMenu, Pagination, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
+import type { RoleKey } from "@/lib/auth/roles";
 
 type DailyDealRow = {
   id: string;
@@ -13,27 +15,76 @@ type DailyDealRow = {
   lead_unique_id: string | null;
   lead_name: string;
   center_name: string | null;
+  call_center_id?: string | null;
 };
+
+/** Roles that see all centers (org-wide Daily Deal Flow). */
+const DDF_GLOBAL_ROLES: readonly RoleKey[] = [
+  "system_admin",
+  "sales_manager",
+  "sales_agent_licensed",
+  "sales_agent_unlicensed",
+  "hr",
+  "accounting",
+];
+
+function isCallCenterScopedRole(role: RoleKey | null): role is "call_center_admin" | "call_center_agent" {
+  return role === "call_center_admin" || role === "call_center_agent";
+}
 
 export default function DailyDealFlowPage({ canProcessActions: _canProcessActions = true }: { canProcessActions?: boolean }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [rows, setRows] = useState<DailyDealRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [scopeHint, setScopeHint] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const itemsPerPage = 12;
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [viewingLead, setViewingLead] = useState<{ id: string; name: string } | null>(null);
 
-  const loadRows = async () => {
+  const loadRows = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await supabase
+    setScopeHint(null);
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user?.id) {
+      setRows([]);
+      setLoadError("Not signed in.");
+      setLoading(false);
+      return;
+    }
+
+    const role = await getCurrentUserPrimaryRole(supabase, session.user.id);
+    const { data: profile } = await supabase.from("users").select("call_center_id").eq("id", session.user.id).maybeSingle();
+    const userCenterId = profile?.call_center_id ?? null;
+
+    let q = supabase
       .from("daily_deal_flow")
-      .select("id, flow_date, created_at, lead_id, lead_unique_id, lead_name, center_name")
+      .select("id, flow_date, created_at, lead_id, lead_unique_id, lead_name, center_name, call_center_id")
       .order("flow_date", { ascending: false })
       .order("created_at", { ascending: false });
+
+    if (role && isCallCenterScopedRole(role)) {
+      if (!userCenterId) {
+        setRows([]);
+        setScopeHint("Your account has no call center assigned — no entries to show.");
+        setLoading(false);
+        return;
+      }
+      q = q.eq("call_center_id", userCenterId);
+      setScopeHint("Showing entries for your call center only.");
+    } else if (role && DDF_GLOBAL_ROLES.includes(role)) {
+      setScopeHint("Organization-wide — all centers.");
+    } else {
+      setScopeHint(null);
+    }
+
+    const { data, error } = await q;
 
     if (error) {
       setLoadError(error.message);
@@ -42,11 +93,11 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
       setRows((data || []) as DailyDealRow[]);
     }
     setLoading(false);
-  };
+  }, [supabase]);
 
   useEffect(() => {
     void loadRows();
-  }, [supabase]);
+  }, [loadRows]);
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const totalToday = useMemo(() => rows.filter((r) => r.flow_date === todayStr).length, [rows, todayStr]);
@@ -95,6 +146,11 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
           <p style={{ fontSize: 13, color: T.textMuted, margin: "8px 0 0", maxWidth: 560 }}>
             Entries appear when a lead is submitted from Transfer Leads (BPO intake). Columns: date, lead id, name, and center.
           </p>
+          {scopeHint && (
+            <p style={{ fontSize: 12, color: T.blue, fontWeight: 700, margin: "10px 0 0", maxWidth: 560 }}>
+              {scopeHint}
+            </p>
+          )}
         </div>
         <button
           type="button"
