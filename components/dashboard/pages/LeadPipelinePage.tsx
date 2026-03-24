@@ -25,6 +25,14 @@ interface Lead {
 
 type LeadRow = Record<string, unknown>;
 
+type LeadNoteRow = {
+  id: string;
+  body: string;
+  created_at: string;
+  created_by: string | null;
+  authorName?: string;
+};
+
 function formatPhoneDisplay(phone: string | null | undefined) {
   const raw = String(phone ?? "").replace(/\D/g, "");
   if (raw.length === 10) {
@@ -112,6 +120,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [quickEditError, setQuickEditError] = useState<string | null>(null);
   const [hideEmptyQuickFields, setHideEmptyQuickFields] = useState(false);
   const [quickEditStages, setQuickEditStages] = useState<Stage[]>([]);
+  const [leadNotes, setLeadNotes] = useState<LeadNoteRow[]>([]);
+  const [leadNotesLoading, setLeadNotesLoading] = useState(false);
+  const [leadNotesError, setLeadNotesError] = useState<string | null>(null);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [addingNote, setAddingNote] = useState(false);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
 
   const byStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
   const stageValue = (stage: Stage) => byStage(stage).reduce((s, l) => s + l.premium, 0);
@@ -354,6 +368,97 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     setQuickEditRow((prev) => (prev ? { ...prev, [key]: value } : null));
   };
 
+  const loadLeadNotes = useCallback(
+    async (leadId: string) => {
+      setLeadNotesLoading(true);
+      setLeadNotesError(null);
+      const { data: notes, error } = await supabase
+        .from("lead_notes")
+        .select("id, body, created_at, created_by")
+        .eq("lead_id", leadId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setLeadNotesError(error.message);
+        setLeadNotes([]);
+        setLeadNotesLoading(false);
+        return;
+      }
+
+      const rows = (notes || []) as Pick<LeadNoteRow, "id" | "body" | "created_at" | "created_by">[];
+      const creatorIds = [...new Set(rows.map((r) => r.created_by).filter(Boolean))] as string[];
+      let nameById: Record<string, string> = {};
+      if (creatorIds.length) {
+        const { data: users } = await supabase.from("users").select("id, full_name").in("id", creatorIds);
+        if (users) {
+          nameById = Object.fromEntries(
+            users.map((u: { id: string; full_name: string | null }) => [u.id, u.full_name?.trim() || "User"])
+          );
+        }
+      }
+
+      setLeadNotes(
+        rows.map((r) => ({
+          ...r,
+          authorName: r.created_by ? nameById[r.created_by] ?? "User" : "System",
+        }))
+      );
+      setLeadNotesLoading(false);
+    },
+    [supabase]
+  );
+
+  useEffect(() => {
+    if (!quickEditLead?.rowUuid || activeQuickEditTab !== "Notes") return;
+    void loadLeadNotes(quickEditLead.rowUuid);
+  }, [quickEditLead?.rowUuid, activeQuickEditTab, loadLeadNotes]);
+
+  useEffect(() => {
+    if (!quickEditLead) {
+      setSessionUserId(null);
+      return;
+    }
+    void supabase.auth.getSession().then(({ data }) => {
+      setSessionUserId(data.session?.user?.id ?? null);
+    });
+  }, [quickEditLead, supabase]);
+
+  const addLeadNote = async () => {
+    if (!quickEditLead?.rowUuid || !newNoteText.trim()) return;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user?.id) {
+      setLeadNotesError("You must be signed in to add a note.");
+      return;
+    }
+    setAddingNote(true);
+    setLeadNotesError(null);
+    const { error } = await supabase.from("lead_notes").insert({
+      lead_id: quickEditLead.rowUuid,
+      body: newNoteText.trim(),
+      created_by: session.user.id,
+    });
+    setAddingNote(false);
+    if (error) {
+      setLeadNotesError(error.message);
+      return;
+    }
+    setNewNoteText("");
+    await loadLeadNotes(quickEditLead.rowUuid);
+  };
+
+  const deleteLeadNote = async (noteId: string) => {
+    if (!window.confirm("Delete this note?")) return;
+    setLeadNotesError(null);
+    const { error } = await supabase.from("lead_notes").delete().eq("id", noteId);
+    if (error) {
+      setLeadNotesError(error.message);
+      return;
+    }
+    if (quickEditLead?.rowUuid) await loadLeadNotes(quickEditLead.rowUuid);
+  };
+
   const resolveStageId = useCallback(async (pipelineName: string, stageName: string) => {
     const { data: pipelineRow } = await supabase.from("pipelines").select("id").eq("name", pipelineName).maybeSingle();
     if (!pipelineRow?.id) return null;
@@ -399,6 +504,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     setQuickEditRow(null);
     setQuickEditError(null);
     setActiveQuickEditTab("Opportunity Details");
+    setLeadNotes([]);
+    setLeadNotesError(null);
+    setNewNoteText("");
   };
 
   const saveQuickEdit = async () => {
@@ -1291,14 +1399,126 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     </div>
                   </div>
                 ) : (
-                  <div style={{ maxWidth: 800 }}>
-                     <h3 style={{ margin: "0 0 24px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Notes (additional_information)</h3>
-                     <textarea
-                       value={String(quickEditRow.additional_information ?? "")}
-                       onChange={(e) => patchQuickEdit("additional_information", e.target.value)}
-                       placeholder="Notes stored on the lead…"
-                       style={{ width: "100%", height: 300, padding: "20px", borderRadius: "12px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 500, fontFamily: T.font, resize: "vertical", outline: "none" }}
-                     />
+                  <div style={{ maxWidth: 720 }}>
+                    <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Notes</h3>
+                    <p style={{ margin: "0 0 20px", fontSize: 12, color: T.textMuted, lineHeight: 1.5 }}>
+                      Each note is saved in <strong>lead_notes</strong> (newest first). Legacy text may still live in{" "}
+                      <strong>Opportunity Details → Additional information</strong> until you migrate it.
+                    </p>
+
+                    {leadNotesError && (
+                      <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>
+                        {leadNotesError}
+                        {leadNotesError.includes("relation") || leadNotesError.includes("lead_notes") ? (
+                          <span> — Apply <code style={{ fontSize: 12 }}>sql/lead_notes.sql</code> in Supabase.</span>
+                        ) : null}
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom: 20 }}>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Add a note</label>
+                      <textarea
+                        value={newNoteText}
+                        onChange={(e) => setNewNoteText(e.target.value)}
+                        placeholder="Type a note and click Add note — saves immediately."
+                        disabled={!canUpdateActions || addingNote}
+                        rows={4}
+                        style={{
+                          width: "100%",
+                          padding: "12px 14px",
+                          borderRadius: 10,
+                          border: `1.5px solid ${T.border}`,
+                          fontSize: 14,
+                          fontFamily: T.font,
+                          resize: "vertical",
+                          outline: "none",
+                          marginBottom: 10,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={!canUpdateActions || addingNote || !newNoteText.trim()}
+                        onClick={() => void addLeadNote()}
+                        style={{
+                          background: T.blue,
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 8,
+                          padding: "10px 20px",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: canUpdateActions && !addingNote && newNoteText.trim() ? "pointer" : "not-allowed",
+                          opacity: canUpdateActions && !addingNote && newNoteText.trim() ? 1 : 0.55,
+                        }}
+                      >
+                        {addingNote ? "Adding…" : "Add note"}
+                      </button>
+                    </div>
+
+                    <h4 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>History</h4>
+                    {leadNotesLoading ? (
+                      <p style={{ color: T.textMuted, fontSize: 14 }}>Loading notes…</p>
+                    ) : leadNotes.length === 0 ? (
+                      <p style={{ color: T.textMuted, fontSize: 14, padding: "16px", background: T.pageBg, borderRadius: 10, border: `1px dashed ${T.border}` }}>
+                        No notes yet. Add one above.
+                      </p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: 360, overflowY: "auto", paddingRight: 4 }}>
+                        {leadNotes.map((note) => (
+                          <div
+                            key={note.id}
+                            style={{
+                              border: `1px solid ${T.border}`,
+                              borderRadius: 10,
+                              padding: "12px 14px",
+                              background: "#fff",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
+                              <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>
+                                {formatTs(note.created_at)}
+                                <span style={{ marginLeft: 10, color: T.textMid }}>{note.authorName ?? "User"}</span>
+                              </div>
+                              {canUpdateActions && note.created_by && sessionUserId === note.created_by && (
+                                <button
+                                  type="button"
+                                  title="Delete your note"
+                                  onClick={() => void deleteLeadNote(note.id)}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    color: T.danger,
+                                    cursor: "pointer",
+                                    padding: 4,
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 14, color: T.textDark, lineHeight: 1.5, wordBreak: "break-word" }}>
+                              {note.body.length > 400 ? (
+                                <>
+                                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{note.body.slice(0, 400)}…</p>
+                                  <details style={{ marginTop: 8 }}>
+                                    <summary style={{ cursor: "pointer", fontSize: 12, color: T.blue, fontWeight: 700 }}>
+                                      Show full note
+                                    </summary>
+                                    <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap", color: T.textDark }}>{note.body}</p>
+                                  </details>
+                                </>
+                              ) : (
+                                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{note.body}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
                 ) : null}
