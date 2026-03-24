@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, DataGrid, FilterChip, Pagination, Table, Toast } from "@/components/ui";
+import { ActionMenu, DataGrid, FilterChip, Pagination, Table, Toast, EmptyState } from "@/components/ui";
 import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
 import LeadViewComponent from "./LeadViewComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -834,6 +834,9 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
             },
           ]}
         />
+        {!loading && filtered.length === 0 && (
+          <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
+        )}
       </DataGrid>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

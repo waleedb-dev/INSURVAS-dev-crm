@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, Pagination, Avatar, Badge, Table, DataGrid, FilterChip } from "@/components/ui";
+import { ActionMenu, Pagination, Avatar, Badge, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -591,11 +591,18 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           ) : undefined
         }
       >
-        {viewMode === "kanban" ? renderKanbanBoard() : (
-          <Table
-            data={paginatedLeads}
-            onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name })}
-            columns={[
+        {viewMode === "kanban" ? (
+          filteredLeads.length === 0 ? (
+            <EmptyState title="No opportunities found" description="Try changing your search or filters." compact />
+          ) : (
+            renderKanbanBoard()
+          )
+        ) : (
+          <>
+            <Table
+              data={paginatedLeads}
+              onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name })}
+              columns={[
               {
                 header: <input type="checkbox" style={{ width: 15, height: 15, accentColor: T.blue }} />,
                 key: "checkbox",
@@ -688,8 +695,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                   </div>
                 )
               }
-            ]}
-          />
+              ]}
+            />
+            {filteredLeads.length === 0 && (
+              <EmptyState title="No opportunities found" description="Try changing your search or filters." compact />
+            )}
+          </>
         )}
       </DataGrid>
  

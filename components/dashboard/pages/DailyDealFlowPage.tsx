@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
+import { ActionMenu, Pagination, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 import DealEditorComponent from "./DealEditorComponent";
 
@@ -345,6 +345,9 @@ export default function DailyDealFlowPage({ canProcessActions = true }: { canPro
             }
           ]}
         />
+        {filtered.length === 0 && (
+          <EmptyState title="No deals found" description="Try changing your search or active filters." compact />
+        )}
       </DataGrid>
     </div>
   );

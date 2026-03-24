@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { Button, Input, Pagination, Table, DataGrid } from "@/components/ui";
+import { Button, Input, Pagination, Table, DataGrid, EmptyState } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Carrier {
@@ -246,9 +246,7 @@ export default function CarrierManagementPage() {
         />
 
         {!loading && filteredCarriers.length === 0 && (
-          <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 700 }}>
-            No carriers found.
-          </div>
+          <EmptyState title="No carriers found" description="Add a carrier or adjust your search filters." compact />
         )}
       </DataGrid>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination, Table, DataGrid, FilterChip, Toast } from "@/components/ui";
+import { Pagination, Table, DataGrid, FilterChip, Toast, EmptyState } from "@/components/ui";
 import UserEditorComponent from "./UserEditorComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useMemo } from "react";
@@ -272,6 +272,9 @@ export default function UsersAccessPage(){
             }
           ]}
         />
+        {filtered.length === 0 && (
+          <EmptyState title="No users found" description="Try a different search term or role filter." compact />
+        )}
       </DataGrid>
 
 

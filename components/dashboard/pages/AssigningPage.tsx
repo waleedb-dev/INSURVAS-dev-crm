@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { T } from "@/lib/theme";
+import { EmptyState } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 
 interface Lead {
@@ -185,10 +186,11 @@ export default function AssigningPage({ canAssignActions = true }: { canAssignAc
               );
             })}
             {unassigned.length === 0 && (
-              <div style={{ textAlign: "center", padding: "40px 0" }}>
-                <div style={{ fontSize: 40, marginBottom: 10 }}>🎉</div>
-                <p style={{ margin: 0, fontSize: 14, color: T.textMuted, fontWeight: 600 }}>All leads have been assigned!</p>
-              </div>
+              <EmptyState
+                title="All leads have been assigned"
+                description="New unassigned leads will appear here automatically."
+                emoji="🎉"
+              />
             )}
           </div>
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import { T } from "@/lib/theme";
-import { Button, Dropdown, Input, Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
+import { Button, Dropdown, Input, Pagination, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface UserLink {
@@ -638,9 +638,7 @@ export default function BpoCentersPage() {
         />
 
         {!loading && filteredCenters.length === 0 && (
-          <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 700 }}>
-            No centres found.
-          </div>
+          <EmptyState title="No centres found" description="Add a centre or adjust your search filters." compact />
         )}
       </DataGrid>
     </div>
