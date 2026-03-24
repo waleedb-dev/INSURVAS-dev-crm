@@ -70,11 +70,7 @@ export default function AssigningPage({ canAssignActions = true }: { canAssignAc
 
   if (viewingLead) {
     return (
-      <LeadViewComponent
-        leadId={viewingLead.id}
-        leadName={viewingLead.name}
-        onBack={() => setViewingLead(null)}
-      />
+      <LeadViewComponent previewMode leadName={viewingLead.name} onBack={() => setViewingLead(null)} />
     );
   }
 

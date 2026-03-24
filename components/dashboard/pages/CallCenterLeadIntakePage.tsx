@@ -93,7 +93,7 @@ async function insertDailyDealFlowEntry(
 export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { canCreateLeads?: boolean }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [leads, setLeads] = useState<IntakeLead[]>([]);
-  const [viewingLead, setViewingLead] = useState<{ id: string; name: string } | null>(null);
+  const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
   const [editingLead, setEditingLead] = useState<{ rowId: string; formData: TransferLeadFormData } | null>(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("All");
@@ -837,7 +837,9 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       <>
         <LeadViewComponent
           leadId={viewingLead.id}
+          leadRowUuid={viewingLead.rowUuid}
           leadName={viewingLead.name}
+          canEditLead={canCreateLeads}
           onBack={() => setViewingLead(null)}
         />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -954,7 +956,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       >
         <Table
           data={paginated}
-          onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name })}
+          onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId })}
           columns={[
             {
               header: "Lead ID",
@@ -1078,7 +1080,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                     activeId={activeMenu}
                     onToggle={setActiveMenu}
                     items={[
-                      { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name }) },
+                      { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) },
                       { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
                       { label: "Delete", danger: true },
                     ]}

@@ -42,7 +42,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
   const [page, setPage] = useState(1);
   const itemsPerPage = 12;
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [viewingLead, setViewingLead] = useState<{ id: string; name: string } | null>(null);
+  const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
 
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -129,7 +129,9 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
     return (
       <LeadViewComponent
         leadId={viewingLead.id}
+        leadRowUuid={viewingLead.rowUuid}
         leadName={viewingLead.name}
+        canEditLead={_canProcessActions}
         onBack={() => setViewingLead(null)}
       />
     );
@@ -223,7 +225,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
         <Table
           data={paginated}
           onRowClick={(r) =>
-            setViewingLead({ id: r.lead_unique_id || r.lead_id, name: r.lead_name })
+            setViewingLead({ id: r.lead_unique_id || r.lead_id, name: r.lead_name, rowUuid: r.lead_id })
           }
           columns={[
             {
@@ -270,7 +272,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
                     items={[
                       {
                         label: "View lead",
-                        onClick: () => setViewingLead({ id: r.lead_unique_id || r.lead_id, name: r.lead_name }),
+                        onClick: () => setViewingLead({ id: r.lead_unique_id || r.lead_id, name: r.lead_name, rowUuid: r.lead_id }),
                       },
                     ]}
                   />

@@ -96,7 +96,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [viewingLead, setViewingLead] = useState<{ id: string, name: string } | null>(null);
+  const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<"Filters" | "Fields">("Filters");
   const [activeTab, setActiveTab] = useState("Opportunities");
@@ -731,7 +731,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       {stageLeads.map((lead) => (
                         <div
                           key={lead.rowUuid}
-                          onClick={() => setViewingLead({ id: lead.id, name: lead.name })}
+                          onClick={() => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowUuid })}
                           draggable={canUpdateActions}
                           onDragStart={() => { if (canUpdateActions) setDragRowUuid(lead.rowUuid); }}
                           onDragEnd={() => { setDragRowUuid(null); setDragOver(null); }}
@@ -841,7 +841,15 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   };
 
   if (viewingLead) {
-    return <LeadViewComponent leadId={viewingLead.id} leadName={viewingLead.name} onBack={() => setViewingLead(null)} />;
+    return (
+      <LeadViewComponent
+        leadId={viewingLead.id}
+        leadRowUuid={viewingLead.rowUuid}
+        leadName={viewingLead.name}
+        canEditLead={canUpdateActions}
+        onBack={() => setViewingLead(null)}
+      />
+    );
   }
 
   if (showAddLead) {
@@ -1081,7 +1089,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           <>
             <Table
               data={paginatedLeads}
-              onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name })}
+              onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowUuid })}
               columns={[
               {
                 header: <input type="checkbox" style={{ width: 15, height: 15, accentColor: T.blue }} />,
@@ -1166,7 +1174,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       activeId={activeMenu}
                       onToggle={setActiveMenu}
                       items={[
-                        { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name }) },
+                        { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowUuid }) },
                         { label: "Quick Edit", onClick: () => setQuickEditLead(lead) },
                         { label: "Edit Lead" },
                         { label: "Delete", danger: true },
