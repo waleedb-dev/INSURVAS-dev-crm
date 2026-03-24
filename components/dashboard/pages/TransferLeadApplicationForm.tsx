@@ -101,6 +101,7 @@ export default function TransferLeadApplicationForm({
     const [formData, setFormData] = useState<TransferLeadFormData>({
       leadUniqueId: "",
       leadValue: "",
+      leadSource: FIXED_BPO_LEAD_SOURCE,
       submissionDate: "",
       firstName: "",
       lastName: "",
@@ -139,6 +140,7 @@ export default function TransferLeadApplicationForm({
       stage: "Transfer API",
       isDraft: initialData?.isDraft ?? false,
       ...initialData,
+      leadSource: FIXED_BPO_LEAD_SOURCE, // always override to ensure string
     });
     // Always force leadSource to the fixed value
     useEffect(() => {

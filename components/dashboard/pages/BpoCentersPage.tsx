@@ -357,7 +357,7 @@ export default function BpoCentersPage() {
               </div>
             </div>
             <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 8px", color: T.textDark }}>{editingCenterName || "Unnamed Centre"}</h3>
-            <div style={{ display: "inline-block", padding: "6px 12px", backgroundColor: T.rowBg, borderRadius: 8, fontSize: 11, fontWeight: 800, color: T.textMuted, letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 24 }}>GLOBAL-BPO</div>
+            {/* Removed GLOBAL-BPO label */}
             
             <div style={{ borderTop: `1.5px solid ${T.borderLight}`, paddingTop: 24, textAlign: "left" }}>
               <div style={{ marginBottom: 16 }}>
@@ -376,10 +376,10 @@ export default function BpoCentersPage() {
             
             {/* Tabs Header */}
             <div style={{ display: "flex", borderBottom: `1.5px solid ${T.border}`, padding: "0 20px" }}>
-              {["Centre Info", "Admin & Access", "Routing Logic", "Metrics", "Config"].map((tab, i) => (
-                <div key={tab} style={{ padding: "20px 24px", fontSize: 14, fontWeight: 800, color: i === 0 ? T.blue : T.textMuted, position: "relative", cursor: "pointer" }}>
+              {["Centre Info"].map((tab, i) => (
+                <div key={tab} style={{ padding: "20px 24px", fontSize: 14, fontWeight: 800, color: T.blue, position: "relative", cursor: "pointer" }}>
                   {tab}
-                  {i === 0 && <div style={{ position: "absolute", bottom: -1.5, left: 0, right: 0, height: 3, backgroundColor: T.blue, borderRadius: "3px 3px 0 0" }} />}
+                  <div style={{ position: "absolute", bottom: -1.5, left: 0, right: 0, height: 3, backgroundColor: T.blue, borderRadius: "3px 3px 0 0" }} />
                 </div>
               ))}
             </div>

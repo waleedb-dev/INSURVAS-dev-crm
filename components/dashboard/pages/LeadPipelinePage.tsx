@@ -50,51 +50,11 @@ const TYPE_COLORS: Record<string, string> = {
   Auto: "#3b82f6", Home: "#9333ea", Life: "#16a34a", Health: "#ea580c", Commercial: "#64748b",
 };
 
-const INITIAL_LEADS: Lead[] = [
-  { id:"P-001", name:"James Whitfield",   type:"Auto",       premium:1240,  source:"Web",      agent:"SS", agentColor:"#4285f4", daysInStage:0, stage:"New Lead" },
-  { id:"P-002", name:"Maria Gonzalez",    type:"Home",       premium:2180,  source:"Referral", agent:"ET", agentColor:"#ec4899", daysInStage:1, stage:"New Lead" },
-  { id:"P-003", name:"Robert Chen",       type:"Life",       premium:4500,  source:"Walk-in",  agent:"LC", agentColor:"#8b5cf6", daysInStage:2, stage:"Contacted" },
-  { id:"P-004", name:"Angela Brooks",     type:"Health",     premium:3200,  source:"Phone",    agent:"BS", agentColor:"#0ea5e9", daysInStage:3, stage:"Contacted" },
-  { id:"P-005", name:"Tom Harrington",    type:"Commercial", premium:8750,  source:"Web",      agent:"RD", agentColor:"#f59e0b", daysInStage:4, stage:"Quoted" },
-  { id:"P-006", name:"Sarah Kim",         type:"Auto",       premium:980,   source:"Referral", agent:"OH", agentColor:"#f97316", daysInStage:2, stage:"Quoted" },
-  { id:"P-007", name:"Derek Mason",       type:"Home",       premium:1875,  source:"Email",    agent:"JP", agentColor:"#14b8a6", daysInStage:5, stage:"Presentation" },
-  { id:"P-008", name:"Priya Patel",       type:"Life",       premium:6200,  source:"Walk-in",  agent:"WM", agentColor:"#64748b", daysInStage:6, stage:"Presentation" },
-  { id:"P-009", name:"Carlos Rivera",     type:"Health",     premium:2900,  source:"Web",      agent:"SS", agentColor:"#4285f4", daysInStage:8, stage:"Won" },
-  { id:"P-010", name:"Linda Tran",        type:"Commercial", premium:12400, source:"Referral", agent:"ET", agentColor:"#ec4899", daysInStage:9, stage:"Won" },
-  { id:"P-011", name:"Nathan Ford",       type:"Auto",       premium:1100,  source:"Phone",    agent:"LC", agentColor:"#8b5cf6", daysInStage:12, stage:"Lost" },
-  { id:"P-012", name:"Grace Nakamura",    type:"Home",       premium:3450,  source:"Web",      agent:"BS", agentColor:"#0ea5e9", daysInStage:7, stage:"Quoted" },
-  { id:"P-013", name:"Kevin O'Brien",     type:"Life",       premium:5100,  source:"Referral", agent:"RD", agentColor:"#f59e0b", daysInStage:3, stage:"Contacted" },
-  { id:"P-014", name:"Amanda Foster",     type:"Auto",       premium:790,   source:"Web",      agent:"OH", agentColor:"#f97316", daysInStage:15, stage:"Lost" },
-  { id:"P-015", name:"William Scott",     type:"Auto",       premium:1850,  source:"Web",      agent:"SS", agentColor:"#4285f4", daysInStage:0, stage:"Attempted Contact" },
-  { id:"P-016", name:"Emily Watson",      type:"Home",       premium:2400,  source:"Referral", agent:"ET", agentColor:"#ec4899", daysInStage:1, stage:"Attempted Contact" },
-  { id:"P-017", name:"Michael Chang",     type:"Life",       premium:5200,  source:"Walk-in",  agent:"LC", agentColor:"#8b5cf6", daysInStage:2, stage:"Discovery Call" },
-  { id:"P-018", name:"Sophie Miller",     type:"Health",     premium:3100,  source:"Phone",    agent:"BS", agentColor:"#0ea5e9", daysInStage:3, stage:"Discovery Call" },
-  { id:"P-019", name:"David Wilson",      type:"Commercial", premium:9200,  source:"Web",      agent:"RD", agentColor:"#f59e0b", daysInStage:4, stage:"Needs Quote" },
-  { id:"P-020", name:"Rachel Green",      type:"Auto",       premium:1050,  source:"Referral", agent:"OH", agentColor:"#f97316", daysInStage:2, stage:"Needs Quote" },
-  { id:"P-021", name:"Chris Evans",       type:"Home",       premium:1950,  source:"Email",    agent:"JP", agentColor:"#14b8a6", daysInStage:5, stage:"Underwriting" },
-  { id:"P-022", name:"Jessica Alba",      type:"Life",       premium:6800,  source:"Walk-in",  agent:"WM", agentColor:"#64748b", daysInStage:6, stage:"Underwriting" },
-  { id:"P-023", name:"Tony Stark",        type:"Health",     premium:3400,  source:"Web",      agent:"SS", agentColor:"#4285f4", daysInStage:8, stage:"Bound" },
-  { id:"P-024", name:"Bruce Wayne",       type:"Commercial", premium:15000, source:"Referral", agent:"ET", agentColor:"#ec4899", daysInStage:9, stage:"Bound" },
-  { id:"P-025", name:"Peter Parker",      type:"Auto",       premium:850,   source:"Phone",    agent:"LC", agentColor:"#8b5cf6", daysInStage:1, stage:"New Lead" },
-  { id:"P-026", name:"Wanda Maximoff",    type:"Home",       premium:2900,  source:"Web",      agent:"BS", agentColor:"#0ea5e9", daysInStage:4, stage:"Contacted" },
-  { id:"P-027", name:"Steve Rogers",      type:"Life",       premium:4200,  source:"Referral", agent:"RD", agentColor:"#f59e0b", daysInStage:2, stage:"Presentation" },
-  { id:"P-028", name:"Natasha Romanoff",  type:"Auto",       premium:1300,  source:"Web",      agent:"OH", agentColor:"#f97316", daysInStage:1, stage:"Quoted" },
-  { id:"P-029", name:"Clint Barton",      type:"Health",     premium:2100,  source:"Phone",    agent:"JP", agentColor:"#14b8a6", daysInStage:3, stage:"Discovery Call" },
-  { id:"P-030", name:"Thor Odinson",      type:"Commercial", premium:25000, source:"Walk-in",  agent:"WM", agentColor:"#64748b", daysInStage:0, stage:"New Lead" },
-  { id:"P-031", name:"Sam Wilson",        type:"Auto",       premium:1150,  source:"Email",    agent:"SS", agentColor:"#4285f4", daysInStage:2, stage:"Attempted Contact" },
-  { id:"P-032", name:"Bucky Barnes",      type:"Home",       premium:3100,  source:"Web",      agent:"ET", agentColor:"#ec4899", daysInStage:5, stage:"Needs Quote" },
-  { id:"P-033", name:"James Rhodes",      type:"Life",       premium:5800,  source:"Referral", agent:"LC", agentColor:"#8b5cf6", daysInStage:1, stage:"Underwriting" },
-  { id:"P-034", name:"Scott Lang",        type:"Health",     premium:1900,  source:"Phone",    agent:"BS", agentColor:"#0ea5e9", daysInStage:4, stage:"Bound" },
-  { id:"P-035", name:"Hope van Dyne",     type:"Commercial", premium:11000, source:"Web",      agent:"RD", agentColor:"#f59e0b", daysInStage:3, stage:"Won" },
-  { id:"P-036", name:"Carol Danvers",     type:"Auto",       premium:1550,  source:"Referral", agent:"OH", agentColor:"#f97316", daysInStage:1, stage:"New Lead" },
-  { id:"P-037", name:"T'Challa Udaku",    type:"Home",       premium:4500,  source:"Walk-in",  agent:"JP", agentColor:"#14b8a6", daysInStage:2, stage:"Contacted" },
-  { id:"P-038", name:"Nick Fury",         type:"Life",       premium:8000,  source:"Email",    agent:"WM", agentColor:"#64748b", daysInStage:0, stage:"Discovery Call" },
-  { id:"P-039", name:"Maria Hill",        type:"Health",     premium:2700,  source:"Phone",    agent:"SS", agentColor:"#4285f4", daysInStage:3, stage:"Presentation" },
-];
+// const INITIAL_LEADS: Lead[] = [ ... ]; // Dummy data commented out for production
 
 export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdateActions?: boolean }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [leads, setLeads] = useState(INITIAL_LEADS);
+  const [leads, setLeads] = useState<Lead[]>([]); // Start with empty array, no dummy data
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<Stage | null>(null);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
@@ -102,6 +62,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [pipeline, setPipeline] = useState<string>("");
   const [pipelines, setPipelines] = useState<string[]>([]);
   const [stages, setStages] = useState<Stage[]>(DEFAULT_STAGES);
+  const [userCallCenterId, setUserCallCenterId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -154,24 +115,30 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     if (!stages.length) return;
 
     const loadLeadsForPipeline = async () => {
+      // get current user's call_center_id to scope leads
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id || null;
+      let callCenterId: string | null = null;
+      if (userId) {
+        const { data: profile } = await supabase.from("users").select("call_center_id").eq("id", userId).maybeSingle();
+        callCenterId = profile?.call_center_id ?? null;
+        setUserCallCenterId(callCenterId);
+      }
+
+      const selectCols = "id, lead_unique_id, first_name, last_name, lead_value, monthly_premium, product_type, lead_source, stage, is_draft, call_center_id";
+
       if (pipeline === "Transfer Portal") {
-        const { data, error } = await supabase
-          .from("leads")
-          .select("id, lead_unique_id, first_name, last_name, lead_value, monthly_premium, product_type, lead_source, stage, is_draft")
-          .eq("pipeline", "Transfer Portal")
-          .eq("is_draft", false)
-          .order("created_at", { ascending: false });
+        let q: any = supabase.from("leads").select(selectCols).eq("pipeline", "Transfer Portal").eq("is_draft", false).order("created_at", { ascending: false });
+        if (callCenterId) q = q.eq("call_center_id", callCenterId);
+
+        const { data, error } = await q;
 
         if (error || !data || data.length === 0) {
-          const remappedFallback = INITIAL_LEADS.map((lead, index) => ({
-            ...lead,
-            stage: stages[index % stages.length],
-          }));
-          setLeads(remappedFallback);
+          setLeads([]);
           return;
         }
 
-        const mapped: Lead[] = data.map((row: any, index: number) => {
+        const mapped: Lead[] = data.map((row: any) => {
           const fullName = `${row.first_name || ""} ${row.last_name || ""}`.trim() || "Unnamed Lead";
           const premiumValue = Number(row.lead_value ?? row.monthly_premium ?? 0) || 0;
           const stageName: Stage = row.stage && stages.includes(row.stage) ? row.stage : (stages[0] as Stage);
@@ -191,12 +158,40 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
         setLeads(mapped);
       } else {
-        const remapped = INITIAL_LEADS.map((lead, index) => ({
-          ...lead,
-          stage: stages[index % stages.length],
-        }));
+        // fetch leads for the selected pipeline scoped to the user's call center
+        if (!pipeline) {
+          setLeads([]);
+          return;
+        }
 
-        setLeads(remapped);
+        let q: any = supabase.from("leads").select(selectCols).eq("pipeline", pipeline).eq("is_draft", false).order("created_at", { ascending: false });
+        if (callCenterId) q = q.eq("call_center_id", callCenterId);
+
+        const { data, error } = await q;
+        if (error || !data) {
+          setLeads([]);
+          return;
+        }
+
+        const mapped: Lead[] = data.map((row: any) => {
+          const fullName = `${row.first_name || ""} ${row.last_name || ""}`.trim() || "Unnamed Lead";
+          const premiumValue = Number(row.lead_value ?? row.monthly_premium ?? 0) || 0;
+          const stageName: Stage = row.stage && stages.includes(row.stage) ? row.stage : (stages[0] as Stage);
+
+          return {
+            id: row.lead_unique_id || row.id,
+            name: fullName,
+            type: row.product_type || "",
+            premium: premiumValue,
+            source: row.lead_source || "",
+            agent: "SS",
+            agentColor: "#4285f4",
+            daysInStage: 0,
+            stage: stageName,
+          };
+        });
+
+        setLeads(mapped);
       }
     };
 
