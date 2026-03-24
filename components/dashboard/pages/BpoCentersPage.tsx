@@ -28,6 +28,17 @@ interface CenterDetail extends CenterRow {
   agents: UserLink[];
 }
 
+/** Up to 3 letters from the first word of the centre name (e.g. "Sellers-BPO" → "SEL"). */
+function centreNameInitials(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "?";
+  const firstWord = (trimmed.split(/[\s\-–—]+/)[0] ?? trimmed).replace(/[^a-zA-Z0-9]/g, "");
+  if (firstWord.length > 0) {
+    return firstWord.slice(0, 3).toUpperCase();
+  }
+  return trimmed.charAt(0).toUpperCase();
+}
+
 export default function BpoCentersPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [centers, setCenters] = useState<CenterRow[]>([]);
@@ -372,11 +383,11 @@ export default function BpoCentersPage() {
           {/* Sidebar Profiler */}
           <div style={{ width: 320, backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 24, padding: 32, textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,0.03)" }}>
             <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 20px" }}>
-              <div style={{ width: "100%", height: "100%", borderRadius: "50%", backgroundColor: T.blue, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 42, fontWeight: 800, overflow: "hidden" }}>
+              <div style={{ width: "100%", height: "100%", borderRadius: "50%", backgroundColor: T.blue, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, overflow: "hidden", letterSpacing: "0.02em" }}>
                 {logoUrl || selectedCenter?.logo_url ? (
                   <img src={logoUrl || selectedCenter.logo_url} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
-                  editingCenterName ? editingCenterName.charAt(0).toUpperCase() : "?"
+                  centreNameInitials(editingCenterName)
                 )}
                 {logoUploading && (
                   <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700 }}>Uploading...</div>
