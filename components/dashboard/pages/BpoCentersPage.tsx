@@ -385,7 +385,7 @@ export default function BpoCentersPage() {
             <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 20px" }}>
               <div style={{ width: "100%", height: "100%", borderRadius: "50%", backgroundColor: T.blue, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, overflow: "hidden", letterSpacing: "0.02em" }}>
                 {logoUrl || selectedCenter?.logo_url ? (
-                  <img src={logoUrl || selectedCenter.logo_url} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img src={logoUrl || selectedCenter?.logo_url || ""} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
                   centreNameInitials(editingCenterName)
                 )}

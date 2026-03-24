@@ -48,6 +48,16 @@ export type TransferLeadFormData = {
   isDraft?: boolean;
 };
 
+type SsnCheckState = "idle" | "checking" | "blocked" | "warning" | "clear" | "error";
+type DncStatus = "clear" | "dnc" | "tcpa" | "error" | "idle";
+type SsnDuplicateRule = {
+  stage_name: string;
+  ghl_stage: string | null;
+  message: string;
+  is_addable: boolean;
+  is_active: boolean;
+};
+
 const usStates = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
 ];
@@ -57,6 +67,53 @@ const productTypeOptions = [
 ];
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
+
+function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFormData {
+  const { leadSource: _ls, isDraft: draftFlag, ...fromInitial } = initial ?? {};
+  return {
+    leadUniqueId: "",
+    leadValue: "",
+    submissionDate: "",
+    firstName: "",
+    lastName: "",
+    street1: "",
+    street2: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    phone: "",
+    birthState: "",
+    dateOfBirth: "",
+    age: "",
+    social: "",
+    driverLicenseNumber: "",
+    existingCoverageLast2Years: "",
+    previousApplications2Years: "",
+    height: "",
+    weight: "",
+    doctorName: "",
+    tobaccoUse: "",
+    healthConditions: "",
+    medications: "",
+    monthlyPremium: "",
+    coverageAmount: "",
+    carrier: "",
+    productType: "",
+    draftDate: "",
+    beneficiaryInformation: "",
+    bankAccountType: "",
+    institutionName: "",
+    routingNumber: "",
+    accountNumber: "",
+    futureDraftDate: "",
+    additionalInformation: "",
+    pipeline: "Transfer Portal",
+    stage: "Transfer API",
+    ...fromInitial,
+    leadSource: FIXED_BPO_LEAD_SOURCE,
+    isDraft: draftFlag ?? false,
+  };
+}
 
 const fieldStyle: CSSProperties = {
   width: "100%",
@@ -103,6 +160,14 @@ export default function TransferLeadApplicationForm({
   const [conditionInput, setConditionInput] = useState("");
   const [medicationInput, setMedicationInput] = useState("");
   const [toolkitUrl, setToolkitUrl] = useState("https://insurancetoolkits.com/login");
+  const [dncChecking, setDncChecking] = useState(false);
+  const [dncStatus, setDncStatus] = useState<DncStatus>("idle");
+  const [dncMessage, setDncMessage] = useState("");
+  const [showDncModal, setShowDncModal] = useState(false);
+  const [checkedDncPhone, setCheckedDncPhone] = useState("");
+  const [ssnCheckState, setSsnCheckState] = useState<SsnCheckState>("idle");
+  const [ssnCheckMessage, setSsnCheckMessage] = useState("");
+  const [lastCheckedSsn, setLastCheckedSsn] = useState("");
   const [underwritingData, setUnderwritingData] = useState({
     tobaccoLast12Months: "",
     healthConditions: [] as string[],
@@ -115,50 +180,7 @@ export default function TransferLeadApplicationForm({
     monthlyPremium: "",
   });
 
-    const [formData, setFormData] = useState<TransferLeadFormData>({
-      leadUniqueId: "",
-      leadValue: "",
-      leadSource: FIXED_BPO_LEAD_SOURCE,
-      submissionDate: "",
-      firstName: "",
-      lastName: "",
-      street1: "",
-      street2: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      phone: "",
-      birthState: "",
-      dateOfBirth: "",
-      age: "",
-      social: "",
-      driverLicenseNumber: "",
-      existingCoverageLast2Years: "",
-      previousApplications2Years: "",
-      height: "",
-      weight: "",
-      doctorName: "",
-      tobaccoUse: "",
-      healthConditions: "",
-      medications: "",
-      monthlyPremium: "",
-      coverageAmount: "",
-      carrier: "",
-      productType: "",
-      draftDate: "",
-      beneficiaryInformation: "",
-      bankAccountType: "",
-      institutionName: "",
-      routingNumber: "",
-      accountNumber: "",
-      futureDraftDate: "",
-      additionalInformation: "",
-      pipeline: "Transfer Portal",
-      stage: "Transfer API",
-      isDraft: initialData?.isDraft ?? false,
-      ...initialData,
-      leadSource: FIXED_BPO_LEAD_SOURCE, // always override to ensure string
-    });
+  const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
     // Always force leadSource to the fixed value
     useEffect(() => {
       setFormData((prev) => ({ ...prev, leadSource: FIXED_BPO_LEAD_SOURCE }));
@@ -167,12 +189,7 @@ export default function TransferLeadApplicationForm({
 
   useEffect(() => {
     if (!initialData) return;
-
-    setFormData((prev) => ({
-      ...prev,
-      ...initialData,
-      leadSource: FIXED_BPO_LEAD_SOURCE,
-    }));
+    setFormData(buildFormState(initialData));
   }, [initialData]);
 
   useEffect(() => {
@@ -215,6 +232,169 @@ export default function TransferLeadApplicationForm({
 
   const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const checkDnc = async () => {
+    const cleanPhone = formData.phone.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      setDncStatus("error");
+      setDncMessage("Please enter a valid 10-digit US phone number first.");
+      return;
+    }
+
+    setDncChecking(true);
+    setDncStatus("idle");
+    setDncMessage("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("blacklist-check", {
+        body: { phone: cleanPhone },
+      });
+      if (error) {
+        throw new Error(error.message || "DNC check failed");
+      }
+
+      const payload = (data as Record<string, unknown> | null | undefined)?.data as Record<string, unknown> | undefined;
+      const isTcpa = payload?.is_tcpa === true || payload?.is_blacklisted === true;
+      const isDnc = payload?.is_dnc === true || isTcpa;
+      const status = (payload?.status as string | undefined)?.toLowerCase();
+
+      const resolvedStatus: DncStatus =
+        status === "tcpa" || isTcpa
+          ? "tcpa"
+          : status === "dnc" || isDnc
+            ? "dnc"
+            : "clear";
+
+      const message =
+        typeof payload?.message === "string"
+          ? payload.message
+          : resolvedStatus === "tcpa"
+            ? "WARNING: This number is blacklisted/TCPA flagged."
+            : resolvedStatus === "dnc"
+              ? "This number is on DNC. Proceed with verbal consent."
+              : "This number is clear. Please verify consent with customer.";
+
+      setDncStatus(resolvedStatus);
+      setDncMessage(message);
+      setCheckedDncPhone(formData.phone);
+      setShowDncModal(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to check DNC status.";
+      setDncStatus("error");
+      setDncMessage(message);
+    } finally {
+      setDncChecking(false);
+    }
+  };
+
+  const handleDncModalCancel = () => {
+    setShowDncModal(false);
+  };
+
+  const handleDncModalConfirm = () => {
+    setShowDncModal(false);
+    setDncMessage("Consent verified. You may proceed.");
+  };
+
+  const normalizeSsnDigits = (value: string) => value.replace(/\D/g, "");
+  const formatSsn = (digits: string) =>
+    digits.length === 9 ? `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}` : digits;
+
+  const isEditMode = (submitButtonLabel || "").toLowerCase().includes("update");
+
+  const checkSsnRules = async (rawSsn: string): Promise<{ blocked: boolean; warning: boolean }> => {
+    const ssnDigits = normalizeSsnDigits(rawSsn);
+    if (ssnDigits.length !== 9) {
+      setSsnCheckState("idle");
+      setSsnCheckMessage("");
+      return { blocked: false, warning: false };
+    }
+
+    if (!isEditMode && lastCheckedSsn === ssnDigits && (ssnCheckState === "blocked" || ssnCheckState === "warning" || ssnCheckState === "clear")) {
+      return { blocked: ssnCheckState === "blocked", warning: ssnCheckState === "warning" };
+    }
+
+    setSsnCheckState("checking");
+    setSsnCheckMessage("Checking SSN against existing leads...");
+
+    try {
+      const variants = Array.from(new Set([rawSsn.trim(), ssnDigits, formatSsn(ssnDigits)].filter(Boolean)));
+      const { data, error } = await supabase
+        .from("leads")
+        .select("id, first_name, last_name, stage, social, created_at")
+        .in("social", variants)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw new Error(error.message || "Unable to validate SSN.");
+      }
+
+      const matches = (data || []).filter((row) => normalizeSsnDigits(String(row.social || "")) === ssnDigits);
+      const { data: rulesData, error: rulesError } = await supabase
+        .from("ssn_duplicate_stage_rules")
+        .select("stage_name, ghl_stage, message, is_addable, is_active")
+        .eq("is_active", true);
+
+      if (rulesError) {
+        throw new Error(rulesError.message || "Unable to load SSN duplicate rules.");
+      }
+
+      const rules = ((rulesData || []) as SsnDuplicateRule[]).map((rule) => ({
+        ...rule,
+        stage_name: String(rule.stage_name || "").trim(),
+      }));
+
+      const ruleByStage = new Map<string, SsnDuplicateRule>();
+      rules.forEach((rule) => {
+        if (rule.stage_name) {
+          ruleByStage.set(rule.stage_name.toLowerCase(), rule);
+        }
+      });
+
+      const matchedLeadWithRule = matches
+        .map((row) => {
+          const stage = String(row.stage || "").trim();
+          return {
+            row,
+            rule: stage ? ruleByStage.get(stage.toLowerCase()) : undefined,
+          };
+        })
+        .filter((item) => Boolean(item.rule));
+
+      const blockedLead = matchedLeadWithRule.find((item) => item.rule && item.rule.is_addable === false);
+      const warningLead = matchedLeadWithRule.find((item) => item.rule && item.rule.is_addable === true);
+
+      setLastCheckedSsn(ssnDigits);
+
+      if (blockedLead?.rule) {
+        const leadName = `${blockedLead.row.first_name || ""} ${blockedLead.row.last_name || ""}`.trim() || "existing lead";
+        const ghlStage = blockedLead.rule.ghl_stage ? ` (GHL: ${blockedLead.rule.ghl_stage})` : "";
+        setSsnCheckState("blocked");
+        setSsnCheckMessage(
+          `${blockedLead.rule.message} Existing lead: ${leadName}.${ghlStage}`,
+        );
+        return { blocked: true, warning: false };
+      }
+
+      if (warningLead?.rule) {
+        const ghlStage = warningLead.rule.ghl_stage ? ` (GHL: ${warningLead.rule.ghl_stage})` : "";
+        setSsnCheckState("warning");
+        setSsnCheckMessage(
+          `${warningLead.rule.message}${ghlStage}`,
+        );
+        return { blocked: false, warning: true };
+      }
+
+      setSsnCheckState("clear");
+      setSsnCheckMessage("No blocked SSN conflict found.");
+      return { blocked: false, warning: false };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to validate SSN.";
+      setSsnCheckState("error");
+      setSsnCheckMessage(message);
+      return { blocked: false, warning: false };
+    }
+  };
 
   const addTag = (raw: string, key: "healthConditions" | "medications") => {
     const value = raw.trim();
@@ -312,12 +492,45 @@ export default function TransferLeadApplicationForm({
               <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyle} />
             </Field>
             <Field label="Phone Number *">
-              <input
-                placeholder="(000) 000-0000"
-                value={formData.phone}
-                onChange={set("phone")}
-                style={{ ...fieldStyle, borderColor: phoneError ? T.danger : T.border }}
-              />
+              <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+                <input
+                  placeholder="(000) 000-0000"
+                  value={formData.phone}
+                  onChange={set("phone")}
+                  style={{ ...fieldStyle, borderColor: phoneError ? T.danger : T.border, flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void checkDnc()}
+                  disabled={dncChecking}
+                  style={{
+                    borderRadius: 8,
+                    border: "none",
+                    padding: "0 14px",
+                    fontWeight: 700,
+                    cursor: dncChecking ? "not-allowed" : "pointer",
+                    backgroundColor: dncChecking ? "#d1d5db" : T.blue,
+                    color: "#fff",
+                    minWidth: 128,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {dncChecking ? "Checking..." : "Blacklist check"}
+                </button>
+              </div>
+              {(dncStatus === "error" || dncMessage === "Consent verified. You may proceed.") && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color:
+                      dncStatus === "error" ? T.danger : "#166534",
+                  }}
+                >
+                  {dncMessage}
+                </div>
+              )}
               <div style={{ fontSize: 11, color: phoneError ? T.danger : T.textMuted, marginTop: 4 }}>
                 {phoneError ? "Please enter a valid phone number. Format: (000) 000-0000." : "Format: (000) 000-0000."}
               </div>
@@ -343,7 +556,43 @@ export default function TransferLeadApplicationForm({
               <input value={formData.age} onChange={set("age")} style={fieldStyle} />
             </Field>
             <Field label="Social Security Number *">
-              <input value={formData.social} onChange={set("social")} placeholder="XXX-XX-XXXX" style={fieldStyle} />
+              <input
+                value={formData.social}
+                onChange={(e) => {
+                  set("social")(e);
+                  setLastCheckedSsn("");
+                  if (ssnCheckState !== "idle") {
+                    setSsnCheckState("idle");
+                    setSsnCheckMessage("");
+                  }
+                }}
+                onBlur={(e) => {
+                  if (!isEditMode) void checkSsnRules(e.target.value);
+                }}
+                placeholder="XXX-XX-XXXX"
+                style={fieldStyle}
+              />
+              {ssnCheckState !== "idle" && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    marginTop: 6,
+                    fontWeight: 700,
+                    color:
+                      ssnCheckState === "blocked"
+                        ? T.danger
+                        : ssnCheckState === "warning"
+                          ? "#b45309"
+                          : ssnCheckState === "error"
+                            ? T.danger
+                            : ssnCheckState === "checking"
+                              ? T.textMuted
+                              : "#166534",
+                  }}
+                >
+                  {ssnCheckMessage}
+                </div>
+              )}
             </Field>
             <Field label="Driver License Number *">
               <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyle} />
@@ -695,6 +944,105 @@ export default function TransferLeadApplicationForm({
         </div>
       )}
 
+      {showDncModal && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div
+            style={{
+              width: "min(820px, 95vw)",
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              border: dncStatus === "tcpa" ? `2px solid ${T.danger}` : `1px solid ${T.border}`,
+              padding: 24,
+            }}
+          >
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 30,
+                fontWeight: 800,
+                color: dncStatus === "tcpa" ? T.danger : dncStatus === "dnc" ? "#ea580c" : T.blue,
+              }}
+            >
+              {dncStatus === "tcpa" ? "⚠️ TCPA LITIGATOR WARNING" : dncStatus === "dnc" ? "📞 Do Not Call List" : "📞 Phone Verification"}
+            </h2>
+            <p style={{ fontSize: 16, color: T.textMuted, marginTop: 8 }}>
+              {dncStatus === "tcpa"
+                ? "This number is flagged as a TCPA Litigator. Proceeding may result in legal issues."
+                : "Please read the following script to the customer to obtain verbal consent."}
+            </p>
+
+            {dncStatus === "tcpa" && (
+              <div style={{ padding: "18px 0" }}>
+                <p style={{ color: T.danger, fontWeight: 800, textAlign: "center", fontSize: 30, margin: 0 }}>
+                  ⚠️ WARNING: This number is a TCPA LITIGATOR
+                </p>
+                <p style={{ fontSize: 20, color: "#6b7280", textAlign: "center", marginTop: 12 }}>
+                  This number has been flagged as a TCPA litigator. It is recommended to NOT proceed with this lead.
+                </p>
+              </div>
+            )}
+
+            {(dncStatus === "clear" || dncStatus === "dnc") && (
+              <div style={{ padding: "14px 0" }}>
+                {dncStatus === "dnc" && (
+                  <p style={{ color: "#ea580c", fontSize: 20, fontWeight: 800, marginBottom: 12 }}>
+                    ⚠️ This number is on the Do Not Call list
+                  </p>
+                )}
+                <div style={{ backgroundColor: "#f9fafb", padding: 20, borderRadius: 10, border: "2px solid #e5e7eb" }}>
+                  <p style={{ fontSize: 20, marginBottom: 12, fontWeight: 600 }}>
+                    Is your phone number <span style={{ color: T.blue, fontWeight: 800 }}>{checkedDncPhone}</span> on the Federal, National or State Do Not Call List?
+                  </p>
+                  <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 8 }}>
+                    (if a customer says no and we see it&apos;s on the DNC list we still have to take verbal consent)
+                  </p>
+                  <p style={{ fontSize: 20, marginBottom: 12, fontWeight: 600 }}>
+                    Sir/Ma&apos;am, even if your phone number is on the Federal National or State Do not call list do we still have your permission to call you and submit your application for insurance to{" "}
+                    <span style={{ color: T.blue, fontWeight: 800 }}>{formData.carrier || "selected carrier"}</span> - {new Date().toLocaleDateString()} via your phone number{" "}
+                    <span style={{ color: T.blue, fontWeight: 800 }}>{checkedDncPhone}</span>? And do we have your permission to call you on the same phone number in the future if needed?
+                  </p>
+                  <p style={{ fontSize: 16, color: "#4b5563", marginTop: 12, fontWeight: 700 }}>Make sure you get a clear YES on it.</p>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                onClick={handleDncModalCancel}
+                style={{
+                  background: "#fff",
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 8,
+                  padding: "10px 24px",
+                  fontSize: 18,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              {dncStatus !== "tcpa" && (
+                <button
+                  type="button"
+                  onClick={handleDncModalConfirm}
+                  style={{
+                    background: "#16a34a",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "10px 24px",
+                    fontSize: 18,
+                    cursor: "pointer",
+                  }}
+                >
+                  I Got Verbal Consent - Proceed
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Submit */}
       <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
         <button
@@ -722,7 +1070,13 @@ export default function TransferLeadApplicationForm({
           </button>
         )}
         <button
-          onClick={() => onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId })}
+          onClick={async () => {
+            if (!isEditMode) {
+              const result = await checkSsnRules(formData.social);
+              if (result.blocked) return;
+            }
+            onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
+          }}
           disabled={requiredMissing || phoneError}
           style={{
             backgroundColor: requiredMissing || phoneError ? T.border : T.blue,
