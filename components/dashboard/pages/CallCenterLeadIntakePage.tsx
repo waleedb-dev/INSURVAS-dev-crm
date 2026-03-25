@@ -264,9 +264,12 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name), users!submitted_by(full_name)")
       .order("created_at", { ascending: false });
 
-    const query = role === "call_center_admin" && userProfile?.call_center_id
-      ? baseQuery.eq("call_center_id", userProfile.call_center_id)
-      : baseQuery.eq("submitted_by", session.user.id);
+    const query =
+      role === "sales_manager" || role === "system_admin"
+        ? baseQuery
+        : role === "call_center_admin" && userProfile?.call_center_id
+          ? baseQuery.eq("call_center_id", userProfile.call_center_id)
+          : baseQuery.eq("submitted_by", session.user.id);
 
     const { data, error } = await query;
 
