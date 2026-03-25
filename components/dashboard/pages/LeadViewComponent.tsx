@@ -440,6 +440,27 @@ export default function LeadViewComponent({
     );
   }
 
+  const inputStyle = {
+    width: "100%",
+    padding: "12px 16px",
+    border: `1px solid ${T.border}`,
+    borderRadius: "8px",
+    fontSize: 14,
+    color: T.textDark,
+    fontFamily: T.font,
+    backgroundColor: "#fff",
+    outline: "none",
+    transition: "all 0.2s",
+  } as const;
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 13,
+    fontWeight: 600,
+    color: T.textDark,
+    marginBottom: 8,
+  } as const;
+
   return (
     <div style={{ animation: "fadeIn 0.3s ease-out", color: T.textDark }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
@@ -576,212 +597,267 @@ export default function LeadViewComponent({
                 )}
 
                 {!isCreation && leadRow && display && (
-                  <div
-                    style={{
-                      backgroundColor: T.pageBg,
-                      border: `1.5px solid ${T.borderLight}`,
-                      borderRadius: "16px",
-                      padding: "20px 22px",
-                      marginBottom: 24,
-                    }}
-                  >
-                    <p style={{ margin: "0 0 18px", fontSize: 12, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                      Core columns (leads)
-                    </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 34 }}>
+                    {(() => {
+                      const d = isEditing && editDraft ? editDraft : display;
+                      const ro = !isEditing;
+                      const roStyle = {
+                        ...inputStyle,
+                        backgroundColor: T.pageBg,
+                        color: T.textMid,
+                      } as const;
+                      const fieldStyle = ro ? roStyle : inputStyle;
 
-                    {!isEditing && (
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-                          gap: "18px 28px",
-                        }}
-                      >
-                        {[
-                          { key: "name", label: "first_name + last_name", value: fullName },
-                          { key: "phone", label: "phone", value: formatPhoneDisplay(display.phone as string | null | undefined) },
-                          { key: "lead_source", label: "lead_source", value: fmt(display.lead_source) },
-                          { key: "product_type", label: "product_type", value: fmt(display.product_type) },
-                          { key: "carrier", label: "carrier", value: fmt(display.carrier) },
-                          {
-                            key: "lead_value",
-                            label: "lead_value",
-                            value: (() => {
-                              const lv = display.lead_value;
-                              if (lv == null || lv === "") return "—";
-                              const n = Number(lv);
-                              return Number.isFinite(n) ? `$${n.toLocaleString()}` : fmt(lv);
-                            })(),
-                          },
-                          { key: "monthly_premium", label: "monthly_premium", value: fmt(display.monthly_premium) },
-                          { key: "coverage_amount", label: "coverage_amount", value: fmt(display.coverage_amount) },
-                          { key: "pipeline", label: "pipeline", value: fmt(display.pipeline) },
-                          { key: "stage", label: "stage", value: fmt(display.stage) },
-                          { key: "lead_unique_id", label: "lead_unique_id", value: fmt(display.lead_unique_id) },
-                          { key: "submission_date", label: "submission_date", value: fmt(display.submission_date) },
-                        ].map(({ key, label, value }) => (
-                          <div key={key}>
-                            <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, fontFamily: "ui-monospace, monospace" }}>{label}</p>
-                            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.textDark, wordBreak: "break-word" }}>{value}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                      const pipelineName = String(d?.pipeline ?? "");
+                      const stagesForPipeline =
+                        pipelines.find((p) => p.name === pipelineName)?.stages ||
+                        currentPipeline?.stages ||
+                        [];
 
-                    {isEditing && editDraft && (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>First name</label>
-                          <input
-                            value={String(editDraft.first_name ?? "")}
-                            onChange={(e) => patchDraft("first_name", e.target.value)}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Last name</label>
-                          <input
-                            value={String(editDraft.last_name ?? "")}
-                            onChange={(e) => patchDraft("last_name", e.target.value)}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Phone</label>
-                          <input
-                            value={String(editDraft.phone ?? "")}
-                            onChange={(e) => patchDraft("phone", e.target.value)}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Lead source</label>
-                          <input
-                            value={String(editDraft.lead_source ?? "")}
-                            onChange={(e) => patchDraft("lead_source", e.target.value)}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Product type</label>
-                          <input
-                            value={String(editDraft.product_type ?? "")}
-                            onChange={(e) => patchDraft("product_type", e.target.value)}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Carrier</label>
-                          <input
-                            value={String(editDraft.carrier ?? "")}
-                            onChange={(e) => patchDraft("carrier", e.target.value)}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Lead value</label>
-                          <input
-                            type="number"
-                            value={editDraft.lead_value != null && editDraft.lead_value !== "" ? String(editDraft.lead_value) : ""}
-                            onChange={(e) => patchDraft("lead_value", e.target.value === "" ? null : Number(e.target.value))}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Monthly premium</label>
-                          <input
-                            value={String(editDraft.monthly_premium ?? "")}
-                            onChange={(e) => patchDraft("monthly_premium", e.target.value)}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Coverage amount</label>
-                          <input
-                            value={String(editDraft.coverage_amount ?? "")}
-                            onChange={(e) => patchDraft("coverage_amount", e.target.value)}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Submission date</label>
-                          <input
-                            value={String(editDraft.submission_date ?? "")}
-                            onChange={(e) => patchDraft("submission_date", e.target.value)}
-                            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                          />
-                        </div>
-                        <div style={{ gridColumn: "1 / -1" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
-                            <div>
-                              <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Pipeline</label>
-                              <select
-                                value={String(editDraft.pipeline ?? "")}
-                                onChange={(e) => {
-                                  const pName = e.target.value;
-                                  const p = pipelines.find((pl) => pl.name === pName);
-                                  patchDraft("pipeline", pName);
-                                  if (p?.stages?.length) patchDraft("stage", p.stages[0]);
-                                }}
-                                style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                              >
-                                {pipelines.map((p) => (
-                                  <option key={p.name} value={p.name}>
-                                    {p.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Stage</label>
-                              <select
-                                value={String(editDraft.stage ?? "")}
-                                onChange={(e) => patchDraft("stage", e.target.value)}
-                                style={{ width: "100%", padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, fontWeight: 600 }}
-                              >
-                                {(pipelines.find((pl) => pl.name === String(editDraft.pipeline))?.stages || []).map((s) => (
-                                  <option key={s} value={s}>
-                                    {s}
-                                  </option>
-                                ))}
-                              </select>
+                      return (
+                        <>
+                          <div>
+                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Primary Identity</h3>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                              <div>
+                                <label style={labelStyle}>
+                                  Given Name <span style={{ color: T.danger }}>*</span>
+                                </label>
+                                <input
+                                  value={String(d?.first_name ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("first_name", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>
+                                  Family Name <span style={{ color: T.danger }}>*</span>
+                                </label>
+                                <input
+                                  value={String(d?.last_name ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("last_name", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <label style={labelStyle}>Phone Number</label>
+                                <input
+                                  value={String(d?.phone ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("phone", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <label style={labelStyle}>Lead source</label>
+                                <input
+                                  value={String(d?.lead_source ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("lead_source", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    )}
+
+                          <div>
+                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Policy & coverage</h3>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                              <div>
+                                <label style={labelStyle}>Product type</label>
+                                <input
+                                  value={String(d?.product_type ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("product_type", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Carrier</label>
+                                <input
+                                  value={String(d?.carrier ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("carrier", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Monthly premium</label>
+                                <input
+                                  value={String(d?.monthly_premium ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("monthly_premium", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Coverage amount</label>
+                                <input
+                                  value={String(d?.coverage_amount ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("coverage_amount", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <label style={labelStyle}>Tags</label>
+                                <input
+                                  value={
+                                    Array.isArray(d?.tags)
+                                      ? (d.tags as unknown[]).map(String).filter(Boolean).join(", ")
+                                      : typeof d?.tags === "string"
+                                        ? String(d.tags)
+                                        : ""
+                                  }
+                                  readOnly={ro}
+                                  onChange={(e) =>
+                                    patchDraft(
+                                      "tags",
+                                      e.target.value
+                                        .split(",")
+                                        .map((s) => s.trim())
+                                        .filter(Boolean)
+                                    )
+                                  }
+                                  style={fieldStyle}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Pipeline</h3>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                              <div>
+                                <label style={labelStyle}>Pipeline</label>
+                                <select
+                                  value={String(d?.pipeline ?? "")}
+                                  disabled={ro}
+                                  onChange={(e) => {
+                                    const pName = e.target.value;
+                                    const p = pipelines.find((pl) => pl.name === pName);
+                                    patchDraft("pipeline", pName);
+                                    if (p?.stages?.length) patchDraft("stage", p.stages[0]);
+                                  }}
+                                  style={(ro ? roStyle : inputStyle) as any}
+                                >
+                                  {pipelines.map((p) => (
+                                    <option key={p.name} value={p.name}>
+                                      {p.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Stage</label>
+                                <select
+                                  value={String(d?.stage ?? "")}
+                                  disabled={ro}
+                                  onChange={(e) => patchDraft("stage", e.target.value)}
+                                  style={(ro ? roStyle : inputStyle) as any}
+                                >
+                                  {stagesForPipeline.map((s) => (
+                                    <option key={s} value={s}>
+                                      {s}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Lead value</label>
+                                <input
+                                  value={d?.lead_value != null && d?.lead_value !== "" ? String(d.lead_value) : ""}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("lead_value", e.target.value === "" ? null : Number(e.target.value))}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Submission date</label>
+                                <input
+                                  value={String(d?.submission_date ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("submission_date", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Identifiers</h3>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                              <div>
+                                <label style={labelStyle}>lead_unique_id</label>
+                                <input value={String(d?.lead_unique_id ?? "")} readOnly style={roStyle} />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>id (PK)</label>
+                                <input value={String(rowUuid ?? "")} readOnly style={roStyle} />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Location</h3>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <label style={labelStyle}>Street 1</label>
+                                <input
+                                  value={String(d?.street1 ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("street1", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <label style={labelStyle}>Street 2</label>
+                                <input
+                                  value={String(d?.street2 ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("street2", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>City</label>
+                                <input
+                                  value={String(d?.city ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("city", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>State</label>
+                                <input
+                                  value={String(d?.state ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("state", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>ZIP</label>
+                                <input
+                                  value={String(d?.zip_code ?? "")}
+                                  readOnly={ro}
+                                  onChange={(e) => patchDraft("zip_code", e.target.value)}
+                                  style={fieldStyle}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
 
                 {!isCreation && leadRow && (
                   <>
-                    <h4 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 800 }}>
-                      Location <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>(street1, street2, city, state, zip_code)</span>
-                    </h4>
-                    {isEditing && editDraft ? (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 24 }}>
-                        <input placeholder="Street line 1" value={String(editDraft.street1 ?? "")} onChange={(e) => patchDraft("street1", e.target.value)} style={{ padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }} />
-                        <input placeholder="Street line 2" value={String(editDraft.street2 ?? "")} onChange={(e) => patchDraft("street2", e.target.value)} style={{ padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }} />
-                        <input placeholder="City" value={String(editDraft.city ?? "")} onChange={(e) => patchDraft("city", e.target.value)} style={{ padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }} />
-                        <input placeholder="State" value={String(editDraft.state ?? "")} onChange={(e) => patchDraft("state", e.target.value)} style={{ padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }} />
-                        <input placeholder="ZIP" value={String(editDraft.zip_code ?? "")} onChange={(e) => patchDraft("zip_code", e.target.value)} style={{ padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }} />
-                      </div>
-                    ) : (
-                      <p style={{ margin: "0 0 24px", fontSize: 14, color: T.textMid, lineHeight: 1.6 }}>
-                        {(
-                          [
-                            display?.street1,
-                            display?.street2,
-                            [display?.city, display?.state].filter(Boolean).join(", "),
-                            display?.zip_code,
-                          ] as unknown[]
-                        )
-                          .map((x) => (x == null ? "" : String(x).trim()))
-                          .filter(Boolean)
-                          .join(" · ") || "—"}
-                      </p>
-                    )}
-
                     <h4 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 800 }}>
                       Row metadata <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>(created_at, updated_at)</span>
                     </h4>
