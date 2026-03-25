@@ -280,22 +280,28 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       return;
     }
 
-    const mapped: IntakeLead[] = (data || []).map((lead: Record<string, unknown>) => ({
-      rowId: lead.id,
-      submissionId: lead.submission_id || null,
-      id: lead.lead_unique_id || "N/A",
-      name: `${lead.first_name || ""} ${lead.last_name || ""}`.trim() || "Unnamed Lead",
-      phone: lead.phone || "",
-      premium: Number(lead.lead_value) || 0,
-      type: lead.product_type || "Transfer",
-      source: lead.lead_source || "Unknown",
-      centerName: lead.call_centers?.name || "Unassigned",
-      pipeline: lead.pipeline || "Transfer Portal",
-      stage: lead.stage || "Transfer API",
-      createdBy: lead.users?.full_name?.trim() || "Unknown",
-      createdAt: lead.created_at ? new Date(lead.created_at).toLocaleString() : "Just now",
-      isDraft: lead.is_draft ?? false,
-    }));
+    const mapped: IntakeLead[] = (data || []).map((lead: Record<string, unknown>) => {
+      const callCenterObj = lead.call_centers as { name?: unknown } | null | undefined;
+      const userObj = lead.users as { full_name?: unknown } | null | undefined;
+      const submissionIdRaw = lead.submission_id;
+
+      return {
+        rowId: typeof lead.id === "string" ? lead.id : String(lead.id ?? ""),
+        submissionId: typeof submissionIdRaw === "string" && submissionIdRaw.trim() !== "" ? submissionIdRaw : null,
+        id: typeof lead.lead_unique_id === "string" && lead.lead_unique_id.trim() !== "" ? lead.lead_unique_id : "N/A",
+        name: `${typeof lead.first_name === "string" ? lead.first_name : ""} ${typeof lead.last_name === "string" ? lead.last_name : ""}`.trim() || "Unnamed Lead",
+        phone: typeof lead.phone === "string" ? lead.phone : "",
+        premium: Number(lead.lead_value) || 0,
+        type: typeof lead.product_type === "string" && lead.product_type.trim() !== "" ? lead.product_type : "Transfer",
+        source: typeof lead.lead_source === "string" && lead.lead_source.trim() !== "" ? lead.lead_source : "Unknown",
+        centerName: typeof callCenterObj?.name === "string" && callCenterObj.name.trim() !== "" ? callCenterObj.name : "Unassigned",
+        pipeline: typeof lead.pipeline === "string" && lead.pipeline.trim() !== "" ? lead.pipeline : "Transfer Portal",
+        stage: typeof lead.stage === "string" && lead.stage.trim() !== "" ? lead.stage : "Transfer API",
+        createdBy: typeof userObj?.full_name === "string" && userObj.full_name.trim() !== "" ? userObj.full_name.trim() : "Unknown",
+        createdAt: lead.created_at ? new Date(String(lead.created_at)).toLocaleString() : "Just now",
+        isDraft: typeof lead.is_draft === "boolean" ? lead.is_draft : false,
+      };
+    });
 
     setLeads(mapped);
   };
