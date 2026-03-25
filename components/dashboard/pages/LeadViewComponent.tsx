@@ -583,18 +583,6 @@ export default function LeadViewComponent({
             {activeTab === "Overview" && (
               <div style={{ animation: "fadeInUp 0.3s ease-out" }}>
                 <h3 style={{ margin: "0 0 6px", fontSize: 20, fontWeight: 800 }}>Lead record</h3>
-                {!isCreation && leadRow && (
-                  <p style={{ margin: "0 0 20px", fontSize: 12, color: T.textMuted, fontWeight: 600, lineHeight: 1.5 }}>
-                    Columns from <code style={{ fontSize: 11 }}>public.leads</code> for this row (<code style={{ fontSize: 11 }}>id</code>
-                    {rowUuid ? (
-                      <>
-                        {" "}
-                        = <code style={{ fontSize: 11, wordBreak: "break-all" }}>{rowUuid}</code>
-                      </>
-                    ) : null}
-                    ).
-                  </p>
-                )}
 
                 {!isCreation && leadRow && display && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 34 }}>
@@ -787,20 +775,6 @@ export default function LeadViewComponent({
                           </div>
 
                           <div>
-                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Identifiers</h3>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                              <div>
-                                <label style={labelStyle}>lead_unique_id</label>
-                                <input value={String(d?.lead_unique_id ?? "")} readOnly style={roStyle} />
-                              </div>
-                              <div>
-                                <label style={labelStyle}>id (PK)</label>
-                                <input value={String(rowUuid ?? "")} readOnly style={roStyle} />
-                              </div>
-                            </div>
-                          </div>
-
-                          <div>
                             <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Location</h3>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                               <div style={{ gridColumn: "1 / -1" }}>
@@ -856,16 +830,7 @@ export default function LeadViewComponent({
                   </div>
                 )}
 
-                {!isCreation && leadRow && (
-                  <>
-                    <h4 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 800 }}>
-                      Row metadata <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>(created_at, updated_at)</span>
-                    </h4>
-                    <p style={{ margin: "0 0 6px", fontSize: 13, color: T.textMuted }}>
-                      created_at: {formatTs(leadRow.created_at)} · updated_at: {formatTs(leadRow.updated_at)}
-                    </p>
-                  </>
-                )}
+                {/* Row metadata intentionally hidden */}
 
                 {isCreation && (
                   <>
@@ -1005,62 +970,70 @@ export default function LeadViewComponent({
             {activeTab === "Policy & coverage" && !isCreation && (
               <div>
                 <h3 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800 }}>Policy & coverage</h3>
-                <p style={{ margin: "0 0 16px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
-                  Columns: <code style={{ fontSize: 11 }}>product_type</code>, <code style={{ fontSize: 11 }}>carrier</code>,{" "}
-                  <code style={{ fontSize: 11 }}>monthly_premium</code>, <code style={{ fontSize: 11 }}>coverage_amount</code>,{" "}
-                  <code style={{ fontSize: 11 }}>tags</code>.
-                </p>
-                {isEditing && editDraft ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 480 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, fontFamily: "ui-monospace, monospace" }}>monthly_premium</label>
-                    <input
-                      value={String(editDraft.monthly_premium ?? "")}
-                      onChange={(e) => patchDraft("monthly_premium", e.target.value)}
-                      style={{ padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }}
-                    />
-                    <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, fontFamily: "ui-monospace, monospace" }}>coverage_amount</label>
-                    <input
-                      value={String(editDraft.coverage_amount ?? "")}
-                      onChange={(e) => patchDraft("coverage_amount", e.target.value)}
-                      style={{ padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }}
-                    />
-                    <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, fontFamily: "ui-monospace, monospace" }}>carrier</label>
-                    <input
-                      value={String(editDraft.carrier ?? "")}
-                      onChange={(e) => patchDraft("carrier", e.target.value)}
-                      style={{ padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }}
-                    />
-                    <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, fontFamily: "ui-monospace, monospace" }}>tags</label>
-                    <input
-                      value={Array.isArray(editDraft.tags) ? (editDraft.tags as string[]).join(", ") : String(editDraft.tags ?? "")}
-                      onChange={(e) =>
-                        patchDraft(
-                          "tags",
-                          e.target.value
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter(Boolean)
-                        )
-                      }
-                      style={{ padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }}
-                    />
-                  </div>
-                ) : (
-                  <dl style={{ margin: 0, fontSize: 14 }}>
-                    <dt style={{ color: T.textMuted, fontWeight: 700, fontFamily: "ui-monospace, monospace" }}>product_type</dt>
-                    <dd style={{ margin: "4px 0 16px" }}>{fmt(display?.product_type)}</dd>
-                    <dt style={{ color: T.textMuted, fontWeight: 700, fontFamily: "ui-monospace, monospace" }}>monthly_premium</dt>
-                    <dd style={{ margin: "4px 0 16px" }}>{fmt(display?.monthly_premium)}</dd>
-                    <dt style={{ color: T.textMuted, fontWeight: 700, fontFamily: "ui-monospace, monospace" }}>coverage_amount</dt>
-                    <dd style={{ margin: "4px 0 16px" }}>{fmt(display?.coverage_amount)}</dd>
-                    <dt style={{ color: T.textMuted, fontWeight: 700, fontFamily: "ui-monospace, monospace" }}>carrier</dt>
-                    <dd style={{ margin: "4px 0 16px" }}>{fmt(display?.carrier)}</dd>
-                    <dt style={{ color: T.textMuted, fontWeight: 700, fontFamily: "ui-monospace, monospace" }}>tags</dt>
-                    <dd style={{ margin: "4px 0 16px" }}>
-                      {tags.length ? tags.join(", ") : "—"}
-                    </dd>
-                  </dl>
-                )}
+                {(() => {
+                  const d = isEditing && editDraft ? editDraft : display;
+                  const ro = !isEditing;
+                  const roStyle = { ...inputStyle, backgroundColor: T.pageBg, color: T.textMid } as const;
+                  const fieldStyle = ro ? roStyle : inputStyle;
+
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 900 }}>
+                      <div>
+                        <label style={labelStyle}>Product type</label>
+                        <input
+                          value={String(d?.product_type ?? "")}
+                          readOnly={ro}
+                          onChange={(e) => patchDraft("product_type", e.target.value)}
+                          style={fieldStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Carrier</label>
+                        <input
+                          value={String(d?.carrier ?? "")}
+                          readOnly={ro}
+                          onChange={(e) => patchDraft("carrier", e.target.value)}
+                          style={fieldStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Monthly premium</label>
+                        <input
+                          value={String(d?.monthly_premium ?? "")}
+                          readOnly={ro}
+                          onChange={(e) => patchDraft("monthly_premium", e.target.value)}
+                          style={fieldStyle}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Coverage amount</label>
+                        <input
+                          value={String(d?.coverage_amount ?? "")}
+                          readOnly={ro}
+                          onChange={(e) => patchDraft("coverage_amount", e.target.value)}
+                          style={fieldStyle}
+                        />
+                      </div>
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <label style={labelStyle}>Tags</label>
+                        <input
+                          value={tags.length ? tags.join(", ") : ""}
+                          readOnly={ro}
+                          onChange={(e) =>
+                            patchDraft(
+                              "tags",
+                              e.target.value
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean)
+                            )
+                          }
+                          style={fieldStyle}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
