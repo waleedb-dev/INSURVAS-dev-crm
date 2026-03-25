@@ -15,13 +15,13 @@ import {
 
 type DailyDealRow = {
   id: string;
-  flow_date: string;
+  date: string;
   created_at: string;
-  lead_id: string;
+  submission_id: string;
   lead_unique_id: string | null;
-  lead_name: string;
-  center_name: string | null;
-  call_center_id?: string | null;
+  insured_name: string | null;
+  lead_vendor: string | null;
+  lead_row_id: string | null;
 };
 
 /** Roles that see all centers (org-wide Daily Deal Flow). */
@@ -226,24 +226,14 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
     }
 
     const role = await getCurrentUserPrimaryRole(supabase, session.user.id);
-    const { data: profile } = await supabase.from("users").select("call_center_id").eq("id", session.user.id).maybeSingle();
-    const userCenterId = profile?.call_center_id ?? null;
-
     let q = supabase
       .from("daily_deal_flow")
-      .select("id, flow_date, created_at, lead_id, lead_unique_id, lead_name, center_name, call_center_id")
-      .order("flow_date", { ascending: false })
+      .select("id, date, created_at, submission_id, insured_name, lead_vendor")
+      .order("date", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (role && isCallCenterScopedRole(role)) {
-      if (!userCenterId) {
-        setRows([]);
-        setScopeHint("Your account has no call center assigned — no entries to show.");
-        setLoading(false);
-        return;
-      }
-      q = q.eq("call_center_id", userCenterId);
-      setScopeHint("Showing entries for your call center only.");
+      setScopeHint("Scoped by role policies.");
     } else if (role && DDF_GLOBAL_ROLES.includes(role)) {
       setScopeHint("Organization-wide — all centers.");
     } else {
@@ -255,7 +245,45 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
       setLoadError(error.message);
       setRows([]);
     } else {
-      setRows((data || []) as DailyDealRow[]);
+      const baseRows = ((data || []) as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id || ""),
+        date: String(row.date || ""),
+        created_at: String(row.created_at || ""),
+        submission_id: String(row.submission_id || ""),
+        insured_name: typeof row.insured_name === "string" ? row.insured_name : null,
+        lead_vendor: typeof row.lead_vendor === "string" ? row.lead_vendor : null,
+        lead_unique_id: null as string | null,
+        lead_row_id: null as string | null,
+      }));
+
+      const submissionIds = Array.from(new Set(baseRows.map((r) => r.submission_id).filter(Boolean)));
+      if (submissionIds.length > 0) {
+        const { data: leadsData } = await supabase
+          .from("leads")
+          .select("id, submission_id, lead_unique_id")
+          .in("submission_id", submissionIds);
+        const leadBySubmission = new Map(
+          (leadsData || []).map((l: Record<string, unknown>) => [
+            String(l.submission_id || ""),
+            {
+              id: typeof l.id === "string" ? l.id : String(l.id || ""),
+              lead_unique_id: typeof l.lead_unique_id === "string" ? l.lead_unique_id : null,
+            },
+          ]),
+        );
+        setRows(
+          baseRows.map((r) => {
+            const lead = leadBySubmission.get(r.submission_id);
+            return {
+              ...r,
+              lead_row_id: lead?.id || null,
+              lead_unique_id: lead?.lead_unique_id || null,
+            };
+          }),
+        );
+      } else {
+        setRows(baseRows);
+      }
     }
     setLoading(false);
   }, [supabase]);
@@ -265,7 +293,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
 
   // ── Centers list (derived) ──────────────────────────────────────────────────
   const centerOptions = useMemo(() => {
-    const names = [...new Set(rows.map((r) => r.center_name).filter(Boolean))] as string[];
+    const names = [...new Set(rows.map((r) => r.lead_vendor).filter(Boolean))] as string[];
     return [{ label: "All Centers", value: "all" }, ...names.map((n) => ({ label: n, value: n }))];
   }, [rows]);
 
@@ -279,18 +307,19 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
 
     return rows.filter((r) => {
       if (q && !(
-        r.lead_name.toLowerCase().includes(q) ||
+        (r.insured_name || "").toLowerCase().includes(q) ||
         (r.lead_unique_id || "").toLowerCase().includes(q) ||
-        (r.center_name || "").toLowerCase().includes(q) ||
-        r.flow_date.includes(q)
+        r.submission_id.toLowerCase().includes(q) ||
+        (r.lead_vendor || "").toLowerCase().includes(q) ||
+        r.date.includes(q)
       )) return false;
 
-      if (dateFilter === "today" && r.flow_date !== todayStr) return false;
-      if (dateFilter === "week" && new Date(r.flow_date) < weekAgo) return false;
-      if (dateFilter === "month" && new Date(r.flow_date) < monthAgo) return false;
-      if (fromDate && r.flow_date < fromDate) return false;
-      if (toDate && r.flow_date > toDate) return false;
-      if (centerFilter !== "all" && r.center_name !== centerFilter) return false;
+      if (dateFilter === "today" && r.date !== todayStr) return false;
+      if (dateFilter === "week" && new Date(r.date) < weekAgo) return false;
+      if (dateFilter === "month" && new Date(r.date) < monthAgo) return false;
+      if (fromDate && r.date < fromDate) return false;
+      if (toDate && r.date > toDate) return false;
+      if (centerFilter !== "all" && r.lead_vendor !== centerFilter) return false;
 
       return true;
     });
@@ -516,7 +545,10 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
         <div style={{ overflowX: "auto" }}>
           <Table
             data={paginated.map((r, i) => ({ ...r, _sno: (page - 1) * ITEMS_PER_PAGE + i + 1 }))}
-            onRowClick={(r) => setViewingLead({ id: r.lead_unique_id || r.lead_id, name: r.lead_name, rowUuid: r.lead_id })}
+            onRowClick={(r) => {
+              if (!r.lead_row_id) return;
+              setViewingLead({ id: r.lead_unique_id || r.submission_id, name: r.insured_name || "Unnamed Lead", rowUuid: r.lead_row_id });
+            }}
             columns={[
               {
                 header: "S.No",
@@ -528,10 +560,10 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
               },
               {
                 header: "Date",
-                key: "flow_date",
+                key: "date",
                 render: (r) => (
                   <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark }}>
-                    {new Date(r.flow_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}
+                    {new Date(r.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}
                     <span style={{ display: "block", fontSize: 11, color: T.textMuted, fontWeight: 500 }}>
                       {new Date(r.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                     </span>
@@ -540,24 +572,24 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
               },
               {
                 header: "Lead Vendor",
-                key: "center_name",
+                key: "lead_vendor",
                 render: (r) => (
-                  r.center_name
-                    ? <Badge variant="custom" label={r.center_name} bgColor={T.blueLight} color={T.blue} />
+                  r.lead_vendor
+                    ? <Badge variant="custom" label={r.lead_vendor} bgColor={T.blueLight} color={T.blue} />
                     : <span style={{ color: T.textMuted, fontSize: 13 }}>—</span>
                 ),
               },
               {
                 header: "Insured Name",
-                key: "lead_name",
-                render: (r) => <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{r.lead_name}</span>,
+                key: "insured_name",
+                render: (r) => <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{r.insured_name || "—"}</span>,
               },
               {
                 header: "Lead ID",
-                key: "lead_unique_id",
+                key: "submission_id",
                 render: (r) => (
                   <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, fontFamily: "monospace" }}>
-                    {r.lead_unique_id || "—"}
+                    {r.submission_id || "—"}
                   </span>
                 ),
               },
@@ -574,7 +606,10 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
                       items={[
                         {
                           label: "View lead",
-                          onClick: () => setViewingLead({ id: r.lead_unique_id || r.lead_id, name: r.lead_name, rowUuid: r.lead_id }),
+                          onClick: () => {
+                            if (!r.lead_row_id) return;
+                            setViewingLead({ id: r.lead_unique_id || r.submission_id, name: r.insured_name || "Unnamed Lead", rowUuid: r.lead_row_id });
+                          },
                         },
                       ]}
                     />

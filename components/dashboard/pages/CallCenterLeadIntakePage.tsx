@@ -133,14 +133,25 @@ function formatUsPhone(digits: string) {
 
 async function insertDailyDealFlowEntry(
   supabase: ReturnType<typeof getSupabaseBrowserClient>,
-  row: { leadId: string; leadUniqueId: string; leadName: string; centerName: string; callCenterId: string | null }
+  row: {
+    submissionId: string;
+    leadVendor: string;
+    leadName: string;
+    payload: TransferLeadFormData;
+  }
 ) {
+  const monthly = Number(row.payload.monthlyPremium);
+  const face = Number(row.payload.coverageAmount);
   const { error } = await supabase.from("daily_deal_flow").insert({
-    lead_id: row.leadId,
-    lead_unique_id: row.leadUniqueId || null,
-    lead_name: row.leadName,
-    center_name: row.centerName || null,
-    call_center_id: row.callCenterId,
+    submission_id: row.submissionId,
+    client_phone_number: row.payload.phone || null,
+    lead_vendor: row.leadVendor || null,
+    insured_name: row.leadName,
+    carrier: row.payload.carrier || null,
+    product_type: row.payload.productType || null,
+    draft_date: row.payload.draftDate || null,
+    monthly_premium: Number.isFinite(monthly) ? monthly : null,
+    face_amount: Number.isFinite(face) ? face : null,
   });
   if (error) console.warn("daily_deal_flow insert:", error.message);
 }
@@ -149,13 +160,14 @@ async function notifySlackTransferPortalLead(
   supabase: ReturnType<typeof getSupabaseBrowserClient>,
   params: {
     leadId: string;
+    submissionId: string;
     leadUniqueId: string;
     payload: TransferLeadFormData;
     callCenterName: string;
     authToken: string;
   }
 ) {
-  const { leadId, leadUniqueId, payload, callCenterName, authToken } = params;
+  const { leadId, submissionId, leadUniqueId, payload, callCenterName, authToken } = params;
   try {
     const { error } = await supabase.functions.invoke(SLACK_NOTIFICATION_EDGE_FUNCTION, {
       headers: {
@@ -163,7 +175,7 @@ async function notifySlackTransferPortalLead(
       },
       body: {
         event: "transfer_portal_lead_created",
-        submissionId: leadId,
+        submissionId: submissionId || leadId,
         lead_vendor: TRANSFER_PORTAL_LEAD_VENDOR,
         callCenterName: callCenterName.trim() || undefined,
         leadData: {
@@ -657,14 +669,14 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     if (insertedLead?.id) {
       const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
       await insertDailyDealFlowEntry(supabase, {
-        leadId: insertedLead.id,
-        leadUniqueId: leadUniqueId,
+        submissionId: generatedSubmissionId,
+        leadVendor: callCenterName,
         leadName,
-        centerName: callCenterName,
-        callCenterId: userProfile?.call_center_id ?? null,
+        payload,
       });
       void notifySlackTransferPortalLead(supabase, {
         leadId: insertedLead.id,
+        submissionId: generatedSubmissionId,
         leadUniqueId,
         payload,
         callCenterName,
@@ -764,14 +776,14 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     if (dupInserted?.id) {
       const leadName = `${pendingCreatePayload.firstName} ${pendingCreatePayload.lastName}`.trim() || "Unnamed Lead";
       await insertDailyDealFlowEntry(supabase, {
-        leadId: dupInserted.id,
-        leadUniqueId: leadUniqueId,
+        submissionId: generatedSubmissionId,
+        leadVendor: callCenterName,
         leadName,
-        centerName: callCenterName,
-        callCenterId: userProfile?.call_center_id ?? null,
+        payload: pendingCreatePayload,
       });
       void notifySlackTransferPortalLead(supabase, {
         leadId: dupInserted.id,
+        submissionId: generatedSubmissionId,
         leadUniqueId,
         payload: pendingCreatePayload,
         callCenterName,
