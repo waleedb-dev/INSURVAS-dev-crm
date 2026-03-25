@@ -68,12 +68,19 @@ function getInitials(name: string) {
 }
 
 function buildLeadUniqueId(payload: TransferLeadFormData): string {
-  const namePart = `${payload.firstName}${payload.lastName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const phoneDigits = payload.phone.replace(/\D/g, "");
-  const socialDigits = payload.social.replace(/\D/g, "");
-  const phoneLast4 = phoneDigits.slice(-4);
-  const socialLast4 = socialDigits.slice(-4);
-  return `${namePart}-${phoneLast4}-${socialLast4}`;
+  const phoneDigits = String(payload.phone || "").replace(/\D/g, "");
+  const ph2 = phoneDigits.slice(0, 2).padEnd(2, "0");
+
+  const carrierLetters = String(payload.carrier || "").replace(/[^A-Za-z]/g, "");
+  const car2 = carrierLetters.slice(0, 2).padEnd(2, "X");
+
+  const fn1 = String(payload.firstName || "").trim().charAt(0) || "X";
+  const ln1 = String(payload.lastName || "").trim().charAt(0) || "X";
+
+  const ssnDigits = String(payload.social || "").replace(/\D/g, "");
+  const ss2 = ssnDigits.slice(0, 2).padEnd(2, "0");
+
+  return `${ph2}${car2}${fn1}${ln1}${ss2}`.toUpperCase();
 }
 
 async function insertDailyDealFlowEntry(
