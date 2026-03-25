@@ -5,12 +5,22 @@ import { T } from "@/lib/theme";
 import { ActionMenu, DataGrid, FilterChip, Pagination, Table, Toast, EmptyState } from "@/components/ui";
 import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
 import LeadViewComponent from "./LeadViewComponent";
+import TransferLeadClaimModal from "./TransferLeadClaimModal";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
+import { useParams, useRouter } from "next/navigation";
+import {
+  applyClaimSelectionToSession,
+  fetchClaimAgents,
+  findOrCreateVerificationSession,
+  type ClaimLeadContext,
+  type ClaimSelections,
+} from "./transferLeadParity";
 
 type IntakeLead = {
   rowId: string;
   id: string;
+  submissionId: string | null;
   name: string;
   phone: string;
   premium: number;
@@ -35,6 +45,12 @@ type DuplicateLeadMatch = {
 };
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
+
+/** BPO name for Slack vendor channel mapping (must match `leadVendorChannelMapping` keys in `slack-notification`). */
+const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
+
+/** Must match deployed Edge Function name: `slack-notification` */
+const SLACK_NOTIFICATION_EDGE_FUNCTION = "slack-notification" as const;
 
 type SsnDuplicateRule = {
   stage_name: string;
@@ -116,8 +132,50 @@ async function insertDailyDealFlowEntry(
   if (error) console.warn("daily_deal_flow insert:", error.message);
 }
 
+async function notifySlackTransferPortalLead(
+  supabase: ReturnType<typeof getSupabaseBrowserClient>,
+  params: {
+    leadId: string;
+    leadUniqueId: string;
+    payload: TransferLeadFormData;
+    callCenterName: string;
+    authToken: string;
+  }
+) {
+  const { leadId, leadUniqueId, payload, callCenterName, authToken } = params;
+  try {
+    const { error } = await supabase.functions.invoke(SLACK_NOTIFICATION_EDGE_FUNCTION, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: {
+        event: "transfer_portal_lead_created",
+        submissionId: leadId,
+        lead_vendor: TRANSFER_PORTAL_LEAD_VENDOR,
+        callCenterName: callCenterName.trim() || undefined,
+        leadData: {
+          customer_full_name: `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead",
+          phone: payload.phone,
+          carrier: payload.carrier,
+          product_type: payload.productType,
+          draft_date: payload.draftDate,
+          monthly_premium: payload.monthlyPremium,
+          coverage_amount: payload.coverageAmount,
+          lead_unique_id: leadUniqueId,
+        },
+      },
+    });
+    if (error) console.warn("slack-notification:", error.message);
+  } catch (e) {
+    console.warn("slack-notification failed", e);
+  }
+}
+
 export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { canCreateLeads?: boolean }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const router = useRouter();
+  const params = useParams<{ role?: string }>();
+  const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
   const [leads, setLeads] = useState<IntakeLead[]>([]);
   const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
   const [editingLead, setEditingLead] = useState<{ rowId: string; formData: TransferLeadFormData } | null>(null);
@@ -140,6 +198,27 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
   const [dncDialogMessage, setDncDialogMessage] = useState<string>("");
   const [dncConsentApprovedPhoneDigits, setDncConsentApprovedPhoneDigits] = useState<string | null>(null);
   const [callCenterName, setCallCenterName] = useState("");
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [claimModalLoading, setClaimModalLoading] = useState(false);
+  const [claimLeadContext, setClaimLeadContext] = useState<ClaimLeadContext | null>(null);
+  const [claimAgents, setClaimAgents] = useState<{
+    bufferAgents: { id: string; name: string; roleKey: string }[];
+    licensedAgents: { id: string; name: string; roleKey: string }[];
+    retentionAgents: { id: string; name: string; roleKey: string }[];
+  }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
+  const [claimSelection, setClaimSelection] = useState<ClaimSelections>({
+    workflowType: "buffer",
+    bufferAgentId: null,
+    licensedAgentId: null,
+    retentionAgentId: null,
+    isRetentionCall: false,
+    retentionType: "",
+    retentionNotes: "",
+    quoteCarrier: "",
+    quoteProduct: "",
+    quoteCoverage: "",
+    quoteMonthlyPremium: "",
+  });
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -187,7 +266,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
     const baseQuery = supabase
       .from("leads")
-      .select("id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name), users!submitted_by(full_name)")
+      .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name), users!submitted_by(full_name)")
       .order("created_at", { ascending: false });
 
     const query = role === "call_center_admin" && userProfile?.call_center_id
@@ -201,8 +280,9 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       return;
     }
 
-    const mapped: IntakeLead[] = (data || []).map((lead: any) => ({
+    const mapped: IntakeLead[] = (data || []).map((lead: Record<string, unknown>) => ({
       rowId: lead.id,
+      submissionId: lead.submission_id || null,
       id: lead.lead_unique_id || "N/A",
       name: `${lead.first_name || ""} ${lead.last_name || ""}`.trim() || "Unnamed Lead",
       phone: lead.phone || "",
@@ -218,6 +298,59 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     }));
 
     setLeads(mapped);
+  };
+
+  const openClaimModalForLead = async (lead: IntakeLead) => {
+    setClaimLeadContext({
+      rowId: lead.rowId,
+      leadUniqueId: lead.id,
+      leadName: lead.name,
+      phone: lead.phone,
+      source: lead.source,
+      submissionId: lead.submissionId,
+    });
+    setClaimSelection({
+      workflowType: "buffer",
+      bufferAgentId: null,
+      licensedAgentId: null,
+      retentionAgentId: null,
+      isRetentionCall: false,
+      retentionType: "",
+      retentionNotes: "",
+      quoteCarrier: "",
+      quoteProduct: "",
+      quoteCoverage: "",
+      quoteMonthlyPremium: "",
+    });
+    setClaimModalOpen(true);
+    try {
+      const loaded = await fetchClaimAgents(supabase);
+      setClaimAgents(loaded);
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : "Failed to load claim agents.",
+        type: "error",
+      });
+    }
+  };
+
+  const handleClaimAndOpenLead = async () => {
+    if (!claimLeadContext) return;
+    setClaimModalLoading(true);
+    try {
+      const found = await findOrCreateVerificationSession(supabase, claimLeadContext, claimSelection);
+      await applyClaimSelectionToSession(supabase, found.sessionId, found.submissionId, claimSelection);
+      setClaimModalOpen(false);
+      await refreshLeads();
+      router.push(`/dashboard/${routeRole}/transfer-leads/${claimLeadContext.rowId}`);
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : "Failed to claim lead.",
+        type: "error",
+      });
+    } finally {
+      setClaimModalLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -329,7 +462,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       if (existingError) return null;
       return (
         (existing || []).find(
-          (row: any) => normalizePhoneDigits(String(row.phone || "")) === phoneDigits,
+          (row: { phone: string | null }) => normalizePhoneDigits(String(row.phone || "")) === phoneDigits,
         ) || null
       );
     };
@@ -477,6 +610,13 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
         centerName: callCenterName,
         callCenterId: userProfile?.call_center_id ?? null,
       });
+      void notifySlackTransferPortalLead(supabase, {
+        leadId: insertedLead.id,
+        leadUniqueId,
+        payload,
+        callCenterName,
+        authToken: session.access_token,
+      });
     }
 
     setToast({ message: "Lead saved successfully", type: "success" });
@@ -575,6 +715,13 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
         leadName,
         centerName: callCenterName,
         callCenterId: userProfile?.call_center_id ?? null,
+      });
+      void notifySlackTransferPortalLead(supabase, {
+        leadId: dupInserted.id,
+        leadUniqueId,
+        payload: pendingCreatePayload,
+        callCenterName,
+        authToken: session.access_token,
       });
     }
 
@@ -1263,6 +1410,9 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                     activeId={activeMenu}
                     onToggle={setActiveMenu}
                     items={[
+                      { label: "View Lead", onClick: () => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`) },
+                      { label: "Claim Call", onClick: () => void openClaimModalForLead(lead) },
+                      { label: "Claim Retention", onClick: () => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`) },
                       { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) },
                       { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
                       { label: "Delete", danger: true },
@@ -1279,6 +1429,18 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       </DataGrid>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      <TransferLeadClaimModal
+        open={claimModalOpen}
+        loading={claimModalLoading}
+        leadName={claimLeadContext?.leadName || ""}
+        agents={claimAgents}
+        selection={claimSelection}
+        onChange={setClaimSelection}
+        onClose={() => setClaimModalOpen(false)}
+        onSubmit={() => {
+          void handleClaimAndOpenLead();
+        }}
+      />
     </div>
   );
 }

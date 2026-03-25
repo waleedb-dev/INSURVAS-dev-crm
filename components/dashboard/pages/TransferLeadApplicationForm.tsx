@@ -256,13 +256,13 @@ export default function TransferLeadApplicationForm({
   const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
 
-  const checkPhoneDuplicate = async (): Promise<PhoneDuplicateMatch | null> => {
+  const checkPhoneDuplicate = async (): Promise<{ match: PhoneDuplicateMatch | null; isAddable: boolean }> => {
     const digits = normalizePhoneDigits(formData.phone);
     if (digits.length !== 10) {
       setPhoneDupMatch(null);
       setPhoneDupRuleMessage("");
       setPhoneDupIsAddable(true);
-      return null;
+      return { match: null, isAddable: true };
     }
 
     setPhoneDupChecking(true);
@@ -283,7 +283,7 @@ export default function TransferLeadApplicationForm({
         setPhoneDupMatch(null);
         setPhoneDupRuleMessage("No existing lead found for this phone number.");
         setPhoneDupIsAddable(true);
-        return null;
+        return { match: null, isAddable: true };
       }
 
       const { data: rulesData, error: rulesError } = await supabase
@@ -322,24 +322,24 @@ export default function TransferLeadApplicationForm({
       setPhoneDupMatch(mapped);
       setPhoneDupRuleMessage(`${baseMessage}${stage ? ` Stage: ${stage}.` : ""}${ghlStage}`);
       setPhoneDupIsAddable(rule?.is_addable ?? true);
-      return mapped;
+      return { match: mapped, isAddable: rule?.is_addable ?? true };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to check phone duplicates.";
       setPhoneDupMatch(null);
       setPhoneDupRuleMessage(message);
       setPhoneDupIsAddable(true);
-      return null;
+      return { match: null, isAddable: true };
     } finally {
       setPhoneDupChecking(false);
     }
   };
 
-  const checkDnc = async () => {
+  const checkDnc = async (): Promise<DncStatus> => {
     const cleanPhone = formData.phone.replace(/\D/g, "");
     if (cleanPhone.length !== 10) {
       setDncStatus("error");
       setDncMessage("Please enter a valid 10-digit US phone number first.");
-      return;
+      return "error";
     }
 
     setDncChecking(true);
@@ -348,18 +348,26 @@ export default function TransferLeadApplicationForm({
 
     try {
       const dup = await checkPhoneDuplicate();
-      if (dup) setShowPhoneDupModal(true);
+      if (dup.match) setShowPhoneDupModal(true);
 
-      const { data, error } = await supabase.functions.invoke("blacklist-check", {
+      // Support both existing blacklist-check and dnc-test response contracts.
+      const primary = await supabase.functions.invoke("blacklist-check", {
         body: { phone: cleanPhone },
       });
-      if (error) {
-        throw new Error(error.message || "DNC check failed");
-      }
+      const fallback = primary.error
+        ? await supabase.functions.invoke("dnc-test", { body: { mobileNumber: cleanPhone } })
+        : { data: null, error: null };
+      if (primary.error && fallback.error) throw new Error(primary.error.message || fallback.error.message || "DNC check failed");
+      const data = primary.error ? fallback.data : primary.data;
 
-      const payload = (data as Record<string, unknown> | null | undefined)?.data as Record<string, unknown> | undefined;
-      const isTcpa = payload?.is_tcpa === true || payload?.is_blacklisted === true;
-      const isDnc = payload?.is_dnc === true || isTcpa;
+      const outer = (data as Record<string, unknown> | null | undefined) ?? {};
+      const payload = (outer.data as Record<string, unknown> | undefined) ?? outer;
+      const litigator = String(payload?.litigator ?? "").toUpperCase();
+      const nationalDnc = String(payload?.national_dnc ?? "").toUpperCase();
+      const stateDnc = String(payload?.state_dnc ?? "").toUpperCase();
+      const dmaDnc = String(payload?.dma ?? "").toUpperCase();
+      const isTcpa = payload?.is_tcpa === true || payload?.is_blacklisted === true || litigator === "Y";
+      const isDnc = payload?.is_dnc === true || isTcpa || nationalDnc === "Y" || stateDnc === "Y" || dmaDnc === "Y";
       const status = (payload?.status as string | undefined)?.toLowerCase();
 
       const resolvedStatus: DncStatus =
@@ -382,10 +390,12 @@ export default function TransferLeadApplicationForm({
       setDncMessage(message);
       setCheckedDncPhone(formData.phone);
       setShowDncModal(true);
+      return resolvedStatus;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to check DNC status.";
       setDncStatus("error");
       setDncMessage(message);
+      return "error";
     } finally {
       setDncChecking(false);
     }
@@ -409,6 +419,16 @@ export default function TransferLeadApplicationForm({
     digits.length === 9 ? `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}` : digits;
 
   const isEditMode = (submitButtonLabel || "").toLowerCase().includes("update");
+  const duplicateBlocked = Boolean(phoneDupMatch && !phoneDupIsAddable);
+  const submitBlockMessage =
+    ssnCheckState === "blocked"
+      ? ssnCheckMessage
+      : dncStatus === "tcpa"
+        ? (dncMessage || "This number is flagged as TCPA/blacklisted. Submission is disabled.")
+        : duplicateBlocked
+          ? (phoneDupRuleMessage || "A matching lead exists and duplicate creation is not allowed.")
+          : "";
+  const submitDisabled = requiredMissing || phoneError || Boolean(submitBlockMessage);
 
   const checkSsnRules = async (rawSsn: string): Promise<{ blocked: boolean; warning: boolean }> => {
     const ssnDigits = normalizeSsnDigits(rawSsn);
@@ -604,7 +624,15 @@ export default function TransferLeadApplicationForm({
                 <input
                   placeholder="(000) 000-0000"
                   value={formData.phone}
-                  onChange={set("phone")}
+                  onChange={(e) => {
+                    set("phone")(e);
+                    setDncStatus("idle");
+                    setDncMessage("");
+                    setCheckedDncPhone("");
+                    setPhoneDupMatch(null);
+                    setPhoneDupRuleMessage("");
+                    setPhoneDupIsAddable(true);
+                  }}
                   style={{ ...fieldStyle, borderColor: phoneError ? T.danger : T.border, flex: 1 }}
                 />
                 <button
@@ -626,14 +654,14 @@ export default function TransferLeadApplicationForm({
                   {dncChecking || phoneDupChecking ? "Checking..." : "Blacklist check"}
                 </button>
               </div>
-              {(dncStatus === "error" || dncMessage === "Consent verified. You may proceed.") && (
+              {dncStatus !== "idle" && dncMessage && (
                 <div
                   style={{
                     marginTop: 6,
                     fontSize: 11,
                     fontWeight: 700,
                     color:
-                      dncStatus === "error" ? T.danger : "#166534",
+                      dncStatus === "error" || dncStatus === "tcpa" ? T.danger : dncStatus === "dnc" ? "#b45309" : "#166534",
                   }}
                 >
                   {dncMessage}
@@ -1238,32 +1266,59 @@ export default function TransferLeadApplicationForm({
             Save Draft
           </button>
         )}
+        {submitBlockMessage && (
+          <span
+            style={{
+              alignSelf: "center",
+              backgroundColor: "#fee2e2",
+              color: T.danger,
+              border: `1px solid ${T.danger}`,
+              borderRadius: 999,
+              padding: "6px 10px",
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: "0.2px",
+            }}
+          >
+            Blocked by compliance check
+          </span>
+        )}
         <button
           onClick={async () => {
             if (!isEditMode) {
               const result = await checkSsnRules(formData.social);
               if (result.blocked) return;
             }
+            const dup = await checkPhoneDuplicate();
+            if (dup.match) setShowPhoneDupModal(true);
+            if (dup.match && !dup.isAddable) return;
+            const dncResult = await checkDnc();
+            if (dncResult === "tcpa") return;
             onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
           }}
-          disabled={requiredMissing || phoneError}
+          disabled={submitDisabled}
           style={{
-            backgroundColor: requiredMissing || phoneError ? T.border : T.blue,
+            backgroundColor: submitDisabled ? T.border : T.blue,
             color: "#fff",
             border: "none",
             borderRadius: T.radiusMd,
             padding: "11px 28px",
             fontWeight: 800,
-            cursor: requiredMissing || phoneError ? "not-allowed" : "pointer",
+            cursor: submitDisabled ? "not-allowed" : "pointer",
             fontFamily: T.font,
             fontSize: 14,
-            boxShadow: requiredMissing || phoneError ? "none" : `0 4px 12px ${T.blue}44`,
+            boxShadow: submitDisabled ? "none" : `0 4px 12px ${T.blue}44`,
             transition: "all 0.15s",
           }}
         >
           {submitButtonLabel || "Submit Application"}
         </button>
       </div>
+      {submitBlockMessage && (
+        <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "right" }}>
+          {submitBlockMessage}
+        </div>
+      )}
     </div>
   );
 }
