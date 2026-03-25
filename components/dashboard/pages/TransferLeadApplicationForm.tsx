@@ -182,7 +182,7 @@ export default function TransferLeadApplicationForm({
   const [dncStatus, setDncStatus] = useState<DncStatus>("idle");
   const [dncMessage, setDncMessage] = useState("");
   const [phoneDupChecking, setPhoneDupChecking] = useState(false);
-  const [showPhoneDupModal, setShowPhoneDupModal] = useState(false);
+  const [showPhoneDupDetails, setShowPhoneDupDetails] = useState(false);
   const [phoneDupMatch, setPhoneDupMatch] = useState<PhoneDuplicateMatch | null>(null);
   const [phoneDupRuleMessage, setPhoneDupRuleMessage] = useState("");
   const [phoneDupIsAddable, setPhoneDupIsAddable] = useState(true);
@@ -346,7 +346,7 @@ export default function TransferLeadApplicationForm({
 
     try {
       const dup = await checkPhoneDuplicate();
-      if (dup.match) setShowPhoneDupModal(true);
+      if (dup.match) setShowPhoneDupDetails(true);
 
       // Always call BOTH edge functions and merge their outcomes.
       const [blacklistResult, dncTestResult] = await Promise.all([
@@ -450,8 +450,8 @@ export default function TransferLeadApplicationForm({
     }
   };
 
-  const handlePhoneDupModalClose = () => {
-    setShowPhoneDupModal(false);
+  const togglePhoneDupDetails = () => {
+    setShowPhoneDupDetails((prev) => !prev);
   };
 
   const normalizeSsnDigits = (value: string) => value.replace(/\D/g, "");
@@ -668,6 +668,7 @@ export default function TransferLeadApplicationForm({
                     setPhoneDupMatch(null);
                     setPhoneDupRuleMessage("");
                     setPhoneDupIsAddable(true);
+                    setShowPhoneDupDetails(false);
                   }}
                   style={{ ...fieldStyle, borderColor: phoneError ? T.danger : T.border, flex: 1 }}
                 />
@@ -709,6 +710,61 @@ export default function TransferLeadApplicationForm({
             </Field>
           </div>
         </Section>
+
+        {phoneDupMatch && (
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              border: !phoneDupIsAddable ? `2px solid ${T.danger}` : `1px solid ${T.border}`,
+              padding: 16,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: !phoneDupIsAddable ? T.danger : "#ea580c" }}>
+                  📞 Phone Duplicate Found
+                </h3>
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: T.textMuted }}>
+                  {phoneDupRuleMessage || "A lead already exists with this phone number."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={togglePhoneDupDetails}
+                style={{
+                  background: "#fff",
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {showPhoneDupDetails ? "Hide Details" : "Show Details"}
+              </button>
+            </div>
+            {showPhoneDupDetails && (
+              <div style={{ marginTop: 12, backgroundColor: "#f9fafb", padding: 12, borderRadius: 10, border: "1px solid #e5e7eb" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: T.textDark }}>
+                  {(phoneDupMatch.first_name || "")} {(phoneDupMatch.last_name || "")}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                  Lead ID: {phoneDupMatch.lead_unique_id || phoneDupMatch.id}
+                </div>
+                <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                  Stage: {phoneDupMatch.stage || "Unknown"}
+                </div>
+                {phoneDupMatch.created_at && (
+                  <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                    Created: {new Date(phoneDupMatch.created_at).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Section: Personal Info */}
         <Section title="Personal Information" icon={
@@ -1116,67 +1172,6 @@ export default function TransferLeadApplicationForm({
         </div>
       )}
 
-      {showPhoneDupModal && phoneDupMatch && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1190, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div
-            style={{
-              width: "min(820px, 95vw)",
-              backgroundColor: "#fff",
-              borderRadius: 12,
-              border: !phoneDupIsAddable ? `2px solid ${T.danger}` : `1px solid ${T.border}`,
-              padding: 24,
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: !phoneDupIsAddable ? T.danger : "#ea580c" }}>
-              📞 Phone Duplicate Found
-            </h2>
-            <p style={{ fontSize: 16, color: T.textMuted, marginTop: 8 }}>
-              {phoneDupRuleMessage || "A lead already exists with this phone number."}
-            </p>
-
-            <div style={{ marginTop: 14, backgroundColor: "#f9fafb", padding: 16, borderRadius: 10, border: "2px solid #e5e7eb" }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: T.textDark }}>
-                {(phoneDupMatch.first_name || "")} {(phoneDupMatch.last_name || "")}
-              </div>
-              <div style={{ marginTop: 6, fontSize: 14, color: "#6b7280", fontWeight: 700 }}>
-                Lead ID: {phoneDupMatch.lead_unique_id || phoneDupMatch.id}
-              </div>
-              <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 700 }}>
-                Stage: {phoneDupMatch.stage || "Unknown"}
-              </div>
-              {phoneDupMatch.created_at && (
-                <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 700 }}>
-                  Created: {new Date(phoneDupMatch.created_at).toLocaleString()}
-                </div>
-              )}
-            </div>
-
-            {!phoneDupIsAddable && (
-              <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, color: T.danger }}>
-                Duplicate creation is blocked by stage rule.
-              </div>
-            )}
-
-            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button
-                type="button"
-                onClick={handlePhoneDupModalClose}
-                style={{
-                  background: "#fff",
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 8,
-                  padding: "10px 24px",
-                  fontSize: 18,
-                  cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Submit */}
       <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
         <button
@@ -1203,23 +1198,6 @@ export default function TransferLeadApplicationForm({
             Save Draft
           </button>
         )}
-        {submitBlockMessage && (
-          <span
-            style={{
-              alignSelf: "center",
-              backgroundColor: "#fee2e2",
-              color: T.danger,
-              border: `1px solid ${T.danger}`,
-              borderRadius: 999,
-              padding: "6px 10px",
-              fontSize: 11,
-              fontWeight: 800,
-              letterSpacing: "0.2px",
-            }}
-          >
-            Blocked by compliance check
-          </span>
-        )}
         <button
           onClick={async () => {
             if (!isEditMode) {
@@ -1227,7 +1205,7 @@ export default function TransferLeadApplicationForm({
               if (result.blocked) return;
             }
             const dup = await checkPhoneDuplicate();
-            if (dup.match) setShowPhoneDupModal(true);
+            if (dup.match) setShowPhoneDupDetails(true);
             if (dup.match && !dup.isAddable) return;
             const dncResult = await checkDnc();
             if (dncResult === "tcpa") return;
