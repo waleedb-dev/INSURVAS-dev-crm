@@ -145,14 +145,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
             Today — {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
           </p>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h1>
-          <p style={{ fontSize: 13, color: T.textMuted, margin: "8px 0 0", maxWidth: 560 }}>
-            Entries appear when a lead is submitted from Transfer Leads (BPO intake). Columns: lead id, date, name, and center.
-          </p>
-          {scopeHint && (
-            <p style={{ fontSize: 12, color: T.blue, fontWeight: 700, margin: "10px 0 0", maxWidth: 560 }}>
-              {scopeHint}
-            </p>
-          )}
+
         </div>
         <button
           type="button"
