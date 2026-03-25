@@ -1,49 +1,86 @@
--- Daily Deal Flow: one row each time a lead is submitted into the flow (from transfer / BPO intake).
--- Surfaced on the Daily Deal Flow dashboard: date, lead id, name, center.
+-- Daily Deal Flow schema aligned to latest BPO game workflow.
 
-create table if not exists public.daily_deal_flow (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  flow_date date not null default (timezone('utc', now())::date),
-  lead_id uuid not null references public.leads (id) on delete cascade,
-  lead_unique_id text,
-  lead_name text not null,
-  center_name text,
-  call_center_id uuid references public.call_centers (id) on delete set null
+drop trigger if exists auto_fetch_recording_trigger on public.daily_deal_flow;
+drop trigger if exists sync_to_firestore_webhook on public.daily_deal_flow;
+drop table if exists public.daily_deal_flow cascade;
+
+create table public.daily_deal_flow (
+  id uuid not null default gen_random_uuid (),
+  submission_id text not null,
+  client_phone_number text null,
+  lead_vendor text null,
+  date date null default current_date,
+  insured_name text null,
+  buffer_agent text null,
+  agent text null,
+  licensed_agent_account text null,
+  status text null,
+  call_result text null,
+  carrier text null,
+  product_type text null,
+  draft_date date null,
+  monthly_premium numeric(10, 2) null,
+  face_amount numeric(12, 2) null,
+  from_callback boolean null default false,
+  notes text null,
+  policy_number text null,
+  carrier_audit text null,
+  product_type_carrier text null,
+  level_or_gi text null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  is_callback boolean null default false,
+  is_retention_call boolean null default false,
+  placement_status text null,
+  ghl_location_id text null,
+  ghl_opportunity_id text null,
+  ghlcontactid text null,
+  sync_status text null,
+  retention_agent text null,
+  retention_agent_id uuid null,
+  is_reviewed boolean null default false,
+  la_callback text null,
+  constraint daily_deal_flow_pkey primary key (id),
+  constraint daily_deal_flow_submission_id_date_key unique (submission_id, date),
+  constraint daily_deal_flow_retention_agent_id_fkey foreign key (retention_agent_id) references auth.users (id),
+  constraint daily_deal_flow_placement_status_check check (
+    (
+      placement_status = any (
+        array[
+          'Good Standing'::text,
+          'Not Placed'::text,
+          'Pending Failed Payment Fix'::text,
+          'FDPF Pending Reason'::text,
+          'FDPF Insufficient Funds'::text,
+          'FDPF Incorrect Banking Info'::text,
+          'FDPF Unauthorized Draft'::text
+        ]
+      )
+    )
+  )
+) tablespace pg_default;
+
+create index if not exists idx_daily_deal_flow_submission_id on public.daily_deal_flow using btree (submission_id) tablespace pg_default;
+create index if not exists idx_daily_deal_flow_date on public.daily_deal_flow using btree (date) tablespace pg_default;
+create index if not exists idx_daily_deal_flow_agent on public.daily_deal_flow using btree (agent) tablespace pg_default;
+create index if not exists idx_daily_deal_flow_status on public.daily_deal_flow using btree (status) tablespace pg_default;
+create index if not exists idx_daily_deal_flow_ghl_location_id on public.daily_deal_flow using btree (ghl_location_id) tablespace pg_default;
+create index if not exists idx_daily_deal_flow_ghl_opportunity_id on public.daily_deal_flow using btree (ghl_opportunity_id) tablespace pg_default;
+
+create trigger auto_fetch_recording_trigger
+after insert on public.daily_deal_flow for each row
+when (
+  new.client_phone_number is not null
+  and new.client_phone_number <> ''::text
+)
+execute function fetch_recording_for_new_entry ();
+
+create trigger sync_to_firestore_webhook
+after update on public.daily_deal_flow for each row
+execute function supabase_functions.http_request (
+  'https://gqhcjqxcvhgwsqfqgekh.supabase.co/functions/v1/bpo-game-sync',
+  'POST',
+  '{"Content-type":"application/json"}',
+  '{}',
+  '5000'
 );
-
-create index if not exists daily_deal_flow_flow_date_idx on public.daily_deal_flow (flow_date desc);
-create index if not exists daily_deal_flow_lead_id_idx on public.daily_deal_flow (lead_id);
-
-grant select, insert, update, delete on public.daily_deal_flow to authenticated;
-
-alter table public.daily_deal_flow enable row level security;
-
-drop policy if exists daily_deal_flow_select_authenticated on public.daily_deal_flow;
-create policy daily_deal_flow_select_authenticated
-on public.daily_deal_flow
-for select
-to authenticated
-using (true);
-
-drop policy if exists daily_deal_flow_insert_authenticated on public.daily_deal_flow;
-create policy daily_deal_flow_insert_authenticated
-on public.daily_deal_flow
-for insert
-to authenticated
-with check (true);
-
-drop policy if exists daily_deal_flow_update_authenticated on public.daily_deal_flow;
-create policy daily_deal_flow_update_authenticated
-on public.daily_deal_flow
-for update
-to authenticated
-using (true)
-with check (true);
-
-drop policy if exists daily_deal_flow_delete_authenticated on public.daily_deal_flow;
-create policy daily_deal_flow_delete_authenticated
-on public.daily_deal_flow
-for delete
-to authenticated
-using (true);
