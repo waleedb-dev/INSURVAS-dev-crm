@@ -613,9 +613,6 @@ export default function TransferLeadApplicationForm({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>
         }>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Lead Unique ID" full>
-              <input value={computedLeadUniqueId} readOnly placeholder="Auto-generated from name + phone + SSN last 4" style={{ ...fieldStyle, backgroundColor: T.rowBg, color: T.textMuted }} />
-            </Field>
             <Field label="Date of Submission *">
               <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyle} />
             </Field>
