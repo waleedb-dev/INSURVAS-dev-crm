@@ -12,6 +12,8 @@ import UsersAccessPage from "@/components/dashboard/pages/UsersAccessPage";
 import PipelineSettingsPage from "@/components/dashboard/pages/PipelineSettingsPage";
 import CarrierManagementPage from "@/components/dashboard/pages/CarrierManagementPage";
 import BpoCentersPage from "@/components/dashboard/pages/BpoCentersPage";
+import CommissionsPage from "@/components/dashboard/pages/CommissionsPage";
+import PoliciesPage from "@/components/dashboard/pages/PoliciesPage";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 export default function RoleDashboardPage() {
@@ -59,6 +61,8 @@ export default function RoleDashboardPage() {
       {activePage === "pipeline-management" && <PipelineSettingsPage />}
       {activePage === "carrier-management" && <CarrierManagementPage />}
       {activePage === "bpo-centres" && <BpoCentersPage />}
+      {activePage === "commissions" && <CommissionsPage />}
+      {activePage === "policies" && <PoliciesPage />}
     </>
   );
 }

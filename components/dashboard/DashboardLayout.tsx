@@ -8,7 +8,8 @@ export type DashPage =
   | "daily-deal-flow" | "lead-pipeline"
   | "call-center-lead-intake"
   | "users-access" | "pipeline-management"
-  | "carrier-management" | "bpo-centres";
+  | "carrier-management" | "bpo-centres"
+  | "commissions" | "policies";
 
 interface Props {
   activePage: DashPage;
@@ -32,6 +33,8 @@ const NAV_ITEMS: { id: DashPage; label: string; Icon: React.FC<{ active: boolean
   { id: "daily-deal-flow",  label: "Daily Deal Flow",  Icon: ProjectsIcon },
   { id: "lead-pipeline",    label: "Lead Pipeline",    Icon: VacationsIcon },
   { id: "call-center-lead-intake", label: "Transfer Leads", Icon: EmployeesIcon },
+  { id: "commissions",      label: "Commissions",      Icon: CommissionsIcon },
+  { id: "policies",         label: "Policies",         Icon: PoliciesIcon },
   { id: "users-access",     label: "Users & Access",   Icon: MessengerIcon },
   { id: "pipeline-management", label: "Pipelines",     Icon: InfoPortalIcon },
   { id: "carrier-management", label: "Carriers",       Icon: ProjectsIcon },
@@ -386,6 +389,14 @@ function InfoPortalIcon({ active }: { active: boolean }) {
 }
 function LogoutIcon() {
   return <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M11 3H14C15.1 3 16 3.9 16 5V13C16 14.1 15.1 15 14 15H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><path d="M7 12L11 9L7 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M11 9H2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>;
+}
+function CommissionsIcon({ active }: { active: boolean }) {
+  const c = active ? "#fff" : T.textMuted;
+  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke={c} strokeWidth="1.5" /><path d="M9 5v1.5M9 11.5V13M7 8c0-1.1.9-2 2-2s2 .9 2 2-2 2-2 2-2 .9-2 2" stroke={c} strokeWidth="1.5" strokeLinecap="round" /></svg>;
+}
+function PoliciesIcon({ active }: { active: boolean }) {
+  const c = active ? "#fff" : T.textMuted;
+  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="3" y="2" width="12" height="14" rx="2" stroke={c} strokeWidth="1.5" /><path d="M6 6h6M6 9h6M6 12h4" stroke={c} strokeWidth="1.5" strokeLinecap="round" /></svg>;
 }
 function MiniSupportIllustration() {
   return (

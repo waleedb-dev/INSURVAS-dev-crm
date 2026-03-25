@@ -24,10 +24,12 @@ const ALL_PAGES: DashPage[] = [
   "pipeline-management",
   "carrier-management",
   "bpo-centres",
+  "commissions",
+  "policies",
 ];
 
 function isDashPage(value: string | null): value is DashPage {
-  return Boolean(value) && (ALL_PAGES as string[]).includes(value);
+  return value !== null && (ALL_PAGES as string[]).includes(value);
 }
 
 export default function RoleDashboardLayout({ children }: { children: React.ReactNode }) {

@@ -82,6 +82,7 @@ export function canAccessPage(
     | "lead-pipeline"
     | "call-center-lead-intake"
     | "commissions"
+    | "policies"
     | "users-access"
     | "operations-guide"
     | "pipeline-management"
@@ -115,7 +116,7 @@ export function canAccessPage(
   }
 
   if (page === "commissions") {
-    return permissionKeys.has("page.commissions.access");
+    return role === "system_admin";
   }
 
   if (page === "pipeline-management") {
@@ -123,6 +124,10 @@ export function canAccessPage(
   }
 
   if (page === "carrier-management" || page === "bpo-centres") {
+    return role === "system_admin";
+  }
+
+  if (page === "policies") {
     return role === "system_admin";
   }
 
