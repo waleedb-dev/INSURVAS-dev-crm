@@ -57,6 +57,15 @@ type SsnDuplicateRule = {
   is_addable: boolean;
   is_active: boolean;
 };
+type PhoneDuplicateMatch = {
+  id: string;
+  lead_unique_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  stage: string | null;
+  created_at: string | null;
+};
 
 const usStates = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
@@ -67,6 +76,15 @@ const productTypeOptions = [
 ];
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
+
+function normalizePhoneDigits(value: string) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function formatUsPhone(digits: string) {
+  if (digits.length !== 10) return digits;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
 
 function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFormData {
   const { leadSource: _ls, isDraft: draftFlag, ...fromInitial } = initial ?? {};
@@ -165,6 +183,11 @@ export default function TransferLeadApplicationForm({
   const [dncMessage, setDncMessage] = useState("");
   const [showDncModal, setShowDncModal] = useState(false);
   const [checkedDncPhone, setCheckedDncPhone] = useState("");
+  const [phoneDupChecking, setPhoneDupChecking] = useState(false);
+  const [showPhoneDupModal, setShowPhoneDupModal] = useState(false);
+  const [phoneDupMatch, setPhoneDupMatch] = useState<PhoneDuplicateMatch | null>(null);
+  const [phoneDupRuleMessage, setPhoneDupRuleMessage] = useState("");
+  const [phoneDupIsAddable, setPhoneDupIsAddable] = useState(true);
   const [ssnCheckState, setSsnCheckState] = useState<SsnCheckState>("idle");
   const [ssnCheckMessage, setSsnCheckMessage] = useState("");
   const [lastCheckedSsn, setLastCheckedSsn] = useState("");
@@ -233,6 +256,84 @@ export default function TransferLeadApplicationForm({
   const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
 
+  const checkPhoneDuplicate = async (): Promise<PhoneDuplicateMatch | null> => {
+    const digits = normalizePhoneDigits(formData.phone);
+    if (digits.length !== 10) {
+      setPhoneDupMatch(null);
+      setPhoneDupRuleMessage("");
+      setPhoneDupIsAddable(true);
+      return null;
+    }
+
+    setPhoneDupChecking(true);
+    try {
+      const variants = Array.from(new Set([formData.phone.trim(), digits, formatUsPhone(digits)].filter(Boolean)));
+      const { data: existing, error: existingError } = await supabase
+        .from("leads")
+        .select("id, lead_unique_id, first_name, last_name, phone, stage, created_at")
+        .in("phone", variants)
+        .order("created_at", { ascending: false });
+
+      if (existingError) {
+        throw new Error(existingError.message || "Unable to check phone duplicates.");
+      }
+
+      const match = ((existing || []) as any[]).find((row) => normalizePhoneDigits(String(row.phone || "")) === digits) || null;
+      if (!match) {
+        setPhoneDupMatch(null);
+        setPhoneDupRuleMessage("No existing lead found for this phone number.");
+        setPhoneDupIsAddable(true);
+        return null;
+      }
+
+      const { data: rulesData, error: rulesError } = await supabase
+        .from("ssn_duplicate_stage_rules")
+        .select("stage_name, ghl_stage, message, is_addable, is_active")
+        .eq("is_active", true);
+
+      if (rulesError) {
+        throw new Error(rulesError.message || "Unable to load duplicate rules.");
+      }
+
+      const rules = ((rulesData || []) as SsnDuplicateRule[]).map((rule) => ({
+        ...rule,
+        stage_name: String(rule.stage_name || "").trim(),
+      }));
+      const ruleByStage = new Map<string, SsnDuplicateRule>();
+      rules.forEach((rule) => {
+        if (rule.stage_name) ruleByStage.set(rule.stage_name.toLowerCase(), rule);
+      });
+
+      const stage = String(match.stage || "").trim();
+      const rule = stage ? ruleByStage.get(stage.toLowerCase()) : undefined;
+      const ghlStage = rule?.ghl_stage ? ` (GHL: ${rule.ghl_stage})` : "";
+      const baseMessage = rule?.message || "A lead already exists with this phone number.";
+
+      const mapped: PhoneDuplicateMatch = {
+        id: String(match.id),
+        lead_unique_id: match.lead_unique_id ?? null,
+        first_name: match.first_name ?? null,
+        last_name: match.last_name ?? null,
+        phone: match.phone ?? null,
+        stage: match.stage ?? null,
+        created_at: match.created_at ?? null,
+      };
+
+      setPhoneDupMatch(mapped);
+      setPhoneDupRuleMessage(`${baseMessage}${stage ? ` Stage: ${stage}.` : ""}${ghlStage}`);
+      setPhoneDupIsAddable(rule?.is_addable ?? true);
+      return mapped;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to check phone duplicates.";
+      setPhoneDupMatch(null);
+      setPhoneDupRuleMessage(message);
+      setPhoneDupIsAddable(true);
+      return null;
+    } finally {
+      setPhoneDupChecking(false);
+    }
+  };
+
   const checkDnc = async () => {
     const cleanPhone = formData.phone.replace(/\D/g, "");
     if (cleanPhone.length !== 10) {
@@ -246,6 +347,9 @@ export default function TransferLeadApplicationForm({
     setDncMessage("");
 
     try {
+      const dup = await checkPhoneDuplicate();
+      if (dup) setShowPhoneDupModal(true);
+
       const { data, error } = await supabase.functions.invoke("blacklist-check", {
         body: { phone: cleanPhone },
       });
@@ -294,6 +398,10 @@ export default function TransferLeadApplicationForm({
   const handleDncModalConfirm = () => {
     setShowDncModal(false);
     setDncMessage("Consent verified. You may proceed.");
+  };
+
+  const handlePhoneDupModalClose = () => {
+    setShowPhoneDupModal(false);
   };
 
   const normalizeSsnDigits = (value: string) => value.replace(/\D/g, "");
@@ -502,20 +610,20 @@ export default function TransferLeadApplicationForm({
                 <button
                   type="button"
                   onClick={() => void checkDnc()}
-                  disabled={dncChecking}
+                  disabled={dncChecking || phoneDupChecking}
                   style={{
                     borderRadius: 8,
                     border: "none",
                     padding: "0 14px",
                     fontWeight: 700,
-                    cursor: dncChecking ? "not-allowed" : "pointer",
-                    backgroundColor: dncChecking ? "#d1d5db" : T.blue,
+                    cursor: dncChecking || phoneDupChecking ? "not-allowed" : "pointer",
+                    backgroundColor: dncChecking || phoneDupChecking ? "#d1d5db" : T.blue,
                     color: "#fff",
                     minWidth: 128,
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {dncChecking ? "Checking..." : "Blacklist check"}
+                  {dncChecking || phoneDupChecking ? "Checking..." : "Blacklist check"}
                 </button>
               </div>
               {(dncStatus === "error" || dncMessage === "Consent verified. You may proceed.") && (
@@ -1038,6 +1146,67 @@ export default function TransferLeadApplicationForm({
                   I Got Verbal Consent - Proceed
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPhoneDupModal && phoneDupMatch && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1190, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div
+            style={{
+              width: "min(820px, 95vw)",
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              border: !phoneDupIsAddable ? `2px solid ${T.danger}` : `1px solid ${T.border}`,
+              padding: 24,
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: !phoneDupIsAddable ? T.danger : "#ea580c" }}>
+              📞 Phone Duplicate Found
+            </h2>
+            <p style={{ fontSize: 16, color: T.textMuted, marginTop: 8 }}>
+              {phoneDupRuleMessage || "A lead already exists with this phone number."}
+            </p>
+
+            <div style={{ marginTop: 14, backgroundColor: "#f9fafb", padding: 16, borderRadius: 10, border: "2px solid #e5e7eb" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: T.textDark }}>
+                {(phoneDupMatch.first_name || "")} {(phoneDupMatch.last_name || "")}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 14, color: "#6b7280", fontWeight: 700 }}>
+                Lead ID: {phoneDupMatch.lead_unique_id || phoneDupMatch.id}
+              </div>
+              <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 700 }}>
+                Stage: {phoneDupMatch.stage || "Unknown"}
+              </div>
+              {phoneDupMatch.created_at && (
+                <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 700 }}>
+                  Created: {new Date(phoneDupMatch.created_at).toLocaleString()}
+                </div>
+              )}
+            </div>
+
+            {!phoneDupIsAddable && (
+              <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, color: T.danger }}>
+                Duplicate creation is blocked by stage rule.
+              </div>
+            )}
+
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                onClick={handlePhoneDupModalClose}
+                style={{
+                  background: "#fff",
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 8,
+                  padding: "10px 24px",
+                  fontSize: 18,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

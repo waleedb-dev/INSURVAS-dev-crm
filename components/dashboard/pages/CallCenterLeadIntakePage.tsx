@@ -29,10 +29,20 @@ type DuplicateLeadMatch = {
   lead_unique_id: string | null;
   first_name: string | null;
   last_name: string | null;
+  phone: string | null;
   stage: string | null;
+  created_at?: string | null;
 };
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
+
+type SsnDuplicateRule = {
+  stage_name: string;
+  ghl_stage: string | null;
+  message: string;
+  is_addable: boolean;
+  is_active: boolean;
+};
 
 // ── Color maps matching the DailyDealFlow style ─────────────────────────────
 const TYPE_CONFIG: Record<string, { bg: string; color: string }> = {
@@ -83,6 +93,15 @@ function buildLeadUniqueId(payload: TransferLeadFormData): string {
   return `${ph2}${car2}${fn1}${ln1}${ss2}`.toUpperCase();
 }
 
+function normalizePhoneDigits(value: string) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function formatUsPhone(digits: string) {
+  if (digits.length !== 10) return digits;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 async function insertDailyDealFlowEntry(
   supabase: ReturnType<typeof getSupabaseBrowserClient>,
   row: { leadId: string; leadUniqueId: string; leadName: string; centerName: string; callCenterId: string | null }
@@ -113,6 +132,13 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [pendingCreatePayload, setPendingCreatePayload] = useState<TransferLeadFormData | null>(null);
   const [duplicateLeadMatch, setDuplicateLeadMatch] = useState<DuplicateLeadMatch | null>(null);
+  const [duplicateRuleMessage, setDuplicateRuleMessage] = useState<string>("");
+  const [duplicateIsAddable, setDuplicateIsAddable] = useState<boolean>(true);
+  const [showDncDialog, setShowDncDialog] = useState(false);
+  const [pendingDncProceedPayload, setPendingDncProceedPayload] = useState<TransferLeadFormData | null>(null);
+  const [dncDialogTitle, setDncDialogTitle] = useState<string>("");
+  const [dncDialogMessage, setDncDialogMessage] = useState<string>("");
+  const [dncConsentApprovedPhoneDigits, setDncConsentApprovedPhoneDigits] = useState<string | null>(null);
   const [callCenterName, setCallCenterName] = useState("");
   const itemsPerPage = 10;
 
@@ -271,33 +297,114 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
     const leadUniqueId = payload.leadUniqueId || buildLeadUniqueId(payload);
 
-    const normalizeSsn = (value: string) => value.replace(/\D/g, "");
-    const ssnDigits = normalizeSsn(payload.social || "");
+    const phoneDigits = normalizePhoneDigits(payload.phone || "");
 
-    const findDuplicateBySsn = async () => {
-      if (ssnDigits.length !== 9) return null;
-      const variants = Array.from(new Set([payload.social?.trim(), ssnDigits, `${ssnDigits.slice(0, 3)}-${ssnDigits.slice(3, 5)}-${ssnDigits.slice(5)}`].filter(Boolean)));
-      const { data: existing, error: existingError } = await supabase
-        .from("leads")
-        .select("id, lead_unique_id, first_name, last_name, stage, social, created_at")
-        .in("social", variants)
-        .order("created_at", { ascending: false });
-      if (existingError) return null;
-      return (existing || []).find((row: any) => normalizeSsn(String(row.social || "")) === ssnDigits) || null;
+    const loadDuplicateRulesByStage = async () => {
+      const { data: rulesData, error: rulesError } = await supabase
+        .from("ssn_duplicate_stage_rules")
+        .select("stage_name, ghl_stage, message, is_addable, is_active")
+        .eq("is_active", true);
+      if (rulesError) throw new Error(rulesError.message || "Unable to load duplicate rules.");
+      const rules = ((rulesData || []) as SsnDuplicateRule[]).map((rule) => ({
+        ...rule,
+        stage_name: String(rule.stage_name || "").trim(),
+      }));
+      const ruleByStage = new Map<string, SsnDuplicateRule>();
+      rules.forEach((rule) => {
+        if (rule.stage_name) ruleByStage.set(rule.stage_name.toLowerCase(), rule);
+      });
+      return ruleByStage;
     };
 
-    const existingLead = await findDuplicateBySsn();
+    const findDuplicateByPhone = async () => {
+      if (phoneDigits.length !== 10) return null;
+      const variants = Array.from(
+        new Set([payload.phone?.trim(), phoneDigits, formatUsPhone(phoneDigits)].filter(Boolean)),
+      );
+      const { data: existing, error: existingError } = await supabase
+        .from("leads")
+        .select("id, lead_unique_id, first_name, last_name, phone, stage, created_at")
+        .in("phone", variants)
+        .order("created_at", { ascending: false });
+      if (existingError) return null;
+      return (
+        (existing || []).find(
+          (row: any) => normalizePhoneDigits(String(row.phone || "")) === phoneDigits,
+        ) || null
+      );
+    };
+
+    // 1) Phone duplicate check (first)
+    const existingLead = await findDuplicateByPhone();
     if (existingLead) {
+      try {
+        const ruleByStage = await loadDuplicateRulesByStage();
+        const stage = String(existingLead.stage || "").trim();
+        const rule = stage ? ruleByStage.get(stage.toLowerCase()) : undefined;
+        const ghlStage = rule?.ghl_stage ? ` (GHL: ${rule.ghl_stage})` : "";
+        const baseMessage = rule?.message || "A lead already exists with this phone number.";
+        setDuplicateRuleMessage(`${baseMessage}${stage ? ` Stage: ${stage}.` : ""}${ghlStage}`);
+        setDuplicateIsAddable(rule?.is_addable ?? true);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unable to load duplicate rule message.";
+        setDuplicateRuleMessage(message);
+        setDuplicateIsAddable(true);
+      }
       setPendingCreatePayload(payload);
       setDuplicateLeadMatch({
         id: existingLead.id,
         lead_unique_id: existingLead.lead_unique_id ?? null,
         first_name: existingLead.first_name ?? null,
         last_name: existingLead.last_name ?? null,
+        phone: existingLead.phone ?? null,
         stage: existingLead.stage ?? null,
+        created_at: existingLead.created_at ?? null,
       });
       setShowDuplicateDialog(true);
       return;
+    }
+
+    // 2) DNC check (submit-time)
+    try {
+      const shouldSkipDnc = dncConsentApprovedPhoneDigits && dncConsentApprovedPhoneDigits === phoneDigits;
+      if (!shouldSkipDnc && phoneDigits.length === 10) {
+        const { data, error } = await supabase.functions.invoke("blacklist-check", {
+          body: { phone: phoneDigits },
+        });
+        if (error) throw new Error(error.message || "DNC check failed");
+
+        const payloadData = (data as Record<string, unknown> | null | undefined)?.data as Record<string, unknown> | undefined;
+        const isTcpa = payloadData?.is_tcpa === true || payloadData?.is_blacklisted === true;
+        const isDnc = payloadData?.is_dnc === true || isTcpa;
+
+        if (isTcpa) {
+          setDncDialogTitle("TCPA / Blacklisted Number");
+          setDncDialogMessage(
+            typeof payloadData?.message === "string"
+              ? payloadData.message
+              : "WARNING: This number is blacklisted/TCPA flagged. Lead creation is blocked.",
+          );
+          setPendingDncProceedPayload(null);
+          setShowDncDialog(true);
+          return;
+        }
+
+        if (isDnc) {
+          setDncDialogTitle("Do Not Call (DNC)");
+          setDncDialogMessage(
+            typeof payloadData?.message === "string"
+              ? payloadData.message
+              : "This number is on DNC. Proceed only with verbal consent.",
+          );
+          setPendingDncProceedPayload(payload);
+          setShowDncDialog(true);
+          return;
+        }
+      }
+    } catch (e) {
+      // Non-blocking: allow submit but inform user
+      const message = e instanceof Error ? e.message : "Unable to check DNC status.";
+      setToast({ message, type: "error" });
     }
 
     const insertLead = async (finalPayload: TransferLeadFormData, asDuplicate: boolean) => {
@@ -373,6 +480,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     }
 
     setToast({ message: "Lead saved successfully", type: "success" });
+    setDncConsentApprovedPhoneDigits(null);
     setShowCreateLead(false);
     setPage(1);
     await refreshLeads();
@@ -380,6 +488,10 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
   const handleCreateDuplicateLead = async () => {
     if (!pendingCreatePayload) return;
+    if (!duplicateIsAddable) {
+      setToast({ message: "Duplicate creation is not allowed for the existing lead’s current stage.", type: "error" });
+      return;
+    }
 
     const {
       data: { session },
@@ -473,6 +585,19 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     setShowCreateLead(false);
     setPage(1);
     await refreshLeads();
+  };
+
+  const handleProceedAfterDnc = async () => {
+    if (!pendingDncProceedPayload) {
+      setShowDncDialog(false);
+      return;
+    }
+    const toCreate = pendingDncProceedPayload;
+    const digits = normalizePhoneDigits(toCreate.phone || "");
+    if (digits.length === 10) setDncConsentApprovedPhoneDigits(digits);
+    setPendingDncProceedPayload(null);
+    setShowDncDialog(false);
+    await handleCreateLead(toCreate);
   };
 
   const handleEditExistingDuplicateLead = async () => {
@@ -778,7 +903,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
             <div style={{ width: "100%", maxWidth: 560, backgroundColor: "#fff", borderRadius: 12, border: `1px solid ${T.border}`, padding: 22, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
               <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Lead already exists</h3>
               <p style={{ marginTop: 10, marginBottom: 14, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
-                We found an existing lead with the same SSN.
+                {duplicateRuleMessage || "We found an existing lead with the same phone number."}
               </p>
               <div style={{ backgroundColor: T.rowBg, border: `1px solid ${T.borderLight}`, borderRadius: 10, padding: 12, marginBottom: 16 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>
@@ -788,8 +913,16 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                   Lead ID: {duplicateLeadMatch.lead_unique_id || duplicateLeadMatch.id}
                 </div>
                 <div style={{ fontSize: 12, color: T.textMuted }}>
+                  Phone: {duplicateLeadMatch.phone || "Unknown"}
+                </div>
+                <div style={{ fontSize: 12, color: T.textMuted }}>
                   Stage: {duplicateLeadMatch.stage || "Unknown"}
                 </div>
+                {duplicateLeadMatch.created_at && (
+                  <div style={{ fontSize: 12, color: T.textMuted }}>
+                    Created: {new Date(duplicateLeadMatch.created_at).toLocaleString()}
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
                 <button
@@ -797,6 +930,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                     setShowDuplicateDialog(false);
                     setPendingCreatePayload(null);
                     setDuplicateLeadMatch(null);
+                    setDuplicateRuleMessage("");
                   }}
                   style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
                 >
@@ -808,12 +942,54 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                 >
                   Edit Existing
                 </button>
+                {duplicateIsAddable ? (
+                  <button
+                    onClick={() => void handleCreateDuplicateLead()}
+                    style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Create Duplicate
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    style={{ background: "#d1d5db", color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "not-allowed" }}
+                    title="Duplicate creation is blocked by stage rule"
+                  >
+                    Duplicate Not Allowed
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {showDncDialog && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2600, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ width: "100%", maxWidth: 560, backgroundColor: "#fff", borderRadius: 12, border: `1px solid ${T.border}`, padding: 22, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>{dncDialogTitle || "Phone Verification"}</h3>
+              <p style={{ marginTop: 10, marginBottom: 16, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
+                {dncDialogMessage || "We detected a DNC/TCPA status for this phone number."}
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
                 <button
-                  onClick={() => void handleCreateDuplicateLead()}
-                  style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
+                  onClick={() => {
+                    setShowDncDialog(false);
+                    setPendingDncProceedPayload(null);
+                    setDncDialogTitle("");
+                    setDncDialogMessage("");
+                    setDncConsentApprovedPhoneDigits(null);
+                  }}
+                  style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
                 >
-                  Create New (Tag Duplicate)
+                  Cancel
                 </button>
+                {pendingDncProceedPayload && (
+                  <button
+                    onClick={() => void handleProceedAfterDnc()}
+                    style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Proceed (Consent Confirmed)
+                  </button>
+                )}
               </div>
             </div>
           </div>
