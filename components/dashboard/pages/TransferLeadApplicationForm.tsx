@@ -181,8 +181,6 @@ export default function TransferLeadApplicationForm({
   const [dncChecking, setDncChecking] = useState(false);
   const [dncStatus, setDncStatus] = useState<DncStatus>("idle");
   const [dncMessage, setDncMessage] = useState("");
-  const [showDncModal, setShowDncModal] = useState(false);
-  const [checkedDncPhone, setCheckedDncPhone] = useState("");
   const [phoneDupChecking, setPhoneDupChecking] = useState(false);
   const [showPhoneDupModal, setShowPhoneDupModal] = useState(false);
   const [phoneDupMatch, setPhoneDupMatch] = useState<PhoneDuplicateMatch | null>(null);
@@ -350,36 +348,89 @@ export default function TransferLeadApplicationForm({
       const dup = await checkPhoneDuplicate();
       if (dup.match) setShowPhoneDupModal(true);
 
-      // Support both existing blacklist-check and dnc-test response contracts.
-      const primary = await supabase.functions.invoke("blacklist-check", {
-        body: { phone: cleanPhone },
-      });
-      const fallback = primary.error
-        ? await supabase.functions.invoke("dnc-test", { body: { mobileNumber: cleanPhone } })
-        : { data: null, error: null };
-      if (primary.error && fallback.error) throw new Error(primary.error.message || fallback.error.message || "DNC check failed");
-      const data = primary.error ? fallback.data : primary.data;
+      // Always call BOTH edge functions and merge their outcomes.
+      const [blacklistResult, dncTestResult] = await Promise.all([
+        supabase.functions.invoke("blacklist-check", { body: { phone: cleanPhone } }),
+        supabase.functions.invoke("dnc-test", { body: { mobileNumber: cleanPhone } }),
+      ]);
+      if (blacklistResult.error && dncTestResult.error) {
+        throw new Error(blacklistResult.error.message || dncTestResult.error.message || "DNC check failed");
+      }
 
-      const outer = (data as Record<string, unknown> | null | undefined) ?? {};
-      const payload = (outer.data as Record<string, unknown> | undefined) ?? outer;
-      const litigator = String(payload?.litigator ?? "").toUpperCase();
-      const nationalDnc = String(payload?.national_dnc ?? "").toUpperCase();
-      const stateDnc = String(payload?.state_dnc ?? "").toUpperCase();
-      const dmaDnc = String(payload?.dma ?? "").toUpperCase();
-      const isTcpa = payload?.is_tcpa === true || payload?.is_blacklisted === true || litigator === "Y";
-      const isDnc = payload?.is_dnc === true || isTcpa || nationalDnc === "Y" || stateDnc === "Y" || dmaDnc === "Y";
-      const status = (payload?.status as string | undefined)?.toLowerCase();
+      const toPayload = (input: unknown): Record<string, unknown> => {
+        const isPayloadShape = (obj: Record<string, unknown>) =>
+          "is_tcpa" in obj ||
+          "is_blacklisted" in obj ||
+          "is_dnc" in obj ||
+          "litigator" in obj ||
+          "national_dnc" in obj ||
+          "state_dnc" in obj ||
+          "dma" in obj ||
+          "status" in obj ||
+          "message" in obj;
+
+        const firstNestedPayload = (obj: Record<string, unknown>): Record<string, unknown> => {
+          for (const value of Object.values(obj)) {
+            if (value && typeof value === "object") {
+              const candidate = value as Record<string, unknown>;
+              if (isPayloadShape(candidate)) return candidate;
+            }
+          }
+          return {};
+        };
+
+        if (Array.isArray(input)) {
+          const first = input[0];
+          return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
+        }
+        if (!input || typeof input !== "object") return {};
+        const record = input as Record<string, unknown>;
+        const nested = record.data;
+        if (Array.isArray(nested)) {
+          const first = nested[0];
+          return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
+        }
+        if (nested && typeof nested === "object") {
+          const nestedObj = nested as Record<string, unknown>;
+          return isPayloadShape(nestedObj) ? nestedObj : firstNestedPayload(nestedObj);
+        }
+        return isPayloadShape(record) ? record : firstNestedPayload(record);
+      };
+
+      const payloadA = blacklistResult.error ? {} : toPayload(blacklistResult.data);
+      const payloadB = dncTestResult.error ? {} : toPayload(dncTestResult.data);
+      const mergedMessage =
+        (typeof payloadA.message === "string" && payloadA.message) ||
+        (typeof payloadB.message === "string" && payloadB.message) ||
+        "";
+
+      const litigatorA = String(payloadA.litigator ?? "").toUpperCase();
+      const nationalDncA = String(payloadA.national_dnc ?? "").toUpperCase();
+      const stateDncA = String(payloadA.state_dnc ?? "").toUpperCase();
+      const dmaDncA = String(payloadA.dma ?? "").toUpperCase();
+      const litigatorB = String(payloadB.litigator ?? "").toUpperCase();
+      const nationalDncB = String(payloadB.national_dnc ?? "").toUpperCase();
+      const stateDncB = String(payloadB.state_dnc ?? "").toUpperCase();
+      const dmaDncB = String(payloadB.dma ?? "").toUpperCase();
+      const isTcpa =
+        payloadA.is_tcpa === true || payloadA.is_blacklisted === true || litigatorA === "Y" ||
+        payloadB.is_tcpa === true || payloadB.is_blacklisted === true || litigatorB === "Y";
+      const isDnc =
+        payloadA.is_dnc === true || payloadB.is_dnc === true ||
+        isTcpa ||
+        nationalDncA === "Y" || stateDncA === "Y" || dmaDncA === "Y" ||
+        nationalDncB === "Y" || stateDncB === "Y" || dmaDncB === "Y";
 
       const resolvedStatus: DncStatus =
-        status === "tcpa" || isTcpa
+        isTcpa
           ? "tcpa"
-          : status === "dnc" || isDnc
+          : isDnc
             ? "dnc"
             : "clear";
 
       const message =
-        typeof payload?.message === "string"
-          ? payload.message
+        mergedMessage
+          ? mergedMessage
           : resolvedStatus === "tcpa"
             ? "WARNING: This number is blacklisted/TCPA flagged."
             : resolvedStatus === "dnc"
@@ -388,8 +439,6 @@ export default function TransferLeadApplicationForm({
 
       setDncStatus(resolvedStatus);
       setDncMessage(message);
-      setCheckedDncPhone(formData.phone);
-      setShowDncModal(true);
       return resolvedStatus;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to check DNC status.";
@@ -399,15 +448,6 @@ export default function TransferLeadApplicationForm({
     } finally {
       setDncChecking(false);
     }
-  };
-
-  const handleDncModalCancel = () => {
-    setShowDncModal(false);
-  };
-
-  const handleDncModalConfirm = () => {
-    setShowDncModal(false);
-    setDncMessage("Consent verified. You may proceed.");
   };
 
   const handlePhoneDupModalClose = () => {
@@ -625,7 +665,6 @@ export default function TransferLeadApplicationForm({
                     set("phone")(e);
                     setDncStatus("idle");
                     setDncMessage("");
-                    setCheckedDncPhone("");
                     setPhoneDupMatch(null);
                     setPhoneDupRuleMessage("");
                     setPhoneDupIsAddable(true);
@@ -1072,105 +1111,6 @@ export default function TransferLeadApplicationForm({
                   Save & Verify All
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showDncModal && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div
-            style={{
-              width: "min(820px, 95vw)",
-              backgroundColor: "#fff",
-              borderRadius: 12,
-              border: dncStatus === "tcpa" ? `2px solid ${T.danger}` : `1px solid ${T.border}`,
-              padding: 24,
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                fontSize: 30,
-                fontWeight: 800,
-                color: dncStatus === "tcpa" ? T.danger : dncStatus === "dnc" ? "#ea580c" : T.blue,
-              }}
-            >
-              {dncStatus === "tcpa" ? "⚠️ TCPA LITIGATOR WARNING" : dncStatus === "dnc" ? "📞 Do Not Call List" : "📞 Phone Verification"}
-            </h2>
-            <p style={{ fontSize: 16, color: T.textMuted, marginTop: 8 }}>
-              {dncStatus === "tcpa"
-                ? "This number is flagged as a TCPA Litigator. Proceeding may result in legal issues."
-                : "Please read the following script to the customer to obtain verbal consent."}
-            </p>
-
-            {dncStatus === "tcpa" && (
-              <div style={{ padding: "18px 0" }}>
-                <p style={{ color: T.danger, fontWeight: 800, textAlign: "center", fontSize: 30, margin: 0 }}>
-                  ⚠️ WARNING: This number is a TCPA LITIGATOR
-                </p>
-                <p style={{ fontSize: 20, color: "#6b7280", textAlign: "center", marginTop: 12 }}>
-                  This number has been flagged as a TCPA litigator. It is recommended to NOT proceed with this lead.
-                </p>
-              </div>
-            )}
-
-            {(dncStatus === "clear" || dncStatus === "dnc") && (
-              <div style={{ padding: "14px 0" }}>
-                {dncStatus === "dnc" && (
-                  <p style={{ color: "#ea580c", fontSize: 20, fontWeight: 800, marginBottom: 12 }}>
-                    ⚠️ This number is on the Do Not Call list
-                  </p>
-                )}
-                <div style={{ backgroundColor: "#f9fafb", padding: 20, borderRadius: 10, border: "2px solid #e5e7eb" }}>
-                  <p style={{ fontSize: 20, marginBottom: 12, fontWeight: 600 }}>
-                    Is your phone number <span style={{ color: T.blue, fontWeight: 800 }}>{checkedDncPhone}</span> on the Federal, National or State Do Not Call List?
-                  </p>
-                  <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 8 }}>
-                    (if a customer says no and we see it&apos;s on the DNC list we still have to take verbal consent)
-                  </p>
-                  <p style={{ fontSize: 20, marginBottom: 12, fontWeight: 600 }}>
-                    Sir/Ma&apos;am, even if your phone number is on the Federal National or State Do not call list do we still have your permission to call you and submit your application for insurance to{" "}
-                    <span style={{ color: T.blue, fontWeight: 800 }}>{formData.carrier || "selected carrier"}</span> - {new Date().toLocaleDateString()} via your phone number{" "}
-                    <span style={{ color: T.blue, fontWeight: 800 }}>{checkedDncPhone}</span>? And do we have your permission to call you on the same phone number in the future if needed?
-                  </p>
-                  <p style={{ fontSize: 16, color: "#4b5563", marginTop: 12, fontWeight: 700 }}>Make sure you get a clear YES on it.</p>
-                </div>
-              </div>
-            )}
-
-            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button
-                type="button"
-                onClick={handleDncModalCancel}
-                style={{
-                  background: "#fff",
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 8,
-                  padding: "10px 24px",
-                  fontSize: 18,
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              {dncStatus !== "tcpa" && (
-                <button
-                  type="button"
-                  onClick={handleDncModalConfirm}
-                  style={{
-                    background: "#16a34a",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "10px 24px",
-                    fontSize: 18,
-                    cursor: "pointer",
-                  }}
-                >
-                  I Got Verbal Consent - Proceed
-                </button>
-              )}
             </div>
           </div>
         </div>

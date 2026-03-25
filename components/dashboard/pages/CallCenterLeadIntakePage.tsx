@@ -192,11 +192,6 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
   const [duplicateLeadMatch, setDuplicateLeadMatch] = useState<DuplicateLeadMatch | null>(null);
   const [duplicateRuleMessage, setDuplicateRuleMessage] = useState<string>("");
   const [duplicateIsAddable, setDuplicateIsAddable] = useState<boolean>(true);
-  const [showDncDialog, setShowDncDialog] = useState(false);
-  const [pendingDncProceedPayload, setPendingDncProceedPayload] = useState<TransferLeadFormData | null>(null);
-  const [dncDialogTitle, setDncDialogTitle] = useState<string>("");
-  const [dncDialogMessage, setDncDialogMessage] = useState<string>("");
-  const [dncConsentApprovedPhoneDigits, setDncConsentApprovedPhoneDigits] = useState<string | null>(null);
   const [callCenterName, setCallCenterName] = useState("");
   const [claimModalOpen, setClaimModalOpen] = useState(false);
   const [claimModalLoading, setClaimModalLoading] = useState(false);
@@ -505,38 +500,72 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
 
     // 2) DNC check (submit-time)
     try {
-      const shouldSkipDnc = dncConsentApprovedPhoneDigits && dncConsentApprovedPhoneDigits === phoneDigits;
-      if (!shouldSkipDnc && phoneDigits.length === 10) {
-        const { data, error } = await supabase.functions.invoke("blacklist-check", {
-          body: { phone: phoneDigits },
-        });
-        if (error) throw new Error(error.message || "DNC check failed");
-
-        const payloadData = (data as Record<string, unknown> | null | undefined)?.data as Record<string, unknown> | undefined;
-        const isTcpa = payloadData?.is_tcpa === true || payloadData?.is_blacklisted === true;
-        const isDnc = payloadData?.is_dnc === true || isTcpa;
-
-        if (isTcpa) {
-          setDncDialogTitle("TCPA / Blacklisted Number");
-          setDncDialogMessage(
-            typeof payloadData?.message === "string"
-              ? payloadData.message
-              : "WARNING: This number is blacklisted/TCPA flagged. Lead creation is blocked.",
-          );
-          setPendingDncProceedPayload(null);
-          setShowDncDialog(true);
-          return;
+      if (phoneDigits.length === 10) {
+        const [blacklistResult, dncTestResult] = await Promise.all([
+          supabase.functions.invoke("blacklist-check", { body: { phone: phoneDigits } }),
+          supabase.functions.invoke("dnc-test", { body: { mobileNumber: phoneDigits } }),
+        ]);
+        if (blacklistResult.error && dncTestResult.error) {
+          throw new Error(blacklistResult.error.message || dncTestResult.error.message || "DNC check failed");
         }
 
-        if (isDnc) {
-          setDncDialogTitle("Do Not Call (DNC)");
-          setDncDialogMessage(
-            typeof payloadData?.message === "string"
-              ? payloadData.message
-              : "This number is on DNC. Proceed only with verbal consent.",
-          );
-          setPendingDncProceedPayload(payload);
-          setShowDncDialog(true);
+        const toPayload = (input: unknown): Record<string, unknown> => {
+          const isPayloadShape = (obj: Record<string, unknown>) =>
+            "is_tcpa" in obj ||
+            "is_blacklisted" in obj ||
+            "is_dnc" in obj ||
+            "litigator" in obj ||
+            "national_dnc" in obj ||
+            "state_dnc" in obj ||
+            "dma" in obj ||
+            "status" in obj ||
+            "message" in obj;
+
+          const firstNestedPayload = (obj: Record<string, unknown>): Record<string, unknown> => {
+            for (const value of Object.values(obj)) {
+              if (value && typeof value === "object") {
+                const candidate = value as Record<string, unknown>;
+                if (isPayloadShape(candidate)) return candidate;
+              }
+            }
+            return {};
+          };
+
+          if (Array.isArray(input)) {
+            const first = input[0];
+            return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
+          }
+          if (!input || typeof input !== "object") return {};
+          const record = input as Record<string, unknown>;
+          const nested = record.data;
+          if (Array.isArray(nested)) {
+            const first = nested[0];
+            return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
+          }
+          if (nested && typeof nested === "object") {
+            const nestedObj = nested as Record<string, unknown>;
+            return isPayloadShape(nestedObj) ? nestedObj : firstNestedPayload(nestedObj);
+          }
+          return isPayloadShape(record) ? record : firstNestedPayload(record);
+        };
+
+        const payloadA = blacklistResult.error ? {} : toPayload(blacklistResult.data);
+        const payloadB = dncTestResult.error ? {} : toPayload(dncTestResult.data);
+        const litigatorA = String(payloadA.litigator ?? "").toUpperCase();
+        const litigatorB = String(payloadB.litigator ?? "").toUpperCase();
+        const isTcpa =
+          payloadA.is_tcpa === true || payloadA.is_blacklisted === true || litigatorA === "Y" ||
+          payloadB.is_tcpa === true || payloadB.is_blacklisted === true || litigatorB === "Y";
+        const tcpaMessage =
+          (typeof payloadA.message === "string" && payloadA.message) ||
+          (typeof payloadB.message === "string" && payloadB.message) ||
+          "WARNING: This number is blacklisted/TCPA flagged. Lead creation is blocked.";
+
+        if (isTcpa) {
+          setToast({
+            message: tcpaMessage,
+            type: "error",
+          });
           return;
         }
       }
@@ -626,7 +655,6 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     }
 
     setToast({ message: "Lead saved successfully", type: "success" });
-    setDncConsentApprovedPhoneDigits(null);
     setShowCreateLead(false);
     setPage(1);
     await refreshLeads();
@@ -738,19 +766,6 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     setShowCreateLead(false);
     setPage(1);
     await refreshLeads();
-  };
-
-  const handleProceedAfterDnc = async () => {
-    if (!pendingDncProceedPayload) {
-      setShowDncDialog(false);
-      return;
-    }
-    const toCreate = pendingDncProceedPayload;
-    const digits = normalizePhoneDigits(toCreate.phone || "");
-    if (digits.length === 10) setDncConsentApprovedPhoneDigits(digits);
-    setPendingDncProceedPayload(null);
-    setShowDncDialog(false);
-    await handleCreateLead(toCreate);
   };
 
   const handleEditExistingDuplicateLead = async () => {
@@ -1109,38 +1124,6 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                     title="Duplicate creation is blocked by stage rule"
                   >
                     Duplicate Not Allowed
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        {showDncDialog && (
-          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2600, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-            <div style={{ width: "100%", maxWidth: 560, backgroundColor: "#fff", borderRadius: 12, border: `1px solid ${T.border}`, padding: 22, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>{dncDialogTitle || "Phone Verification"}</h3>
-              <p style={{ marginTop: 10, marginBottom: 16, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
-                {dncDialogMessage || "We detected a DNC/TCPA status for this phone number."}
-              </p>
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <button
-                  onClick={() => {
-                    setShowDncDialog(false);
-                    setPendingDncProceedPayload(null);
-                    setDncDialogTitle("");
-                    setDncDialogMessage("");
-                    setDncConsentApprovedPhoneDigits(null);
-                  }}
-                  style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                {pendingDncProceedPayload && (
-                  <button
-                    onClick={() => void handleProceedAfterDnc()}
-                    style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
-                  >
-                    Proceed (Consent Confirmed)
                   </button>
                 )}
               </div>
