@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
 import { ActionMenu, Pagination, Avatar, Badge, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
@@ -83,6 +84,17 @@ const TYPE_COLORS: Record<string, string> = {
 
 export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdateActions?: boolean }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const router = useRouter();
+  const params = useParams<{ role?: string }>();
+  const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role;
+
+  const goToLead = useCallback(
+    (leadUuid: string) => {
+      const role = routeRole || "agent";
+      router.push(`/dashboard/${role}/leads/${leadUuid}`);
+    },
+    [router, routeRole]
+  );
   const [leads, setLeads] = useState<Lead[]>([]); // Start with empty array, no dummy data
   const [dragRowUuid, setDragRowUuid] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<Stage | null>(null);
@@ -96,7 +108,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<"Filters" | "Fields">("Filters");
   const [activeTab, setActiveTab] = useState("Opportunities");
@@ -731,7 +742,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       {stageLeads.map((lead) => (
                         <div
                           key={lead.rowUuid}
-                          onClick={() => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowUuid })}
+                          onClick={() => goToLead(lead.rowUuid)}
                           draggable={canUpdateActions}
                           onDragStart={() => { if (canUpdateActions) setDragRowUuid(lead.rowUuid); }}
                           onDragEnd={() => { setDragRowUuid(null); setDragOver(null); }}
@@ -839,18 +850,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     setFilterMinPremium("");
     setFilterMaxPremium("");
   };
-
-  if (viewingLead) {
-    return (
-      <LeadViewComponent
-        leadId={viewingLead.id}
-        leadRowUuid={viewingLead.rowUuid}
-        leadName={viewingLead.name}
-        canEditLead={canUpdateActions}
-        onBack={() => setViewingLead(null)}
-      />
-    );
-  }
 
   if (showAddLead) {
     return <LeadViewComponent isCreation onBack={() => setShowAddLead(false)} onSubmit={(newLead: any) => {
@@ -1089,7 +1088,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           <>
             <Table
               data={paginatedLeads}
-              onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowUuid })}
+              onRowClick={(lead) => goToLead(lead.rowUuid)}
               columns={[
               {
                 header: <input type="checkbox" style={{ width: 15, height: 15, accentColor: T.blue }} />,
@@ -1174,7 +1173,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       activeId={activeMenu}
                       onToggle={setActiveMenu}
                       items={[
-                        { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowUuid }) },
+                        { label: "View Details", onClick: () => goToLead(lead.rowUuid) },
                         { label: "Quick Edit", onClick: () => setQuickEditLead(lead) },
                         { label: "Edit Lead" },
                         { label: "Delete", danger: true },
