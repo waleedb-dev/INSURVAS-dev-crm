@@ -1,8 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, Badge, Button, Dropdown, EmptyState, Pagination, Table } from "@/components/ui";
-import LeadViewComponent from "./LeadViewComponent";
+import { Button, EmptyState, Pagination, Table } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
 import type { RoleKey } from "@/lib/auth/roles";
@@ -18,10 +17,22 @@ type DailyDealRow = {
   date: string;
   created_at: string;
   submission_id: string;
-  lead_unique_id: string | null;
+  client_phone_number: string | null;
   insured_name: string | null;
   lead_vendor: string | null;
-  lead_row_id: string | null;
+  buffer_agent: string | null;
+  retention_agent: string | null;
+  agent: string | null;
+  licensed_agent_account: string | null;
+  status: string | null;
+  call_result: string | null;
+  carrier: string | null;
+  product_type: string | null;
+  draft_date: string | null;
+  monthly_premium: number | null;
+  face_amount: number | null;
+  la_callback: string | null;
+  notes: string | null;
 };
 
 /** Roles that see all centers (org-wide Daily Deal Flow). */
@@ -209,8 +220,6 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
   const [centerFilter, setCenterFilter] = useState("all");
 
   const [page, setPage] = useState(1);
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
 
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -228,7 +237,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
     const role = await getCurrentUserPrimaryRole(supabase, session.user.id);
     let q = supabase
       .from("daily_deal_flow")
-      .select("id, date, created_at, submission_id, insured_name, lead_vendor")
+      .select("id, date, created_at, submission_id, client_phone_number, lead_vendor, insured_name, buffer_agent, retention_agent, agent, licensed_agent_account, status, call_result, carrier, product_type, draft_date, monthly_premium, face_amount, la_callback, notes")
       .order("date", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -250,40 +259,24 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
         date: String(row.date || ""),
         created_at: String(row.created_at || ""),
         submission_id: String(row.submission_id || ""),
+        client_phone_number: typeof row.client_phone_number === "string" ? row.client_phone_number : null,
         insured_name: typeof row.insured_name === "string" ? row.insured_name : null,
         lead_vendor: typeof row.lead_vendor === "string" ? row.lead_vendor : null,
-        lead_unique_id: null as string | null,
-        lead_row_id: null as string | null,
+        buffer_agent: typeof row.buffer_agent === "string" ? row.buffer_agent : null,
+        retention_agent: typeof row.retention_agent === "string" ? row.retention_agent : null,
+        agent: typeof row.agent === "string" ? row.agent : null,
+        licensed_agent_account: typeof row.licensed_agent_account === "string" ? row.licensed_agent_account : null,
+        status: typeof row.status === "string" ? row.status : null,
+        call_result: typeof row.call_result === "string" ? row.call_result : null,
+        carrier: typeof row.carrier === "string" ? row.carrier : null,
+        product_type: typeof row.product_type === "string" ? row.product_type : null,
+        draft_date: typeof row.draft_date === "string" ? row.draft_date : null,
+        monthly_premium: typeof row.monthly_premium === "number" ? row.monthly_premium : null,
+        face_amount: typeof row.face_amount === "number" ? row.face_amount : null,
+        la_callback: typeof row.la_callback === "string" ? row.la_callback : null,
+        notes: typeof row.notes === "string" ? row.notes : null,
       }));
-
-      const submissionIds = Array.from(new Set(baseRows.map((r) => r.submission_id).filter(Boolean)));
-      if (submissionIds.length > 0) {
-        const { data: leadsData } = await supabase
-          .from("leads")
-          .select("id, submission_id, lead_unique_id")
-          .in("submission_id", submissionIds);
-        const leadBySubmission = new Map(
-          (leadsData || []).map((l: Record<string, unknown>) => [
-            String(l.submission_id || ""),
-            {
-              id: typeof l.id === "string" ? l.id : String(l.id || ""),
-              lead_unique_id: typeof l.lead_unique_id === "string" ? l.lead_unique_id : null,
-            },
-          ]),
-        );
-        setRows(
-          baseRows.map((r) => {
-            const lead = leadBySubmission.get(r.submission_id);
-            return {
-              ...r,
-              lead_row_id: lead?.id || null,
-              lead_unique_id: lead?.lead_unique_id || null,
-            };
-          }),
-        );
-      } else {
-        setRows(baseRows);
-      }
+      setRows(baseRows);
     }
     setLoading(false);
   }, [supabase]);
@@ -308,9 +301,13 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
     return rows.filter((r) => {
       if (q && !(
         (r.insured_name || "").toLowerCase().includes(q) ||
-        (r.lead_unique_id || "").toLowerCase().includes(q) ||
         r.submission_id.toLowerCase().includes(q) ||
         (r.lead_vendor || "").toLowerCase().includes(q) ||
+        (r.client_phone_number || "").toLowerCase().includes(q) ||
+        (r.status || "").toLowerCase().includes(q) ||
+        (r.call_result || "").toLowerCase().includes(q) ||
+        (r.carrier || "").toLowerCase().includes(q) ||
+        (r.product_type || "").toLowerCase().includes(q) ||
         r.date.includes(q)
       )) return false;
 
@@ -343,21 +340,8 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
     if (filtered.length === 0 && page !== 1) setPage(1);
   }, [filtered.length, page, totalPages]);
 
-  // ── Lead view ───────────────────────────────────────────────────────────────
-  if (viewingLead) {
-    return (
-      <LeadViewComponent
-        leadId={viewingLead.id}
-        leadRowUuid={viewingLead.rowUuid}
-        leadName={viewingLead.name}
-        canEditLead={_canProcessActions}
-        onBack={() => setViewingLead(null)}
-      />
-    );
-  }
-
   return (
-    <div onClick={() => setActiveMenu(null)} style={{ fontFamily: T.font }}>
+    <div style={{ fontFamily: T.font }}>
 
       {/* ── Top bar: title + subtext + actions ────────────────────────────── */}
       <div style={{
@@ -543,12 +527,9 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
 
         {/* Table */}
         <div style={{ overflowX: "auto" }}>
+          <div style={{ minWidth: 2200 }}>
           <Table
             data={paginated.map((r, i) => ({ ...r, _sno: (page - 1) * ITEMS_PER_PAGE + i + 1 }))}
-            onRowClick={(r) => {
-              if (!r.lead_row_id) return;
-              setViewingLead({ id: r.lead_unique_id || r.submission_id, name: r.insured_name || "Unnamed Lead", rowUuid: r.lead_row_id });
-            }}
             columns={[
               {
                 header: "S.No",
@@ -573,11 +554,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
               {
                 header: "Lead Vendor",
                 key: "lead_vendor",
-                render: (r) => (
-                  r.lead_vendor
-                    ? <Badge variant="custom" label={r.lead_vendor} bgColor={T.blueLight} color={T.blue} />
-                    : <span style={{ color: T.textMuted, fontSize: 13 }}>—</span>
-                ),
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.lead_vendor || "—"}</span>,
               },
               {
                 header: "Insured Name",
@@ -585,39 +562,78 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
                 render: (r) => <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{r.insured_name || "—"}</span>,
               },
               {
-                header: "Lead ID",
-                key: "submission_id",
-                render: (r) => (
-                  <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, fontFamily: "monospace" }}>
-                    {r.submission_id || "—"}
-                  </span>
-                ),
+                header: "Phone Number",
+                key: "client_phone_number",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.client_phone_number || "—"}</span>,
               },
               {
-                header: "Actions",
-                key: "actions",
-                align: "center",
-                render: (r) => (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <ActionMenu
-                      id={r.id}
-                      activeId={activeMenu}
-                      onToggle={setActiveMenu}
-                      items={[
-                        {
-                          label: "View lead",
-                          onClick: () => {
-                            if (!r.lead_row_id) return;
-                            setViewingLead({ id: r.lead_unique_id || r.submission_id, name: r.insured_name || "Unnamed Lead", rowUuid: r.lead_row_id });
-                          },
-                        },
-                      ]}
-                    />
-                  </div>
-                ),
+                header: "Buffer Agent",
+                key: "buffer_agent",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.buffer_agent || "—"}</span>,
+              },
+              {
+                header: "Retention Agent",
+                key: "retention_agent",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.retention_agent || "—"}</span>,
+              },
+              {
+                header: "Agent",
+                key: "agent",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.agent || "—"}</span>,
+              },
+              {
+                header: "Licensed Account",
+                key: "licensed_agent_account",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.licensed_agent_account || "—"}</span>,
+              },
+              {
+                header: "Status",
+                key: "status",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.status || "—"}</span>,
+              },
+              {
+                header: "Call Result",
+                key: "call_result",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.call_result || "—"}</span>,
+              },
+              {
+                header: "Carrier",
+                key: "carrier",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.carrier || "—"}</span>,
+              },
+              {
+                header: "Product Type",
+                key: "product_type",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.product_type || "—"}</span>,
+              },
+              {
+                header: "Draft Date",
+                key: "draft_date",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.draft_date || "—"}</span>,
+              },
+              {
+                header: "MP",
+                key: "monthly_premium",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.monthly_premium != null ? `$${r.monthly_premium}` : "—"}</span>,
+              },
+              {
+                header: "Face Amount",
+                key: "face_amount",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.face_amount != null ? `$${r.face_amount}` : "—"}</span>,
+              },
+              {
+                header: "LA Callback",
+                key: "la_callback",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.la_callback || "—"}</span>,
+              },
+              {
+                header: "Notes",
+                key: "notes",
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.notes || "—"}</span>,
               },
             ]}
           />
+          </div>
 
           {!loading && filtered.length === 0 && (
             <EmptyState
