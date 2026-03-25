@@ -109,6 +109,19 @@ function buildLeadUniqueId(payload: TransferLeadFormData): string {
   return `${ph2}${car2}${fn1}${ln1}${ss2}`.toUpperCase();
 }
 
+function buildSubmissionId(centerName: string): string {
+  const words = String(centerName || "")
+    .trim()
+    .split(/[\s_-]+/)
+    .filter(Boolean);
+  const centerCode = words.length >= 2
+    ? `${words[0][0] ?? ""}${words[1][0] ?? ""}`
+    : (words[0]?.slice(0, 2) ?? "NA");
+  const ts = Date.now();
+  const rand = (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)).replace(/-/g, "").slice(0, 8);
+  return `${ts}-${rand}-${centerCode.toUpperCase()}`;
+}
+
 function normalizePhoneDigits(value: string) {
   return String(value || "").replace(/\D/g, "");
 }
@@ -433,6 +446,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       .maybeSingle();
 
     const leadUniqueId = payload.leadUniqueId || buildLeadUniqueId(payload);
+    const generatedSubmissionId = buildSubmissionId(callCenterName);
 
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
 
@@ -583,6 +597,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       return supabase
         .from("leads")
         .insert({
+          submission_id: generatedSubmissionId,
           lead_unique_id: leadUniqueId,
           lead_value: Number(finalPayload.leadValue || 0),
           lead_source: FIXED_BPO_LEAD_SOURCE,
@@ -686,11 +701,13 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       .maybeSingle();
 
     const leadUniqueId = pendingCreatePayload.leadUniqueId || buildLeadUniqueId(pendingCreatePayload);
+    const generatedSubmissionId = buildSubmissionId(callCenterName);
     const existingAdditional = (pendingCreatePayload.additionalInformation || "").trim();
 
     const { data: dupInserted, error } = await supabase
       .from("leads")
       .insert({
+        submission_id: generatedSubmissionId,
         lead_unique_id: leadUniqueId,
         lead_value: Number(pendingCreatePayload.leadValue || 0),
         lead_source: FIXED_BPO_LEAD_SOURCE,
@@ -798,8 +815,10 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       .maybeSingle();
 
     const leadUniqueId = payload.leadUniqueId || buildLeadUniqueId(payload);
+    const generatedSubmissionId = buildSubmissionId(callCenterName);
 
     const { error } = await supabase.from("leads").insert({
+      submission_id: generatedSubmissionId,
       lead_unique_id: leadUniqueId,
       lead_value: Number(payload.leadValue || 0),
       lead_source: FIXED_BPO_LEAD_SOURCE,
