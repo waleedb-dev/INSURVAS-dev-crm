@@ -57,7 +57,9 @@ const determineFinalStatus = (
   sentToUnderwriting: boolean | null,
   originalStatus?: string,
 ) => {
-  if (applicationSubmitted === true) return "Pending Approval";
+  if (applicationSubmitted === true) {
+    return sentToUnderwriting === true ? "Underwriting" : "Submitted";
+  }
   return mapStatusToSheetValue(originalStatus || "Not Submitted");
 };
 
