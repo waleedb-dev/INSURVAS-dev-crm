@@ -61,6 +61,16 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   const currentRole = roles.find(r => r.id === selectedRoleId);
   const isCallCenterRole = currentRole?.key === "call_center_admin" || currentRole?.key === "call_center_agent";
 
+  const selectedPermissionCount = useMemo(() => {
+    if (permissions.length === 0 || selectedPermissions.size === 0) return 0;
+    const validIds = new Set(permissions.map((p) => p.id));
+    let count = 0;
+    selectedPermissions.forEach((id) => {
+      if (validIds.has(id)) count += 1;
+    });
+    return count;
+  }, [permissions, selectedPermissions]);
+
   useEffect(() => {
     setPermissionsPage(1);
   }, [activeTab, permissions.length, selectedRoleId]);
@@ -347,7 +357,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                 <div style={{ animation: "fadeInUp 0.3s ease-out" }}>
                   <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Dynamic Permissions</h3>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 12px", borderRadius: 20 }}>{selectedPermissions.size} selected</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 12px", borderRadius: 20 }}>{selectedPermissionCount} selected</span>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
                     {permissions
