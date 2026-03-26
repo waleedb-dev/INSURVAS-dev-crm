@@ -7,6 +7,7 @@ import TransferLeadApplicationForm, { type TransferLeadFormData } from "./Transf
 import LeadViewComponent from "./LeadViewComponent";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import { useParams, useRouter } from "next/navigation";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import {
@@ -541,72 +542,13 @@ export default function CallCenterLeadIntakePage({
       return;
     }
 
-    // 2) DNC check (submit-time)
+    // 2) DNC check (submit-time) — same parsing as Transfer Lead / lib/dncCheck (incl. dnc-test tcpa_litigator lists)
     try {
       if (phoneDigits.length === 10) {
-        const [blacklistResult, dncTestResult] = await Promise.all([
-          supabase.functions.invoke("blacklist-check", { body: { phone: phoneDigits } }),
-          supabase.functions.invoke("dnc-test", { body: { mobileNumber: phoneDigits } }),
-        ]);
-        if (blacklistResult.error && dncTestResult.error) {
-          throw new Error(blacklistResult.error.message || dncTestResult.error.message || "DNC check failed");
-        }
-
-        const toPayload = (input: unknown): Record<string, unknown> => {
-          const isPayloadShape = (obj: Record<string, unknown>) =>
-            "is_tcpa" in obj ||
-            "is_blacklisted" in obj ||
-            "is_dnc" in obj ||
-            "litigator" in obj ||
-            "national_dnc" in obj ||
-            "state_dnc" in obj ||
-            "dma" in obj ||
-            "status" in obj ||
-            "message" in obj;
-
-          const firstNestedPayload = (obj: Record<string, unknown>): Record<string, unknown> => {
-            for (const value of Object.values(obj)) {
-              if (value && typeof value === "object") {
-                const candidate = value as Record<string, unknown>;
-                if (isPayloadShape(candidate)) return candidate;
-              }
-            }
-            return {};
-          };
-
-          if (Array.isArray(input)) {
-            const first = input[0];
-            return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
-          }
-          if (!input || typeof input !== "object") return {};
-          const record = input as Record<string, unknown>;
-          const nested = record.data;
-          if (Array.isArray(nested)) {
-            const first = nested[0];
-            return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
-          }
-          if (nested && typeof nested === "object") {
-            const nestedObj = nested as Record<string, unknown>;
-            return isPayloadShape(nestedObj) ? nestedObj : firstNestedPayload(nestedObj);
-          }
-          return isPayloadShape(record) ? record : firstNestedPayload(record);
-        };
-
-        const payloadA = blacklistResult.error ? {} : toPayload(blacklistResult.data);
-        const payloadB = dncTestResult.error ? {} : toPayload(dncTestResult.data);
-        const litigatorA = String(payloadA.litigator ?? "").toUpperCase();
-        const litigatorB = String(payloadB.litigator ?? "").toUpperCase();
-        const isTcpa =
-          payloadA.is_tcpa === true || payloadA.is_blacklisted === true || litigatorA === "Y" ||
-          payloadB.is_tcpa === true || payloadB.is_blacklisted === true || litigatorB === "Y";
-        const tcpaMessage =
-          (typeof payloadA.message === "string" && payloadA.message) ||
-          (typeof payloadB.message === "string" && payloadB.message) ||
-          "WARNING: This number is blacklisted/TCPA flagged. Lead creation is blocked.";
-
-        if (isTcpa) {
+        const { status, message } = await runBlacklistDncPhoneCheck(supabase, phoneDigits);
+        if (status === "tcpa") {
           setToast({
-            message: tcpaMessage,
+            message: message || "WARNING: This number is blacklisted/TCPA flagged. Lead creation is blocked.",
             type: "error",
           });
           return;

@@ -32,6 +32,8 @@ export default function CarrierManagementPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
   const [newProductName, setNewProductName] = useState("");
   const [productsLoading, setProductsLoading] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [editingProductName, setEditingProductName] = useState("");
 
   async function fetchCarriers() {
     const { data, error } = await supabase
@@ -72,6 +74,8 @@ export default function CarrierManagementPage() {
     setProducts([]);
     setSelectedProductIds(new Set());
     setNewProductName("");
+    setEditingProductId(null);
+    setEditingProductName("");
     setView("edit");
   }
 
@@ -81,6 +85,8 @@ export default function CarrierManagementPage() {
     setProducts([]);
     setSelectedProductIds(new Set());
     setNewProductName("");
+    setEditingProductId(null);
+    setEditingProductName("");
     setView("edit");
   }
 
@@ -145,6 +151,61 @@ export default function CarrierManagementPage() {
     setProducts((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     setSelectedProductIds((prev) => new Set(prev).add(created.id));
     setNewProductName("");
+  }
+
+  function startEditProduct(p: Product) {
+    setEditingProductId(p.id);
+    setEditingProductName(p.name);
+  }
+
+  function cancelEditProduct() {
+    setEditingProductId(null);
+    setEditingProductName("");
+  }
+
+  async function saveEditedProduct() {
+    if (editingProductId == null) return;
+    const trimmed = editingProductName.trim();
+    if (!trimmed) return;
+
+    const { error } = await supabase
+      .from("products")
+      .update({ name: trimmed })
+      .eq("id", editingProductId);
+
+    if (error) {
+      console.error("Error updating product:", error);
+      return;
+    }
+
+    setProducts((prev) =>
+      prev
+        .map((p) => (p.id === editingProductId ? { ...p, name: trimmed } : p))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+    cancelEditProduct();
+  }
+
+  async function deleteProduct(productId: number) {
+    const product = products.find((p) => p.id === productId);
+    const ok = window.confirm(`Delete product "${product?.name ?? "this product"}"? This removes it from all carriers.`);
+    if (!ok) return;
+
+    const { error } = await supabase.from("products").delete().eq("id", productId);
+    if (error) {
+      console.error("Error deleting product:", error);
+      return;
+    }
+
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      next.delete(productId);
+      return next;
+    });
+    if (editingProductId === productId) {
+      cancelEditProduct();
+    }
   }
 
   async function handleSave() {
@@ -313,42 +374,129 @@ export default function CarrierManagementPage() {
                ) : (
                  products.map((p) => {
                    const checked = selectedProductIds.has(p.id);
+                   const isEditing = editingProductId === p.id;
                    return (
-                     <button
-                       key={p.id}
-                       type="button"
-                       onClick={() => toggleProduct(p.id)}
-                       style={{
-                         display: "flex",
-                         alignItems: "center",
-                         gap: 10,
-                         padding: "12px 14px",
-                         borderRadius: 12,
-                         border: `1.5px solid ${checked ? T.blue : T.border}`,
-                         backgroundColor: checked ? T.blueFaint : "#fff",
-                         cursor: "pointer",
-                         textAlign: "left",
-                       }}
-                     >
-                       <div style={{
-                         width: 18,
-                         height: 18,
-                         borderRadius: 5,
-                         border: `2px solid ${checked ? T.blue : T.border}`,
-                         backgroundColor: checked ? T.blue : "#fff",
-                         display: "flex",
-                         alignItems: "center",
-                         justifyContent: "center",
-                         flexShrink: 0,
-                       }}>
-                         {checked && (
-                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4">
-                             <path d="M20 6L9 17l-5-5" />
-                           </svg>
-                         )}
-                       </div>
-                       <div style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{p.name}</div>
-                     </button>
+                      <div
+                        key={p.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "12px 14px",
+                          borderRadius: 12,
+                          border: `1.5px solid ${checked ? T.blue : T.border}`,
+                          backgroundColor: checked ? T.blueFaint : "#fff",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleProduct(p.id)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            border: "none",
+                            background: "transparent",
+                            cursor: "pointer",
+                            padding: 0,
+                            flex: 1,
+                            textAlign: "left",
+                          }}
+                          title="Toggle product"
+                        >
+                          <div style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: 5,
+                            border: `2px solid ${checked ? T.blue : T.border}`,
+                            backgroundColor: checked ? T.blue : "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}>
+                            {checked && (
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4">
+                                <path d="M20 6L9 17l-5-5" />
+                              </svg>
+                            )}
+                          </div>
+                          {isEditing ? (
+                            <input
+                              value={editingProductName}
+                              onChange={(e) => setEditingProductName(e.target.value)}
+                              style={{
+                                width: "100%",
+                                padding: "8px 10px",
+                                border: `1.5px solid ${T.border}`,
+                                borderRadius: 10,
+                                fontSize: 13,
+                                fontWeight: 800,
+                                outline: "none",
+                                backgroundColor: "#fff",
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") void saveEditedProduct();
+                                if (e.key === "Escape") cancelEditProduct();
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <div style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{p.name}</div>
+                          )}
+                        </button>
+
+                        {isEditing ? (
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => void saveEditedProduct()}
+                              style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditProduct}
+                              style={{ background: "transparent", border: "none", color: T.textMuted, padding: "8px 6px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => startEditProduct(p)}
+                              style={{ background: "transparent", border: "none", color: T.blue, padding: "6px 6px", cursor: "pointer", borderRadius: 8 }}
+                              title="Rename product"
+                              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = T.rowBg)}
+                              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteProduct(p.id)}
+                              style={{ background: "transparent", border: "none", color: "#ef4444", padding: "6px 6px", cursor: "pointer", borderRadius: 8 }}
+                              title="Delete product"
+                              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fef2f2")}
+                              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                <path d="M10 11v6" />
+                                <path d="M14 11v6" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                    );
                  })
                )}

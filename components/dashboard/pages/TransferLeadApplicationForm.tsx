@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 
 export type TransferLeadFormData = {
   leadUniqueId: string;
@@ -181,6 +182,8 @@ export default function TransferLeadApplicationForm({
   const [dncChecking, setDncChecking] = useState(false);
   const [dncStatus, setDncStatus] = useState<DncStatus>("idle");
   const [dncMessage, setDncMessage] = useState("");
+  /** Same DNC/TCPA modal as verification panel (Call Center Lead Intake + transfer flows). */
+  const [showDncModal, setShowDncModal] = useState(false);
   const [phoneDupChecking, setPhoneDupChecking] = useState(false);
   const [showPhoneDupDetails, setShowPhoneDupDetails] = useState(false);
   const [phoneDupMatch, setPhoneDupMatch] = useState<PhoneDuplicateMatch | null>(null);
@@ -348,102 +351,17 @@ export default function TransferLeadApplicationForm({
       const dup = await checkPhoneDuplicate();
       if (dup.match) setShowPhoneDupDetails(true);
 
-      // Always call BOTH edge functions and merge their outcomes.
-      const [blacklistResult, dncTestResult] = await Promise.all([
-        supabase.functions.invoke("blacklist-check", { body: { phone: cleanPhone } }),
-        supabase.functions.invoke("dnc-test", { body: { mobileNumber: cleanPhone } }),
-      ]);
-      if (blacklistResult.error && dncTestResult.error) {
-        throw new Error(blacklistResult.error.message || dncTestResult.error.message || "DNC check failed");
-      }
-
-      const toPayload = (input: unknown): Record<string, unknown> => {
-        const isPayloadShape = (obj: Record<string, unknown>) =>
-          "is_tcpa" in obj ||
-          "is_blacklisted" in obj ||
-          "is_dnc" in obj ||
-          "litigator" in obj ||
-          "national_dnc" in obj ||
-          "state_dnc" in obj ||
-          "dma" in obj ||
-          "status" in obj ||
-          "message" in obj;
-
-        const firstNestedPayload = (obj: Record<string, unknown>): Record<string, unknown> => {
-          for (const value of Object.values(obj)) {
-            if (value && typeof value === "object") {
-              const candidate = value as Record<string, unknown>;
-              if (isPayloadShape(candidate)) return candidate;
-            }
-          }
-          return {};
-        };
-
-        if (Array.isArray(input)) {
-          const first = input[0];
-          return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
-        }
-        if (!input || typeof input !== "object") return {};
-        const record = input as Record<string, unknown>;
-        const nested = record.data;
-        if (Array.isArray(nested)) {
-          const first = nested[0];
-          return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
-        }
-        if (nested && typeof nested === "object") {
-          const nestedObj = nested as Record<string, unknown>;
-          return isPayloadShape(nestedObj) ? nestedObj : firstNestedPayload(nestedObj);
-        }
-        return isPayloadShape(record) ? record : firstNestedPayload(record);
-      };
-
-      const payloadA = blacklistResult.error ? {} : toPayload(blacklistResult.data);
-      const payloadB = dncTestResult.error ? {} : toPayload(dncTestResult.data);
-      const mergedMessage =
-        (typeof payloadA.message === "string" && payloadA.message) ||
-        (typeof payloadB.message === "string" && payloadB.message) ||
-        "";
-
-      const litigatorA = String(payloadA.litigator ?? "").toUpperCase();
-      const nationalDncA = String(payloadA.national_dnc ?? "").toUpperCase();
-      const stateDncA = String(payloadA.state_dnc ?? "").toUpperCase();
-      const dmaDncA = String(payloadA.dma ?? "").toUpperCase();
-      const litigatorB = String(payloadB.litigator ?? "").toUpperCase();
-      const nationalDncB = String(payloadB.national_dnc ?? "").toUpperCase();
-      const stateDncB = String(payloadB.state_dnc ?? "").toUpperCase();
-      const dmaDncB = String(payloadB.dma ?? "").toUpperCase();
-      const isTcpa =
-        payloadA.is_tcpa === true || payloadA.is_blacklisted === true || litigatorA === "Y" ||
-        payloadB.is_tcpa === true || payloadB.is_blacklisted === true || litigatorB === "Y";
-      const isDnc =
-        payloadA.is_dnc === true || payloadB.is_dnc === true ||
-        isTcpa ||
-        nationalDncA === "Y" || stateDncA === "Y" || dmaDncA === "Y" ||
-        nationalDncB === "Y" || stateDncB === "Y" || dmaDncB === "Y";
-
-      const resolvedStatus: DncStatus =
-        isTcpa
-          ? "tcpa"
-          : isDnc
-            ? "dnc"
-            : "clear";
-
-      const message =
-        mergedMessage
-          ? mergedMessage
-          : resolvedStatus === "tcpa"
-            ? "WARNING: This number is blacklisted/TCPA flagged."
-            : resolvedStatus === "dnc"
-              ? "This number is on DNC. Proceed with verbal consent."
-              : "This number is clear. Please verify consent with customer.";
+      const { status: resolvedStatus, message } = await runBlacklistDncPhoneCheck(supabase, cleanPhone);
 
       setDncStatus(resolvedStatus);
       setDncMessage(message);
+      setShowDncModal(true);
       return resolvedStatus;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to check DNC status.";
       setDncStatus("error");
       setDncMessage(message);
+      setShowDncModal(true);
       return "error";
     } finally {
       setDncChecking(false);
@@ -686,7 +604,7 @@ export default function TransferLeadApplicationForm({
               <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyle} />
             </Field>
             <Field label="Phone Number *">
-              <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+              <div style={{ position: "relative" }}>
                 <input
                   placeholder="(000) 000-0000"
                   value={formData.phone}
@@ -694,30 +612,52 @@ export default function TransferLeadApplicationForm({
                     set("phone")(e);
                     setDncStatus("idle");
                     setDncMessage("");
+                    setShowDncModal(false);
                     setPhoneDupMatch(null);
                     setPhoneDupRuleMessage("");
                     setPhoneDupIsAddable(true);
                     setShowPhoneDupDetails(false);
                   }}
-                  style={{ ...fieldStyle, borderColor: phoneError ? T.danger : T.border, flex: 1 }}
+                  style={{
+                    ...fieldStyle,
+                    borderColor: phoneError ? T.danger : T.border,
+                    paddingRight: 120,
+                    width: "100%",
+                  }}
                 />
                 <button
                   type="button"
                   onClick={() => void checkDnc()}
                   disabled={dncChecking || phoneDupChecking}
                   style={{
-                    borderRadius: 8,
+                    position: "absolute",
+                    right: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    height: 34,
+                    borderRadius: 10,
                     border: "none",
-                    padding: "0 14px",
+                    padding: "0 14px 0 12px",
                     fontWeight: 700,
                     cursor: dncChecking || phoneDupChecking ? "not-allowed" : "pointer",
                     backgroundColor: dncChecking || phoneDupChecking ? "#d1d5db" : T.blue,
                     color: "#fff",
-                    minWidth: 128,
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {dncChecking || phoneDupChecking ? "Checking..." : "Blacklist check"}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.86.33 1.7.62 2.5a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.58-1.14a2 2 0 0 1 2.11-.45c.8.29 1.64.5 2.5.62A2 2 0 0 1 22 16.92z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  {dncChecking || phoneDupChecking ? "Checking..." : "Check"}
                 </button>
               </div>
               {dncStatus !== "idle" && dncMessage && (
@@ -1196,6 +1136,141 @@ export default function TransferLeadApplicationForm({
                   Save & Verify All
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDncModal && dncStatus !== "idle" && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            zIndex: 3800,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 760,
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              border: dncStatus === "tcpa" ? "2px solid #ef4444" : `1.5px solid ${T.border}`,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
+              padding: 18,
+            }}
+          >
+            <h4
+              style={{
+                margin: 0,
+                fontSize: 26,
+                color:
+                  dncStatus === "tcpa"
+                    ? "#dc2626"
+                    : dncStatus === "dnc"
+                      ? "#ea580c"
+                      : dncStatus === "error"
+                        ? "#dc2626"
+                        : T.blue,
+              }}
+            >
+              {dncStatus === "tcpa"
+                ? "TCPA LITIGATOR WARNING"
+                : dncStatus === "dnc"
+                  ? "Do Not Call List"
+                  : dncStatus === "error"
+                    ? "DNC Check Failed"
+                    : "Phone Verification"}
+            </h4>
+            <p style={{ margin: "8px 0 0", fontSize: 16, color: T.textMid, lineHeight: 1.45 }}>
+              {dncStatus === "tcpa"
+                ? "This number is flagged as a TCPA Litigator. Proceeding may result in legal issues."
+                : dncStatus === "error"
+                  ? dncMessage
+                  : "Please read the following script to the customer to obtain verbal consent."}
+            </p>
+
+            {dncStatus === "tcpa" && (
+              <div style={{ padding: "16px 0" }}>
+                <p style={{ color: "#dc2626", fontWeight: 800, textAlign: "center", fontSize: 30, margin: 0 }}>
+                  WARNING: This number is a TCPA LITIGATOR
+                </p>
+                <p style={{ fontSize: 18, color: T.textMid, textAlign: "center", margin: "12px 0 0" }}>
+                  This number has been flagged as a TCPA litigator. It is recommended to NOT proceed with this lead.
+                </p>
+              </div>
+            )}
+
+            {(dncStatus === "clear" || dncStatus === "dnc") && (
+              <div style={{ padding: "16px 0" }}>
+                {dncStatus === "dnc" && (
+                  <p style={{ color: "#ea580c", fontSize: 20, fontWeight: 800, margin: "0 0 10px" }}>
+                    This number is on the Do Not Call list.
+                  </p>
+                )}
+                <div style={{ backgroundColor: "#f8fafc", padding: 18, borderRadius: 10, border: "2px solid #e5e7eb" }}>
+                  <p style={{ fontSize: 20, margin: "0 0 12px", fontWeight: 600, lineHeight: 1.45 }}>
+                    Is your phone number <span style={{ color: T.blue, fontWeight: 800 }}>{formData.phone || ""}</span> on the
+                    Federal, National or State Do Not Call List?
+                  </p>
+                  <p style={{ color: T.textMuted, fontSize: 13, margin: "0 0 10px" }}>
+                    If a customer says no and we see it is on DNC, we still need verbal consent.
+                  </p>
+                  <p style={{ fontSize: 20, margin: 0, fontWeight: 600, lineHeight: 1.45 }}>
+                    Sir/Ma&apos;am, even if your phone number is on the Federal National or State Do Not Call list, do we still
+                    have your permission to call you and submit your application for insurance to{" "}
+                    <span style={{ color: T.blue, fontWeight: 800 }}>{formData.carrier || "selected carrier"}</span> via your
+                    phone number <span style={{ color: T.blue, fontWeight: 800 }}>{formData.phone || ""}</span>? And do we have
+                    your permission to call you on the same phone number in the future if needed?
+                  </p>
+                  <p style={{ fontSize: 15, color: T.textMid, margin: "12px 0 0", fontWeight: 700 }}>
+                    Make sure you get a clear YES on it.
+                  </p>
+                </div>
+                {dncMessage ? (
+                  <p style={{ marginTop: 12, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{dncMessage}</p>
+                ) : null}
+              </div>
+            )}
+
+            <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowDncModal(false)}
+                style={{
+                  border: `1px solid ${T.border}`,
+                  backgroundColor: "#fff",
+                  color: T.textDark,
+                  borderRadius: 8,
+                  padding: "10px 16px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {dncStatus === "tcpa" ? "Close" : "Cancel"}
+              </button>
+              {dncStatus !== "tcpa" && dncStatus !== "error" && (
+                <button
+                  type="button"
+                  onClick={() => setShowDncModal(false)}
+                  style={{
+                    border: "none",
+                    backgroundColor: "#16a34a",
+                    color: "#fff",
+                    borderRadius: 8,
+                    padding: "10px 16px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  I Got Verbal Consent - Proceed
+                </button>
+              )}
             </div>
           </div>
         </div>

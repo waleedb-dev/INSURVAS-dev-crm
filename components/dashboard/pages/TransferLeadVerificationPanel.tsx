@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import {
   loadVerificationItems,
   updateVerificationItem,
@@ -246,92 +247,7 @@ export default function TransferLeadVerificationPanel({
     setDncMessageByItem((prev) => ({ ...prev, [item.id]: "" }));
 
     try {
-      const [blacklistResult, dncTestResult] = await Promise.all([
-        supabase.functions.invoke("blacklist-check", { body: { phone: cleanPhone } }),
-        supabase.functions.invoke("dnc-test", { body: { mobileNumber: cleanPhone } }),
-      ]);
-      if (blacklistResult.error && dncTestResult.error) {
-        throw new Error(blacklistResult.error.message || dncTestResult.error.message || "DNC check failed");
-      }
-
-      const toPayload = (input: unknown): Record<string, unknown> => {
-        const isPayloadShape = (obj: Record<string, unknown>) =>
-          "is_tcpa" in obj ||
-          "is_blacklisted" in obj ||
-          "is_dnc" in obj ||
-          "litigator" in obj ||
-          "national_dnc" in obj ||
-          "state_dnc" in obj ||
-          "dma" in obj ||
-          "message" in obj;
-
-        const firstNestedPayload = (obj: Record<string, unknown>): Record<string, unknown> => {
-          for (const value of Object.values(obj)) {
-            if (value && typeof value === "object") {
-              const candidate = value as Record<string, unknown>;
-              if (isPayloadShape(candidate)) return candidate;
-            }
-          }
-          return {};
-        };
-
-        if (Array.isArray(input)) {
-          const first = input[0];
-          return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
-        }
-        if (!input || typeof input !== "object") return {};
-        const record = input as Record<string, unknown>;
-        const nested = record.data;
-        if (Array.isArray(nested)) {
-          const first = nested[0];
-          return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
-        }
-        if (nested && typeof nested === "object") {
-          const nestedObj = nested as Record<string, unknown>;
-          return isPayloadShape(nestedObj) ? nestedObj : firstNestedPayload(nestedObj);
-        }
-        return isPayloadShape(record) ? record : firstNestedPayload(record);
-      };
-
-      const payloadA = blacklistResult.error ? {} : toPayload(blacklistResult.data);
-      const payloadB = dncTestResult.error ? {} : toPayload(dncTestResult.data);
-      const mergedMessage =
-        (typeof payloadA.message === "string" && payloadA.message) ||
-        (typeof payloadB.message === "string" && payloadB.message) ||
-        "";
-
-      const litigatorA = String(payloadA.litigator ?? "").toUpperCase();
-      const nationalDncA = String(payloadA.national_dnc ?? "").toUpperCase();
-      const stateDncA = String(payloadA.state_dnc ?? "").toUpperCase();
-      const dmaDncA = String(payloadA.dma ?? "").toUpperCase();
-      const litigatorB = String(payloadB.litigator ?? "").toUpperCase();
-      const nationalDncB = String(payloadB.national_dnc ?? "").toUpperCase();
-      const stateDncB = String(payloadB.state_dnc ?? "").toUpperCase();
-      const dmaDncB = String(payloadB.dma ?? "").toUpperCase();
-
-      const isTcpa =
-        payloadA.is_tcpa === true || payloadA.is_blacklisted === true || litigatorA === "Y" ||
-        payloadB.is_tcpa === true || payloadB.is_blacklisted === true || litigatorB === "Y";
-      const isDnc =
-        payloadA.is_dnc === true || payloadB.is_dnc === true ||
-        isTcpa ||
-        nationalDncA === "Y" || stateDncA === "Y" || dmaDncA === "Y" ||
-        nationalDncB === "Y" || stateDncB === "Y" || dmaDncB === "Y";
-
-      const resolvedStatus: "clear" | "dnc" | "tcpa" =
-        isTcpa
-          ? "tcpa"
-          : isDnc
-            ? "dnc"
-            : "clear";
-
-      const message =
-        mergedMessage ||
-        (resolvedStatus === "tcpa"
-          ? "WARNING: This number is blacklisted/TCPA flagged."
-          : resolvedStatus === "dnc"
-            ? "This number is on DNC. Proceed with verbal consent."
-            : "This number is clear. Please verify consent with customer.");
+      const { status: resolvedStatus, message } = await runBlacklistDncPhoneCheck(supabase, cleanPhone);
 
       setDncStatusByItem((prev) => ({ ...prev, [item.id]: resolvedStatus }));
       setDncMessageByItem((prev) => ({ ...prev, [item.id]: message }));
@@ -623,6 +539,11 @@ export default function TransferLeadVerificationPanel({
                     Make sure you get a clear YES on it.
                   </p>
                 </div>
+                {dncModal.message ? (
+                  <p style={{ marginTop: 12, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>
+                    {dncModal.message}
+                  </p>
+                ) : null}
               </div>
             )}
 
