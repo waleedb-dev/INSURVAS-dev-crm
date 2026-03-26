@@ -41,6 +41,20 @@ export default function TransferLeadVerificationPanel({
     message: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
+  const [underwritingSaving, setUnderwritingSaving] = useState(false);
+  const [toolkitUrl, setToolkitUrl] = useState("https://insurancetoolkits.com/login");
+  const [underwritingData, setUnderwritingData] = useState({
+    tobaccoLast12Months: "",
+    healthConditions: "",
+    medications: "",
+    height: "",
+    weight: "",
+    carrier: "",
+    productLevel: "",
+    coverageAmount: "",
+    monthlyPremium: "",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +100,94 @@ export default function TransferLeadVerificationPanel({
     const match = items.find((item) => item.field_name === fieldName);
     if (!match) return "";
     return String(draftValues[match.id] ?? match.verified_value ?? match.original_value ?? "");
+  };
+
+  const getValueByFieldNames = (fieldNames: string[]) => {
+    for (const fieldName of fieldNames) {
+      const value = getValueByFieldName(fieldName).trim();
+      if (value) return value;
+    }
+    return "";
+  };
+
+  const openUnderwritingModal = () => {
+    const tobaccoRaw = getValueByFieldName("tobacco_use").toLowerCase();
+    const tobaccoLast12Months =
+      tobaccoRaw === "yes" || tobaccoRaw === "y" || tobaccoRaw === "true"
+        ? "yes"
+        : tobaccoRaw === "no" || tobaccoRaw === "n" || tobaccoRaw === "false"
+          ? "no"
+          : "";
+
+    setUnderwritingData({
+      tobaccoLast12Months,
+      healthConditions: getValueByFieldName("health_conditions"),
+      medications: getValueByFieldName("medications"),
+      height: getValueByFieldName("height"),
+      weight: getValueByFieldName("weight"),
+      carrier: getValueByFieldName("carrier"),
+      productLevel: getValueByFieldNames(["product_type", "insurance_application_details"]),
+      coverageAmount: getValueByFieldName("coverage_amount"),
+      monthlyPremium: getValueByFieldName("monthly_premium"),
+    });
+    setToolkitUrl("https://insurancetoolkits.com/login");
+    setShowUnderwritingModal(true);
+  };
+
+  const updateItemVerifiedValue = async (fieldName: string, rawValue: string) => {
+    const item = items.find((row) => row.field_name === fieldName);
+    const value = String(rawValue || "").trim();
+    if (!item || !value) return;
+    await updateVerificationItem(supabase, item.id, {
+      isVerified: true,
+      verifiedValue: value,
+    });
+    setItems((prev) =>
+      prev.map((row) =>
+        row.id === item.id
+          ? {
+              ...row,
+              is_verified: true,
+              verified_value: value,
+            }
+          : row,
+      ),
+    );
+    setDraftValues((prev) => ({ ...prev, [item.id]: value }));
+  };
+
+  const handleUnderwritingSaveAndVerify = async () => {
+    setUnderwritingSaving(true);
+    setError(null);
+    try {
+      await updateItemVerifiedValue(
+        "tobacco_use",
+        underwritingData.tobaccoLast12Months === "yes"
+          ? "Yes"
+          : underwritingData.tobaccoLast12Months === "no"
+            ? "No"
+            : "",
+      );
+      await updateItemVerifiedValue("health_conditions", underwritingData.healthConditions);
+      await updateItemVerifiedValue("medications", underwritingData.medications);
+      await updateItemVerifiedValue("height", underwritingData.height);
+      await updateItemVerifiedValue("weight", underwritingData.weight);
+      await updateItemVerifiedValue("carrier", underwritingData.carrier);
+      await updateItemVerifiedValue("product_type", underwritingData.productLevel);
+      await updateItemVerifiedValue(
+        "coverage_amount",
+        underwritingData.coverageAmount.replace(/\$/g, "").replace(/,/g, ""),
+      );
+      await updateItemVerifiedValue(
+        "monthly_premium",
+        underwritingData.monthlyPremium.replace(/\$/g, "").replace(/,/g, ""),
+      );
+      setShowUnderwritingModal(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save underwriting values.");
+    } finally {
+      setUnderwritingSaving(false);
+    }
   };
 
   const saveOne = async (item: VerificationItemRow, nextIsVerified: boolean) => {
@@ -268,11 +370,13 @@ export default function TransferLeadVerificationPanel({
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <h3 style={{ margin: 0, fontSize: 18, color: T.textDark, fontWeight: 800 }}>Verification Panel</h3>
-        {showProgressSummary && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: T.textMid }}>
-            {verifiedCount}/{items.length} fields verified
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {showProgressSummary && (
+            <span style={{ fontSize: 12, fontWeight: 700, color: T.textMid }}>
+              {verifiedCount}/{items.length} fields verified
+            </span>
+          )}
+        </div>
       </div>
       {showProgressSummary && (
         <div style={{ marginTop: 10, marginBottom: 14 }}>
@@ -398,6 +502,26 @@ export default function TransferLeadVerificationPanel({
                         backgroundColor: "#fff",
                       }}
                     />
+                    {isPhoneField && (
+                      <button
+                        type="button"
+                        onClick={openUnderwritingModal}
+                        style={{
+                          width: "100%",
+                          marginTop: 10,
+                          border: "none",
+                          backgroundColor: "#7c3aed",
+                          color: "#fff",
+                          borderRadius: 8,
+                          padding: "10px 12px",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          fontSize: 14,
+                        }}
+                      >
+                        Underwriting
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -539,6 +663,219 @@ export default function TransferLeadVerificationPanel({
                   I Got Verbal Consent - Proceed
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUnderwritingModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            zIndex: 3700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 18,
+          }}
+        >
+          <div
+            style={{
+              width: "95vw",
+              maxWidth: 1400,
+              maxHeight: "95vh",
+              overflowY: "auto",
+              backgroundColor: "#fff",
+              borderRadius: 14,
+              border: `1.5px solid ${T.border}`,
+              padding: 18,
+            }}
+          >
+            <h4 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#7c3aed" }}>Underwriting</h4>
+            <p style={{ marginTop: 8, marginBottom: 12, color: T.textMid, fontSize: 16 }}>
+              Please read the following script to the customer and verify all information.
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "stretch" }}>
+              <div style={{ backgroundColor: "#f8fafc", padding: 14, borderRadius: 10, border: `1px solid ${T.border}`, overflowY: "auto" }}>
+                <h5 style={{ margin: "0 0 10px", fontSize: 24, fontWeight: 800 }}>Underwriting Questions</h5>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 18, color: T.textDark }}>
+                  <p style={{ margin: 0, fontWeight: 600 }}>
+                    "I am going to ask you some medical questions and we expect your honesty that is going to save us a lot of
+                    time. This helps us evaluate which insurance carrier gives the maximum benefit at the lowest rate."
+                  </p>
+                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: 12 }}>
+                    <p style={{ margin: 0, fontWeight: 800 }}>Question 1</p>
+                    <p style={{ margin: "6px 0 0", fontSize: 16 }}>
+                      Have you ever been diagnosed with Alzheimer's, dementia, CHF, organ transplant, HIV/AIDS, TB, chronic
+                      respiratory disease, currently paralyzed, amputation due to disease, currently on oxygen, or currently in
+                      nursing facility?
+                    </p>
+                  </div>
+                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: 12 }}>
+                    <p style={{ margin: 0, fontWeight: 800 }}>Question 2</p>
+                    <p style={{ margin: "6px 0 0", fontSize: 16 }}>
+                      In the last 5 years, any heart attack, cancer, dementia, kidney failure, organ removal? Any disorder of
+                      kidney/lung/brain/heart/liver? Or recent stent, pacemaker, defibrillator, stroke, TIA, paralysis?
+                    </p>
+                  </div>
+                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: 12 }}>
+                    <p style={{ margin: 0, fontWeight: 800 }}>Question 3</p>
+                    <p style={{ margin: "6px 0 0", fontSize: 16 }}>
+                      Any diabetes complications (neuropathy, retinopathy, diabetic coma), COPD, bipolar, or schizophrenia?
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ border: "2px solid #c4b5fd", borderRadius: 10, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                <div style={{ backgroundColor: "#7c3aed", color: "#fff", padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Insurance Toolkit</span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setToolkitUrl("https://insurancetoolkits.com/fex/quoter")}
+                      style={{ border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 700 }}
+                    >
+                      Quote Tool
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setToolkitUrl("https://insurancetoolkits.com/login")}
+                      style={{ border: "1px solid #fff", background: "transparent", color: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 700 }}
+                    >
+                      Login
+                    </button>
+                  </div>
+                </div>
+                <div style={{ minHeight: 520, backgroundColor: "#fff" }}>
+                  <iframe
+                    style={{ border: "none", height: "100%", minHeight: 520, width: "100%" }}
+                    src={toolkitUrl}
+                    title="Insurance Toolkit"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
+                <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Tobacco Usage (last 12 months)</label>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name="uw_tobacco"
+                      checked={underwritingData.tobaccoLast12Months === "yes"}
+                      onChange={() => setUnderwritingData((prev) => ({ ...prev, tobaccoLast12Months: "yes" }))}
+                    />
+                    Yes
+                  </label>
+                  <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name="uw_tobacco"
+                      checked={underwritingData.tobaccoLast12Months === "no"}
+                      onChange={() => setUnderwritingData((prev) => ({ ...prev, tobaccoLast12Months: "no" }))}
+                    />
+                    No
+                  </label>
+                </div>
+              </div>
+              <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
+                <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level</label>
+                <input
+                  value={underwritingData.productLevel}
+                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
+                  placeholder="e.g. Preferred"
+                  style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px" }}
+                />
+              </div>
+              <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
+                <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Health Conditions (comma separated)</label>
+                <textarea
+                  value={underwritingData.healthConditions}
+                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, healthConditions: e.target.value }))}
+                  rows={4}
+                  style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px", resize: "vertical" }}
+                />
+              </div>
+              <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
+                <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Medications (comma separated)</label>
+                <textarea
+                  value={underwritingData.medications}
+                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, medications: e.target.value }))}
+                  rows={4}
+                  style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px", resize: "vertical" }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              {[
+                ["Height", "height", "e.g. 5'10\""],
+                ["Weight", "weight", "e.g. 180 lbs"],
+                ["Carrier", "carrier", "e.g. AMAM"],
+                ["Coverage Amount", "coverageAmount", "e.g. $10,000"],
+                ["Monthly Premium", "monthlyPremium", "e.g. $50.00"],
+              ].map(([label, key, placeholder]) => (
+                <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
+                  <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>{label}</label>
+                  <input
+                    value={underwritingData[key as keyof typeof underwritingData]}
+                    onChange={(e) =>
+                      setUnderwritingData((prev) => ({
+                        ...prev,
+                        [key]: e.target.value,
+                      }))
+                    }
+                    placeholder={placeholder}
+                    style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px" }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 12, fontSize: 12, color: T.textMuted, textAlign: "center" }}>
+              Clicking "Save & Verify All" will save entered fields to verification panel and mark them as verified.
+            </div>
+            <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowUnderwritingModal(false)}
+                disabled={underwritingSaving}
+                style={{
+                  border: `1px solid ${T.border}`,
+                  backgroundColor: "#fff",
+                  color: T.textDark,
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  fontWeight: 700,
+                  cursor: underwritingSaving ? "not-allowed" : "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleUnderwritingSaveAndVerify();
+                }}
+                disabled={underwritingSaving}
+                style={{
+                  border: "none",
+                  backgroundColor: underwritingSaving ? T.border : "#16a34a",
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  fontWeight: 700,
+                  cursor: underwritingSaving ? "not-allowed" : "pointer",
+                }}
+              >
+                {underwritingSaving ? "Saving..." : "Save & Verify All"}
+              </button>
             </div>
           </div>
         </div>
