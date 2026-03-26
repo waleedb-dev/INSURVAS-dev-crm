@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Toast } from "@/components/ui";
 
 const statusOptions = [
   "Needs callback",
@@ -120,7 +121,7 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
   const [carrierAttempted3, setCarrierAttempted3] = useState("");
   const [loading, setLoading] = useState(false);
   const [hydrating, setHydrating] = useState(true);
-  const [message, setMessage] = useState<{ text: string; type: "ok" | "error" } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const reasons = reasonMap[status] || [];
   const showSubmittedFields = applicationSubmitted === true;
@@ -214,26 +215,26 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
 
   const save = async () => {
     if (applicationSubmitted === null) {
-      setMessage({ text: "Select whether application was submitted.", type: "error" });
+      setToast({ message: "Select whether application was submitted.", type: "error" });
       return;
     }
     if (!callSource) {
-      setMessage({ text: "Call source is required.", type: "error" });
+      setToast({ message: "Call source is required.", type: "error" });
       return;
     }
     if (applicationSubmitted === false && notSubmittedMissingFields.length > 0) {
-      setMessage({ text: `Missing fields: ${notSubmittedMissingFields.join(", ")}`, type: "error" });
+      setToast({ message: `Missing fields: ${notSubmittedMissingFields.join(", ")}`, type: "error" });
       return;
     }
     if (applicationSubmitted === true) {
       if (submittedMissingFields.length > 0) {
-        setMessage({ text: `Missing fields: ${submittedMissingFields.join(", ")}`, type: "error" });
+        setToast({ message: `Missing fields: ${submittedMissingFields.join(", ")}`, type: "error" });
         return;
       }
     }
 
     setLoading(true);
-    setMessage(null);
+    setToast(null);
     try {
       const {
         data: { session },
@@ -378,10 +379,13 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
         });
       }
 
-      setMessage({ text: "Call result update saved.", type: "ok" });
+      setToast({ message: "Call result update saved.", type: "success" });
+      setTimeout(() => {
+        router.back();
+      }, 700);
     } catch (err) {
-      setMessage({
-        text: err instanceof Error ? err.message : "Failed to save call result data.",
+      setToast({
+        message: err instanceof Error ? err.message : "Failed to save call result data.",
         type: "error",
       });
     } finally {
@@ -725,22 +729,6 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
           Mark as retention call
         </label>
 
-        {message && (
-          <div
-            style={{
-              borderRadius: 8,
-              border: `1px solid ${message.type === "ok" ? "#86efac" : "#fecaca"}`,
-              backgroundColor: message.type === "ok" ? "#f0fdf4" : "#fef2f2",
-              color: message.type === "ok" ? "#166534" : "#991b1b",
-              padding: "8px 10px",
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            {message.text}
-          </div>
-        )}
-
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
             type="button"
@@ -760,6 +748,7 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
           </button>
         </div>
       </div>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
