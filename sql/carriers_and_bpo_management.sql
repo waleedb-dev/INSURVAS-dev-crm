@@ -46,6 +46,90 @@ for delete
 to authenticated
 using (public.has_role('system_admin'));
 
+-- Carrier Products
+create table if not exists public.products (
+  id bigserial primary key,
+  name text not null unique,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.carrier_products (
+  carrier_id bigint not null references public.carriers(id) on delete cascade,
+  product_id bigint not null references public.products(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (carrier_id, product_id)
+);
+
+create index if not exists idx_carrier_products_carrier_id on public.carrier_products(carrier_id);
+create index if not exists idx_carrier_products_product_id on public.carrier_products(product_id);
+
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.products to authenticated;
+grant select, insert, update, delete on public.carrier_products to authenticated;
+grant usage, select on sequence public.products_id_seq to authenticated;
+
+alter table public.products enable row level security;
+alter table public.carrier_products enable row level security;
+
+drop policy if exists products_select_system_admin on public.products;
+create policy products_select_system_admin
+on public.products
+for select
+to authenticated
+using (public.has_role('system_admin'));
+
+drop policy if exists products_insert_system_admin on public.products;
+create policy products_insert_system_admin
+on public.products
+for insert
+to authenticated
+with check (public.has_role('system_admin'));
+
+drop policy if exists products_update_system_admin on public.products;
+create policy products_update_system_admin
+on public.products
+for update
+to authenticated
+using (public.has_role('system_admin'))
+with check (public.has_role('system_admin'));
+
+drop policy if exists products_delete_system_admin on public.products;
+create policy products_delete_system_admin
+on public.products
+for delete
+to authenticated
+using (public.has_role('system_admin'));
+
+drop policy if exists carrier_products_select_system_admin on public.carrier_products;
+create policy carrier_products_select_system_admin
+on public.carrier_products
+for select
+to authenticated
+using (public.has_role('system_admin'));
+
+drop policy if exists carrier_products_insert_system_admin on public.carrier_products;
+create policy carrier_products_insert_system_admin
+on public.carrier_products
+for insert
+to authenticated
+with check (public.has_role('system_admin'));
+
+drop policy if exists carrier_products_update_system_admin on public.carrier_products;
+create policy carrier_products_update_system_admin
+on public.carrier_products
+for update
+to authenticated
+using (public.has_role('system_admin'))
+with check (public.has_role('system_admin'));
+
+drop policy if exists carrier_products_delete_system_admin on public.carrier_products;
+create policy carrier_products_delete_system_admin
+on public.carrier_products
+for delete
+to authenticated
+using (public.has_role('system_admin'));
+
 -- BPO Centres / Call Centers browser access for system admin
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.call_centers to authenticated;

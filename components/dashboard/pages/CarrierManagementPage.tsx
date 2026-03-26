@@ -11,6 +11,11 @@ interface Carrier {
   createdAt: string;
 }
 
+interface Product {
+  id: number;
+  name: string;
+}
+
 export default function CarrierManagementPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
@@ -22,6 +27,11 @@ export default function CarrierManagementPage() {
   const [view, setView] = useState<"list" | "edit">("list");
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
+  const [newProductName, setNewProductName] = useState("");
+  const [productsLoading, setProductsLoading] = useState(false);
 
   async function fetchCarriers() {
     const { data, error } = await supabase
@@ -59,19 +69,89 @@ export default function CarrierManagementPage() {
   function handleOpenCreate() {
     setEditingCarrierId(null);
     setEditingName("");
+    setProducts([]);
+    setSelectedProductIds(new Set());
+    setNewProductName("");
     setView("edit");
   }
 
   function handleOpenEdit(carrier: Carrier) {
     setEditingCarrierId(carrier.id);
     setEditingName(carrier.name);
+    setProducts([]);
+    setSelectedProductIds(new Set());
+    setNewProductName("");
     setView("edit");
+  }
+
+  async function fetchProductsAndSelections(carrierId: string | null) {
+    setProductsLoading(true);
+    try {
+      const [{ data: productsData, error: productsError }, { data: mappingData, error: mappingError }] = await Promise.all([
+        supabase.from("products").select("id, name").order("name"),
+        carrierId
+          ? supabase.from("carrier_products").select("product_id").eq("carrier_id", carrierId)
+          : Promise.resolve({ data: [] as { product_id: number }[], error: null as any }),
+      ]);
+
+      if (productsError) {
+        console.error("Error fetching products:", productsError);
+        setProducts([]);
+      } else {
+        setProducts((productsData ?? []).map((row: any) => ({ id: Number(row.id), name: String(row.name) })));
+      }
+
+      if (mappingError) {
+        console.error("Error fetching carrier products:", mappingError);
+        setSelectedProductIds(new Set());
+      } else {
+        setSelectedProductIds(new Set((mappingData ?? []).map((row: any) => Number(row.product_id))));
+      }
+    } finally {
+      setProductsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (view !== "edit") return;
+    void fetchProductsAndSelections(editingCarrierId);
+  }, [view, editingCarrierId]);
+
+  function toggleProduct(id: number) {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleAddProduct() {
+    const trimmed = newProductName.trim();
+    if (!trimmed) return;
+
+    const { data, error } = await supabase
+      .from("products")
+      .insert([{ name: trimmed }])
+      .select("id, name")
+      .single();
+
+    if (error) {
+      console.error("Error creating product:", error);
+      return;
+    }
+
+    const created: Product = { id: Number((data as any).id), name: String((data as any).name) };
+    setProducts((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setSelectedProductIds((prev) => new Set(prev).add(created.id));
+    setNewProductName("");
   }
 
   async function handleSave() {
     const trimmed = editingName.trim();
     if (!trimmed) return;
 
+    let carrierId = editingCarrierId;
     if (editingCarrierId) {
       // Update
       const { error } = await supabase
@@ -99,8 +179,36 @@ export default function CarrierManagementPage() {
       if (data) {
         const newC = { id: String(data.id), name: data.name, createdAt: new Date(data.created_at).toLocaleString() };
         setCarriers(prev => [newC, ...prev]);
+        carrierId = String(data.id);
       }
     }
+
+    if (carrierId) {
+      // Persist product mapping
+      const { error: deleteError } = await supabase
+        .from("carrier_products")
+        .delete()
+        .eq("carrier_id", carrierId);
+
+      if (deleteError) {
+        console.error("Error clearing carrier products:", deleteError);
+        return;
+      }
+
+      const payload = Array.from(selectedProductIds).map((productId) => ({
+        carrier_id: carrierId,
+        product_id: productId,
+      }));
+
+      if (payload.length > 0) {
+        const { error: insertError } = await supabase.from("carrier_products").insert(payload);
+        if (insertError) {
+          console.error("Error saving carrier products:", insertError);
+          return;
+        }
+      }
+    }
+
     setView("list");
   }
 
@@ -148,7 +256,7 @@ export default function CarrierManagementPage() {
           <button style={{ padding: "12px 4px", border: "none", borderBottom: `3px solid ${T.blue}`, background: "none", color: T.blue, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>General Settings</button>
         </div>
 
-        <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, padding: 32, maxWidth: 640 }}>
+        <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, padding: 32, maxWidth: 820 }}>
            <div style={{ marginBottom: 24 }}>
              <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8, textTransform: "uppercase" }}>Carrier Name</label>
              <input 
@@ -160,6 +268,93 @@ export default function CarrierManagementPage() {
                onKeyDown={e => e.key === 'Enter' && handleSave()}
              />
            </div>
+
+           <div style={{ borderTop: `1.5px solid ${T.borderLight}`, paddingTop: 22, marginTop: 14 }}>
+             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 14 }}>
+               <div>
+                 <div style={{ fontSize: 13, fontWeight: 900, color: T.textDark }}>Products</div>
+                 <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, marginTop: 4 }}>
+                   Select which product types are available for this carrier.
+                 </div>
+               </div>
+               <div style={{ fontSize: 12, fontWeight: 800, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 12px", borderRadius: 999 }}>
+                 {selectedProductIds.size} selected
+               </div>
+             </div>
+
+             <div style={{ display: "flex", gap: 10, marginBottom: 14, alignItems: "center" }}>
+               <input
+                 value={newProductName}
+                 onChange={(e) => setNewProductName(e.target.value)}
+                 placeholder="Add a new product (e.g. Preferred)"
+                 style={{ flex: 1, padding: "12px 14px", border: `1.5px solid ${T.border}`, borderRadius: 10, fontSize: 14, outline: "none", color: T.textDark, fontWeight: 600 }}
+                 onKeyDown={(e) => {
+                   if (e.key === "Enter") void handleAddProduct();
+                 }}
+               />
+               <button
+                 type="button"
+                 onClick={() => void handleAddProduct()}
+                 style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 10, padding: "12px 16px", fontSize: 13, fontWeight: 800, cursor: "pointer", color: T.textDark }}
+               >
+                 + Add
+               </button>
+             </div>
+
+             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+               {productsLoading ? (
+                 <div style={{ gridColumn: "span 2", padding: "14px 12px", color: T.textMuted, fontWeight: 700, fontSize: 13 }}>
+                   Loading products…
+                 </div>
+               ) : products.length === 0 ? (
+                 <div style={{ gridColumn: "span 2", padding: "14px 12px", color: T.textMuted, fontWeight: 700, fontSize: 13 }}>
+                   No products found. Add one above.
+                 </div>
+               ) : (
+                 products.map((p) => {
+                   const checked = selectedProductIds.has(p.id);
+                   return (
+                     <button
+                       key={p.id}
+                       type="button"
+                       onClick={() => toggleProduct(p.id)}
+                       style={{
+                         display: "flex",
+                         alignItems: "center",
+                         gap: 10,
+                         padding: "12px 14px",
+                         borderRadius: 12,
+                         border: `1.5px solid ${checked ? T.blue : T.border}`,
+                         backgroundColor: checked ? T.blueFaint : "#fff",
+                         cursor: "pointer",
+                         textAlign: "left",
+                       }}
+                     >
+                       <div style={{
+                         width: 18,
+                         height: 18,
+                         borderRadius: 5,
+                         border: `2px solid ${checked ? T.blue : T.border}`,
+                         backgroundColor: checked ? T.blue : "#fff",
+                         display: "flex",
+                         alignItems: "center",
+                         justifyContent: "center",
+                         flexShrink: 0,
+                       }}>
+                         {checked && (
+                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4">
+                             <path d="M20 6L9 17l-5-5" />
+                           </svg>
+                         )}
+                       </div>
+                       <div style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{p.name}</div>
+                     </button>
+                   );
+                 })
+               )}
+             </div>
+           </div>
+
            <div style={{ display: "flex", gap: 12, paddingTop: 12, borderTop: `1.5px solid ${T.borderLight}` }}>
              <button onClick={handleSave} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Save Carrier</button>
              <button onClick={() => setView("list")} style={{ backgroundColor: "transparent", color: T.textMid, border: `1.5px solid ${T.border}`, borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Cancel</button>
