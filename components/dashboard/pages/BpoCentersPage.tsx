@@ -60,6 +60,24 @@ export default function BpoCentersPage() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [saveAttempted, setSaveAttempted] = useState(false);
+  const [touchedFields, setTouchedFields] = useState({
+    name: false,
+    did: false,
+    slack_channel: false,
+    email: false,
+  });
+
+  const isMissingRequired = (value: string | null | undefined) => String(value ?? "").trim() === "";
+
+  const requiredFieldLabels = () => {
+    const missing: string[] = [];
+    if (isMissingRequired(editingCenterName)) missing.push("Centre Name");
+    if (isMissingRequired(selectedCenter?.did)) missing.push("Direct Line (DID)");
+    if (isMissingRequired(selectedCenter?.slack_channel)) missing.push("Slack Channel");
+    if (isMissingRequired(selectedCenter?.email)) missing.push("Email");
+    return missing;
+  };
 
   function buildCenterDetail(centerId: string, sourceCenters = centers, sourceUsers = users): CenterDetail | null {
     const center = sourceCenters.find((item) => item.id === centerId);
@@ -161,10 +179,18 @@ export default function BpoCentersPage() {
     } as any);
     setEditingCenterName("");
     setLogoUrl(null);
+    setSaveAttempted(false);
+    setTouchedFields({ name: false, did: false, slack_channel: false, email: false });
     setView("edit");
   }
 
   async function handleCreateCenter() {
+    setSaveAttempted(true);
+    const missing = requiredFieldLabels();
+    if (missing.length > 0) {
+      setToast({ message: `Please fill required fields: ${missing.join(", ")}.`, type: "error" });
+      return;
+    }
     const trimmed = editingCenterName.trim();
     if (!trimmed) return;
 
@@ -177,9 +203,14 @@ export default function BpoCentersPage() {
     }]);
     if (error) {
       console.error("Error creating center:", error);
+      setToast({ message: `Failed to create centre: ${error.message}`, type: "error" });
       return;
     }
 
+    setToast({
+      message: "Centre created successfully.",
+      type: "success",
+    });
     setEditingCenterName("");
     setLogoUrl(null);
     setSelectedCenter(null);
@@ -216,6 +247,12 @@ export default function BpoCentersPage() {
 
   async function handleRenameCenter() {
     if (!selectedCenter || !editingCenterName.trim()) return;
+    setSaveAttempted(true);
+    const missing = requiredFieldLabels();
+    if (missing.length > 0) {
+      setToast({ message: `Please fill required fields: ${missing.join(", ")}.`, type: "error" });
+      return;
+    }
 
     const { error } = await supabase
       .from("call_centers")
@@ -234,7 +271,10 @@ export default function BpoCentersPage() {
       return;
     }
 
-    setToast({ message: "Centre updated successfully.", type: "success" });
+    setToast({
+      message: "Centre updated successfully.",
+      type: "success",
+    });
     await fetchDirectory();
   }
 
@@ -351,6 +391,24 @@ export default function BpoCentersPage() {
 
   if (view === "edit" && selectedCenter) {
     const isNew = selectedCenter.id === 'new';
+    const showInvalid = saveAttempted;
+    const invalidName = (showInvalid || touchedFields.name) && isMissingRequired(editingCenterName);
+    const invalidDid = (showInvalid || touchedFields.did) && isMissingRequired(selectedCenter.did);
+    const invalidSlack = (showInvalid || touchedFields.slack_channel) && isMissingRequired(selectedCenter.slack_channel);
+    const invalidEmail = (showInvalid || touchedFields.email) && isMissingRequired(selectedCenter.email);
+
+    const requiredInputStyle = (invalid: boolean) => ({
+      width: "100%",
+      padding: "14px 18px",
+      border: `1.5px solid ${invalid ? T.danger : T.border}`,
+      borderRadius: 12,
+      fontSize: 15,
+      fontWeight: 600,
+      outline: "none",
+      backgroundColor: T.rowBg + "44",
+      transition: "all 0.2s",
+      boxShadow: invalid ? "0 0 0 3px rgba(239,68,68,0.12)" : undefined,
+    });
 
     return (
       <div style={{ padding: "0", animation: "fadeIn 0.4s ease-out" }}>
@@ -468,8 +526,9 @@ export default function BpoCentersPage() {
                       autoFocus
                       value={editingCenterName}
                       onChange={(e) => setEditingCenterName(e.target.value)}
+                      onBlur={() => setTouchedFields((prev) => ({ ...prev, name: true }))}
                       placeholder="e.g. Islamabad North Hub"
-                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "44", transition: "all 0.2s" }}
+                      style={requiredInputStyle(invalidName)}
                     />
                   </div>
                   <div>
@@ -478,8 +537,9 @@ export default function BpoCentersPage() {
                       type="tel"
                       value={selectedCenter.did || ""}
                       onChange={e => setSelectedCenter({ ...selectedCenter, did: e.target.value.replace(/[^0-9+]/g, "") })}
+                      onBlur={() => setTouchedFields((prev) => ({ ...prev, did: true }))}
                       placeholder="e.g. +15550000000"
-                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "44", transition: "all 0.2s" }}
+                      style={requiredInputStyle(invalidDid)}
                     />
                   </div>
                 </div>
@@ -489,8 +549,9 @@ export default function BpoCentersPage() {
                     <input 
                       value={selectedCenter.slack_channel || ""}
                       onChange={e => setSelectedCenter({ ...selectedCenter, slack_channel: e.target.value })}
+                      onBlur={() => setTouchedFields((prev) => ({ ...prev, slack_channel: true }))}
                       placeholder="#bpo-centre-slack"
-                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "44", transition: "all 0.2s" }}
+                      style={requiredInputStyle(invalidSlack)}
                     />
                   </div>
                   <div>
@@ -499,8 +560,9 @@ export default function BpoCentersPage() {
                       type="email"
                       value={selectedCenter.email || ""}
                       onChange={e => setSelectedCenter({ ...selectedCenter, email: e.target.value })}
+                      onBlur={() => setTouchedFields((prev) => ({ ...prev, email: true }))}
                       placeholder="centre@email.com"
-                      style={{ width: "100%", padding: "14px 18px", border: `1.5px solid ${T.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, outline: "none", backgroundColor: T.rowBg + "44", transition: "all 0.2s" }}
+                      style={requiredInputStyle(invalidEmail)}
                     />
                   </div>
                 </div>

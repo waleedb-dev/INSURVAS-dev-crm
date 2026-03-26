@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Pagination } from "@/components/ui";
 
 interface Role { id: string; name: string; key: string; }
 interface BpoCenter { id: string; name: string; }
@@ -15,7 +16,6 @@ interface UserEditorProps {
     role: string;
     roleId?: string;
     phone?: string;
-    extension?: string;
   };
   onClose: () => void;
   onSubmit: (data: any) => void;
@@ -40,7 +40,6 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   });
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
-  const [extension, setExtension] = useState(user?.extension ?? "");
   
   // Selection State
   const [roles, setRoles] = useState<Role[]>([]);
@@ -53,10 +52,18 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Permissions pagination
+  const [permissionsPage, setPermissionsPage] = useState(1);
+  const permissionsPerPage = 10;
+
   const tabs: TabType[] = ["User Info", "Roles & Permissions"];
 
   const currentRole = roles.find(r => r.id === selectedRoleId);
   const isCallCenterRole = currentRole?.key === "call_center_admin" || currentRole?.key === "call_center_agent";
+
+  useEffect(() => {
+    setPermissionsPage(1);
+  }, [activeTab, permissions.length, selectedRoleId]);
 
   useEffect(() => {
     async function fetchData() {
@@ -77,9 +84,22 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
       if (user?.roleId && !selectedRoleId) {
         setSelectedRoleId(user.roleId);
       }
+
+      // If editing an existing user, preselect their current BPO centre.
+      // UsersAccessPage doesn't include call_center_id in its list query, so we fetch it here.
+      if (user?.id) {
+        const { data: userRow } = await supabase
+          .from("users")
+          .select("call_center_id")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (userRow?.call_center_id) {
+          setSelectedCenterId(String(userRow.call_center_id));
+        }
+      }
     }
     fetchData();
-  }, [supabase]);
+  }, [supabase, user?.id, user?.roleId, selectedRoleId]);
 
   useEffect(() => {
     async function fetchEffectivePermissions() {
@@ -187,7 +207,6 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           lastName,
           email,
           phone,
-          extension,
           roleId: selectedRoleId,
           centerId: isCallCenterRole ? selectedCenterId : null,
             permissions: Array.from(selectedPermissions),
@@ -226,7 +245,6 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           lastName,
           email,
           phone,
-          extension,
           roleId: selectedRoleId,
           centerId: isCallCenterRole ? selectedCenterId : null,
             permissions: Array.from(selectedPermissions).filter((id) => !rolePermissionIds.has(id)),
@@ -278,9 +296,9 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
             <p style={{ margin: "0 0 16px", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>{currentRole?.name || user?.role || "Position TBD"}</p>
             <div style={{ borderTop: `1.5px solid ${T.borderLight}`, paddingTop: 24, textAlign: "left" }}>
               <div style={{ marginBottom: 16 }}><p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Email Address</p><p style={{ margin: 0, fontSize: 13, fontWeight: 700, wordBreak: "break-all" }}>{email || "—"}</p></div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Phone</p><p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>{phone || "—"}</p></div>
-                <div><p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Ext.</p><p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>{extension || "—"}</p></div>
+              <div>
+                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Phone</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>{phone || "—"}</p>
               </div>
             </div>
           </div>
@@ -314,9 +332,9 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                       </select>
                     </div>
                     {isCallCenterRole && (
-                      <div style={{ animation: "fadeInDown 0.2s" }}><label style={labelStyle}>BPO Center <span style={{ color: T.danger }}>*</span></label>
+                      <div style={{ animation: "fadeInDown 0.2s" }}><label style={labelStyle}>BPO Centre <span style={{ color: T.danger }}>*</span></label>
                         <select value={selectedCenterId} onChange={e => setSelectedCenterId(e.target.value)} style={inputStyle as any}>
-                          <option value="">Select a center...</option>
+                          <option value="">Select a centre...</option>
                           {centers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                       </div>
@@ -332,7 +350,9 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                     <span style={{ fontSize: 12, fontWeight: 800, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 12px", borderRadius: 20 }}>{selectedPermissions.size} selected</span>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
-                    {permissions.map(p => {
+                    {permissions
+                      .slice((permissionsPage - 1) * permissionsPerPage, permissionsPage * permissionsPerPage)
+                      .map(p => {
                       const isInherited = rolePermissionIds.has(p.id);
                       return (
                       <div key={p.id} onClick={() => togglePermission(p.id)} style={{ padding: "16px 20px", borderRadius: 12, border: `1.5px solid ${selectedPermissions.has(p.id) ? T.blue : T.border}`, backgroundColor: selectedPermissions.has(p.id) ? T.blueFaint : "transparent", cursor: isInherited ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 12, opacity: isInherited ? 0.85 : 1 }}>
@@ -346,6 +366,19 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                       </div>
                     )})}
                   </div>
+
+                  {permissions.length > permissionsPerPage && (
+                    <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
+                      <Pagination
+                        page={permissionsPage}
+                        totalItems={permissions.length}
+                        itemsPerPage={permissionsPerPage}
+                        itemLabel="permissions"
+                        onPageChange={setPermissionsPage}
+                        hideSummary
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

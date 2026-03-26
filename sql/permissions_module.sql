@@ -49,6 +49,9 @@ insert into public.permissions (key, resource, action, description) values
   ('page.commissions.access', 'commissions', 'access', 'Can access Commissions page'),
   ('action.commissions.approve', 'commissions', 'approve', 'Can approve commissions'),
   ('page.transfer_leads.access', 'transfer_leads', 'access', 'Can access Transfer Leads page'),
+  ('action.transfer_leads.view_all', 'transfer_leads', 'view_all', 'Can view all Transfer Leads (org-wide)'),
+  ('action.transfer_leads.view_call_center', 'transfer_leads', 'view_call_center', 'Can view Transfer Leads for your centre'),
+  ('action.transfer_leads.view_own', 'transfer_leads', 'view_own', 'Can view only Transfer Leads you submitted'),
   ('action.transfer_leads.create', 'transfer_leads', 'create', 'Can create new transfer lead records'),
   ('action.transfer_leads.claim_reclaim_visit', 'transfer_leads', 'claim_reclaim_visit', 'Can view Claim / Reclaim / Visit transfer lead buttons')
 on conflict (key) do update
@@ -69,6 +72,8 @@ with mapping(role_key, permission_key) as (
     ('system_admin', 'action.lead_pipeline.update'),
     ('system_admin', 'page.commissions.access'),
     ('system_admin', 'action.commissions.approve'),
+    ('system_admin', 'page.transfer_leads.access'),
+    ('system_admin', 'action.transfer_leads.view_all'),
     ('system_admin', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('sales_manager', 'page.daily_deal_flow.access'),
@@ -78,29 +83,38 @@ with mapping(role_key, permission_key) as (
     ('sales_manager', 'page.lead_pipeline.access'),
     ('sales_manager', 'action.lead_pipeline.update'),
     ('sales_manager', 'page.commissions.access'),
+    ('sales_manager', 'page.transfer_leads.access'),
+    ('sales_manager', 'action.transfer_leads.view_all'),
     ('sales_manager', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('sales_agent_licensed', 'page.daily_deal_flow.access'),
     ('sales_agent_licensed', 'action.daily_deal_flow.process'),
     ('sales_agent_licensed', 'page.lead_pipeline.access'),
     ('sales_agent_licensed', 'action.lead_pipeline.update'),
+    ('sales_agent_licensed', 'page.transfer_leads.access'),
+    ('sales_agent_licensed', 'action.transfer_leads.view_all'),
     ('sales_agent_licensed', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('sales_agent_unlicensed', 'page.daily_deal_flow.access'),
     ('sales_agent_unlicensed', 'page.lead_pipeline.access'),
     ('sales_agent_unlicensed', 'action.lead_pipeline.update'),
+    ('sales_agent_unlicensed', 'page.transfer_leads.access'),
+    ('sales_agent_unlicensed', 'action.transfer_leads.view_all'),
     ('sales_agent_unlicensed', 'action.transfer_leads.claim_reclaim_visit'),
 
+    ('call_center_admin', 'page.daily_deal_flow.access'),
     ('call_center_admin', 'page.assigning.access'),
     ('call_center_admin', 'action.assigning.assign'),
     ('call_center_admin', 'page.lead_pipeline.access'),
     ('call_center_admin', 'action.lead_pipeline.update'),
     ('call_center_admin', 'page.transfer_leads.access'),
+    ('call_center_admin', 'action.transfer_leads.view_call_center'),
     ('call_center_admin', 'action.transfer_leads.create'),
 
     ('call_center_agent', 'page.lead_pipeline.access'),
     ('call_center_agent', 'action.lead_pipeline.update'),
     ('call_center_agent', 'page.transfer_leads.access'),
+    ('call_center_agent', 'action.transfer_leads.view_own'),
     ('call_center_agent', 'action.transfer_leads.create'),
 
     ('accounting', 'page.commissions.access'),

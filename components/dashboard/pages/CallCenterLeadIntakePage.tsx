@@ -7,8 +7,8 @@ import TransferLeadApplicationForm, { type TransferLeadFormData } from "./Transf
 import LeadViewComponent from "./LeadViewComponent";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
 import { useParams, useRouter } from "next/navigation";
+import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import {
   applyClaimSelectionToSession,
   fetchClaimAgents,
@@ -51,16 +51,6 @@ const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
 
 /** Must match deployed Edge Function name: `slack-notification` */
 const SLACK_NOTIFICATION_EDGE_FUNCTION = "slack-notification" as const;
-
-const TRANSFER_GLOBAL_ROLES = new Set([
-  "system_admin",
-  "sales_admin",
-  "sales_manager",
-  "sales_agent_licensed",
-  "sales_agent_unlicensed",
-  "hr",
-  "accounting",
-]);
 
 type SsnDuplicateRule = {
   stage_name: string;
@@ -229,6 +219,7 @@ export default function CallCenterLeadIntakePage({
 }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
+  const { permissionKeys } = useDashboardContext();
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
   const [leads, setLeads] = useState<IntakeLead[]>([]);
@@ -300,21 +291,22 @@ export default function CallCenterLeadIntakePage({
       .eq("id", session.user.id)
       .maybeSingle();
 
-    const role = await getCurrentUserPrimaryRole(supabase, session.user.id);
-
     const baseQuery = supabase
       .from("leads")
       .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name), users!submitted_by(full_name)")
       .order("created_at", { ascending: false });
 
-    const routeRoleCanViewAll = routeRole ? TRANSFER_GLOBAL_ROLES.has(routeRole) : false;
+    const canViewAll = permissionKeys.has("action.transfer_leads.view_all");
+    const canViewCallCenter = permissionKeys.has("action.transfer_leads.view_call_center");
+    const canViewOwn = permissionKeys.has("action.transfer_leads.view_own");
 
-    const query =
-      (role && TRANSFER_GLOBAL_ROLES.has(role)) || routeRoleCanViewAll
-        ? baseQuery
-        : role === "call_center_admin" && userProfile?.call_center_id
-          ? baseQuery.eq("call_center_id", userProfile.call_center_id)
-          : baseQuery.eq("submitted_by", session.user.id);
+    const query = canViewAll
+      ? baseQuery
+      : canViewCallCenter && userProfile?.call_center_id
+        ? baseQuery.eq("call_center_id", userProfile.call_center_id)
+        : canViewOwn
+          ? baseQuery.eq("submitted_by", session.user.id)
+          : baseQuery.eq("id", "__no_access__");
 
     const { data, error } = await query;
 

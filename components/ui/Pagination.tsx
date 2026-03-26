@@ -8,6 +8,7 @@ interface PaginationProps {
   itemsPerPage: number;
   itemLabel: string;
   onPageChange: (page: number) => void;
+  hideSummary?: boolean;
 }
 
 export function Pagination({
@@ -16,6 +17,7 @@ export function Pagination({
   itemsPerPage,
   itemLabel,
   onPageChange,
+  hideSummary = false,
 }: PaginationProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
   const safePage = Math.min(Math.max(page, 1), totalPages);
@@ -34,9 +36,11 @@ export function Pagination({
         alignItems: "center",
       }}
     >
-      <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
-        Showing {start} - {end} of {totalItems} {itemLabel}
-      </span>
+      {hideSummary ? <span /> : (
+        <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+          Showing {start} - {end} of {totalItems} {itemLabel}
+        </span>
+      )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 700 }}>
           Page {safePage} of {totalPages}
