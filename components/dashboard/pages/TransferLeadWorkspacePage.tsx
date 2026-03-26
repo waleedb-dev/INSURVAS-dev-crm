@@ -161,9 +161,22 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           <button
             type="button"
             onClick={() => router.back()}
-            style={{ border: "none", background: "none", color: T.blue, fontWeight: 700, padding: 0, cursor: "pointer", marginBottom: 6 }}
+            style={{
+              border: `1.5px solid ${T.border}`,
+              backgroundColor: "#fff",
+              color: T.textDark,
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontWeight: 700,
+              cursor: "pointer",
+              marginBottom: 8,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
           >
-            Back to Transfer Leads
+            <span aria-hidden="true">←</span>
+            <span>Back</span>
           </button>
           <h2 style={{ margin: 0, fontSize: 22, color: T.textDark }}>{lead.leadName}</h2>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted }}>
@@ -192,21 +205,6 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               </div>
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => router.push(`/dashboard/${role}?page=call-center-lead-intake`)}
-            style={{
-              border: `1.5px solid ${T.border}`,
-              backgroundColor: "#fff",
-              color: T.textDark,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Back
-          </button>
           {!sessionId && (
             <>
               <button

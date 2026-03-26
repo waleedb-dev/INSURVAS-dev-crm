@@ -27,9 +27,17 @@ export default function TransferLeadVerificationPanel({
   const [dncCheckingIds, setDncCheckingIds] = useState<Record<string, boolean>>({});
   const [dncStatusByItem, setDncStatusByItem] = useState<Record<string, "clear" | "dnc" | "tcpa" | "error">>({});
   const [dncMessageByItem, setDncMessageByItem] = useState<Record<string, string>>({});
-  const [dncModal, setDncModal] = useState<{ open: boolean; title: string; message: string }>({
+  const [dncModal, setDncModal] = useState<{
+    open: boolean;
+    status: "clear" | "dnc" | "tcpa" | "error";
+    itemId: string | null;
+    phone: string;
+    message: string;
+  }>({
     open: false,
-    title: "",
+    status: "clear",
+    itemId: null,
+    phone: "",
     message: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +82,12 @@ export default function TransferLeadVerificationPanel({
     return Array.from(byGroup.entries());
   }, [items]);
 
+  const getValueByFieldName = (fieldName: string) => {
+    const match = items.find((item) => item.field_name === fieldName);
+    if (!match) return "";
+    return String(draftValues[match.id] ?? match.verified_value ?? match.original_value ?? "");
+  };
+
   const saveOne = async (item: VerificationItemRow, nextIsVerified: boolean) => {
     setSavingIds((prev) => ({ ...prev, [item.id]: true }));
     setError(null);
@@ -99,6 +113,21 @@ export default function TransferLeadVerificationPanel({
     } finally {
       setSavingIds((prev) => ({ ...prev, [item.id]: false }));
     }
+  };
+
+  const handleDncModalProceed = async () => {
+    const itemId = dncModal.itemId;
+    if (!itemId) {
+      setDncModal({ open: false, status: "clear", itemId: null, phone: "", message: "" });
+      return;
+    }
+    const targetItem = items.find((item) => item.id === itemId);
+    if (!targetItem) {
+      setDncModal({ open: false, status: "clear", itemId: null, phone: "", message: "" });
+      return;
+    }
+    await saveOne(targetItem, true);
+    setDncModal({ open: false, status: "clear", itemId: null, phone: "", message: "" });
   };
 
   const checkDncForItem = async (item: VerificationItemRow) => {
@@ -206,7 +235,9 @@ export default function TransferLeadVerificationPanel({
       setDncMessageByItem((prev) => ({ ...prev, [item.id]: message }));
       setDncModal({
         open: true,
-        title: resolvedStatus === "tcpa" ? "TCPA / Blacklist Alert" : resolvedStatus === "dnc" ? "DNC Alert" : "DNC Check Clear",
+        status: resolvedStatus,
+        itemId: item.id,
+        phone: String(rawPhone || cleanPhone),
         message,
       });
     } catch (err) {
@@ -215,7 +246,9 @@ export default function TransferLeadVerificationPanel({
       setDncMessageByItem((prev) => ({ ...prev, [item.id]: msg }));
       setDncModal({
         open: true,
-        title: "DNC Check Failed",
+        status: "error",
+        itemId: item.id,
+        phone: String(rawPhone || cleanPhone),
         message: msg,
       });
     } finally {
@@ -389,32 +422,123 @@ export default function TransferLeadVerificationPanel({
           <div
             style={{
               width: "100%",
-              maxWidth: 520,
+              maxWidth: 760,
               backgroundColor: "#fff",
               borderRadius: 12,
-              border: `1.5px solid ${T.border}`,
+              border: dncModal.status === "tcpa" ? "2px solid #ef4444" : `1.5px solid ${T.border}`,
               boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
               padding: 18,
             }}
           >
-            <h4 style={{ margin: 0, fontSize: 18, color: T.textDark }}>{dncModal.title}</h4>
-            <p style={{ margin: "10px 0 0", fontSize: 13, color: T.textMid, lineHeight: 1.5 }}>{dncModal.message}</p>
-            <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
+            <h4
+              style={{
+                margin: 0,
+                fontSize: 26,
+                color:
+                  dncModal.status === "tcpa"
+                    ? "#dc2626"
+                    : dncModal.status === "dnc"
+                      ? "#ea580c"
+                      : dncModal.status === "error"
+                        ? "#dc2626"
+                        : T.blue,
+              }}
+            >
+              {dncModal.status === "tcpa"
+                ? "⚠️ TCPA LITIGATOR WARNING"
+                : dncModal.status === "dnc"
+                  ? "📞 Do Not Call List"
+                  : dncModal.status === "error"
+                    ? "DNC Check Failed"
+                    : "📞 Phone Verification"}
+            </h4>
+            <p style={{ margin: "8px 0 0", fontSize: 16, color: T.textMid, lineHeight: 1.45 }}>
+              {dncModal.status === "tcpa"
+                ? "This number is flagged as a TCPA Litigator. Proceeding may result in legal issues."
+                : dncModal.status === "error"
+                  ? dncModal.message
+                  : "Please read the following script to the customer to obtain verbal consent."}
+            </p>
+
+            {dncModal.status === "tcpa" && (
+              <div style={{ padding: "16px 0" }}>
+                <p style={{ color: "#dc2626", fontWeight: 800, textAlign: "center", fontSize: 30, margin: 0 }}>
+                  ⚠️ WARNING: This number is a TCPA LITIGATOR
+                </p>
+                <p style={{ fontSize: 18, color: T.textMid, textAlign: "center", margin: "12px 0 0" }}>
+                  This number has been flagged as a TCPA litigator. It is recommended to NOT proceed with this lead.
+                </p>
+              </div>
+            )}
+
+            {(dncModal.status === "clear" || dncModal.status === "dnc") && (
+              <div style={{ padding: "16px 0" }}>
+                {dncModal.status === "dnc" && (
+                  <p style={{ color: "#ea580c", fontSize: 20, fontWeight: 800, margin: "0 0 10px" }}>
+                    ⚠️ This number is on the Do Not Call list
+                  </p>
+                )}
+                <div style={{ backgroundColor: "#f8fafc", padding: 18, borderRadius: 10, border: "2px solid #e5e7eb" }}>
+                  <p style={{ fontSize: 20, margin: "0 0 12px", fontWeight: 600, lineHeight: 1.45 }}>
+                    Is your phone number{" "}
+                    <span style={{ color: T.blue, fontWeight: 800 }}>{dncModal.phone || ""}</span> on the Federal, National or
+                    State Do Not Call List?
+                  </p>
+                  <p style={{ color: T.textMuted, fontSize: 13, margin: "0 0 10px" }}>
+                    (if a customer says no and we see it's on the DNC list we still have to take the verbal consent)
+                  </p>
+                  <p style={{ fontSize: 20, margin: 0, fontWeight: 600, lineHeight: 1.45 }}>
+                    Sir/Ma'am, even if your phone number is on the Federal National or State Do not call list do we still have
+                    your permission to call you and submit your application for insurance to{" "}
+                    <span style={{ color: T.blue, fontWeight: 800 }}>{getValueByFieldName("carrier") || "carrier"}</span> -{" "}
+                    {new Date().toLocaleDateString()} via your phone number{" "}
+                    <span style={{ color: T.blue, fontWeight: 800 }}>{dncModal.phone || ""}</span>? And do we have your permission
+                    to call you on the same phone number in the future if needed?
+                  </p>
+                  <p style={{ fontSize: 15, color: T.textMid, margin: "12px 0 0", fontWeight: 700 }}>
+                    Make sure you get a clear YES on it.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button
                 type="button"
-                onClick={() => setDncModal({ open: false, title: "", message: "" })}
+                onClick={() =>
+                  setDncModal({ open: false, status: "clear", itemId: null, phone: "", message: "" })
+                }
                 style={{
-                  border: "none",
-                  backgroundColor: T.blue,
-                  color: "#fff",
+                  border: `1px solid ${T.border}`,
+                  backgroundColor: "#fff",
+                  color: T.textDark,
                   borderRadius: 8,
-                  padding: "8px 14px",
+                  padding: "10px 16px",
                   fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
-                OK
+                Cancel
               </button>
+              {dncModal.status !== "tcpa" && dncModal.status !== "error" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleDncModalProceed();
+                  }}
+                  style={{
+                    border: "none",
+                    backgroundColor: "#16a34a",
+                    color: "#fff",
+                    borderRadius: 8,
+                    padding: "10px 16px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  I Got Verbal Consent - Proceed
+                </button>
+              )}
             </div>
           </div>
         </div>
