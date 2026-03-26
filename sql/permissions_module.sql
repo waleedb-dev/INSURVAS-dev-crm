@@ -49,7 +49,8 @@ insert into public.permissions (key, resource, action, description) values
   ('page.commissions.access', 'commissions', 'access', 'Can access Commissions page'),
   ('action.commissions.approve', 'commissions', 'approve', 'Can approve commissions'),
   ('page.transfer_leads.access', 'transfer_leads', 'access', 'Can access Transfer Leads page'),
-  ('action.transfer_leads.create', 'transfer_leads', 'create', 'Can create new transfer lead records')
+  ('action.transfer_leads.create', 'transfer_leads', 'create', 'Can create new transfer lead records'),
+  ('action.transfer_leads.claim_reclaim_visit', 'transfer_leads', 'claim_reclaim_visit', 'Can view Claim / Reclaim / Visit transfer lead buttons')
 on conflict (key) do update
 set
   resource = excluded.resource,
@@ -68,6 +69,7 @@ with mapping(role_key, permission_key) as (
     ('system_admin', 'action.lead_pipeline.update'),
     ('system_admin', 'page.commissions.access'),
     ('system_admin', 'action.commissions.approve'),
+    ('system_admin', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('sales_manager', 'page.daily_deal_flow.access'),
     ('sales_manager', 'action.daily_deal_flow.process'),
@@ -76,15 +78,18 @@ with mapping(role_key, permission_key) as (
     ('sales_manager', 'page.lead_pipeline.access'),
     ('sales_manager', 'action.lead_pipeline.update'),
     ('sales_manager', 'page.commissions.access'),
+    ('sales_manager', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('sales_agent_licensed', 'page.daily_deal_flow.access'),
     ('sales_agent_licensed', 'action.daily_deal_flow.process'),
     ('sales_agent_licensed', 'page.lead_pipeline.access'),
     ('sales_agent_licensed', 'action.lead_pipeline.update'),
+    ('sales_agent_licensed', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('sales_agent_unlicensed', 'page.daily_deal_flow.access'),
     ('sales_agent_unlicensed', 'page.lead_pipeline.access'),
     ('sales_agent_unlicensed', 'action.lead_pipeline.update'),
+    ('sales_agent_unlicensed', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('call_center_admin', 'page.assigning.access'),
     ('call_center_admin', 'action.assigning.assign'),

@@ -5,6 +5,7 @@ import { T } from "@/lib/theme";
 import { ActionMenu, Pagination, Avatar, Badge, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
 import LeadViewComponent from "./LeadViewComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
 
 type Stage = string;
 
@@ -79,6 +80,8 @@ function getStageConfig(stage: string, index: number) {
 const TYPE_COLORS: Record<string, string> = {
   Auto: "#3b82f6", Home: "#9333ea", Life: "#16a34a", Health: "#ea580c", Commercial: "#64748b",
 };
+
+const LEAD_GLOBAL_ROLES = new Set(["system_admin", "sales_admin", "sales_manager", "hr", "accounting"]);
 
 // const INITIAL_LEADS: Lead[] = [ ... ]; // Dummy data commented out for production
 
@@ -174,6 +177,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData?.session?.user?.id || null;
+    const role = userId ? await getCurrentUserPrimaryRole(supabase, userId) : null;
     let callCenterId: string | null = null;
     if (userId) {
       const { data: profile } = await supabase.from("users").select("call_center_id").eq("id", userId).maybeSingle();
@@ -185,6 +189,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, is_draft, call_center_id";
 
     const isTransferPipeline = pipeline === "Transfer Portal";
+    const canViewAllCenters = role ? LEAD_GLOBAL_ROLES.has(role) : false;
 
     const mapRow = (row: Record<string, unknown>): Lead => {
       const fullName = `${row.first_name || ""} ${row.last_name || ""}`.trim() || "Unnamed Lead";
@@ -211,7 +216,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
     if (isTransferPipeline) {
       let q: any = supabase.from("leads").select(selectCols).eq("pipeline", "Transfer Portal").eq("is_draft", false).order("created_at", { ascending: false });
-      if (callCenterId) q = q.eq("call_center_id", callCenterId);
+      if (!canViewAllCenters) {
+        if (callCenterId) q = q.eq("call_center_id", callCenterId);
+        else if (userId) q = q.eq("submitted_by", userId);
+      }
 
       const { data, error } = await q;
 
@@ -230,7 +238,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     }
 
     let q: any = supabase.from("leads").select(selectCols).eq("pipeline", pipeline).eq("is_draft", false).order("created_at", { ascending: false });
-    if (callCenterId) q = q.eq("call_center_id", callCenterId);
+    if (!canViewAllCenters) {
+      if (callCenterId) q = q.eq("call_center_id", callCenterId);
+      else if (userId) q = q.eq("submitted_by", userId);
+    }
 
     const { data, error } = await q;
     if (error || !data) {

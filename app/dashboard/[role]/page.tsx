@@ -22,6 +22,7 @@ export default function RoleDashboardPage() {
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role;
   const sp = useSearchParams();
+  const canViewTransferClaimReclaimVisit = permissionKeys.has("action.transfer_leads.claim_reclaim_visit");
 
   const activePage: DashPage = useMemo(() => {
     const qp = sp.get("page") as DashPage | null;
@@ -55,7 +56,10 @@ export default function RoleDashboardPage() {
         <LeadPipelinePage canUpdateActions={permissionKeys.has("action.lead_pipeline.update")} />
       )}
       {activePage === "call-center-lead-intake" && (
-        <CallCenterLeadIntakePage canCreateLeads={permissionKeys.has("action.transfer_leads.create")} />
+        <CallCenterLeadIntakePage
+          canCreateLeads={permissionKeys.has("action.transfer_leads.create")}
+          canViewTransferClaimReclaimVisit={canViewTransferClaimReclaimVisit}
+        />
       )}
       {activePage === "users-access" && <UsersAccessPage />}
       {activePage === "pipeline-management" && <PipelineSettingsPage />}

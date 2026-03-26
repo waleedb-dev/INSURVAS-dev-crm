@@ -52,6 +52,16 @@ const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
 /** Must match deployed Edge Function name: `slack-notification` */
 const SLACK_NOTIFICATION_EDGE_FUNCTION = "slack-notification" as const;
 
+const TRANSFER_GLOBAL_ROLES = new Set([
+  "system_admin",
+  "sales_admin",
+  "sales_manager",
+  "sales_agent_licensed",
+  "sales_agent_unlicensed",
+  "hr",
+  "accounting",
+]);
+
 type SsnDuplicateRule = {
   stage_name: string;
   ghl_stage: string | null;
@@ -210,7 +220,13 @@ async function notifySlackTransferPortalLead(
   }
 }
 
-export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { canCreateLeads?: boolean }) {
+export default function CallCenterLeadIntakePage({
+  canCreateLeads = true,
+  canViewTransferClaimReclaimVisit = false,
+}: {
+  canCreateLeads?: boolean;
+  canViewTransferClaimReclaimVisit?: boolean;
+}) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
   const params = useParams<{ role?: string }>();
@@ -291,8 +307,10 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
       .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name), users!submitted_by(full_name)")
       .order("created_at", { ascending: false });
 
+    const routeRoleCanViewAll = routeRole ? TRANSFER_GLOBAL_ROLES.has(routeRole) : false;
+
     const query =
-      role === "sales_manager" || role === "system_admin"
+      (role && TRANSFER_GLOBAL_ROLES.has(role)) || routeRoleCanViewAll
         ? baseQuery
         : role === "call_center_admin" && userProfile?.call_center_id
           ? baseQuery.eq("call_center_id", userProfile.call_center_id)
@@ -332,6 +350,10 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
   };
 
   const openClaimModalForLead = async (lead: IntakeLead) => {
+    if (!canViewTransferClaimReclaimVisit) {
+      setToast({ message: "Missing permission to Claim Call.", type: "error" });
+      return;
+    }
     const context: ClaimLeadContext = {
       rowId: lead.rowId,
       leadUniqueId: lead.id,
@@ -1440,42 +1462,64 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                   >
                     View Lead
                   </button>
-                  <button
-                    className="lead-action-btn"
-                    type="button"
-                    onClick={() => void openClaimModalForLead(lead)}
-                    style={{
-                      border: `1px solid ${T.border}`,
-                      borderRadius: 8,
-                      background: "#fff",
-                      color: T.textDark,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: "6px 10px",
-                      cursor: "pointer",
-                      transition: "all 160ms ease",
-                    }}
-                  >
-                    Claim Call
-                  </button>
-                  <button
-                    className="lead-action-btn"
-                    type="button"
-                    onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
-                    style={{
-                      border: `1px solid ${T.border}`,
-                      borderRadius: 8,
-                      background: "#fff",
-                      color: T.textDark,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: "6px 10px",
-                      cursor: "pointer",
-                      transition: "all 160ms ease",
-                    }}
-                  >
-                    Claim Retention
-                  </button>
+                  {canViewTransferClaimReclaimVisit && (
+                    <>
+                      <button
+                        className="lead-action-btn"
+                        type="button"
+                        onClick={() => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`)}
+                        style={{
+                          border: `1px solid ${T.border}`,
+                          borderRadius: 8,
+                          background: "#fff",
+                          color: T.textDark,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: "6px 10px",
+                          cursor: "pointer",
+                          transition: "all 160ms ease",
+                        }}
+                      >
+                        View Lead
+                      </button>
+                      <button
+                        className="lead-action-btn"
+                        type="button"
+                        onClick={() => void openClaimModalForLead(lead)}
+                        style={{
+                          border: `1px solid ${T.border}`,
+                          borderRadius: 8,
+                          background: "#fff",
+                          color: T.textDark,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: "6px 10px",
+                          cursor: "pointer",
+                          transition: "all 160ms ease",
+                        }}
+                      >
+                        Claim Call
+                      </button>
+                      <button
+                        className="lead-action-btn"
+                        type="button"
+                        onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
+                        style={{
+                          border: `1px solid ${T.border}`,
+                          borderRadius: 8,
+                          background: "#fff",
+                          color: T.textDark,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: "6px 10px",
+                          cursor: "pointer",
+                          transition: "all 160ms ease",
+                        }}
+                      >
+                        Claim Retention
+                      </button>
+                    </>
+                  )}
                   <ActionMenu
                     id={lead.id}
                     activeId={activeMenu}

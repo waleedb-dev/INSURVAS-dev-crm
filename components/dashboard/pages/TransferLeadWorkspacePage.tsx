@@ -7,6 +7,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
 import TransferLeadVerificationPanel from "./TransferLeadVerificationPanel";
 import TransferLeadCallFixForm from "./TransferLeadCallFixForm";
+import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import {
   applyClaimSelectionToSession,
   fetchClaimAgents,
@@ -39,6 +40,8 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
   const router = useRouter();
   const params = useParams<{ role?: string }>();
   const role = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
+  const { permissionKeys } = useDashboardContext();
+  const canViewTransferClaimReclaimVisit = permissionKeys.has("action.transfer_leads.claim_reclaim_visit");
 
   const [lead, setLead] = useState<ClaimLeadContext | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -109,6 +112,10 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
   }, [leadRowId, supabase]);
 
   const startClaim = async () => {
+    if (!canViewTransferClaimReclaimVisit) {
+      setError("Missing permission to claim this lead.");
+      return;
+    }
     if (!lead) return;
     setClaimLoading(true);
     setError(null);
@@ -125,6 +132,10 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
   };
 
   const openClaimAndInitialize = async () => {
+    if (!canViewTransferClaimReclaimVisit) {
+      setError("Missing permission to claim this lead.");
+      return;
+    }
     if (!lead) return;
     setSelection(defaultSelection);
     setOpenClaim(true);
@@ -227,38 +238,46 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           )}
           {!sessionId && (
             <>
-              <button
-                type="button"
-                onClick={() => router.push(`/dashboard/${role}/retention-flow?leadRowId=${lead.rowId}`)}
-                style={{
-                  border: `1.5px solid ${T.border}`,
-                  backgroundColor: "#ede9fe",
-                  color: "#5b21b6",
-                  borderRadius: 8,
-                  padding: "9px 12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Claim Retention
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void openClaimAndInitialize();
-                }}
-                style={{
-                  border: "none",
-                  backgroundColor: T.blue,
-                  color: "#fff",
-                  borderRadius: 8,
-                  padding: "9px 12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Claim Call
-              </button>
+              {canViewTransferClaimReclaimVisit ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/dashboard/${role}/retention-flow?leadRowId=${lead.rowId}`)}
+                    style={{
+                      border: `1.5px solid ${T.border}`,
+                      backgroundColor: "#ede9fe",
+                      color: "#5b21b6",
+                      borderRadius: 8,
+                      padding: "9px 12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Claim Retention
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void openClaimAndInitialize();
+                    }}
+                    style={{
+                      border: "none",
+                      backgroundColor: T.blue,
+                      color: "#fff",
+                      borderRadius: 8,
+                      padding: "9px 12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Claim Call
+                  </button>
+                </>
+              ) : (
+                <div style={{ border: `1.5px solid ${T.border}`, backgroundColor: T.pageBg, borderRadius: 8, padding: "8px 12px", color: T.textMuted, fontWeight: 700, fontSize: 12 }}>
+                  You do not have permission to claim/reclaim this lead.
+                </div>
+              )}
             </>
           )}
         </div>

@@ -12,6 +12,7 @@ export const PERMISSION_KEYS = [
   "action.commissions.approve",
   "page.transfer_leads.access",
   "action.transfer_leads.create",
+  "action.transfer_leads.claim_reclaim_visit",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
