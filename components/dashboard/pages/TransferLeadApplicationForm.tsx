@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
+import { Toast, type ToastType } from "@/components/ui/Toast";
 
 export type TransferLeadFormData = {
   leadUniqueId: string;
@@ -78,6 +79,50 @@ const productTypeOptions = [
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
 
+const REQUIRED_FORM_KEYS: Array<keyof TransferLeadFormData> = [
+  "submissionDate",
+  "firstName",
+  "lastName",
+  "street1",
+  "city",
+  "state",
+  "zipCode",
+  "phone",
+  "birthState",
+  "dateOfBirth",
+  "age",
+  "social",
+  "driverLicenseNumber",
+  "existingCoverageLast2Years",
+  "previousApplications2Years",
+  "height",
+  "weight",
+  "doctorName",
+  "tobaccoUse",
+  "healthConditions",
+  "medications",
+  "monthlyPremium",
+  "coverageAmount",
+  "carrier",
+  "productType",
+  "draftDate",
+  "beneficiaryInformation",
+  "institutionName",
+  "routingNumber",
+  "accountNumber",
+  "futureDraftDate",
+];
+
+/** Today's calendar date as `YYYY-MM-DD` in US Eastern (America/New_York — EST/EDT). */
+function getTodayInEasternYyyyMmDd(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 function normalizePhoneDigits(value: string) {
   return String(value || "").replace(/\D/g, "");
 }
@@ -89,10 +134,11 @@ function formatUsPhone(digits: string) {
 
 function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFormData {
   const { leadSource: _ls, isDraft: draftFlag, ...fromInitial } = initial ?? {};
+  const hasSubmission =
+    fromInitial.submissionDate !== undefined && String(fromInitial.submissionDate).trim() !== "";
   return {
     leadUniqueId: "",
     leadValue: "",
-    submissionDate: "",
     firstName: "",
     lastName: "",
     street1: "",
@@ -129,6 +175,7 @@ function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFo
     pipeline: "Transfer Portal",
     stage: "Transfer API",
     ...fromInitial,
+    submissionDate: hasSubmission ? String(fromInitial.submissionDate).trim() : getTodayInEasternYyyyMmDd(),
     leadSource: FIXED_BPO_LEAD_SOURCE,
     isDraft: draftFlag ?? false,
   };
@@ -203,6 +250,8 @@ export default function TransferLeadApplicationForm({
     coverageAmount: "",
     monthlyPremium: "",
   });
+  const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
     // Always force leadSource to the fixed value
@@ -217,6 +266,10 @@ export default function TransferLeadApplicationForm({
   }, [initialData]);
 
   useEffect(() => {
+    setSubmitHighlightKeys(new Set());
+  }, [formData]);
+
+  useEffect(() => {
     const fetchCarriers = async () => {
       const { data, error } = await supabase
         .from("carriers")
@@ -227,18 +280,16 @@ export default function TransferLeadApplicationForm({
     void fetchCarriers();
   }, [supabase]);
 
-  const requiredMissing = useMemo(() => {
-    const requiredKeys: Array<keyof TransferLeadFormData> = [
-      "submissionDate", "firstName", "lastName", "street1", "city", "state", "zipCode", "phone", "birthState",
-      "dateOfBirth", "age", "social", "driverLicenseNumber", "existingCoverageLast2Years", "previousApplications2Years",
-      "height", "weight", "doctorName", "tobaccoUse", "healthConditions", "medications", "monthlyPremium",
-      "coverageAmount", "carrier", "productType", "draftDate", "beneficiaryInformation", "institutionName", "routingNumber",
-      "accountNumber", "futureDraftDate",
-    ];
-    return requiredKeys.some((key) => !String(formData[key] || "").trim());
-  }, [formData]);
-
   const phoneError = formData.phone.length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone);
+
+  const fieldStyleWithError = (key: keyof TransferLeadFormData, extra?: CSSProperties): CSSProperties => {
+    const error = submitHighlightKeys.has(key);
+    return {
+      ...fieldStyle,
+      ...extra,
+      ...(error ? { border: `2px solid ${T.danger}` } : {}),
+    };
+  };
 
   const computedLeadUniqueId = useMemo(() => {
     // 2 number phones + three letter from names + SSN last 2 digits + center ki 2 letters
@@ -386,7 +437,7 @@ export default function TransferLeadApplicationForm({
         : duplicateBlocked
           ? (phoneDupRuleMessage || "A matching lead exists and duplicate creation is not allowed.")
           : "";
-  const submitDisabled = requiredMissing || phoneError || Boolean(submitBlockMessage);
+  const submitDisabled = Boolean(submitBlockMessage);
 
   const checkSsnRules = async (rawSsn: string): Promise<{ blocked: boolean; warning: boolean }> => {
     const ssnDigits = normalizeSsnDigits(rawSsn);
@@ -601,7 +652,7 @@ export default function TransferLeadApplicationForm({
         }>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Field label="Date of Submission *">
-              <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyle} />
+              <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyleWithError("submissionDate")} />
             </Field>
             <Field label="Phone Number *">
               <div style={{ position: "relative" }}>
@@ -620,7 +671,7 @@ export default function TransferLeadApplicationForm({
                   }}
                   style={{
                     ...fieldStyle,
-                    borderColor: phoneError ? T.danger : T.border,
+                    ...(submitHighlightKeys.has("phone") || phoneError ? { border: `2px solid ${T.danger}` } : {}),
                     paddingRight: 120,
                     width: "100%",
                   }}
@@ -660,7 +711,7 @@ export default function TransferLeadApplicationForm({
                   {dncChecking || phoneDupChecking ? "Checking..." : "Check"}
                 </button>
               </div>
-              {dncStatus !== "idle" && dncMessage && (
+              {!showDncModal && dncStatus !== "idle" && dncMessage && (
                 <div
                   style={{
                     marginTop: 6,
@@ -741,16 +792,16 @@ export default function TransferLeadApplicationForm({
         }>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Field label="First Name *">
-              <input value={formData.firstName} onChange={set("firstName")} style={fieldStyle} />
+              <input value={formData.firstName} onChange={set("firstName")} style={fieldStyleWithError("firstName")} />
             </Field>
             <Field label="Last Name *">
-              <input value={formData.lastName} onChange={set("lastName")} style={fieldStyle} />
+              <input value={formData.lastName} onChange={set("lastName")} style={fieldStyleWithError("lastName")} />
             </Field>
             <Field label="Date of Birth *">
-              <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyle} />
+              <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyleWithError("dateOfBirth")} />
             </Field>
             <Field label="Age *">
-              <input value={formData.age} onChange={set("age")} style={fieldStyle} />
+              <input value={formData.age} onChange={set("age")} style={fieldStyleWithError("age")} />
             </Field>
             <Field label="Social Security Number *">
               <input
@@ -767,7 +818,7 @@ export default function TransferLeadApplicationForm({
                   if (!isEditMode) void checkSsnRules(e.target.value);
                 }}
                 placeholder="XXX-XX-XXXX"
-                style={fieldStyle}
+                style={fieldStyleWithError("social")}
               />
               {ssnCheckState !== "idle" && (
                 <div
@@ -792,7 +843,7 @@ export default function TransferLeadApplicationForm({
               )}
             </Field>
             <Field label="Driver License Number *">
-              <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyle} />
+              <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyleWithError("driverLicenseNumber")} />
             </Field>
           </div>
         </Section>
@@ -803,25 +854,25 @@ export default function TransferLeadApplicationForm({
         }>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Field label="Street Address *" full>
-              <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyle} />
+              <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyleWithError("street1")} />
             </Field>
             <Field label="Address Line 2" full>
               <input placeholder="Apt, Suite, Unit (optional)" value={formData.street2} onChange={set("street2")} style={fieldStyle} />
             </Field>
             <Field label="City *">
-              <input value={formData.city} onChange={set("city")} style={fieldStyle} />
+              <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
             </Field>
             <Field label="State *">
-              <select value={formData.state} onChange={set("state")} style={fieldStyle}>
+              <select value={formData.state} onChange={set("state")} style={fieldStyleWithError("state")}>
                 <option value="">Please Select</option>
                 {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
             <Field label="Zip Code *">
-              <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyle} />
+              <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
             </Field>
             <Field label="Birth State *">
-              <select value={formData.birthState} onChange={set("birthState")} style={fieldStyle}>
+              <select value={formData.birthState} onChange={set("birthState")} style={fieldStyleWithError("birthState")}>
                 <option value="">Please Select</option>
                 {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -856,28 +907,28 @@ export default function TransferLeadApplicationForm({
         >
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Field label="Any existing / previous coverage in last 2 years? *">
-              <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v }))} />
+              <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v }))} hasError={submitHighlightKeys.has("existingCoverageLast2Years")} />
             </Field>
             <Field label="Any previous applications in 2 years? *">
-              <YesNo value={formData.previousApplications2Years} onChange={(v) => setFormData((p) => ({ ...p, previousApplications2Years: v }))} />
+              <YesNo value={formData.previousApplications2Years} onChange={(v) => setFormData((p) => ({ ...p, previousApplications2Years: v }))} hasError={submitHighlightKeys.has("previousApplications2Years")} />
             </Field>
             <Field label="Height *">
-              <input placeholder='e.g. 5&apos;10"' value={formData.height} onChange={set("height")} style={fieldStyle} />
+              <input placeholder='e.g. 5&apos;10"' value={formData.height} onChange={set("height")} style={fieldStyleWithError("height")} />
             </Field>
             <Field label="Weight *">
-              <input placeholder="e.g. 175 lbs" value={formData.weight} onChange={set("weight")} style={fieldStyle} />
+              <input placeholder="e.g. 175 lbs" value={formData.weight} onChange={set("weight")} style={fieldStyleWithError("weight")} />
             </Field>
             <Field label="Doctor's Name *">
-              <input value={formData.doctorName} onChange={set("doctorName")} style={fieldStyle} />
+              <input value={formData.doctorName} onChange={set("doctorName")} style={fieldStyleWithError("doctorName")} />
             </Field>
             <Field label="Tobacco Use *">
-              <YesNo value={formData.tobaccoUse} onChange={(v) => setFormData((p) => ({ ...p, tobaccoUse: v }))} />
+              <YesNo value={formData.tobaccoUse} onChange={(v) => setFormData((p) => ({ ...p, tobaccoUse: v }))} hasError={submitHighlightKeys.has("tobaccoUse")} />
             </Field>
             <Field label="Health Conditions *" full>
-              <textarea value={formData.healthConditions} onChange={set("healthConditions")} style={{ ...fieldStyle, minHeight: 80, resize: "vertical" }} />
+              <textarea value={formData.healthConditions} onChange={set("healthConditions")} style={{ ...fieldStyleWithError("healthConditions"), minHeight: 80, resize: "vertical" }} />
             </Field>
             <Field label="Medications *" full>
-              <textarea value={formData.medications} onChange={set("medications")} style={{ ...fieldStyle, minHeight: 80, resize: "vertical" }} />
+              <textarea value={formData.medications} onChange={set("medications")} style={{ ...fieldStyleWithError("medications"), minHeight: 80, resize: "vertical" }} />
             </Field>
           </div>
         </Section>
@@ -890,35 +941,35 @@ export default function TransferLeadApplicationForm({
             <Field label="Monthly Premium *">
               <div style={{ position: "relative" }}>
                 <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
-                <input value={formData.monthlyPremium} onChange={set("monthlyPremium")} style={{ ...fieldStyle, paddingLeft: 28 }} />
+                <input value={formData.monthlyPremium} onChange={set("monthlyPremium")} style={fieldStyleWithError("monthlyPremium", { paddingLeft: 28 })} />
               </div>
             </Field>
             <Field label="Coverage Amount *">
               <div style={{ position: "relative" }}>
                 <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
-                <input value={formData.coverageAmount} onChange={set("coverageAmount")} style={{ ...fieldStyle, paddingLeft: 28 }} />
+                <input value={formData.coverageAmount} onChange={set("coverageAmount")} style={fieldStyleWithError("coverageAmount", { paddingLeft: 28 })} />
               </div>
             </Field>
             <Field label="Carrier *">
-              <select value={formData.carrier} onChange={set("carrier")} style={fieldStyle}>
+              <select value={formData.carrier} onChange={set("carrier")} style={fieldStyleWithError("carrier")}>
                 <option value="">Please Select</option>
                 {carriers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </Field>
             <Field label="Product Type *">
-              <select value={formData.productType} onChange={set("productType")} style={fieldStyle}>
+              <select value={formData.productType} onChange={set("productType")} style={fieldStyleWithError("productType")}>
                 <option value="">Please Select</option>
                 {productTypeOptions.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </Field>
             <Field label="Draft Date *">
-              <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyle} />
+              <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyleWithError("draftDate")} />
             </Field>
             <Field label="Future Draft Date *">
-              <input type="date" value={formData.futureDraftDate} onChange={set("futureDraftDate")} style={fieldStyle} />
+              <input type="date" value={formData.futureDraftDate} onChange={set("futureDraftDate")} style={fieldStyleWithError("futureDraftDate")} />
             </Field>
             <Field label="Beneficiary Information *" full>
-              <textarea value={formData.beneficiaryInformation} onChange={set("beneficiaryInformation")} style={{ ...fieldStyle, minHeight: 72, resize: "vertical" }} />
+              <textarea value={formData.beneficiaryInformation} onChange={set("beneficiaryInformation")} style={{ ...fieldStyleWithError("beneficiaryInformation"), minHeight: 72, resize: "vertical" }} />
             </Field>
           </div>
         </Section>
@@ -936,13 +987,13 @@ export default function TransferLeadApplicationForm({
               </select>
             </Field>
             <Field label="Institution Name *">
-              <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyle} />
+              <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyleWithError("institutionName")} />
             </Field>
             <Field label="Routing Number *">
-              <input value={formData.routingNumber} onChange={set("routingNumber")} style={fieldStyle} />
+              <input value={formData.routingNumber} onChange={set("routingNumber")} style={fieldStyleWithError("routingNumber")} />
             </Field>
             <Field label="Account Number *">
-              <input value={formData.accountNumber} onChange={set("accountNumber")} style={fieldStyle} />
+              <input value={formData.accountNumber} onChange={set("accountNumber")} style={fieldStyleWithError("accountNumber")} />
             </Field>
           </div>
         </Section>
@@ -1304,6 +1355,17 @@ export default function TransferLeadApplicationForm({
         )}
         <button
           onClick={async () => {
+            const missingKeys = REQUIRED_FORM_KEYS.filter((key) => !String(formData[key] ?? "").trim());
+            const highlight = new Set<keyof TransferLeadFormData>(missingKeys);
+            if (formData.phone.trim().length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone)) {
+              highlight.add("phone");
+            }
+            if (highlight.size > 0) {
+              setSubmitHighlightKeys(highlight);
+              setToast({ message: "Please fill all required inputs before submitting.", type: "error" });
+              return;
+            }
+
             if (!isEditMode) {
               const result = await checkSsnRules(formData.social);
               if (result.blocked) return;
@@ -1338,6 +1400,9 @@ export default function TransferLeadApplicationForm({
           {submitBlockMessage}
         </div>
       )}
+      {toast ? (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      ) : null}
     </div>
   );
 }
@@ -1366,13 +1431,13 @@ function Field({ label, children, full = false }: { label: string; children: Rea
   );
 }
 
-function YesNo({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function YesNo({ value, onChange, hasError }: { value: string; onChange: (value: string) => void; hasError?: boolean }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} style={{
       width: "100%",
       padding: "11px 14px",
       borderRadius: 8,
-      border: `1.5px solid ${T.border}`,
+      border: hasError ? `2px solid ${T.danger}` : `1.5px solid ${T.border}`,
       fontSize: 14,
       color: T.textDark,
       outline: "none",
