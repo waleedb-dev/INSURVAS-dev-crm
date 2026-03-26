@@ -35,18 +35,6 @@ type DailyDealRow = {
   notes: string | null;
 };
 
-function getDisplayStatus(row: Pick<DailyDealRow, "status" | "call_result">) {
-  const status = String(row.status || "").trim();
-  const callResult = String(row.call_result || "").trim();
-  if (!status) return callResult || null;
-  if (status.toLowerCase() !== "pending approval") return status;
-  const normalizedCallResult = callResult.toLowerCase();
-  if (normalizedCallResult === "submitted" || normalizedCallResult === "underwriting") {
-    return callResult;
-  }
-  return status;
-}
-
 /** Roles that see all centers (org-wide Daily Deal Flow). */
 const DDF_GLOBAL_ROLES: readonly RoleKey[] = [
   "system_admin",
@@ -316,7 +304,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
         r.submission_id.toLowerCase().includes(q) ||
         (r.lead_vendor || "").toLowerCase().includes(q) ||
         (r.client_phone_number || "").toLowerCase().includes(q) ||
-        (getDisplayStatus(r) || "").toLowerCase().includes(q) ||
+        (r.status || "").toLowerCase().includes(q) ||
         (r.call_result || "").toLowerCase().includes(q) ||
         (r.carrier || "").toLowerCase().includes(q) ||
         (r.product_type || "").toLowerCase().includes(q) ||
@@ -601,7 +589,7 @@ export default function DailyDealFlowPage({ canProcessActions: _canProcessAction
               {
                 header: "Status",
                 key: "status",
-                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{getDisplayStatus(r) || "—"}</span>,
+                render: (r) => <span style={{ fontSize: 13, color: T.textDark }}>{r.status || "—"}</span>,
               },
               {
                 header: "Call Result",
