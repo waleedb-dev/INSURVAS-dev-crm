@@ -656,7 +656,6 @@ export default function BpoCentersPage() {
                 center.admin ? (
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{center.admin.name}</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted }}>{center.admin.id.slice(0, 8)}</div>
                   </div>
                 ) : (
                   <span style={{ color: T.textMuted, fontWeight: 700 }}>Unassigned</span>
