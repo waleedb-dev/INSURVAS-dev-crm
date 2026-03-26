@@ -1414,24 +1414,16 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
               ),
             },
             {
-              header: "Created",
-              key: "createdAt",
-              render: (lead) => (
-                <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>
-                  {lead.createdAt}
-                </span>
-              ),
-            },
-            {
               header: "Actions",
               key: "actions",
               align: "center",
               render: (lead) => (
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
                 >
                   <button
+                    className="lead-action-btn"
                     type="button"
                     onClick={() => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`)}
                     style={{
@@ -1443,11 +1435,13 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                       fontWeight: 700,
                       padding: "6px 10px",
                       cursor: "pointer",
+                      transition: "all 160ms ease",
                     }}
                   >
                     View Lead
                   </button>
                   <button
+                    className="lead-action-btn"
                     type="button"
                     onClick={() => void openClaimModalForLead(lead)}
                     style={{
@@ -1459,11 +1453,13 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                       fontWeight: 700,
                       padding: "6px 10px",
                       cursor: "pointer",
+                      transition: "all 160ms ease",
                     }}
                   >
                     Claim Call
                   </button>
                   <button
+                    className="lead-action-btn"
                     type="button"
                     onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
                     style={{
@@ -1475,6 +1471,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
                       fontWeight: 700,
                       padding: "6px 10px",
                       cursor: "pointer",
+                      transition: "all 160ms ease",
                     }}
                   >
                     Claim Retention
@@ -1512,6 +1509,19 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
           void handleClaimAndOpenLead();
         }}
       />
+      <style jsx>{`
+        .lead-action-btn:hover {
+          background: #1d4ed8;
+          border-color: #1d4ed8;
+          color: #fff;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+        }
+        .lead-action-btn:active {
+          transform: translateY(0);
+          box-shadow: 0 1px 4px rgba(37, 99, 235, 0.25);
+        }
+      `}</style>
     </div>
   );
 }

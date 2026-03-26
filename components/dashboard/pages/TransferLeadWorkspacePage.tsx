@@ -47,6 +47,11 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
   const [openClaim, setOpenClaim] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
   const [selection, setSelection] = useState<ClaimSelections>(defaultSelection);
+  const [verificationProgress, setVerificationProgress] = useState({
+    verifiedCount: 0,
+    totalCount: 0,
+    progress: 0,
+  });
   const [agents, setAgents] = useState<{
     bufferAgents: { id: string; name: string; roleKey: string }[];
     licensedAgents: { id: string; name: string; roleKey: string }[];
@@ -74,7 +79,6 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           source: String(data.lead_source || ""),
           submissionId: data.submission_id ? String(data.submission_id) : null,
         };
-
         const loadedAgents = await fetchClaimAgents(supabase);
         let existingSessionId: string | null = null;
         if (context.submissionId) {
@@ -116,6 +120,13 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       setClaimLoading(false);
     }
   };
+
+  const progressLabel =
+    verificationProgress.progress >= 100
+      ? "Completed"
+      : verificationProgress.progress > 0
+        ? "Just Started"
+        : "Not Started";
 
   if (loading) {
     return (
@@ -159,37 +170,77 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             Lead ID: {lead.leadUniqueId} {lead.phone ? `| ${lead.phone}` : ""}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {sessionId && (
+            <div
+              style={{
+                border: `1.5px solid ${T.border}`,
+                backgroundColor: "#fee2e2",
+                color: "#991b1b",
+                borderRadius: 8,
+                padding: "8px 12px",
+                fontWeight: 700,
+                minWidth: 160,
+              }}
+            >
+              <div style={{ fontSize: 11, opacity: 0.9 }}>Progress</div>
+              <div style={{ fontSize: 14, lineHeight: 1.2 }}>
+                {verificationProgress.progress}% - {progressLabel}
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.9, marginTop: 2 }}>
+                {verificationProgress.verifiedCount}/{verificationProgress.totalCount} verified
+              </div>
+            </div>
+          )}
           <button
             type="button"
-            onClick={() => router.push(`/dashboard/${role}/retention-flow?leadRowId=${lead.rowId}`)}
+            onClick={() => router.push(`/dashboard/${role}?page=call-center-lead-intake`)}
             style={{
               border: `1.5px solid ${T.border}`,
-              backgroundColor: "#ede9fe",
-              color: "#5b21b6",
+              backgroundColor: "#fff",
+              color: T.textDark,
               borderRadius: 8,
               padding: "9px 12px",
               fontWeight: 700,
               cursor: "pointer",
             }}
           >
-            Claim Retention
+            Back
           </button>
-          <button
-            type="button"
-            onClick={() => setOpenClaim(true)}
-            style={{
-              border: "none",
-              backgroundColor: T.blue,
-              color: "#fff",
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            {sessionId ? "Re-Claim Call" : "Claim Call"}
-          </button>
+          {!sessionId && (
+            <>
+              <button
+                type="button"
+                onClick={() => router.push(`/dashboard/${role}/retention-flow?leadRowId=${lead.rowId}`)}
+                style={{
+                  border: `1.5px solid ${T.border}`,
+                  backgroundColor: "#ede9fe",
+                  color: "#5b21b6",
+                  borderRadius: 8,
+                  padding: "9px 12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Claim Retention
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpenClaim(true)}
+                style={{
+                  border: "none",
+                  backgroundColor: T.blue,
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "9px 12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Claim Call
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -201,7 +252,11 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
 
       {sessionId ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
-          <TransferLeadVerificationPanel sessionId={sessionId} />
+          <TransferLeadVerificationPanel
+            sessionId={sessionId}
+            showProgressSummary={false}
+            onProgressChange={setVerificationProgress}
+          />
           <TransferLeadCallFixForm
             leadRowId={lead.rowId}
             submissionId={lead.submissionId || lead.rowId}

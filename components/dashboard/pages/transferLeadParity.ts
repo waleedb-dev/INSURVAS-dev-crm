@@ -329,6 +329,22 @@ export async function applyClaimSelectionToSession(
     .eq("submission_id", submissionId);
 
   if (leadUpdateError) {
+    const missingRetentionColumn =
+      leadUpdateError.code === "PGRST204" &&
+      typeof leadUpdateError.message === "string" &&
+      leadUpdateError.message.includes("'is_retention_call' column");
+
+    if (missingRetentionColumn) {
+      // Backward-compatible fallback for environments where leads.is_retention_call does not exist yet.
+      const { error: fallbackLeadUpdateError } = await supabase
+        .from("leads")
+        .update({ submission_id: submissionId })
+        .eq("submission_id", submissionId);
+
+      if (!fallbackLeadUpdateError) return;
+      throw new Error(fallbackLeadUpdateError.message || "Unable to update lead claim state.");
+    }
+
     throw new Error(leadUpdateError.message || "Unable to update lead claim state.");
   }
 }

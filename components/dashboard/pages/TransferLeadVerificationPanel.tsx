@@ -11,13 +11,27 @@ import {
 
 type Props = {
   sessionId: string;
+  showProgressSummary?: boolean;
+  onProgressChange?: (payload: { verifiedCount: number; totalCount: number; progress: number }) => void;
 };
 
-export default function TransferLeadVerificationPanel({ sessionId }: Props) {
+export default function TransferLeadVerificationPanel({
+  sessionId,
+  showProgressSummary = true,
+  onProgressChange,
+}: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [items, setItems] = useState<VerificationItemRow[]>([]);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [savingIds, setSavingIds] = useState<Record<string, boolean>>({});
+  const [dncCheckingIds, setDncCheckingIds] = useState<Record<string, boolean>>({});
+  const [dncStatusByItem, setDncStatusByItem] = useState<Record<string, "clear" | "dnc" | "tcpa" | "error">>({});
+  const [dncMessageByItem, setDncMessageByItem] = useState<Record<string, string>>({});
+  const [dncModal, setDncModal] = useState<{ open: boolean; title: string; message: string }>({
+    open: false,
+    title: "",
+    message: "",
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,6 +59,11 @@ export default function TransferLeadVerificationPanel({ sessionId }: Props) {
 
   const verifiedCount = items.filter((item) => item.is_verified).length;
   const progress = items.length > 0 ? Math.round((verifiedCount * 100) / items.length) : 0;
+
+  useEffect(() => {
+    if (!onProgressChange) return;
+    onProgressChange({ verifiedCount, totalCount: items.length, progress });
+  }, [onProgressChange, progress, verifiedCount, items.length]);
 
   const grouped = useMemo(() => {
     const byGroup = new Map<string, VerificationItemRow[]>();
@@ -82,6 +101,128 @@ export default function TransferLeadVerificationPanel({ sessionId }: Props) {
     }
   };
 
+  const checkDncForItem = async (item: VerificationItemRow) => {
+    const rawPhone = draftValues[item.id] ?? item.verified_value ?? item.original_value ?? "";
+    const cleanPhone = String(rawPhone).replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      setDncStatusByItem((prev) => ({ ...prev, [item.id]: "error" }));
+      setDncMessageByItem((prev) => ({ ...prev, [item.id]: "Please enter a valid 10-digit US phone number first." }));
+      return;
+    }
+
+    setDncCheckingIds((prev) => ({ ...prev, [item.id]: true }));
+    setDncStatusByItem((prev) => ({ ...prev, [item.id]: "clear" }));
+    setDncMessageByItem((prev) => ({ ...prev, [item.id]: "" }));
+
+    try {
+      const [blacklistResult, dncTestResult] = await Promise.all([
+        supabase.functions.invoke("blacklist-check", { body: { phone: cleanPhone } }),
+        supabase.functions.invoke("dnc-test", { body: { mobileNumber: cleanPhone } }),
+      ]);
+      if (blacklistResult.error && dncTestResult.error) {
+        throw new Error(blacklistResult.error.message || dncTestResult.error.message || "DNC check failed");
+      }
+
+      const toPayload = (input: unknown): Record<string, unknown> => {
+        const isPayloadShape = (obj: Record<string, unknown>) =>
+          "is_tcpa" in obj ||
+          "is_blacklisted" in obj ||
+          "is_dnc" in obj ||
+          "litigator" in obj ||
+          "national_dnc" in obj ||
+          "state_dnc" in obj ||
+          "dma" in obj ||
+          "message" in obj;
+
+        const firstNestedPayload = (obj: Record<string, unknown>): Record<string, unknown> => {
+          for (const value of Object.values(obj)) {
+            if (value && typeof value === "object") {
+              const candidate = value as Record<string, unknown>;
+              if (isPayloadShape(candidate)) return candidate;
+            }
+          }
+          return {};
+        };
+
+        if (Array.isArray(input)) {
+          const first = input[0];
+          return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
+        }
+        if (!input || typeof input !== "object") return {};
+        const record = input as Record<string, unknown>;
+        const nested = record.data;
+        if (Array.isArray(nested)) {
+          const first = nested[0];
+          return first && typeof first === "object" ? (first as Record<string, unknown>) : {};
+        }
+        if (nested && typeof nested === "object") {
+          const nestedObj = nested as Record<string, unknown>;
+          return isPayloadShape(nestedObj) ? nestedObj : firstNestedPayload(nestedObj);
+        }
+        return isPayloadShape(record) ? record : firstNestedPayload(record);
+      };
+
+      const payloadA = blacklistResult.error ? {} : toPayload(blacklistResult.data);
+      const payloadB = dncTestResult.error ? {} : toPayload(dncTestResult.data);
+      const mergedMessage =
+        (typeof payloadA.message === "string" && payloadA.message) ||
+        (typeof payloadB.message === "string" && payloadB.message) ||
+        "";
+
+      const litigatorA = String(payloadA.litigator ?? "").toUpperCase();
+      const nationalDncA = String(payloadA.national_dnc ?? "").toUpperCase();
+      const stateDncA = String(payloadA.state_dnc ?? "").toUpperCase();
+      const dmaDncA = String(payloadA.dma ?? "").toUpperCase();
+      const litigatorB = String(payloadB.litigator ?? "").toUpperCase();
+      const nationalDncB = String(payloadB.national_dnc ?? "").toUpperCase();
+      const stateDncB = String(payloadB.state_dnc ?? "").toUpperCase();
+      const dmaDncB = String(payloadB.dma ?? "").toUpperCase();
+
+      const isTcpa =
+        payloadA.is_tcpa === true || payloadA.is_blacklisted === true || litigatorA === "Y" ||
+        payloadB.is_tcpa === true || payloadB.is_blacklisted === true || litigatorB === "Y";
+      const isDnc =
+        payloadA.is_dnc === true || payloadB.is_dnc === true ||
+        isTcpa ||
+        nationalDncA === "Y" || stateDncA === "Y" || dmaDncA === "Y" ||
+        nationalDncB === "Y" || stateDncB === "Y" || dmaDncB === "Y";
+
+      const resolvedStatus: "clear" | "dnc" | "tcpa" =
+        isTcpa
+          ? "tcpa"
+          : isDnc
+            ? "dnc"
+            : "clear";
+
+      const message =
+        mergedMessage ||
+        (resolvedStatus === "tcpa"
+          ? "WARNING: This number is blacklisted/TCPA flagged."
+          : resolvedStatus === "dnc"
+            ? "This number is on DNC. Proceed with verbal consent."
+            : "This number is clear. Please verify consent with customer.");
+
+      setDncStatusByItem((prev) => ({ ...prev, [item.id]: resolvedStatus }));
+      setDncMessageByItem((prev) => ({ ...prev, [item.id]: message }));
+      setDncModal({
+        open: true,
+        title: resolvedStatus === "tcpa" ? "TCPA / Blacklist Alert" : resolvedStatus === "dnc" ? "DNC Alert" : "DNC Check Clear",
+        message,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unable to check DNC status.";
+      setDncStatusByItem((prev) => ({ ...prev, [item.id]: "error" }));
+      setDncMessageByItem((prev) => ({ ...prev, [item.id]: msg }));
+      setDncModal({
+        open: true,
+        title: "DNC Check Failed",
+        message: msg,
+      });
+    } finally {
+      setDncCheckingIds((prev) => ({ ...prev, [item.id]: false }));
+    }
+  };
+
   return (
     <div
       style={{
@@ -94,24 +235,28 @@ export default function TransferLeadVerificationPanel({ sessionId }: Props) {
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <h3 style={{ margin: 0, fontSize: 18, color: T.textDark, fontWeight: 800 }}>Verification Panel</h3>
-        <span style={{ fontSize: 12, fontWeight: 700, color: T.textMid }}>
-          {verifiedCount}/{items.length} fields verified
-        </span>
+        {showProgressSummary && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.textMid }}>
+            {verifiedCount}/{items.length} fields verified
+          </span>
+        )}
       </div>
-      <div style={{ marginTop: 10, marginBottom: 14 }}>
-        <div style={{ height: 10, borderRadius: 999, backgroundColor: T.rowBg, overflow: "hidden" }}>
-          <div
-            style={{
-              width: `${progress}%`,
-              height: "100%",
-              borderRadius: 999,
-              backgroundColor: progress >= 100 ? "#16a34a" : T.blue,
-              transition: "width 0.2s ease",
-            }}
-          />
+      {showProgressSummary && (
+        <div style={{ marginTop: 10, marginBottom: 14 }}>
+          <div style={{ height: 10, borderRadius: 999, backgroundColor: T.rowBg, overflow: "hidden" }}>
+            <div
+              style={{
+                width: `${progress}%`,
+                height: "100%",
+                borderRadius: 999,
+                backgroundColor: progress >= 100 ? "#16a34a" : T.blue,
+                transition: "width 0.2s ease",
+              }}
+            />
+          </div>
+          <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted }}>Progress: {progress}%</p>
         </div>
-        <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted }}>Progress: {progress}%</p>
-      </div>
+      )}
 
       {error && (
         <div style={{ marginBottom: 10, color: "#991b1b", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "8px 10px", fontSize: 12 }}>
@@ -128,6 +273,10 @@ export default function TransferLeadVerificationPanel({ sessionId }: Props) {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {groupItems.map((item) => {
                 const isSaving = Boolean(savingIds[item.id]);
+                const isPhoneField = item.field_name === "phone_number";
+                const dncStatus = dncStatusByItem[item.id];
+                const dncMessage = dncMessageByItem[item.id];
+                const dncChecking = Boolean(dncCheckingIds[item.id]);
                 return (
                   <div
                     key={item.id}
@@ -139,8 +288,35 @@ export default function TransferLeadVerificationPanel({ sessionId }: Props) {
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{item.field_name.replaceAll("_", " ")}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>
+                        {isPhoneField && dncStatus ? (
+                          <span style={{ marginRight: 6 }}>
+                            {dncStatus === "clear" ? "✓" : dncStatus === "error" ? "!" : "×"}
+                          </span>
+                        ) : null}
+                        {item.field_name.replaceAll("_", " ")}
+                      </span>
                       <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.textMid }}>
+                        {isPhoneField && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void checkDncForItem(item);
+                            }}
+                            disabled={dncChecking}
+                            style={{
+                              borderRadius: 8,
+                              border: "none",
+                              padding: "5px 12px",
+                              fontWeight: 700,
+                              cursor: dncChecking ? "not-allowed" : "pointer",
+                              backgroundColor: dncChecking ? "#d1d5db" : T.blue,
+                              color: "#fff",
+                            }}
+                          >
+                            {dncChecking ? "Checking..." : "Check"}
+                          </button>
+                        )}
                         <input
                           type="checkbox"
                           checked={Boolean(item.is_verified)}
@@ -152,6 +328,24 @@ export default function TransferLeadVerificationPanel({ sessionId }: Props) {
                         Verified
                       </label>
                     </div>
+
+                    {isPhoneField && dncMessage && (
+                      <div
+                        style={{
+                          marginBottom: 8,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color:
+                            dncStatus === "error" || dncStatus === "tcpa"
+                              ? T.danger
+                              : dncStatus === "dnc"
+                                ? "#b45309"
+                                : "#166534",
+                        }}
+                      >
+                        {dncMessage}
+                      </div>
+                    )}
 
                     <input
                       value={draftValues[item.id] ?? ""}
@@ -178,6 +372,53 @@ export default function TransferLeadVerificationPanel({ sessionId }: Props) {
           </section>
         ))}
       </div>
+
+      {dncModal.open && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            zIndex: 3600,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 520,
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              border: `1.5px solid ${T.border}`,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
+              padding: 18,
+            }}
+          >
+            <h4 style={{ margin: 0, fontSize: 18, color: T.textDark }}>{dncModal.title}</h4>
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: T.textMid, lineHeight: 1.5 }}>{dncModal.message}</p>
+            <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setDncModal({ open: false, title: "", message: "" })}
+                style={{
+                  border: "none",
+                  backgroundColor: T.blue,
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
