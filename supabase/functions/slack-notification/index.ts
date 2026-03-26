@@ -144,12 +144,14 @@ Deno.serve(async (req) => {
       callResult?: Record<string, unknown>;
       event?: string;
       callCenterName?: string;
+      channel?: string;
       /** BPO / lead vendor name — keys in `leadVendorChannelMapping` (same as submitted-application flow). */
       lead_vendor?: string;
     };
 
     const { submissionId, leadData, callResult, event, callCenterName } = body;
     const leadVendorForTransfer = String(body.lead_vendor ?? "").trim();
+    const channelOverride = String(body.channel ?? "").trim();
 
     // Transfer Portal: hardcoded test channel for transfer uploads.
     if (event === "transfer_portal_lead_created" && leadData) {
@@ -219,7 +221,7 @@ Deno.serve(async (req) => {
       const statusDisplay = finalStatus === "Underwriting" ? "Sent to Underwriting" : finalStatus;
 
       slackMessage = {
-        channel: "#submission-portal",
+        channel: channelOverride || "#submission-portal",
         blocks: [
           {
             type: "header",
@@ -260,7 +262,7 @@ Deno.serve(async (req) => {
     console.log("Debug - isSubmittedApplication:", isSubmittedApplication);
     console.log("Debug - callResult.lead_vendor:", callResult?.lead_vendor);
 
-    if (isSubmittedApplication && callResult!.lead_vendor) {
+    if (!channelOverride && isSubmittedApplication && callResult!.lead_vendor) {
       const vendorChannel = leadVendorChannelMapping[String(callResult!.lead_vendor)];
       console.log(`Debug - Looking for vendor: "${callResult!.lead_vendor}"`);
       console.log(`Debug - Found channel: ${vendorChannel}`);
@@ -318,8 +320,8 @@ Deno.serve(async (req) => {
         success: true,
         messageTs: slackResult?.ts,
         mainChannelSuccess: slackResult?.ok || false,
-        vendorNotificationAttempted: isSubmittedApplication && !!callResult?.lead_vendor,
-        vendorChannel: isSubmittedApplication && callResult?.lead_vendor
+        vendorNotificationAttempted: !channelOverride && isSubmittedApplication && !!callResult?.lead_vendor,
+        vendorChannel: !channelOverride && isSubmittedApplication && callResult?.lead_vendor
           ? leadVendorChannelMapping[String(callResult.lead_vendor)]
           : null,
       }),
