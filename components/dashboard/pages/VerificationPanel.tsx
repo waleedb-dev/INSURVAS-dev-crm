@@ -7,6 +7,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import { titleizeKey } from "@/lib/agent/assigned-lead-details.logic";
 import { Toast, type ToastType } from "@/components/ui/Toast";
+import { useCarrierProductDropdowns, type CarrierProductRow } from "@/lib/useCarrierProductDropdowns";
 
 type VerificationPanelProps = {
   selectedPolicyView: {
@@ -209,6 +210,25 @@ export function VerificationPanel({
     setConditionInput("");
     setMedicationInput("");
   }, [showUnderwritingModal, getVerificationFieldValue]);
+
+  const onInvalidateUwProduct = React.useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
+    setUnderwritingData((prev) => {
+      if (prev.carrier.trim() !== carrierNameSnapshot) return prev;
+      if (!prev.productLevel.trim()) return prev;
+      if (list.some((x) => x.name === prev.productLevel)) return prev;
+      return { ...prev, productLevel: "" };
+    });
+  }, []);
+
+  const { carriers: uwCarriers, productsForCarrier: uwProducts, loadingProducts: uwProductsLoading } =
+    useCarrierProductDropdowns(supabase, {
+      open: showUnderwritingModal,
+      carrierName: underwritingData.carrier,
+      onInvalidateProduct: onInvalidateUwProduct,
+    });
+
+  const uwSelectClass =
+    "h-12 w-full rounded-md border border-slate-200 bg-white px-3 text-lg outline-none focus:border-purple-500 disabled:opacity-70";
 
   const saveUnderwritingToVerification = () => {
     if (underwritingData.tobaccoLast12Months) {
@@ -515,17 +535,69 @@ export function VerificationPanel({
                   ["Coverage Amount", "coverageAmount", "e.g., $10,000"],
                   ["Monthly Premium", "monthlyPremium", "e.g., $50.00"],
                 ] as const
-              ).map(([label, key, placeholder]) => (
-                <div key={key} className="space-y-2">
-                  <label className="text-xl font-bold text-slate-900">{label}:</label>
-                  <input
-                    value={underwritingData[key]}
-                    onChange={(e) => setUnderwritingData({ ...underwritingData, [key]: e.target.value })}
-                    placeholder={placeholder}
-                    className="h-12 w-full rounded-md border border-slate-200 px-3 text-lg outline-none focus:border-purple-500"
-                  />
-                </div>
-              ))}
+              ).map(([label, key, placeholder]) => {
+                if (key === "carrier") {
+                  return (
+                    <div key={key} className="space-y-2">
+                      <label className="text-xl font-bold text-slate-900">Carrier:</label>
+                      <select
+                        value={underwritingData.carrier}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setUnderwritingData((prev) => ({ ...prev, carrier: v, productLevel: "" }));
+                        }}
+                        className={uwSelectClass}
+                      >
+                        <option value="">Select carrier</option>
+                        {uwCarriers.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                if (key === "productLevel") {
+                  return (
+                    <div key={key} className="space-y-2">
+                      <label className="text-xl font-bold text-slate-900">Product Level:</label>
+                      <select
+                        value={underwritingData.productLevel}
+                        onChange={(e) =>
+                          setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))
+                        }
+                        disabled={!underwritingData.carrier.trim() || uwProductsLoading}
+                        className={uwSelectClass}
+                      >
+                        <option value="">
+                          {uwProductsLoading
+                            ? "Loading products…"
+                            : underwritingData.carrier.trim() && uwProducts.length === 0
+                              ? "No products for this carrier"
+                              : "Select product level"}
+                        </option>
+                        {uwProducts.map((p) => (
+                          <option key={p.id} value={p.name}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={key} className="space-y-2">
+                    <label className="text-xl font-bold text-slate-900">{label}:</label>
+                    <input
+                      value={underwritingData[key]}
+                      onChange={(e) => setUnderwritingData((prev) => ({ ...prev, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      className="h-12 w-full rounded-md border border-slate-200 px-3 text-lg outline-none focus:border-purple-500"
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">

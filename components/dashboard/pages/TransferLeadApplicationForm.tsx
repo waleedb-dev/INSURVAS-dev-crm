@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
+import { useCarrierProductDropdowns, type CarrierProductRow } from "@/lib/useCarrierProductDropdowns";
 import { Toast, type ToastType } from "@/components/ui/Toast";
 
 export type TransferLeadFormData = {
@@ -221,7 +222,6 @@ export default function TransferLeadApplicationForm({
   centerName?: string;
 }) {
   const supabase = getSupabaseBrowserClient();
-  const [carriers, setCarriers] = useState<Array<{ id: number; name: string }>>([]);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
   const [conditionInput, setConditionInput] = useState("");
   const [medicationInput, setMedicationInput] = useState("");
@@ -250,9 +250,6 @@ export default function TransferLeadApplicationForm({
     coverageAmount: "",
     monthlyPremium: "",
   });
-  /** Products linked to the selected carrier in the underwriting modal (from `carrier_products` + `products`). */
-  const [uwCarrierProducts, setUwCarrierProducts] = useState<Array<{ id: number; name: string }>>([]);
-  const [uwCarrierProductsLoading, setUwCarrierProductsLoading] = useState(false);
   const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
@@ -272,75 +269,23 @@ export default function TransferLeadApplicationForm({
     setSubmitHighlightKeys(new Set());
   }, [formData]);
 
-  useEffect(() => {
-    const fetchCarriers = async () => {
-      const { data, error } = await supabase
-        .from("carriers")
-        .select("id, name")
-        .order("name");
-      if (!error && data) setCarriers(data);
-    };
-    void fetchCarriers();
-  }, [supabase]);
+  const onInvalidateUwProduct = useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
+    setUnderwritingData((prev) => {
+      if (prev.carrier.trim() !== carrierNameSnapshot) return prev;
+      if (!prev.productLevel.trim()) return prev;
+      if (list.some((x) => x.name === prev.productLevel)) return prev;
+      return { ...prev, productLevel: "" };
+    });
+  }, []);
 
-  useEffect(() => {
-    if (!showUnderwritingModal) {
-      setUwCarrierProducts([]);
-      setUwCarrierProductsLoading(false);
-      return;
-    }
-    const carrierName = underwritingData.carrier.trim();
-    if (!carrierName) {
-      setUwCarrierProducts([]);
-      setUwCarrierProductsLoading(false);
-      return;
-    }
-    const carrierRow = carriers.find((c) => c.name === carrierName);
-    if (!carrierRow) {
-      setUwCarrierProducts([]);
-      setUwCarrierProductsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setUwCarrierProductsLoading(true);
-    void (async () => {
-      const { data, error } = await supabase
-        .from("carrier_products")
-        .select("products(id, name)")
-        .eq("carrier_id", carrierRow.id);
-      if (cancelled) return;
-      if (error) {
-        setUwCarrierProducts([]);
-        setUwCarrierProductsLoading(false);
-        return;
-      }
-      const list: Array<{ id: number; name: string }> = [];
-      const seen = new Set<string>();
-      for (const row of data ?? []) {
-        const p = (row as { products?: { id?: number; name?: string } | null }).products;
-        if (!p || p.name == null) continue;
-        const name = String(p.name);
-        if (seen.has(name)) continue;
-        seen.add(name);
-        list.push({ id: Number(p.id), name });
-      }
-      list.sort((a, b) => a.name.localeCompare(b.name));
-      if (cancelled) return;
-      setUwCarrierProducts(list);
-      setUwCarrierProductsLoading(false);
-      setUnderwritingData((prev) => {
-        if (prev.carrier.trim() !== carrierName) return prev;
-        if (!prev.productLevel.trim()) return prev;
-        if (list.some((x) => x.name === prev.productLevel)) return prev;
-        return { ...prev, productLevel: "" };
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showUnderwritingModal, underwritingData.carrier, carriers, supabase]);
+  const { carriers, productsForCarrier, loadingProducts: uwCarrierProductsLoading } = useCarrierProductDropdowns(
+    supabase,
+    {
+      open: showUnderwritingModal,
+      carrierName: underwritingData.carrier,
+      onInvalidateProduct: onInvalidateUwProduct,
+    },
+  );
 
   const phoneError = formData.phone.length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone);
 
@@ -1267,11 +1212,11 @@ export default function TransferLeadApplicationForm({
                   <option value="">
                     {uwCarrierProductsLoading
                       ? "Loading products…"
-                      : underwritingData.carrier.trim() && uwCarrierProducts.length === 0
+                      : underwritingData.carrier.trim() && productsForCarrier.length === 0
                         ? "No products for this carrier"
                         : "Select product level"}
                   </option>
-                  {uwCarrierProducts.map((p) => (
+                  {productsForCarrier.map((p) => (
                     <option key={p.id} value={p.name}>
                       {p.name}
                     </option>

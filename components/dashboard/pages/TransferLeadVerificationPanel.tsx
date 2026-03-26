@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
@@ -9,6 +10,7 @@ import {
   updateVerificationItem,
   type VerificationItemRow,
 } from "./transferLeadParity";
+import { useCarrierProductDropdowns, type CarrierProductRow } from "@/lib/useCarrierProductDropdowns";
 
 type Props = {
   sessionId: string;
@@ -56,6 +58,33 @@ export default function TransferLeadVerificationPanel({
     coverageAmount: "",
     monthlyPremium: "",
   });
+
+  const onInvalidateUwProduct = useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
+    setUnderwritingData((prev) => {
+      if (prev.carrier.trim() !== carrierNameSnapshot) return prev;
+      if (!prev.productLevel.trim()) return prev;
+      if (list.some((x) => x.name === prev.productLevel)) return prev;
+      return { ...prev, productLevel: "" };
+    });
+  }, []);
+
+  const { carriers: uwCarriers, productsForCarrier: uwProducts, loadingProducts: uwProductsLoading } =
+    useCarrierProductDropdowns(supabase, {
+      open: showUnderwritingModal,
+      carrierName: underwritingData.carrier,
+      onInvalidateProduct: onInvalidateUwProduct,
+    });
+
+  const uwFieldStyle: CSSProperties = {
+    width: "100%",
+    border: `1px solid ${T.border}`,
+    borderRadius: 8,
+    padding: "9px 10px",
+    boxSizing: "border-box",
+    fontSize: 14,
+    fontFamily: T.font,
+    backgroundColor: "#fff",
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -682,7 +711,7 @@ export default function TransferLeadVerificationPanel({
             </div>
 
             <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
+              <div style={{ gridColumn: "1 / -1", border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
                 <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Tobacco Usage (last 12 months)</label>
                 <div style={{ display: "flex", gap: 16 }}>
                   <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
@@ -706,15 +735,6 @@ export default function TransferLeadVerificationPanel({
                 </div>
               </div>
               <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
-                <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level</label>
-                <input
-                  value={underwritingData.productLevel}
-                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
-                  placeholder="e.g. Preferred"
-                  style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px" }}
-                />
-              </div>
-              <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
                 <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Health Conditions (comma separated)</label>
                 <textarea
                   value={underwritingData.healthConditions}
@@ -734,29 +754,82 @@ export default function TransferLeadVerificationPanel({
               </div>
             </div>
 
-            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              {[
-                ["Height", "height", "e.g. 5'10\""],
-                ["Weight", "weight", "e.g. 180 lbs"],
-                ["Carrier", "carrier", "e.g. AMAM"],
-                ["Coverage Amount", "coverageAmount", "e.g. $10,000"],
-                ["Monthly Premium", "monthlyPremium", "e.g. $50.00"],
-              ].map(([label, key, placeholder]) => (
-                <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
-                  <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>{label}</label>
-                  <input
-                    value={underwritingData[key as keyof typeof underwritingData]}
-                    onChange={(e) =>
-                      setUnderwritingData((prev) => ({
-                        ...prev,
-                        [key]: e.target.value,
-                      }))
-                    }
-                    placeholder={placeholder}
-                    style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px" }}
-                  />
-                </div>
-              ))}
+            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {(
+                [
+                  ["Height", "height", "e.g. 5'10\""],
+                  ["Weight", "weight", "e.g. 180 lbs"],
+                  ["Carrier", "carrier", "e.g. AMAM"],
+                  ["Product Level", "productLevel", ""],
+                  ["Coverage Amount", "coverageAmount", "e.g. $10,000"],
+                  ["Monthly Premium", "monthlyPremium", "e.g. $50.00"],
+                ] as const
+              ).map(([label, key, placeholder]) => {
+                if (key === "carrier") {
+                  return (
+                    <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
+                      <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Carrier</label>
+                      <select
+                        value={underwritingData.carrier}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setUnderwritingData((prev) => ({ ...prev, carrier: v, productLevel: "" }));
+                        }}
+                        style={uwFieldStyle}
+                      >
+                        <option value="">Select carrier</option>
+                        {uwCarriers.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                if (key === "productLevel") {
+                  return (
+                    <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
+                      <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level</label>
+                      <select
+                        value={underwritingData.productLevel}
+                        onChange={(e) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
+                        disabled={!underwritingData.carrier.trim() || uwProductsLoading}
+                        style={{ ...uwFieldStyle, opacity: !underwritingData.carrier.trim() || uwProductsLoading ? 0.7 : 1 }}
+                      >
+                        <option value="">
+                          {uwProductsLoading
+                            ? "Loading products…"
+                            : underwritingData.carrier.trim() && uwProducts.length === 0
+                              ? "No products for this carrier"
+                              : "Select product level"}
+                        </option>
+                        {uwProducts.map((p) => (
+                          <option key={p.id} value={p.name}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
+                    <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>{label}</label>
+                    <input
+                      value={underwritingData[key as keyof typeof underwritingData]}
+                      onChange={(e) =>
+                        setUnderwritingData((prev) => ({
+                          ...prev,
+                          [key]: e.target.value,
+                        }))
+                      }
+                      placeholder={placeholder}
+                      style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px" }}
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             <div style={{ marginTop: 12, fontSize: 12, color: T.textMuted, textAlign: "center" }}>
