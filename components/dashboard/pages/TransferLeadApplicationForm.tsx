@@ -250,6 +250,9 @@ export default function TransferLeadApplicationForm({
     coverageAmount: "",
     monthlyPremium: "",
   });
+  /** Products linked to the selected carrier in the underwriting modal (from `carrier_products` + `products`). */
+  const [uwCarrierProducts, setUwCarrierProducts] = useState<Array<{ id: number; name: string }>>([]);
+  const [uwCarrierProductsLoading, setUwCarrierProductsLoading] = useState(false);
   const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
@@ -279,6 +282,65 @@ export default function TransferLeadApplicationForm({
     };
     void fetchCarriers();
   }, [supabase]);
+
+  useEffect(() => {
+    if (!showUnderwritingModal) {
+      setUwCarrierProducts([]);
+      setUwCarrierProductsLoading(false);
+      return;
+    }
+    const carrierName = underwritingData.carrier.trim();
+    if (!carrierName) {
+      setUwCarrierProducts([]);
+      setUwCarrierProductsLoading(false);
+      return;
+    }
+    const carrierRow = carriers.find((c) => c.name === carrierName);
+    if (!carrierRow) {
+      setUwCarrierProducts([]);
+      setUwCarrierProductsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setUwCarrierProductsLoading(true);
+    void (async () => {
+      const { data, error } = await supabase
+        .from("carrier_products")
+        .select("products(id, name)")
+        .eq("carrier_id", carrierRow.id);
+      if (cancelled) return;
+      if (error) {
+        setUwCarrierProducts([]);
+        setUwCarrierProductsLoading(false);
+        return;
+      }
+      const list: Array<{ id: number; name: string }> = [];
+      const seen = new Set<string>();
+      for (const row of data ?? []) {
+        const p = (row as { products?: { id?: number; name?: string } | null }).products;
+        if (!p || p.name == null) continue;
+        const name = String(p.name);
+        if (seen.has(name)) continue;
+        seen.add(name);
+        list.push({ id: Number(p.id), name });
+      }
+      list.sort((a, b) => a.name.localeCompare(b.name));
+      if (cancelled) return;
+      setUwCarrierProducts(list);
+      setUwCarrierProductsLoading(false);
+      setUnderwritingData((prev) => {
+        if (prev.carrier.trim() !== carrierName) return prev;
+        if (!prev.productLevel.trim()) return prev;
+        if (list.some((x) => x.name === prev.productLevel)) return prev;
+        return { ...prev, productLevel: "" };
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showUnderwritingModal, underwritingData.carrier, carriers, supabase]);
 
   const phoneError = formData.phone.length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone);
 
@@ -1169,8 +1231,53 @@ export default function TransferLeadApplicationForm({
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
               <div><label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Height:</label><input value={underwritingData.height} onChange={(e) => setUnderwritingData({ ...underwritingData, height: e.target.value })} placeholder="e.g., 5 ft 10 in" style={{ ...fieldStyle, fontSize: 24, height: 48 }} /></div>
               <div><label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Weight:</label><input value={underwritingData.weight} onChange={(e) => setUnderwritingData({ ...underwritingData, weight: e.target.value })} placeholder="e.g., 180 lbs" style={{ ...fieldStyle, fontSize: 24, height: 48 }} /></div>
-              <div><label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Carrier:</label><input value={underwritingData.carrier} onChange={(e) => setUnderwritingData({ ...underwritingData, carrier: e.target.value })} placeholder="e.g., AMAM" style={{ ...fieldStyle, fontSize: 24, height: 48 }} /></div>
-              <div><label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level:</label><input value={underwritingData.productLevel} onChange={(e) => setUnderwritingData({ ...underwritingData, productLevel: e.target.value })} placeholder="e.g., Preferred" style={{ ...fieldStyle, fontSize: 24, height: 48 }} /></div>
+              <div>
+                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Carrier:</label>
+                <select
+                  value={underwritingData.carrier}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setUnderwritingData((prev) => ({ ...prev, carrier: v, productLevel: "" }));
+                  }}
+                  style={{ ...fieldStyle, fontSize: 24, height: 48, width: "100%", boxSizing: "border-box" }}
+                >
+                  <option value="">Select carrier</option>
+                  {carriers.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level:</label>
+                <select
+                  value={underwritingData.productLevel}
+                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
+                  disabled={!underwritingData.carrier.trim() || uwCarrierProductsLoading}
+                  style={{
+                    ...fieldStyle,
+                    fontSize: 24,
+                    height: 48,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    opacity: !underwritingData.carrier.trim() || uwCarrierProductsLoading ? 0.7 : 1,
+                  }}
+                >
+                  <option value="">
+                    {uwCarrierProductsLoading
+                      ? "Loading products…"
+                      : underwritingData.carrier.trim() && uwCarrierProducts.length === 0
+                        ? "No products for this carrier"
+                        : "Select product level"}
+                  </option>
+                  {uwCarrierProducts.map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div><label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Coverage Amount:</label><input value={underwritingData.coverageAmount} onChange={(e) => setUnderwritingData({ ...underwritingData, coverageAmount: e.target.value })} placeholder="e.g., $10,000" style={{ ...fieldStyle, fontSize: 24, height: 48 }} /></div>
               <div><label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Monthly Premium:</label><input value={underwritingData.monthlyPremium} onChange={(e) => setUnderwritingData({ ...underwritingData, monthlyPremium: e.target.value })} placeholder="e.g., $50.00" style={{ ...fieldStyle, fontSize: 24, height: 48 }} /></div>
             </div>
