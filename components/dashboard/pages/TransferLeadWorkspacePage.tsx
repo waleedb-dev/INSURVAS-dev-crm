@@ -80,9 +80,12 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           submissionId: data.submission_id ? String(data.submission_id) : null,
         };
         const loadedAgents = await fetchClaimAgents(supabase);
+        // Some environments still have rows where leads.submission_id is empty.
+        // Fallback to lead row id so already-claimed sessions still resolve.
+        const lookupSubmissionId = context.submissionId || context.rowId;
         let existingSessionId: string | null = null;
-        if (context.submissionId) {
-          const existing = await fetchLatestSessionForSubmission(supabase, context.submissionId);
+        if (lookupSubmissionId) {
+          const existing = await fetchLatestSessionForSubmission(supabase, lookupSubmissionId);
           existingSessionId = existing?.id || null;
         }
 
@@ -116,6 +119,23 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       setOpenClaim(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to claim lead.");
+    } finally {
+      setClaimLoading(false);
+    }
+  };
+
+  const openClaimAndInitialize = async () => {
+    if (!lead) return;
+    setSelection(defaultSelection);
+    setOpenClaim(true);
+    setClaimLoading(true);
+    setError(null);
+    try {
+      // Initialize verification session as soon as Claim Call is clicked.
+      const found = await findOrCreateVerificationSession(supabase, lead, defaultSelection);
+      setSessionId(found.sessionId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to initialize verification session.");
     } finally {
       setClaimLoading(false);
     }
@@ -224,7 +244,9 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => setOpenClaim(true)}
+                onClick={() => {
+                  void openClaimAndInitialize();
+                }}
                 style={{
                   border: "none",
                   backgroundColor: T.blue,

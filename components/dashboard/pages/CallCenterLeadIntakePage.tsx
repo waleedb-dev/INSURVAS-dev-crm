@@ -60,6 +60,20 @@ type SsnDuplicateRule = {
   is_active: boolean;
 };
 
+const DEFAULT_CLAIM_SELECTION: ClaimSelections = {
+  workflowType: "buffer",
+  bufferAgentId: null,
+  licensedAgentId: null,
+  retentionAgentId: null,
+  isRetentionCall: false,
+  retentionType: "",
+  retentionNotes: "",
+  quoteCarrier: "",
+  quoteProduct: "",
+  quoteCoverage: "",
+  quoteMonthlyPremium: "",
+};
+
 // ── Color maps matching the DailyDealFlow style ─────────────────────────────
 const TYPE_CONFIG: Record<string, { bg: string; color: string }> = {
   "Preferred":  { bg: "#eff6ff", color: "#2563eb" },
@@ -226,19 +240,7 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
     licensedAgents: { id: string; name: string; roleKey: string }[];
     retentionAgents: { id: string; name: string; roleKey: string }[];
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
-  const [claimSelection, setClaimSelection] = useState<ClaimSelections>({
-    workflowType: "buffer",
-    bufferAgentId: null,
-    licensedAgentId: null,
-    retentionAgentId: null,
-    isRetentionCall: false,
-    retentionType: "",
-    retentionNotes: "",
-    quoteCarrier: "",
-    quoteProduct: "",
-    quoteCoverage: "",
-    quoteMonthlyPremium: "",
-  });
+  const [claimSelection, setClaimSelection] = useState<ClaimSelections>(DEFAULT_CLAIM_SELECTION);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -330,36 +332,34 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
   };
 
   const openClaimModalForLead = async (lead: IntakeLead) => {
-    setClaimLeadContext({
+    const context: ClaimLeadContext = {
       rowId: lead.rowId,
       leadUniqueId: lead.id,
       leadName: lead.name,
       phone: lead.phone,
       source: lead.source,
       submissionId: lead.submissionId,
-    });
-    setClaimSelection({
-      workflowType: "buffer",
-      bufferAgentId: null,
-      licensedAgentId: null,
-      retentionAgentId: null,
-      isRetentionCall: false,
-      retentionType: "",
-      retentionNotes: "",
-      quoteCarrier: "",
-      quoteProduct: "",
-      quoteCoverage: "",
-      quoteMonthlyPremium: "",
-    });
+    };
+    const initialSelection: ClaimSelections = { ...DEFAULT_CLAIM_SELECTION };
+
+    setClaimLeadContext(context);
+    setClaimSelection(initialSelection);
     setClaimModalOpen(true);
+    setClaimModalLoading(true);
     try {
       const loaded = await fetchClaimAgents(supabase);
       setClaimAgents(loaded);
+
+      // Clicking "Claim Call" should initialize verification immediately,
+      // even before the user confirms assignments in the modal.
+      await findOrCreateVerificationSession(supabase, context, initialSelection);
     } catch (error) {
       setToast({
         message: error instanceof Error ? error.message : "Failed to load claim agents.",
         type: "error",
       });
+    } finally {
+      setClaimModalLoading(false);
     }
   };
 
