@@ -1427,15 +1427,63 @@ export default function CallCenterLeadIntakePage({ canCreateLeads = true }: { ca
               key: "actions",
               align: "center",
               render: (lead) => (
-                <div onClick={(e) => e.stopPropagation()}>
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`)}
+                    style={{
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 8,
+                      background: "#fff",
+                      color: T.textDark,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "6px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    View Lead
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void openClaimModalForLead(lead)}
+                    style={{
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 8,
+                      background: "#fff",
+                      color: T.textDark,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "6px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Claim Call
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
+                    style={{
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 8,
+                      background: "#fff",
+                      color: T.textDark,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "6px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Claim Retention
+                  </button>
                   <ActionMenu
                     id={lead.id}
                     activeId={activeMenu}
                     onToggle={setActiveMenu}
                     items={[
-                      { label: "View Lead", onClick: () => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`) },
-                      { label: "Claim Call", onClick: () => void openClaimModalForLead(lead) },
-                      { label: "Claim Retention", onClick: () => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`) },
                       { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) },
                       { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
                       { label: "Delete", danger: true },
