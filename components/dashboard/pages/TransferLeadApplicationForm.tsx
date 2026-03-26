@@ -564,13 +564,31 @@ export default function TransferLeadApplicationForm({
     }
   };
 
-  const addTag = (raw: string, key: "healthConditions" | "medications") => {
-    const value = raw.trim();
-    if (!value) return;
-    setUnderwritingData((prev) => {
-      if (prev[key].some((v) => v.toLowerCase() === value.toLowerCase())) return prev;
-      return { ...prev, [key]: [...prev[key], value] };
+  const toTagParts = (raw: string) =>
+    String(raw || "")
+      .split(/[\n,]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+  const mergeUniqueTags = (existing: string[], incoming: string[]) => {
+    const seen = new Set(existing.map((item) => item.toLowerCase()));
+    const merged = [...existing];
+    incoming.forEach((item) => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(item);
     });
+    return merged;
+  };
+
+  const addTag = (raw: string, key: "healthConditions" | "medications") => {
+    const values = toTagParts(raw);
+    if (values.length === 0) return;
+    setUnderwritingData((prev) => ({
+      ...prev,
+      [key]: mergeUniqueTags(prev[key], values),
+    }));
   };
 
   const removeTag = (key: "healthConditions" | "medications", index: number) => {
@@ -609,6 +627,15 @@ export default function TransferLeadApplicationForm({
   };
 
   const saveUnderwritingToForm = () => {
+    const mergedHealthConditions = mergeUniqueTags(
+      underwritingData.healthConditions,
+      toTagParts(conditionInput),
+    );
+    const mergedMedications = mergeUniqueTags(
+      underwritingData.medications,
+      toTagParts(medicationInput),
+    );
+
     setFormData((prev) => ({
       ...prev,
       tobaccoUse: underwritingData.tobaccoLast12Months
@@ -616,8 +643,8 @@ export default function TransferLeadApplicationForm({
           ? "Yes"
           : "No"
         : prev.tobaccoUse,
-      healthConditions: underwritingData.healthConditions.join(", "),
-      medications: underwritingData.medications.join(", "),
+      healthConditions: mergedHealthConditions.join(", "),
+      medications: mergedMedications.join(", "),
       height: underwritingData.height,
       weight: underwritingData.weight,
       carrier: underwritingData.carrier,
@@ -625,6 +652,8 @@ export default function TransferLeadApplicationForm({
       coverageAmount: underwritingData.coverageAmount.replace(/\$/g, "").replace(/,/g, ""),
       monthlyPremium: underwritingData.monthlyPremium.replace(/\$/g, "").replace(/,/g, ""),
     }));
+    setConditionInput("");
+    setMedicationInput("");
     setShowUnderwritingModal(false);
   };
 
