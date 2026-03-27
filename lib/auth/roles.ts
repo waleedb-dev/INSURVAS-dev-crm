@@ -1,5 +1,6 @@
 export const ROLE_KEYS = [
   "system_admin",
+  "sales_admin",
   "sales_manager",
   "sales_agent_licensed",
   "sales_agent_unlicensed",
@@ -29,6 +30,7 @@ export function pickPrimaryRole(roleKeys: string[]): RoleKey | null {
 
 export const ROLE_TITLES: Record<RoleKey, string> = {
   system_admin: "System Admin Console",
+  sales_admin: "Sales Admin Console",
   sales_manager: "Sales Management Console",
   sales_agent_licensed: "Licensed Sales Console",
   sales_agent_unlicensed: "Unlicensed Sales Console",
@@ -40,6 +42,7 @@ export const ROLE_TITLES: Record<RoleKey, string> = {
 
 export const ROLE_SUMMARIES: Record<RoleKey, string> = {
   system_admin: "Global controls, user management, and operational visibility.",
+  sales_admin: "Sales operations visibility across all centers and teams.",
   sales_manager: "Team assignment, pipeline performance, and deal movement.",
   sales_agent_licensed: "Owned/team leads, conversion workflow, and callback queue.",
   sales_agent_unlicensed: "Verification/disposition workflow for assigned leads.",

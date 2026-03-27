@@ -81,7 +81,15 @@ const TYPE_COLORS: Record<string, string> = {
   Auto: "#3b82f6", Home: "#9333ea", Life: "#16a34a", Health: "#ea580c", Commercial: "#64748b",
 };
 
-const LEAD_GLOBAL_ROLES = new Set(["system_admin", "sales_admin", "sales_manager", "hr", "accounting"]);
+const LEAD_ALL_LEADS_ROLES = new Set([
+  "system_admin",
+  "sales_admin",
+  "sales_manager",
+  "sales_agent_licensed",
+  "sales_agent_unlicensed",
+  "hr",
+  "accounting",
+]);
 
 // const INITIAL_LEADS: Lead[] = [ ... ]; // Dummy data commented out for production
 
@@ -189,7 +197,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, is_draft, call_center_id";
 
     const isTransferPipeline = pipeline === "Transfer Portal";
-    const canViewAllCenters = role ? LEAD_GLOBAL_ROLES.has(role) : false;
+    const canViewAllCenters = role ? LEAD_ALL_LEADS_ROLES.has(role) : false;
 
     const mapRow = (row: Record<string, unknown>): Lead => {
       const fullName = `${row.first_name || ""} ${row.last_name || ""}`.trim() || "Unnamed Lead";
