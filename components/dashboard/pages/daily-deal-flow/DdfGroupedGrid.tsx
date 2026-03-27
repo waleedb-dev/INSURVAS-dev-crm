@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type CSSProperties } from "react";
 import { Button, Input } from "@/components/ui";
 import { T } from "@/lib/theme";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -17,7 +17,22 @@ import {
   RETENTION_AGENT_OPTIONS,
   STATUS_OPTIONS,
 } from "./constants";
+import { IconBolt, IconCheck, IconEye, IconPencil, IconPhone, IconTrash, IconX } from "@tabler/icons-react";
 import { duplicateKey, formatDateShort, generatePendingApprovalNotes, getBadgeStyle, getCurrentTimestampEST, getGroupValue } from "./helpers";
+
+const actionIconBtn: CSSProperties = {
+  padding: 6,
+  minWidth: 32,
+  minHeight: 32,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+function dialHref(phone: string | null | undefined): string | null {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits.length > 0 ? `tel:${digits}` : null;
+}
 
 type Props = {
   rows: DailyDealFlowRow[];
@@ -192,7 +207,7 @@ export function DdfGroupedGrid({
     onRefresh();
   };
 
-  const rowCellStyle: React.CSSProperties = { borderBottom: `1px solid ${T.borderLight}`, padding: "8px 10px", fontSize: 12, verticalAlign: "top" };
+  const rowCellStyle: CSSProperties = { borderBottom: `1px solid ${T.borderLight}`, padding: "8px 10px", fontSize: 12, verticalAlign: "top" };
   const showColumns = hasWritePermissions ? [...columns, "Actions"] : columns;
   const patchDraft = (patch: Partial<DailyDealFlowRow>) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
 
@@ -231,18 +246,125 @@ export function DdfGroupedGrid({
         <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} /> : row.la_callback}</td>
         <td style={rowCellStyle}>{isEditing ? <textarea value={data.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ minHeight: 54, width: 160 }} /> : row.notes}</td>
         {hasWritePermissions && (
-          <td style={rowCellStyle}>
-            <div style={{ display: "flex", gap: 6 }}>
+          <td style={{ ...rowCellStyle, whiteSpace: "nowrap", minWidth: 210 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                flexWrap: "nowrap",
+                flexShrink: 0,
+              }}
+            >
               {isEditing ? (
                 <>
-                  <Button size="sm" onClick={() => saveRow(row)} state={saving ? "loading" : "enabled"}>Save</Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setDraft(null); }}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => saveRow(row)}
+                    state={saving ? "loading" : "enabled"}
+                    aria-label="Save row"
+                    title="Save"
+                    style={actionIconBtn}
+                  >
+                    <IconCheck size={16} stroke={2} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => { setEditingId(null); setDraft(null); }}
+                    aria-label="Cancel editing"
+                    title="Cancel"
+                    style={actionIconBtn}
+                  >
+                    <IconX size={16} stroke={2} />
+                  </Button>
                 </>
               ) : (
                 <>
-                  {row.status ? <Button size="sm" variant="ghost" onClick={() => beginEdit(row)}>Edit</Button> : <Button size="sm" variant="ghost" onClick={() => markIncomplete(row)}>Zap</Button>}
-                  <Button size="sm" variant="ghost" onClick={() => beginEdit(row, true)}>View</Button>
-                  <Button size="sm" variant="ghost" onClick={() => deleteRow(row)}>Delete</Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => beginEdit(row)}
+                    aria-label="Edit row"
+                    title="Edit"
+                    style={actionIconBtn}
+                  >
+                    <IconPencil size={16} stroke={2} />
+                  </Button>
+                  {!row.status && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      onClick={() => markIncomplete(row)}
+                      aria-label="Mark incomplete (Zap)"
+                      title="Mark incomplete"
+                      style={{ ...actionIconBtn, color: "#b45309", borderColor: "#fcd34d", background: "#fffbeb" }}
+                    >
+                      <IconBolt size={16} stroke={2} />
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => beginEdit(row, true)}
+                    aria-label="View details"
+                    title="View"
+                    style={actionIconBtn}
+                  >
+                    <IconEye size={16} stroke={2} />
+                  </Button>
+                  {(() => {
+                    const href = dialHref(row.client_phone_number);
+                    return href ? (
+                      <a
+                        href={href}
+                        aria-label="Call phone number"
+                        title="Call"
+                        style={{
+                          ...actionIconBtn,
+                          border: `1.5px solid #e5e7eb`,
+                          borderRadius: 10,
+                          color: "#15803d",
+                          background: "#f0fdf4",
+                          textDecoration: "none",
+                        }}
+                      >
+                        <IconPhone size={16} stroke={2} />
+                      </a>
+                    ) : (
+                      <span
+                        aria-label="No phone number"
+                        title="No phone"
+                        style={{
+                          ...actionIconBtn,
+                          opacity: 0.35,
+                          cursor: "not-allowed",
+                          border: `1.5px solid #e5e7eb`,
+                          borderRadius: 10,
+                          color: "#9ca3af",
+                        }}
+                      >
+                        <IconPhone size={16} stroke={2} />
+                      </span>
+                    );
+                  })()}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => deleteRow(row)}
+                    aria-label="Delete row"
+                    title="Delete"
+                    style={{ ...actionIconBtn, color: "#b91c1c", borderColor: "#fecaca" }}
+                  >
+                    <IconTrash size={16} stroke={2} />
+                  </Button>
                 </>
               )}
             </div>
@@ -267,7 +389,18 @@ export function DdfGroupedGrid({
           <thead>
             <tr style={{ background: T.pageBg, borderBottom: `1px solid ${T.border}` }}>
               {showColumns.map((col) => (
-                <th key={col} style={{ fontSize: 11, fontWeight: 800, color: T.textMuted, textAlign: "left", padding: "10px 8px", whiteSpace: "nowrap" }}>
+                <th
+                  key={col}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: T.textMuted,
+                    textAlign: "left",
+                    padding: "10px 8px",
+                    whiteSpace: "nowrap",
+                    ...(col === "Actions" ? { minWidth: 210 } : {}),
+                  }}
+                >
                   <button
                     onClick={() => {
                       const keyMap: Record<string, string> = { Date: "date", "Lead Vendor": "lead_vendor", "Insured Name": "insured_name", "Phone Number": "client_phone_number", "Buffer Agent": "buffer_agent", Agent: "agent", "Licensed Account": "licensed_agent_account", Status: "status", "Call Result": "call_result", Carrier: "carrier", "Product Type": "product_type", "Draft Date": "draft_date", MP: "monthly_premium", "Face Amount": "face_amount", "LA Callback": "la_callback", Notes: "notes" };
