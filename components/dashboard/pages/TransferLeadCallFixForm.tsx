@@ -81,6 +81,18 @@ const mapStatusToSheetValue = (userSelectedStatus: string) => {
   return statusMap[userSelectedStatus] || userSelectedStatus;
 };
 
+/** Target `pipeline_stages.name` under Transfer Portal (see `sql/pipelines_and_stages_seed.sql`). */
+function mapDispositionToLeadStageName(applicationSubmitted: boolean | null, dispositionStatus: string): string {
+  if (applicationSubmitted === true) {
+    return "Pending Approval";
+  }
+  const sheet = mapStatusToSheetValue(dispositionStatus);
+  if (sheet === "Pending Failed Payment Fix") {
+    return "Chargeback Fix API";
+  }
+  return sheet;
+}
+
 const isSchemaColumnError = (error: unknown) => {
   const candidate = error as { code?: string; message?: string };
   const message = String(candidate?.message || "").toLowerCase();
@@ -314,6 +326,36 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
 
         delete writePayload[missingColumn];
         if (attempt === 7) throw writeError;
+      }
+
+      const leadStageName = mapDispositionToLeadStageName(applicationSubmitted, status);
+      const { data: tpPipeline } = await supabase.from("pipelines").select("id").eq("name", "Transfer Portal").maybeSingle();
+      let resolvedStageId: string | null = null;
+      if (tpPipeline?.id) {
+        const { data: stageRow } = await supabase
+          .from("pipeline_stages")
+          .select("id")
+          .eq("pipeline_id", tpPipeline.id)
+          .eq("name", leadStageName)
+          .maybeSingle();
+        resolvedStageId = stageRow?.id ?? null;
+      }
+
+      const leadUpdate: Record<string, unknown> = {
+        pipeline: "Transfer Portal",
+        stage: leadStageName,
+        updated_at: new Date().toISOString(),
+      };
+      if (resolvedStageId) leadUpdate.stage_id = resolvedStageId;
+      if (carrier.trim()) leadUpdate.carrier = carrier.trim();
+      if (productType.trim()) leadUpdate.product_type = productType.trim();
+      if (monthlyPremium.trim()) leadUpdate.monthly_premium = monthlyPremium.trim();
+      if (coverageAmount.trim()) leadUpdate.coverage_amount = coverageAmount.trim();
+      if (draftDate.trim()) leadUpdate.draft_date = draftDate.trim();
+
+      const { error: leadUpdateError } = await supabase.from("leads").update(leadUpdate).eq("id", leadRowId);
+      if (leadUpdateError) {
+        console.warn("Lead update after call result failed:", leadUpdateError.message);
       }
 
       const { error: logError } = await supabase.from("call_update_logs").insert({
