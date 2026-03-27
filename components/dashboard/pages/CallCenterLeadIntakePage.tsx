@@ -50,8 +50,11 @@ const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
 /** BPO name for Slack vendor channel mapping (must match `leadVendorChannelMapping` keys in `slack-notification`). */
 const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
 
-/** Must match deployed Edge Function name: `slack-notification` */
-const SLACK_NOTIFICATION_EDGE_FUNCTION = "slack-notification" as const;
+/** Must match deployed Edge Function names. */
+const FE_SLACK_NOTIFICATION_EDGE_FUNCTION = "fe-slack-notification" as const;
+const NOTIFY_ELIGIBLE_AGENTS_EDGE_FUNCTION = "notify-eligible-agents" as const;
+const FE_GHL_CREATE_CONTACT_EDGE_FUNCTION = "fe-ghl-create-contact" as const;
+const TEST_BPO_CHANNEL = "#test-bpo" as const;
 
 type SsnDuplicateRule = {
   stage_name: string;
@@ -194,35 +197,118 @@ async function notifySlackTransferPortalLead(
     leadUniqueId: string;
     payload: TransferLeadFormData;
     callCenterName: string;
-    authToken: string;
+    callCenterId?: string | null;
   }
 ) {
-  const { leadId, submissionId, leadUniqueId, payload, callCenterName, authToken } = params;
+  const { leadId, submissionId, leadUniqueId, payload, callCenterName, callCenterId } = params;
   try {
-    const { error } = await supabase.functions.invoke(SLACK_NOTIFICATION_EDGE_FUNCTION, {
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: {
-        event: "transfer_portal_lead_created",
-        submissionId: submissionId || leadId,
-        lead_vendor: TRANSFER_PORTAL_LEAD_VENDOR,
-        callCenterName: callCenterName.trim() || undefined,
-        leadData: {
-          customer_full_name: `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead",
-          phone: payload.phone,
-          carrier: payload.carrier,
-          product_type: payload.productType,
-          draft_date: payload.draftDate,
-          monthly_premium: payload.monthlyPremium,
-          coverage_amount: payload.coverageAmount,
-          lead_unique_id: leadUniqueId,
+    const customerName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
+    const transferPortalMessage = `A new Application Submission:
+Call Center Name: ${callCenterName || TRANSFER_PORTAL_LEAD_VENDOR}
+Customer Name: ${customerName}
+Customer Number: ${payload.phone || "N/A"}
+Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`;
+
+    const { error: transferPortalError } = await supabase.functions.invoke(
+      FE_SLACK_NOTIFICATION_EDGE_FUNCTION,
+      {
+        body: {
+          channel: TEST_BPO_CHANNEL,
+          message: transferPortalMessage,
         },
       },
-    });
-    if (error) console.warn("slack-notification:", error.message);
+    );
+    if (transferPortalError) console.warn("fe-slack-notification (transfer-portal):", transferPortalError.message);
+
+    const { data: centerRow } = callCenterId
+      ? await supabase
+          .from("call_centers")
+          .select("name, slack_channel")
+          .eq("id", callCenterId)
+          .maybeSingle()
+      : { data: null as { name?: string | null; slack_channel?: string | null } | null };
+    const centerName = (centerRow?.name || callCenterName || TRANSFER_PORTAL_LEAD_VENDOR).trim();
+    const centerSlackChannel = TEST_BPO_CHANNEL;
+
+    if (centerSlackChannel) {
+      const agentPortalUrl = `https://agents-portal-zeta.vercel.app/call-result-update?submissionId=${encodeURIComponent(submissionId || leadId)}&center=${encodeURIComponent(centerName)}`;
+      const centerMessage = `New Application Submission:
+
+Call Center Name: ${centerName}
+Customer Name: ${customerName}
+Customer State: ${payload.state || "N/A"}
+Quoted Carrier: ${payload.carrier || "N/A"}
+Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`;
+      const centerBlocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*New Application Submission:*\n\n*Call Center Name:* ${centerName}\n*Customer Name:* ${customerName}\n*Customer State:* ${payload.state || "N/A"}\n*Quoted Carrier:* ${payload.carrier || "N/A"}\n*Date & Time (EST):* ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+          },
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "View Application" },
+              url: agentPortalUrl,
+              style: "primary",
+            },
+          ],
+        },
+      ];
+
+      const { error: centerSlackError } = await supabase.functions.invoke(
+        FE_SLACK_NOTIFICATION_EDGE_FUNCTION,
+        {
+          body: {
+            channel: centerSlackChannel,
+            message: centerMessage,
+            blocks: centerBlocks,
+          },
+        },
+      );
+      if (centerSlackError) console.warn("fe-slack-notification (center):", centerSlackError.message);
+    }
+
+    if (payload.carrier && payload.state && centerName) {
+      const { error: notifyError } = await supabase.functions.invoke(NOTIFY_ELIGIBLE_AGENTS_EDGE_FUNCTION, {
+        body: {
+          carrier: payload.carrier,
+          state: payload.state,
+          lead_vendor: centerName,
+          language: "English",
+        },
+      });
+      if (notifyError) console.warn("notify-eligible-agents:", notifyError.message);
+    }
+
+    if (centerName && payload.phone) {
+      const { error: ghlError } = await supabase.functions.invoke(FE_GHL_CREATE_CONTACT_EDGE_FUNCTION, {
+        body: {
+          lead_vendor: centerName,
+          first_name: payload.firstName || null,
+          last_name: payload.lastName || null,
+          phone_number: payload.phone,
+          email: null,
+          date_of_birth: payload.dateOfBirth || null,
+          state: payload.state || null,
+          city: payload.city || null,
+          street_address: payload.street1 || null,
+          zip_code: payload.zipCode || null,
+          carrier: payload.carrier || null,
+          product_type: payload.productType || null,
+          monthly_premium: payload.monthlyPremium || null,
+          coverage_amount: payload.coverageAmount || null,
+          submission_id: submissionId || leadId,
+        },
+      });
+      if (ghlError) console.warn("fe-ghl-create-contact:", ghlError.message);
+    }
   } catch (e) {
-    console.warn("slack-notification failed", e);
+    console.warn("post-create notifications failed", e);
   }
 }
 
@@ -654,7 +740,7 @@ export default function CallCenterLeadIntakePage({
         leadUniqueId,
         payload,
         callCenterName,
-        authToken: session.access_token,
+        callCenterId: userProfile?.call_center_id || null,
       });
     }
 
@@ -762,7 +848,7 @@ export default function CallCenterLeadIntakePage({
         leadUniqueId,
         payload: pendingCreatePayload,
         callCenterName,
-        authToken: session.access_token,
+        callCenterId: userProfile?.call_center_id || null,
       });
     }
 
