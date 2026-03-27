@@ -1,7 +1,7 @@
 /**
  * Edge function: `notify-eligible-agents`
  * Finds eligible agents (RPC), posts Slack to center channel.
- * Temporary: all Slack notifications go to #bpo_test (SLACK_CHANNEL_OVERRIDE).
+ * Temporary: all Slack notifications go to #test-bpo (SLACK_CHANNEL_OVERRIDE).
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -17,7 +17,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 /** Temporary: route all Slack posts here. Restore per-vendor mapping when leaving test mode. */
-const SLACK_CHANNEL_OVERRIDE = "#bpo_test";
+const SLACK_CHANNEL_OVERRIDE = "#test-bpo";
 
 type AgentRow = {
   agent_name: string;

@@ -1,7 +1,7 @@
 /**
  * Edge function: `fe-slack-notification`
  * Posts to Slack via chat.postMessage.
- * Temporary: all messages route to SLACK_CHANNEL_OVERRIDE (#bpo_test) for testing.
+ * Temporary: all messages route to SLACK_CHANNEL_OVERRIDE (#test-bpo) for testing.
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -14,7 +14,7 @@ const corsHeaders: Record<string, string> = {
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
 
 /** Temporary: route all Slack posts here (remove override when going to prod channels). */
-const SLACK_CHANNEL_OVERRIDE = "#bpo_test";
+const SLACK_CHANNEL_OVERRIDE = "#test-bpo";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {

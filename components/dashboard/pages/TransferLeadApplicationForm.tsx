@@ -74,10 +74,6 @@ const usStates = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
 ];
 
-const productTypeOptions = [
-  "Preferred", "Standard", "Graded", "Modified", "GI", "Immediate", "Level", "ROP",
-];
-
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
 
 const REQUIRED_FORM_KEYS: Array<keyof TransferLeadFormData> = [
@@ -278,14 +274,34 @@ export default function TransferLeadApplicationForm({
     });
   }, []);
 
-  const { carriers, productsForCarrier, loadingProducts: uwCarrierProductsLoading } = useCarrierProductDropdowns(
+  const onInvalidatePolicyProduct = useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
+    setFormData((prev) => {
+      if (prev.carrier.trim() !== carrierNameSnapshot) return prev;
+      if (!prev.productType.trim()) return prev;
+      if (list.some((x) => x.name === prev.productType)) return prev;
+      return { ...prev, productType: "" };
+    });
+  }, []);
+
+  const { carriers, productsForCarrier, loadingProducts: policyCarrierProductsLoading } =
+    useCarrierProductDropdowns(
+      supabase,
+      {
+        open: true,
+        carrierName: formData.carrier,
+        onInvalidateProduct: onInvalidatePolicyProduct,
+      },
+    );
+
+  const { productsForCarrier: uwProductsForCarrier, loadingProducts: uwCarrierProductsLoading } =
+    useCarrierProductDropdowns(
     supabase,
     {
       open: showUnderwritingModal,
       carrierName: underwritingData.carrier,
       onInvalidateProduct: onInvalidateUwProduct,
     },
-  );
+    );
 
   const phoneError = formData.phone.length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone);
 
@@ -302,14 +318,14 @@ export default function TransferLeadApplicationForm({
     // 2 number phones + three letter from names + SSN last 2 digits + center ki 2 letters
     const phoneDigits = formData.phone.replace(/\D/g, "");
     const phone2 = phoneDigits.slice(0, 2);
-    const nameLetters = `${formData.firstName}${formData.lastName}`.replace(/[^a-zA-Z]/g, "").slice(0, 3).toLowerCase();
+    const nameLetters = `${formData.firstName}${formData.lastName}`.replace(/[^a-zA-Z]/g, "").slice(0, 3).toUpperCase();
     const socialDigits = formData.social.replace(/\D/g, "");
     const ssn2 = socialDigits.slice(-2);
-    const center2 = (centerName || "").replace(/[^a-zA-Z]/g, "").slice(0, 2).toLowerCase();
+    const center2 = (centerName || "").replace(/[^a-zA-Z]/g, "").slice(0, 2).toUpperCase();
     if (!phone2 || nameLetters.length < 3 || ssn2.length < 2 || center2.length < 2) {
-      return formData.leadUniqueId || "";
+      return (formData.leadUniqueId || "").toUpperCase();
     }
-    return `${phone2}${nameLetters}${ssn2}${center2}`;
+    return `${phone2}${nameLetters}${ssn2}${center2}`.toUpperCase();
   }, [formData.firstName, formData.lastName, formData.phone, formData.social, formData.leadUniqueId, centerName]);
 
   const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -958,15 +974,27 @@ export default function TransferLeadApplicationForm({
               </div>
             </Field>
             <Field label="Carrier *">
-              <select value={formData.carrier} onChange={set("carrier")} style={fieldStyleWithError("carrier")}>
+              <select
+                value={formData.carrier}
+                onChange={(e) => {
+                  const nextCarrier = e.target.value;
+                  setFormData((prev) => ({ ...prev, carrier: nextCarrier, productType: "" }));
+                }}
+                style={fieldStyleWithError("carrier")}
+              >
                 <option value="">Please Select</option>
                 {carriers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </Field>
             <Field label="Product Type *">
-              <select value={formData.productType} onChange={set("productType")} style={fieldStyleWithError("productType")}>
+              <select
+                value={formData.productType}
+                onChange={set("productType")}
+                style={fieldStyleWithError("productType")}
+                disabled={!formData.carrier.trim() || policyCarrierProductsLoading}
+              >
                 <option value="">Please Select</option>
-                {productTypeOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+                {productsForCarrier.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
               </select>
             </Field>
             <Field label="Draft Date *">
@@ -1228,7 +1256,7 @@ export default function TransferLeadApplicationForm({
                         ? "No products for this carrier"
                         : "Select product level"}
                   </option>
-                  {productsForCarrier.map((p) => (
+                  {uwProductsForCarrier.map((p) => (
                     <option key={p.id} value={p.name}>
                       {p.name}
                     </option>

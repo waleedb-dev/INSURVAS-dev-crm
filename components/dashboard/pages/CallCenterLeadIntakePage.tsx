@@ -127,6 +127,10 @@ function buildLeadUniqueId(payload: TransferLeadFormData): string {
   return `${ph2}${car2}${fn1}${ln1}${ss2}`.toUpperCase();
 }
 
+function normalizeLeadUniqueId(value: string): string {
+  return String(value || "").trim().toUpperCase();
+}
+
 function buildSubmissionId(centerName: string): string {
   const words = String(centerName || "")
     .trim()
@@ -575,7 +579,7 @@ export default function CallCenterLeadIntakePage({
       .eq("id", session.user.id)
       .maybeSingle();
 
-    const leadUniqueId = payload.leadUniqueId || buildLeadUniqueId(payload);
+    const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
     const generatedSubmissionId = buildSubmissionId(callCenterName);
 
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
@@ -772,7 +776,7 @@ export default function CallCenterLeadIntakePage({
       .eq("id", session.user.id)
       .maybeSingle();
 
-    const leadUniqueId = pendingCreatePayload.leadUniqueId || buildLeadUniqueId(pendingCreatePayload);
+    const leadUniqueId = normalizeLeadUniqueId(pendingCreatePayload.leadUniqueId) || buildLeadUniqueId(pendingCreatePayload);
     const generatedSubmissionId = buildSubmissionId(callCenterName);
     const existingAdditional = (pendingCreatePayload.additionalInformation || "").trim();
 
@@ -887,7 +891,7 @@ export default function CallCenterLeadIntakePage({
       .eq("id", session.user.id)
       .maybeSingle();
 
-    const leadUniqueId = payload.leadUniqueId || buildLeadUniqueId(payload);
+    const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
     const generatedSubmissionId = buildSubmissionId(callCenterName);
 
     const { error } = await supabase.from("leads").insert({
@@ -1024,7 +1028,7 @@ export default function CallCenterLeadIntakePage({
     const { error } = await supabase
       .from("leads")
       .update({
-        lead_unique_id: payload.leadUniqueId || buildLeadUniqueId(payload),
+        lead_unique_id: normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload),
         lead_value: Number(payload.leadValue || 0),
         lead_source: FIXED_BPO_LEAD_SOURCE,
         submission_date: payload.submissionDate,
@@ -1097,7 +1101,7 @@ export default function CallCenterLeadIntakePage({
     const { error } = await supabase
       .from("leads")
       .update({
-        lead_unique_id: payload.leadUniqueId || buildLeadUniqueId(payload),
+        lead_unique_id: normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload),
         lead_value: Number(payload.leadValue || 0),
         lead_source: FIXED_BPO_LEAD_SOURCE,
         submission_date: payload.submissionDate || null,
