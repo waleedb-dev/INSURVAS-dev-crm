@@ -1,14 +1,11 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, Badge, Button, EmptyState, Pagination, Table } from "@/components/ui";
+import { ActionMenu, Badge, Button, EmptyState, Input, Pagination, Table } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import {
-  IconRefresh,
-  IconSearch,
-  IconCalendar,
-  IconChevronDown,
-} from "@tabler/icons-react";
+import { IconRefresh } from "@tabler/icons-react";
+import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
+import { ALL_OPTION } from "./daily-deal-flow/constants";
 
 type Policy = {
   id: number;
@@ -37,69 +34,14 @@ const LOCK_COLORS: Record<string, { bg: string; color: string }> = {
 
 const ITEMS_PER_PAGE = 100;
 
-// ── Shared helpers (same pattern as other pages) ──────────────────────────────
-function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.4, fontFamily: T.font }}>
-        {label}
-      </span>
-      {children}
-    </div>
-  );
-}
-
-function FilterSelect({ label, options, value, onChange }: { label: string; options: { label: string; value: string }[]; value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const selected = options.find((o) => o.value === value);
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-  return (
-    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
-      <div onClick={() => setOpen((o) => !o)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", border: `1.5px solid ${open ? T.blue : T.border}`, borderRadius: T.radiusSm, backgroundColor: T.cardBg, cursor: "pointer", fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, userSelect: "none", minWidth: 130, whiteSpace: "nowrap", boxShadow: open ? `0 0 0 3px ${T.blue}18` : "none", transition: "all 0.15s" }}>
-        <span style={{ flex: 1 }}>{selected?.label ?? label}</span>
-        <IconChevronDown size={14} style={{ color: T.textMuted, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }} />
-      </div>
-      {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, minWidth: "100%", backgroundColor: T.cardBg, border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, boxShadow: T.shadowMd, zIndex: 200, overflow: "hidden" }}>
-          {options.map((opt) => {
-            const isSel = opt.value === value;
-            return (
-              <div key={opt.value} onClick={() => { onChange(opt.value); setOpen(false); }}
-                style={{ padding: "9px 14px", fontSize: 13, fontWeight: isSel ? 700 : 500, color: isSel ? T.blue : T.textMid, backgroundColor: isSel ? T.blueLight : "transparent", cursor: "pointer", fontFamily: T.font, transition: "background 0.1s" }}
-                onMouseEnter={(e) => { if (!isSel) (e.currentTarget as HTMLDivElement).style.backgroundColor = T.rowBg; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = isSel ? T.blueLight : "transparent"; }}>
-                {opt.label}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DateInput({ placeholder, value, onChange }: { placeholder: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
-      <IconCalendar size={14} style={{ position: "absolute", left: 10, color: T.textMuted, pointerEvents: "none" }} />
-      <input type="date" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        style={{ padding: "8px 10px 8px 30px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontFamily: T.font, color: value ? T.textMid : T.textMuted, backgroundColor: T.cardBg, outline: "none", cursor: "pointer", minWidth: 130, transition: "border-color 0.15s" }}
-        onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.blue}18`; }}
-        onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-      />
-    </div>
-  );
+function mapOpts(values: string[]) {
+  return [{ value: ALL_OPTION, label: "All" }, ...values.map((v) => ({ value: v, label: v }))];
 }
 
 const ACTIVE_OPTS = [
-  { label: "All Policies",   value: "all" },
-  { label: "Active Only",    value: "active" },
-  { label: "Inactive Only",  value: "inactive" },
+  { value: ALL_OPTION, label: "All" },
+  { value: "active",   label: "Active Only" },
+  { value: "inactive", label: "Inactive Only" },
 ];
 
 export default function PoliciesPage() {
@@ -111,10 +53,10 @@ export default function PoliciesPage() {
 
   // filters
   const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [carrierFilter, setCarrierFilter] = useState("all");
-  const [agentFilter, setAgentFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState(ALL_OPTION);
+  const [carrierFilter, setCarrierFilter] = useState(ALL_OPTION);
+  const [agentFilter, setAgentFilter] = useState(ALL_OPTION);
+  const [typeFilter, setTypeFilter] = useState(ALL_OPTION);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
@@ -136,17 +78,17 @@ export default function PoliciesPage() {
 
   const carrierOptions = useMemo(() => {
     const vals = [...new Set(rows.map((r) => r.carrier).filter(Boolean))] as string[];
-    return [{ label: "All Carriers", value: "all" }, ...vals.map((v) => ({ label: v, value: v }))];
+    return mapOpts(vals);
   }, [rows]);
 
   const agentOptions = useMemo(() => {
     const vals = [...new Set(rows.map((r) => r.sales_agent).filter(Boolean))] as string[];
-    return [{ label: "All Agents", value: "all" }, ...vals.map((v) => ({ label: v, value: v }))];
+    return mapOpts(vals);
   }, [rows]);
 
   const typeOptions = useMemo(() => {
     const vals = [...new Set(rows.map((r) => r.policy_type).filter(Boolean))] as string[];
-    return [{ label: "All Types", value: "all" }, ...vals.map((v) => ({ label: v, value: v }))];
+    return mapOpts(vals);
   }, [rows]);
 
   const filtered = useMemo(() => {
@@ -160,9 +102,9 @@ export default function PoliciesPage() {
       )) return false;
       if (activeFilter === "active" && !r.is_active) return false;
       if (activeFilter === "inactive" && r.is_active) return false;
-      if (carrierFilter !== "all" && r.carrier !== carrierFilter) return false;
-      if (agentFilter !== "all" && r.sales_agent !== agentFilter) return false;
-      if (typeFilter !== "all" && r.policy_type !== typeFilter) return false;
+      if (carrierFilter !== ALL_OPTION && r.carrier !== carrierFilter) return false;
+      if (agentFilter !== ALL_OPTION && r.sales_agent !== agentFilter) return false;
+      if (typeFilter !== ALL_OPTION && r.policy_type !== typeFilter) return false;
       const effDate = r.effective_date ? r.effective_date.slice(0, 10) : r.created_at.slice(0, 10);
       if (fromDate && effDate < fromDate) return false;
       if (toDate && effDate > toDate) return false;
@@ -170,8 +112,8 @@ export default function PoliciesPage() {
     });
   }, [rows, search, activeFilter, carrierFilter, agentFilter, typeFilter, fromDate, toDate]);
 
-  const hasFilters = search !== "" || activeFilter !== "all" || carrierFilter !== "all" || agentFilter !== "all" || typeFilter !== "all" || fromDate !== "" || toDate !== "";
-  const clearFilters = () => { setSearch(""); setActiveFilter("all"); setCarrierFilter("all"); setAgentFilter("all"); setTypeFilter("all"); setFromDate(""); setToDate(""); };
+  const hasFilters = search !== "" || activeFilter !== ALL_OPTION || carrierFilter !== ALL_OPTION || agentFilter !== ALL_OPTION || typeFilter !== ALL_OPTION || fromDate !== "" || toDate !== "";
+  const clearFilters = () => { setSearch(""); setActiveFilter(ALL_OPTION); setCarrierFilter(ALL_OPTION); setAgentFilter(ALL_OPTION); setTypeFilter(ALL_OPTION); setFromDate(""); setToDate(""); };
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -186,7 +128,10 @@ export default function PoliciesPage() {
 
       {/* Top bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: T.textDark }}>Policies</h1>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: T.textDark }}>Policies</h1>
+          <p style={{ margin: "4px 0 0", color: T.textMuted, fontSize: 13 }}>View and filter policy records.</p>
+        </div>
         <Button variant="ghost" size="sm" icon={<IconRefresh size={14} />} onClick={() => void loadRows()} disabled={loading}>
           Refresh
         </Button>
@@ -198,60 +143,58 @@ export default function PoliciesPage() {
         </div>
       )}
 
-      {/* Filter panel */}
-      <div style={{ backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: T.radiusLg, padding: "16px 20px", marginBottom: 16, boxShadow: T.shadowSm }}>
-        {/* Row 1 */}
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-          <FilterGroup label="Search Records">
-            <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
-              <IconSearch size={14} style={{ position: "absolute", left: 10, color: T.textMuted, pointerEvents: "none" }} />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by policy #, deal name, agent…"
-                style={{ padding: "8px 12px 8px 30px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontFamily: T.font, color: T.textDark, backgroundColor: T.rowBg, outline: "none", width: 260, transition: "all 0.15s" }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.backgroundColor = T.cardBg; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.blue}18`; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.backgroundColor = T.rowBg; e.currentTarget.style.boxShadow = "none"; }}
-              />
-            </div>
-          </FilterGroup>
-
-          <FilterGroup label="Active Status">
-            <FilterSelect label="All Policies" options={ACTIVE_OPTS} value={activeFilter} onChange={setActiveFilter} />
-          </FilterGroup>
-
-          <FilterGroup label="Carrier">
-            <FilterSelect label="All Carriers" options={carrierOptions} value={carrierFilter} onChange={setCarrierFilter} />
-          </FilterGroup>
-
-          <FilterGroup label="Agent">
-            <FilterSelect label="All Agents" options={agentOptions} value={agentFilter} onChange={setAgentFilter} />
-          </FilterGroup>
-
-          <FilterGroup label="Policy Type">
-            <FilterSelect label="All Types" options={typeOptions} value={typeFilter} onChange={setTypeFilter} />
-          </FilterGroup>
-
-          <div style={{ marginLeft: "auto", alignSelf: "flex-end", paddingBottom: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>{filtered.length.toLocaleString()}</span>
-            <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 500 }}> records found</span>
+      {/* Filter panel — same structure as DdfToolbar */}
+      <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, boxShadow: T.shadowSm, display: "grid", gap: 12, marginBottom: 16 }}>
+        {/* Row 1: search + dates */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(150px, 1fr))", gap: 12 }}>
+          <div style={{ gridColumn: "span 2" }}>
+            <FieldLabel label="Search" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              placeholder="Policy #, deal name, agent, carrier…"
+            />
+          </div>
+          <div>
+            <FieldLabel label="Effective From" />
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: "100%", height: 36, border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.textDark, padding: "0 8px" }} />
+          </div>
+          <div>
+            <FieldLabel label="Effective To" />
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ width: "100%", height: 36, border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.textDark, padding: "0 8px" }} />
           </div>
         </div>
 
-        {/* Row 2 */}
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
-          <FilterGroup label="Effective From">
-            <DateInput placeholder="Start date" value={fromDate} onChange={setFromDate} />
-          </FilterGroup>
+        {/* Row 2: dropdowns */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+          <div>
+            <FieldLabel label="Active Status" />
+            <SelectInput value={activeFilter} onChange={(v) => setActiveFilter(String(v))} options={ACTIVE_OPTS} />
+          </div>
+          <div>
+            <FieldLabel label="Carrier" />
+            <SelectInput value={carrierFilter} onChange={(v) => setCarrierFilter(String(v))} options={carrierOptions} />
+          </div>
+          <div>
+            <FieldLabel label="Agent" />
+            <SelectInput value={agentFilter} onChange={(v) => setAgentFilter(String(v))} options={agentOptions} />
+          </div>
+          <div>
+            <FieldLabel label="Policy Type" />
+            <SelectInput value={typeFilter} onChange={(v) => setTypeFilter(String(v))} options={typeOptions} />
+          </div>
+        </div>
 
-          <FilterGroup label="Effective To">
-            <DateInput placeholder="End date" value={toDate} onChange={setToDate} />
-          </FilterGroup>
-
+        {/* Footer: row count + clear */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{filtered.length.toLocaleString()} rows</div>
           {hasFilters && (
             <button onClick={clearFilters}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: T.cardBg, color: T.textMid, fontSize: 13, fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "all 0.15s", alignSelf: "flex-end" }}
-              onMouseEnter={(e) => { const el = e.currentTarget as HTMLButtonElement; el.style.borderColor = T.danger; el.style.color = T.danger; el.style.backgroundColor = "#fef2f2"; }}
-              onMouseLeave={(e) => { const el = e.currentTarget as HTMLButtonElement; el.style.borderColor = T.border; el.style.color = T.textMid; el.style.backgroundColor = T.cardBg; }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: T.cardBg, color: T.textMid, fontSize: 12, fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "all 0.15s" }}
+              onMouseEnter={(e) => { const el = e.currentTarget; el.style.borderColor = "#ef4444"; el.style.color = "#ef4444"; el.style.backgroundColor = "#fef2f2"; }}
+              onMouseLeave={(e) => { const el = e.currentTarget; el.style.borderColor = T.border; el.style.color = T.textMid; el.style.backgroundColor = T.cardBg; }}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               Clear Filters
             </button>
           )}

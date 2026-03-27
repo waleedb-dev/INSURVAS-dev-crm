@@ -17,7 +17,7 @@ import PoliciesPage from "@/components/dashboard/pages/PoliciesPage";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 export default function RoleDashboardPage() {
-  const { permissionKeys, visiblePages, searchQuery } = useDashboardContext();
+  const { permissionKeys, visiblePages, searchQuery, currentRole } = useDashboardContext();
   const router = useRouter();
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role;
@@ -50,7 +50,10 @@ export default function RoleDashboardPage() {
         />
       )}
       {activePage === "daily-deal-flow" && (
-        <DailyDealFlowPage canProcessActions={permissionKeys.has("action.daily_deal_flow.process")} />
+        <DailyDealFlowPage
+          canProcessActions={permissionKeys.has("action.daily_deal_flow.process")}
+          isCallCenterScoped={currentRole === "call_center_admin" || currentRole === "call_center_agent"}
+        />
       )}
       {activePage === "lead-pipeline" && (
         <LeadPipelinePage canUpdateActions={permissionKeys.has("action.lead_pipeline.update")} />

@@ -103,6 +103,7 @@ with mapping(role_key, permission_key) as (
     ('sales_agent_unlicensed', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('call_center_admin', 'page.daily_deal_flow.access'),
+    ('call_center_admin', 'action.daily_deal_flow.process'),
     ('call_center_admin', 'page.assigning.access'),
     ('call_center_admin', 'action.assigning.assign'),
     ('call_center_admin', 'page.lead_pipeline.access'),
@@ -111,6 +112,8 @@ with mapping(role_key, permission_key) as (
     ('call_center_admin', 'action.transfer_leads.view_call_center'),
     ('call_center_admin', 'action.transfer_leads.create'),
 
+    ('call_center_agent', 'page.daily_deal_flow.access'),
+    ('call_center_agent', 'action.daily_deal_flow.process'),
     ('call_center_agent', 'page.lead_pipeline.access'),
     ('call_center_agent', 'action.lead_pipeline.update'),
     ('call_center_agent', 'page.transfer_leads.access'),
