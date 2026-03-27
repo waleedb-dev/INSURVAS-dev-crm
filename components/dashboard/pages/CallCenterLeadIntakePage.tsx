@@ -163,6 +163,7 @@ async function insertDailyDealFlowEntry(
     leadVendor: string;
     leadName: string;
     payload: TransferLeadFormData;
+    callCenterId?: string | null;
   }
 ) {
   const monthly = Number(row.payload.monthlyPremium);
@@ -173,6 +174,7 @@ async function insertDailyDealFlowEntry(
     submission_id: row.submissionId,
     client_phone_number: row.payload.phone || null,
     lead_vendor: row.leadVendor || null,
+    call_center_id: row.callCenterId || null,
     date: flowDate,
     insured_name: insuredName,
     carrier: row.payload.carrier || null,
@@ -253,6 +255,8 @@ export default function CallCenterLeadIntakePage({
   const [duplicateRuleMessage, setDuplicateRuleMessage] = useState<string>("");
   const [duplicateIsAddable, setDuplicateIsAddable] = useState<boolean>(true);
   const [callCenterName, setCallCenterName] = useState("");
+  const [pendingDeleteLead, setPendingDeleteLead] = useState<{ rowId: string; name: string } | null>(null);
+  const [deletingLead, setDeletingLead] = useState(false);
   const [claimModalOpen, setClaimModalOpen] = useState(false);
   const [claimModalLoading, setClaimModalLoading] = useState(false);
   const [claimLeadContext, setClaimLeadContext] = useState<ClaimLeadContext | null>(null);
@@ -642,6 +646,7 @@ export default function CallCenterLeadIntakePage({
         leadVendor: callCenterName,
         leadName,
         payload,
+        callCenterId: userProfile?.call_center_id || null,
       });
       void notifySlackTransferPortalLead(supabase, {
         leadId: insertedLead.id,
@@ -749,6 +754,7 @@ export default function CallCenterLeadIntakePage({
         leadVendor: callCenterName,
         leadName,
         payload: pendingCreatePayload,
+        callCenterId: userProfile?.call_center_id || null,
       });
       void notifySlackTransferPortalLead(supabase, {
         leadId: dupInserted.id,
@@ -1057,6 +1063,35 @@ export default function CallCenterLeadIntakePage({
 
     setToast({ message: "Draft updated", type: "success" });
     setEditingLead(null);
+    await refreshLeads();
+  };
+
+  const handleDeleteLead = async (leadRowId: string, leadName?: string) => {
+    setPendingDeleteLead({ rowId: leadRowId, name: (leadName || "this lead").trim() });
+  };
+
+  const confirmDeleteLead = async () => {
+    if (!pendingDeleteLead || deletingLead) return;
+    setDeletingLead(true);
+    const { error, count } = await supabase
+      .from("leads")
+      .delete({ count: "exact" })
+      .eq("id", pendingDeleteLead.rowId);
+    if (error) {
+      setToast({ message: error.message || "Failed to delete lead", type: "error" });
+      setDeletingLead(false);
+      return;
+    }
+    if (!count || count < 1) {
+      setToast({ message: "Lead could not be deleted (permission denied or already removed).", type: "error" });
+      setDeletingLead(false);
+      return;
+    }
+
+    setPendingDeleteLead(null);
+    setDeletingLead(false);
+    setToast({ message: "Lead deleted successfully", type: "success" });
+    setPage(1);
     await refreshLeads();
   };
 
@@ -1474,7 +1509,7 @@ export default function CallCenterLeadIntakePage({
                     items={[
                       { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) },
                       { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
-                      { label: "Delete", danger: true },
+                      { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
                     ]}
                   />
                 </div>
@@ -1486,6 +1521,73 @@ export default function CallCenterLeadIntakePage({
           <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
         )}
       </DataGrid>
+
+      {pendingDeleteLead && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.42)",
+            zIndex: 3600,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 520,
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              border: `1.5px solid ${T.border}`,
+              boxShadow: "0 18px 45px rgba(0,0,0,0.24)",
+              padding: 20,
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Delete Lead</h3>
+            <p style={{ margin: "10px 0 0", color: T.textMid, fontSize: 14, lineHeight: 1.5 }}>
+              Delete <strong>{pendingDeleteLead.name}</strong>? This action cannot be undone.
+            </p>
+            <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                disabled={deletingLead}
+                onClick={() => setPendingDeleteLead(null)}
+                style={{
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textMid,
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  fontWeight: 700,
+                  cursor: deletingLead ? "not-allowed" : "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingLead}
+                onClick={() => void confirmDeleteLead()}
+                style={{
+                  border: "none",
+                  background: T.danger,
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  fontWeight: 700,
+                  cursor: deletingLead ? "not-allowed" : "pointer",
+                  opacity: deletingLead ? 0.7 : 1,
+                }}
+              >
+                {deletingLead ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <TransferLeadClaimModal

@@ -1184,7 +1184,16 @@ export default function TransferLeadApplicationForm({
                     const v = e.target.value;
                     setUnderwritingData((prev) => ({ ...prev, carrier: v, productLevel: "" }));
                   }}
-                  style={{ ...fieldStyle, fontSize: 24, height: 48, width: "100%", boxSizing: "border-box" }}
+                  style={{
+                    ...fieldStyle,
+                    fontSize: 24,
+                    height: 56,
+                    lineHeight: "1.2",
+                    paddingTop: 8,
+                    paddingBottom: 8,
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
                 >
                   <option value="">Select carrier</option>
                   {carriers.map((c) => (
@@ -1203,7 +1212,10 @@ export default function TransferLeadApplicationForm({
                   style={{
                     ...fieldStyle,
                     fontSize: 24,
-                    height: 48,
+                    height: 56,
+                    lineHeight: "1.2",
+                    paddingTop: 8,
+                    paddingBottom: 8,
                     width: "100%",
                     boxSizing: "border-box",
                     opacity: !underwritingData.carrier.trim() || uwCarrierProductsLoading ? 0.7 : 1,
