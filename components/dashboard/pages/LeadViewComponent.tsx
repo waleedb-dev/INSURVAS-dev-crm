@@ -23,6 +23,13 @@ type LeadNoteRow = {
   authorName?: string;
 };
 
+type CallUpdateLogRow = {
+  id: string;
+  event_type: string;
+  event_details: unknown;
+  created_at: string;
+};
+
 interface LeadViewProps {
   leadId?: string;
   /** When known, use this UUID for DB fetch/update (avoids lookup by lead_unique_id). */
@@ -39,7 +46,7 @@ interface LeadViewProps {
   previewMode?: boolean;
 }
 
-type TabType = "Overview" | "Notes" | "Policy & coverage";
+type TabType = "Overview" | "Call updates" | "Notes" | "Policy & coverage";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -62,6 +69,42 @@ function fmt(value: unknown) {
   if (value == null || value === "") return "—";
   return String(value);
 }
+
+function fmtBool(value: unknown) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "—";
+}
+
+const CALL_RESULT_FIELD_ORDER: { key: string; label: string; format?: (v: unknown) => string }[] = [
+  { key: "submission_id", label: "Submission ID" },
+  { key: "customer_name", label: "Customer name" },
+  { key: "call_status", label: "Call status (legacy)" },
+  { key: "status", label: "Status" },
+  { key: "call_reason", label: "Call reason" },
+  { key: "call_source", label: "Call source" },
+  { key: "application_submitted", label: "Application submitted", format: fmtBool },
+  { key: "dq_reason", label: "DQ / reason" },
+  { key: "notes", label: "Call notes" },
+  { key: "buffer_agent", label: "Buffer agent" },
+  { key: "agent_who_took_call", label: "Agent who took call" },
+  { key: "licensed_agent_account", label: "Licensed agent account" },
+  { key: "carrier", label: "Carrier" },
+  { key: "product_type", label: "Product type" },
+  { key: "draft_date", label: "Draft date" },
+  { key: "new_draft_date", label: "New draft date" },
+  { key: "monthly_premium", label: "Monthly premium" },
+  { key: "coverage_amount", label: "Coverage amount" },
+  { key: "face_amount", label: "Face amount" },
+  { key: "sent_to_underwriting", label: "Sent to underwriting", format: fmtBool },
+  { key: "is_callback", label: "Callback", format: fmtBool },
+  { key: "is_retention_call", label: "Retention call", format: fmtBool },
+  { key: "carrier_attempted_1", label: "Carrier attempted #1" },
+  { key: "carrier_attempted_2", label: "Carrier attempted #2" },
+  { key: "carrier_attempted_3", label: "Carrier attempted #3" },
+  { key: "created_at", label: "Recorded", format: (v) => formatTs(v) },
+  { key: "updated_at", label: "Last updated", format: (v) => formatTs(v) },
+];
 
 export default function LeadViewComponent({
   leadId,
@@ -104,6 +147,10 @@ export default function LeadViewComponent({
   const [newNoteText, setNewNoteText] = useState("");
   const [addingNote, setAddingNote] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+
+  const [callResultsRows, setCallResultsRows] = useState<LeadRow[]>([]);
+  const [callUpdatesLoading, setCallUpdatesLoading] = useState(false);
+  const [callUpdateLogRows, setCallUpdateLogRows] = useState<CallUpdateLogRow[]>([]);
 
   const resolveLeadUuid = useCallback(
     async (id: string | undefined): Promise<string | null> => {
@@ -331,10 +378,40 @@ export default function LeadViewComponent({
     setNotesLoading(false);
   }, [rowUuid, supabase]);
 
+  const loadCallUpdates = useCallback(async () => {
+    if (!rowUuid) return;
+    setCallUpdatesLoading(true);
+    const [crRes, logRes] = await Promise.all([
+      supabase.from("call_results").select("*").eq("lead_id", rowUuid).order("updated_at", { ascending: false }),
+      supabase
+        .from("call_update_logs")
+        .select("id, event_type, event_details, created_at")
+        .eq("lead_id", rowUuid)
+        .order("created_at", { ascending: false })
+        .limit(80),
+    ]);
+    if (!crRes.error && crRes.data) {
+      setCallResultsRows(crRes.data as LeadRow[]);
+    } else {
+      setCallResultsRows([]);
+    }
+    if (!logRes.error && logRes.data) {
+      setCallUpdateLogRows(logRes.data as CallUpdateLogRow[]);
+    } else {
+      setCallUpdateLogRows([]);
+    }
+    setCallUpdatesLoading(false);
+  }, [rowUuid, supabase]);
+
   useEffect(() => {
     if (activeTab !== "Notes" || !rowUuid || isCreation || previewMode) return;
     void loadNotes();
   }, [activeTab, rowUuid, isCreation, previewMode, loadNotes]);
+
+  useEffect(() => {
+    if (activeTab !== "Call updates" || !rowUuid || isCreation || previewMode) return;
+    void loadCallUpdates();
+  }, [activeTab, rowUuid, isCreation, previewMode, loadCallUpdates]);
 
   const addNote = async () => {
     if (!rowUuid || !newNoteText.trim()) return;
@@ -555,7 +632,7 @@ export default function LeadViewComponent({
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <div style={{ backgroundColor: "#fff", borderRadius: "20px", padding: "8px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, display: "flex", gap: 4 }}>
-            {(["Overview", "Notes", "Policy & coverage"] as TabType[]).map((tab) => (
+            {(["Overview", "Call updates", "Notes", "Policy & coverage"] as TabType[]).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -893,6 +970,102 @@ export default function LeadViewComponent({
                     <div style={{ border: `2px dashed ${T.border}`, borderRadius: "24px", padding: 40, textAlign: "center", color: T.textMuted }}>
                       <p style={{ fontWeight: 600 }}>Additional fields will be available after lead creation.</p>
                     </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeTab === "Call updates" && !isCreation && (
+              <div>
+                <h3 style={{ margin: "0 0 20px", fontSize: 20, fontWeight: 800 }}>Call updates</h3>
+
+                {callUpdatesLoading ? (
+                  <p style={{ color: T.textMuted, fontWeight: 600 }}>Loading call data…</p>
+                ) : (
+                  <>
+                    {callResultsRows.length === 0 && callUpdateLogRows.length === 0 ? (
+                      <p style={{ color: T.textMuted, padding: 20, background: T.pageBg, borderRadius: 12, border: `1px solid ${T.border}` }}>
+                        No call results or update events are stored for this lead yet. They appear after a call is logged from Transfer Leads or related flows.
+                      </p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                        {callResultsRows.map((cr, i) => (
+                          <div
+                            key={String(cr.id ?? i)}
+                            style={{
+                              border: `1.5px solid ${T.border}`,
+                              borderRadius: 16,
+                              padding: 20,
+                              background: T.rowBg,
+                            }}
+                          >
+                            <p style={{ margin: "0 0 14px", fontSize: 12, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                              Call result{callResultsRows.length > 1 ? ` · ${String(cr.submission_id ?? i + 1)}` : ""}
+                            </p>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+                                gap: "12px 20px",
+                              }}
+                            >
+                              {CALL_RESULT_FIELD_ORDER.map(({ key, label, format }) => {
+                                const raw = cr[key];
+                                if (raw === undefined || raw === null || raw === "") return null;
+                                const text = format ? format(raw) : fmt(raw);
+                                if (text === "—") return null;
+                                return (
+                                  <div key={key}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>{label}</div>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: T.textDark, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>{text}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+
+                        {callUpdateLogRows.length > 0 && (
+                          <div>
+                            <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Event log</p>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                              {callUpdateLogRows.map((log) => (
+                                <div
+                                  key={log.id}
+                                  style={{
+                                    border: `1px solid ${T.borderLight}`,
+                                    borderRadius: 12,
+                                    padding: 12,
+                                    background: "#fff",
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, marginBottom: 6 }}>
+                                    {formatTs(log.created_at)} · {log.event_type}
+                                  </div>
+                                  <pre
+                                    style={{
+                                      margin: 0,
+                                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                      fontSize: 12,
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      color: T.textMid,
+                                    }}
+                                  >
+                                    {log.event_details == null
+                                      ? "—"
+                                      : typeof log.event_details === "string"
+                                        ? log.event_details
+                                        : JSON.stringify(log.event_details, null, 2)}
+                                  </pre>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
