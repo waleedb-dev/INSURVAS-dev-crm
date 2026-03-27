@@ -146,6 +146,16 @@ function formatUsPhone(digits: string) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
+/** Calendar date `YYYY-MM-DD` in US Eastern — aligns with FE quote `date` and portal submission dates. */
+function getTodayInEasternYyyyMmDd(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 async function insertDailyDealFlowEntry(
   supabase: ReturnType<typeof getSupabaseBrowserClient>,
   row: {
@@ -157,11 +167,14 @@ async function insertDailyDealFlowEntry(
 ) {
   const monthly = Number(row.payload.monthlyPremium);
   const face = Number(row.payload.coverageAmount);
+  const insuredName = (row.leadName || "").trim() || "Unnamed Lead";
+  const flowDate = getTodayInEasternYyyyMmDd();
   const { error } = await supabase.from("daily_deal_flow").insert({
     submission_id: row.submissionId,
     client_phone_number: row.payload.phone || null,
     lead_vendor: row.leadVendor || null,
-    insured_name: row.leadName,
+    date: flowDate,
+    insured_name: insuredName,
     carrier: row.payload.carrier || null,
     product_type: row.payload.productType || null,
     draft_date: row.payload.draftDate || null,
