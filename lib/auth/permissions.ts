@@ -15,6 +15,7 @@ export const PERMISSION_KEYS = [
   "action.transfer_leads.view_call_center",
   "action.transfer_leads.view_own",
   "action.transfer_leads.create",
+  "action.transfer_leads.edit",
   "action.transfer_leads.claim_reclaim_visit",
 ] as const;
 

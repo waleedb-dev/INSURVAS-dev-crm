@@ -53,6 +53,7 @@ insert into public.permissions (key, resource, action, description) values
   ('action.transfer_leads.view_call_center', 'transfer_leads', 'view_call_center', 'Can view Transfer Leads for your centre'),
   ('action.transfer_leads.view_own', 'transfer_leads', 'view_own', 'Can view only Transfer Leads you submitted'),
   ('action.transfer_leads.create', 'transfer_leads', 'create', 'Can create new transfer lead records'),
+  ('action.transfer_leads.edit', 'transfer_leads', 'edit', 'Can edit or delete existing transfer lead records (intake form and lead view)'),
   ('action.transfer_leads.claim_reclaim_visit', 'transfer_leads', 'claim_reclaim_visit', 'Can view Claim / Reclaim / Visit transfer lead buttons')
 on conflict (key) do update
 set
@@ -74,6 +75,7 @@ with mapping(role_key, permission_key) as (
     ('system_admin', 'action.commissions.approve'),
     ('system_admin', 'page.transfer_leads.access'),
     ('system_admin', 'action.transfer_leads.view_all'),
+    ('system_admin', 'action.transfer_leads.edit'),
     ('system_admin', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('sales_manager', 'page.daily_deal_flow.access'),
@@ -85,6 +87,7 @@ with mapping(role_key, permission_key) as (
     ('sales_manager', 'page.commissions.access'),
     ('sales_manager', 'page.transfer_leads.access'),
     ('sales_manager', 'action.transfer_leads.view_all'),
+    ('sales_manager', 'action.transfer_leads.edit'),
     ('sales_manager', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('sales_agent_licensed', 'page.daily_deal_flow.access'),
@@ -93,6 +96,7 @@ with mapping(role_key, permission_key) as (
     ('sales_agent_licensed', 'action.lead_pipeline.update'),
     ('sales_agent_licensed', 'page.transfer_leads.access'),
     ('sales_agent_licensed', 'action.transfer_leads.view_all'),
+    ('sales_agent_licensed', 'action.transfer_leads.edit'),
     ('sales_agent_licensed', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('sales_agent_unlicensed', 'page.daily_deal_flow.access'),
@@ -100,6 +104,7 @@ with mapping(role_key, permission_key) as (
     ('sales_agent_unlicensed', 'action.lead_pipeline.update'),
     ('sales_agent_unlicensed', 'page.transfer_leads.access'),
     ('sales_agent_unlicensed', 'action.transfer_leads.view_all'),
+    ('sales_agent_unlicensed', 'action.transfer_leads.edit'),
     ('sales_agent_unlicensed', 'action.transfer_leads.claim_reclaim_visit'),
 
     ('call_center_admin', 'page.daily_deal_flow.access'),

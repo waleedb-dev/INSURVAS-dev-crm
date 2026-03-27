@@ -326,6 +326,7 @@ export default function CallCenterLeadIntakePage({
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
   const { permissionKeys } = useDashboardContext();
+  const canEditTransferLeads = permissionKeys.has("action.transfer_leads.edit");
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
   const [leads, setLeads] = useState<IntakeLead[]>([]);
@@ -866,6 +867,10 @@ export default function CallCenterLeadIntakePage({
   };
 
   const handleEditExistingDuplicateLead = async () => {
+    if (!canEditTransferLeads) {
+      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
+      return;
+    }
     if (!duplicateLeadMatch?.id) return;
     setShowDuplicateDialog(false);
     setPendingCreatePayload(null);
@@ -953,6 +958,10 @@ export default function CallCenterLeadIntakePage({
   };
 
   const handleEditLead = async (rowId: string) => {
+    if (!canEditTransferLeads) {
+      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
+      return;
+    }
     const { data, error } = await supabase
       .from("leads")
       .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline, stage, is_draft")
@@ -1012,6 +1021,10 @@ export default function CallCenterLeadIntakePage({
 
   const handleUpdateLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
+    if (!canEditTransferLeads) {
+      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
+      return;
+    }
 
     const {
       data: { session },
@@ -1085,6 +1098,10 @@ export default function CallCenterLeadIntakePage({
 
   const handleUpdateDraftLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
+    if (!canEditTransferLeads) {
+      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
+      return;
+    }
 
     const {
       data: { session },
@@ -1161,6 +1178,11 @@ export default function CallCenterLeadIntakePage({
   };
 
   const confirmDeleteLead = async () => {
+    if (!canEditTransferLeads) {
+      setToast({ message: "You do not have permission to delete transfer leads.", type: "error" });
+      setPendingDeleteLead(null);
+      return;
+    }
     if (!pendingDeleteLead || deletingLead) return;
     setDeletingLead(true);
     const { error, count } = await supabase
@@ -1232,12 +1254,14 @@ export default function CallCenterLeadIntakePage({
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={() => void handleEditExistingDuplicateLead()}
-                  style={{ background: "#fff", border: `1px solid ${T.blue}`, color: T.blue, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
-                >
-                  Edit Existing
-                </button>
+                {canEditTransferLeads && (
+                  <button
+                    onClick={() => void handleEditExistingDuplicateLead()}
+                    style={{ background: "#fff", border: `1px solid ${T.blue}`, color: T.blue, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Edit Existing
+                  </button>
+                )}
                 {duplicateIsAddable ? (
                   <button
                     onClick={() => void handleCreateDuplicateLead()}
@@ -1286,7 +1310,7 @@ export default function CallCenterLeadIntakePage({
           leadId={viewingLead.id}
           leadRowUuid={viewingLead.rowUuid}
           leadName={viewingLead.name}
-          canEditLead={canCreateLeads}
+          canEditLead={canEditTransferLeads}
           onBack={() => setViewingLead(null)}
         />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -1539,24 +1563,6 @@ export default function CallCenterLeadIntakePage({
                       <button
                         className="lead-action-btn"
                         type="button"
-                        onClick={() => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`)}
-                        style={{
-                          border: `1px solid ${T.border}`,
-                          borderRadius: 8,
-                          background: "#fff",
-                          color: T.textDark,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          padding: "6px 10px",
-                          cursor: "pointer",
-                          transition: "all 160ms ease",
-                        }}
-                      >
-                        View Lead
-                      </button>
-                      <button
-                        className="lead-action-btn"
-                        type="button"
                         onClick={() => void openClaimModalForLead(lead)}
                         style={{
                           border: `1px solid ${T.border}`,
@@ -1598,8 +1604,12 @@ export default function CallCenterLeadIntakePage({
                     onToggle={setActiveMenu}
                     items={[
                       { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) },
-                      { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
-                      { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
+                      ...(canEditTransferLeads
+                        ? [
+                            { label: "Edit Lead" as const, onClick: () => void handleEditLead(lead.rowId) },
+                            { label: "Delete" as const, danger: true as const, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
+                          ]
+                        : []),
                     ]}
                   />
                 </div>
