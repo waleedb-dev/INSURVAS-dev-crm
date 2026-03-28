@@ -325,8 +325,10 @@ export default function CallCenterLeadIntakePage({
 }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
-  const { permissionKeys } = useDashboardContext();
+  const { permissionKeys, currentRole } = useDashboardContext();
   const canEditTransferLeads = permissionKeys.has("action.transfer_leads.edit");
+  const isCallCenterTransferRole =
+    currentRole === "call_center_agent" || currentRole === "call_center_admin";
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
   const [leads, setLeads] = useState<IntakeLead[]>([]);
@@ -1540,24 +1542,26 @@ export default function CallCenterLeadIntakePage({
                   onClick={(e) => e.stopPropagation()}
                   style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
                 >
-                  <button
-                    className="lead-action-btn"
-                    type="button"
-                    onClick={() => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`)}
-                    style={{
-                      border: `1px solid ${T.border}`,
-                      borderRadius: 8,
-                      background: "#fff",
-                      color: T.textDark,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: "6px 10px",
-                      cursor: "pointer",
-                      transition: "all 160ms ease",
-                    }}
-                  >
-                    View Lead
-                  </button>
+                  {!isCallCenterTransferRole && (
+                    <button
+                      className="lead-action-btn"
+                      type="button"
+                      onClick={() => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`)}
+                      style={{
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 8,
+                        background: "#fff",
+                        color: T.textDark,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: "6px 10px",
+                        cursor: "pointer",
+                        transition: "all 160ms ease",
+                      }}
+                    >
+                      View Lead
+                    </button>
+                  )}
                   {canViewTransferClaimReclaimVisit && (
                     <>
                       <button
@@ -1602,15 +1606,15 @@ export default function CallCenterLeadIntakePage({
                     id={lead.id}
                     activeId={activeMenu}
                     onToggle={setActiveMenu}
-                    items={[
-                      { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) },
-                      ...(canEditTransferLeads
+                    items={
+                      canEditTransferLeads
                         ? [
-                            { label: "Edit Lead" as const, onClick: () => void handleEditLead(lead.rowId) },
-                            { label: "Delete" as const, danger: true as const, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
+                            { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) },
+                            { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
+                            { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
                           ]
-                        : []),
-                    ]}
+                        : [{ label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) }]
+                    }
                   />
                 </div>
               ),

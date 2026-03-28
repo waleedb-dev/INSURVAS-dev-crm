@@ -5,7 +5,6 @@ import { Button, EmptyState, Toast } from "@/components/ui";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { IconDownload, IconRefresh } from "@tabler/icons-react";
-import { canPerformDdfWriteOperations } from "@/lib/daily-deal-flow/permissions";
 import type { DailyDealFlowRow } from "./daily-deal-flow/types";
 import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE, RETENTION_AGENT_OPTIONS, STATUS_OPTIONS } from "./daily-deal-flow/constants";
 import { dateObjectToESTString } from "./daily-deal-flow/helpers";
@@ -112,7 +111,6 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
     void (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user?.id;
-      setHasWritePermissions(canPerformDdfWriteOperations(uid) && canProcessActions);
       if (uid) {
         const { data: profile } = await supabase
           .from("users")
