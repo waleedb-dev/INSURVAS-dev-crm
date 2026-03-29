@@ -164,3 +164,56 @@ on public.call_centers
 for delete
 to authenticated
 using (public.has_role('system_admin'));
+
+-- Carrier Additional Information (Requirements, Authorization Format, Limitations)
+create table if not exists public.carrier_info (
+  id bigserial primary key,
+  carrier_id bigint not null references public.carriers(id) on delete cascade,
+  group_type text not null check (group_type in ('Carrier Requirements', 'Authorization Format', 'Limitations', 'Information')),
+  description text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_carrier_info_carrier_id on public.carrier_info(carrier_id);
+create index if not exists idx_carrier_info_group_type on public.carrier_info(group_type);
+
+drop trigger if exists trg_carrier_info_updated_at on public.carrier_info;
+create trigger trg_carrier_info_updated_at
+before update on public.carrier_info
+for each row execute function public.set_updated_at();
+
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.carrier_info to authenticated;
+grant usage, select on sequence public.carrier_info_id_seq to authenticated;
+
+alter table public.carrier_info enable row level security;
+
+drop policy if exists carrier_info_select_system_admin on public.carrier_info;
+create policy carrier_info_select_system_admin
+on public.carrier_info
+for select
+to authenticated
+using (public.has_role('system_admin'));
+
+drop policy if exists carrier_info_insert_system_admin on public.carrier_info;
+create policy carrier_info_insert_system_admin
+on public.carrier_info
+for insert
+to authenticated
+with check (public.has_role('system_admin'));
+
+drop policy if exists carrier_info_update_system_admin on public.carrier_info;
+create policy carrier_info_update_system_admin
+on public.carrier_info
+for update
+to authenticated
+using (public.has_role('system_admin'))
+with check (public.has_role('system_admin'));
+
+drop policy if exists carrier_info_delete_system_admin on public.carrier_info;
+create policy carrier_info_delete_system_admin
+on public.carrier_info
+for delete
+to authenticated
+using (public.has_role('system_admin'));

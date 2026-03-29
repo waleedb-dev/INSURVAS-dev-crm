@@ -26,6 +26,7 @@ const ALL_PAGES: DashPage[] = [
   "bpo-centres",
   "commissions",
   "policies",
+  "imo-management",
 ];
 
 function isDashPage(value: string | null): value is DashPage {
