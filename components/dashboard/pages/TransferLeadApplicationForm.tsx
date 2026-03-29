@@ -69,6 +69,25 @@ type PhoneDuplicateMatch = {
   stage: string | null;
   created_at: string | null;
 };
+type PhoneDuplicateQueryRow = {
+  id: string;
+  lead_unique_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  stage: string | null;
+  created_at: string | null;
+};
+type SsnDuplicateMatch = {
+  id: string;
+  lead_unique_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  social: string | null;
+  stage: string | null;
+  created_at: string | null;
+};
 
 const usStates = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
@@ -213,6 +232,7 @@ export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
   onSaveDraft,
+  onInstantDuplicateCheck,
   initialData,
   submitButtonLabel,
   centerName = ""
@@ -220,6 +240,7 @@ export default function TransferLeadApplicationForm({
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void;
   onSaveDraft?: (data: TransferLeadFormData) => void;
+  onInstantDuplicateCheck?: (data: TransferLeadFormData) => void | Promise<void>;
   initialData?: Partial<TransferLeadFormData>;
   submitButtonLabel?: string;
   centerName?: string;
@@ -242,6 +263,10 @@ export default function TransferLeadApplicationForm({
   const [ssnCheckState, setSsnCheckState] = useState<SsnCheckState>("idle");
   const [ssnCheckMessage, setSsnCheckMessage] = useState("");
   const [lastCheckedSsn, setLastCheckedSsn] = useState("");
+  const [lastAutoCheckedSsn, setLastAutoCheckedSsn] = useState("");
+  const [showSsnDupDetails, setShowSsnDupDetails] = useState(false);
+  const [ssnDupMatch, setSsnDupMatch] = useState<SsnDuplicateMatch | null>(null);
+  const [ssnDupIsAddable, setSsnDupIsAddable] = useState(true);
   const [underwritingData, setUnderwritingData] = useState({
     tobaccoLast12Months: "",
     healthConditions: [] as string[],
@@ -311,6 +336,8 @@ export default function TransferLeadApplicationForm({
     );
 
   const phoneError = formData.phone.length > 0 && !getUsPhone10Digits(formData.phone);
+  const ssnDigits = normalizeSsnDigits(formData.social);
+  const ssnError = formData.social.trim().length > 0 && ssnDigits.length !== 9;
 
   const fieldStyleWithError = (key: keyof TransferLeadFormData, extra?: CSSProperties): CSSProperties => {
     const error = submitHighlightKeys.has(key);
@@ -361,7 +388,10 @@ export default function TransferLeadApplicationForm({
         throw new Error(existingError.message || "Unable to check phone duplicates.");
       }
 
-      const match = ((existing || []) as any[]).find((row) => getUsPhone10Digits(String(row.phone || "")) === canonicalDigits) || null;
+      const match =
+        ((existing || []) as PhoneDuplicateQueryRow[]).find(
+          (row) => getUsPhone10Digits(String(row.phone || "")) === canonicalDigits,
+        ) || null;
       if (!match) {
         setPhoneDupMatch(null);
         setPhoneDupRuleMessage("No existing lead found for this phone number.");
@@ -480,6 +510,9 @@ export default function TransferLeadApplicationForm({
     if (ssnDigits.length !== 9) {
       setSsnCheckState("idle");
       setSsnCheckMessage("");
+      setSsnDupMatch(null);
+      setSsnDupIsAddable(true);
+      setShowSsnDupDetails(false);
       return { blocked: false, warning: false };
     }
 
@@ -494,7 +527,7 @@ export default function TransferLeadApplicationForm({
       const variants = Array.from(new Set([rawSsn.trim(), ssnDigits, formatSsn(ssnDigits)].filter(Boolean)));
       const { data, error } = await supabase
         .from("leads")
-        .select("id, first_name, last_name, stage, social, created_at")
+        .select("id, lead_unique_id, first_name, last_name, phone, stage, social, created_at")
         .in("social", variants)
         .order("created_at", { ascending: false });
 
@@ -524,18 +557,35 @@ export default function TransferLeadApplicationForm({
         }
       });
 
-      const matchedLeadWithRule = matches
-        .map((row) => {
-          const stage = String(row.stage || "").trim();
-          return {
-            row,
-            rule: stage ? ruleByStage.get(stage.toLowerCase()) : undefined,
-          };
-        })
-        .filter((item) => Boolean(item.rule));
+      const leadWithRule = matches.map((row) => {
+        const stage = String(row.stage || "").trim();
+        return {
+          row,
+          rule: stage ? ruleByStage.get(stage.toLowerCase()) : undefined,
+        };
+      });
+      const blockedLead = leadWithRule.find((item) => item.rule && item.rule.is_addable === false);
+      const warningLead = leadWithRule.find((item) => item.rule && item.rule.is_addable === true);
+      const detailRow = blockedLead?.row || warningLead?.row || matches[0] || null;
 
-      const blockedLead = matchedLeadWithRule.find((item) => item.rule && item.rule.is_addable === false);
-      const warningLead = matchedLeadWithRule.find((item) => item.rule && item.rule.is_addable === true);
+      if (detailRow) {
+        const mappedDetail: SsnDuplicateMatch = {
+          id: String(detailRow.id),
+          lead_unique_id: detailRow.lead_unique_id ?? null,
+          first_name: detailRow.first_name ?? null,
+          last_name: detailRow.last_name ?? null,
+          phone: detailRow.phone ?? null,
+          social: detailRow.social ?? null,
+          stage: detailRow.stage ?? null,
+          created_at: detailRow.created_at ?? null,
+        };
+        setSsnDupMatch(mappedDetail);
+        if (!isEditMode && onInstantDuplicateCheck) {
+          void onInstantDuplicateCheck({ ...formData, leadUniqueId: computedLeadUniqueId });
+        }
+      } else {
+        setSsnDupMatch(null);
+      }
 
       setLastCheckedSsn(ssnDigits);
 
@@ -543,6 +593,7 @@ export default function TransferLeadApplicationForm({
         const leadName = `${blockedLead.row.first_name || ""} ${blockedLead.row.last_name || ""}`.trim() || "existing lead";
         const ghlStage = blockedLead.rule.ghl_stage ? ` (GHL: ${blockedLead.rule.ghl_stage})` : "";
         setSsnCheckState("blocked");
+        setSsnDupIsAddable(false);
         setSsnCheckMessage(
           `${blockedLead.rule.message} Existing lead: ${leadName}.${ghlStage}`,
         );
@@ -552,19 +603,33 @@ export default function TransferLeadApplicationForm({
       if (warningLead?.rule) {
         const ghlStage = warningLead.rule.ghl_stage ? ` (GHL: ${warningLead.rule.ghl_stage})` : "";
         setSsnCheckState("warning");
+        setSsnDupIsAddable(true);
         setSsnCheckMessage(
           `${warningLead.rule.message}${ghlStage}`,
         );
         return { blocked: false, warning: true };
       }
 
+      if (matches.length > 0) {
+        setSsnCheckState("warning");
+        setSsnDupIsAddable(true);
+        setSsnCheckMessage("An existing lead with this SSN was found. Review details before submitting.");
+        return { blocked: false, warning: true };
+      }
+
       setSsnCheckState("clear");
+      setSsnDupIsAddable(true);
+      setSsnDupMatch(null);
+      setShowSsnDupDetails(false);
       setSsnCheckMessage("No blocked SSN conflict found.");
       return { blocked: false, warning: false };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to validate SSN.";
       setSsnCheckState("error");
       setSsnCheckMessage(message);
+      setSsnDupMatch(null);
+      setSsnDupIsAddable(true);
+      setShowSsnDupDetails(false);
       return { blocked: false, warning: false };
     }
   };
@@ -862,17 +927,34 @@ export default function TransferLeadApplicationForm({
                     onChange={(e) => {
                       set("social")(e);
                       setLastCheckedSsn("");
+                      const nextDigits = normalizeSsnDigits(e.target.value || "");
+                      if (nextDigits.length < 9 && lastAutoCheckedSsn) {
+                        setLastAutoCheckedSsn("");
+                      }
+                      if (!isEditMode && nextDigits.length === 9 && nextDigits !== lastAutoCheckedSsn) {
+                        setLastAutoCheckedSsn(nextDigits);
+                        void checkSsnRules(e.target.value);
+                      }
                       if (ssnCheckState !== "idle") {
                         setSsnCheckState("idle");
                         setSsnCheckMessage("");
                       }
+                      setSsnDupMatch(null);
+                      setSsnDupIsAddable(true);
+                      setShowSsnDupDetails(false);
                     }}
                     onBlur={(e) => {
                       if (!isEditMode) void checkSsnRules(e.target.value);
                     }}
                     placeholder="XXX-XX-XXXX"
-                    style={fieldStyleWithError("social")}
+                    style={{
+                      ...fieldStyleWithError("social"),
+                      ...(ssnError ? { border: `2px solid ${T.danger}` } : {}),
+                    }}
                   />
+                  <div style={{ fontSize: 11, color: ssnError ? T.danger : T.textMuted, marginTop: 4 }}>
+                    {ssnError ? "SSN must be exactly 9 digits." : "Enter a valid 9-digit SSN."}
+                  </div>
                   {ssnCheckState !== "idle" && (
                     <div
                       style={{
@@ -899,6 +981,67 @@ export default function TransferLeadApplicationForm({
                   <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyleWithError("driverLicenseNumber")} />
                 </Field>
               </div>
+              {ssnDupMatch && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    backgroundColor: "#fff",
+                    borderRadius: 12,
+                    border: !ssnDupIsAddable ? `2px solid ${T.danger}` : `1px solid ${T.border}`,
+                    padding: 16,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: !ssnDupIsAddable ? T.danger : "#ea580c" }}>
+                        🪪 SSN Duplicate Found
+                      </h3>
+                      <p style={{ margin: "6px 0 0", fontSize: 13, color: T.textMuted }}>
+                        {ssnCheckMessage || "A lead already exists with this SSN."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSsnDupDetails((prev) => !prev)}
+                      style={{
+                        background: "#fff",
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 8,
+                        padding: "8px 12px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {showSsnDupDetails ? "Hide Details" : "Show Details"}
+                    </button>
+                  </div>
+                  {showSsnDupDetails && (
+                    <div style={{ marginTop: 12, backgroundColor: "#f9fafb", padding: 12, borderRadius: 10, border: "1px solid #e5e7eb" }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: T.textDark }}>
+                        {(ssnDupMatch.first_name || "")} {(ssnDupMatch.last_name || "")}
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                        Lead ID: {ssnDupMatch.lead_unique_id || ssnDupMatch.id}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                        Phone: {ssnDupMatch.phone || "Unknown"}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                        SSN: {ssnDupMatch.social || "Unknown"}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                        Stage: {ssnDupMatch.stage || "Unknown"}
+                      </div>
+                      {ssnDupMatch.created_at && (
+                        <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                          Created: {new Date(ssnDupMatch.created_at).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </Section>
 
             {/* Section: Contact & Address */}
@@ -1488,6 +1631,11 @@ export default function TransferLeadApplicationForm({
               if (highlight.size > 0) {
                 setSubmitHighlightKeys(highlight);
                 setToast({ message: "Please fill all required inputs before submitting.", type: "error" });
+                return;
+              }
+              if (ssnDigits.length !== 9) {
+                setSubmitHighlightKeys(new Set<keyof TransferLeadFormData>(["social"]));
+                setToast({ message: "Please enter a valid 9-digit SSN before submitting.", type: "error" });
                 return;
               }
 
