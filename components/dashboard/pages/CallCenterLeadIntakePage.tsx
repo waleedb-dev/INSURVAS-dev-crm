@@ -414,14 +414,20 @@ export default function CallCenterLeadIntakePage({
     const canViewAll = permissionKeys.has("action.transfer_leads.view_all");
     const canViewCallCenter = permissionKeys.has("action.transfer_leads.view_call_center");
     const canViewOwn = permissionKeys.has("action.transfer_leads.view_own");
+    const hideDraftsForSalesRole =
+      currentRole === "sales_admin" ||
+      currentRole === "sales_manager" ||
+      currentRole === "sales_agent_licensed" ||
+      currentRole === "sales_agent_unlicensed";
 
-    const query = canViewAll
+    const scopedQuery = canViewAll
       ? baseQuery
       : canViewCallCenter && userProfile?.call_center_id
         ? baseQuery.eq("call_center_id", userProfile.call_center_id)
         : canViewOwn
           ? baseQuery.eq("submitted_by", session.user.id)
           : baseQuery.eq("id", "__no_access__");
+    const query = hideDraftsForSalesRole ? scopedQuery.eq("is_draft", false) : scopedQuery;
 
     const { data, error } = await query;
 
