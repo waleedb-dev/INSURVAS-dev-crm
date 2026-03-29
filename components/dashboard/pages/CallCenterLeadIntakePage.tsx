@@ -90,22 +90,6 @@ const DEFAULT_CLAIM_SELECTION: ClaimSelections = {
   quoteMonthlyPremium: "",
 };
 
-// ── Color maps matching the DailyDealFlow style ─────────────────────────────
-const TYPE_CONFIG: Record<string, { bg: string; color: string }> = {
-  "Preferred":  { bg: "#eff6ff", color: "#2563eb" },
-  "Standard":   { bg: "#f0fdf4", color: "#16a34a" },
-  "Graded":     { bg: "#fdf4ff", color: "#9333ea" },
-  "Modified":   { bg: "#fff7ed", color: "#ea580c" },
-  "GI":         { bg: "#fef9c3", color: "#ca8a04" },
-  "Immediate":  { bg: "#fdf4ff", color: "#d946ef" },
-  "Level":      { bg: "#f0fdf4", color: "#059669" },
-  "ROP":        { bg: "#f8fafc", color: "#475569" },
-  "Transfer":   { bg: "#eff6ff", color: "#2563eb" },
-};
-
-const getTypeConfig = (type: string) =>
-  TYPE_CONFIG[type] ?? { bg: T.blueFaint, color: T.blue };
-
 // Generate a consistent avatar color from a string
 function stringToColor(str: string) {
   const colors = [T.blue, "#ec4899", "#8b5cf6", "#0ea5e9", "#f59e0b", "#f97316", "#14b8a6", "#64748b"];
@@ -356,7 +340,6 @@ export default function CallCenterLeadIntakePage({
   const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
   const [editingLead, setEditingLead] = useState<{ rowId: string; formData: TransferLeadFormData } | null>(null);
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("All");
   const [filterSource, setFilterSource] = useState("All");
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
@@ -557,11 +540,9 @@ export default function CallCenterLeadIntakePage({
     void fetchDefaultTransferStage();
   }, [supabase]);
 
-  const types = Array.from(new Set(leads.map((lead) => lead.type)));
   const sources = Array.from(new Set(leads.map((lead) => lead.source)));
 
   const filtered = leads.filter((lead) => {
-    const matchType = filterType === "All" || lead.type === filterType;
     const matchSource = filterSource === "All" || lead.source === filterSource;
     const query = search.toLowerCase().trim();
     const matchSearch =
@@ -569,13 +550,13 @@ export default function CallCenterLeadIntakePage({
       lead.name.toLowerCase().includes(query) ||
       lead.phone.toLowerCase().includes(query) ||
       lead.id.toLowerCase().includes(query);
-    return matchType && matchSource && matchSearch;
+    return matchSource && matchSearch;
   });
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
-  useEffect(() => { setPage(1); }, [search, filterType, filterSource]);
+  useEffect(() => { setPage(1); }, [search, filterSource]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) setPage(totalPages);
@@ -1091,11 +1072,7 @@ export default function CallCenterLeadIntakePage({
     await refreshLeads();
   };
 
-  const handleEditLead = async (rowId: string) => {
-    if (!canEditTransferLeads) {
-      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
-      return;
-    }
+  const openLeadInForm = async (rowId: string) => {
     const { data, error } = await supabase
       .from("leads")
       .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline, stage, is_draft")
@@ -1153,9 +1130,26 @@ export default function CallCenterLeadIntakePage({
     setEditingLead({ rowId, formData: mapped });
   };
 
+  const handleEditLead = async (rowId: string) => {
+    if (!canEditTransferLeads) {
+      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
+      return;
+    }
+    await openLeadInForm(rowId);
+  };
+
+  const openLeadFromGrid = async (lead: IntakeLead) => {
+    if (lead.isDraft && isCallCenterTransferRole) {
+      await openLeadInForm(lead.rowId);
+      return;
+    }
+    setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId });
+  };
+
   const handleUpdateLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
-    if (!canEditTransferLeads) {
+    const canResumeDraftAsCallCenter = Boolean(isCallCenterTransferRole && editingLead.formData.isDraft);
+    if (!canEditTransferLeads && !canResumeDraftAsCallCenter) {
       setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
       return;
     }
@@ -1232,7 +1226,8 @@ export default function CallCenterLeadIntakePage({
 
   const handleUpdateDraftLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
-    if (!canEditTransferLeads) {
+    const canResumeDraftAsCallCenter = Boolean(isCallCenterTransferRole && editingLead.formData.isDraft);
+    if (!canEditTransferLeads && !canResumeDraftAsCallCenter) {
       setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
       return;
     }
@@ -1520,16 +1515,6 @@ export default function CallCenterLeadIntakePage({
         filters={
           <>
             <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}
-            >
-              <option value="All">All Types</option>
-              {types.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-            <select
               value={filterSource}
               onChange={(e) => setFilterSource(e.target.value)}
               style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}
@@ -1542,12 +1527,11 @@ export default function CallCenterLeadIntakePage({
           </>
         }
         activeFilters={
-          (filterType !== "All" || filterSource !== "All") ? (
+          filterSource !== "All" ? (
             <>
-              {filterType !== "All" && <FilterChip label={`Type: ${filterType}`} onClear={() => setFilterType("All")} />}
               {filterSource !== "All" && <FilterChip label={`Source: ${filterSource}`} onClear={() => setFilterSource("All")} />}
               <button
-                onClick={() => { setFilterType("All"); setFilterSource("All"); }}
+                onClick={() => { setFilterSource("All"); }}
                 style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", fontFamily: T.font, marginLeft: "auto" }}
                 onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "underline")}
                 onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "none")}
@@ -1569,7 +1553,9 @@ export default function CallCenterLeadIntakePage({
       >
         <Table
           data={paginated}
-          onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId })}
+          onRowClick={(lead) => {
+            void openLeadFromGrid(lead);
+          }}
           columns={[
             {
               header: "Lead ID",
@@ -1602,7 +1588,26 @@ export default function CallCenterLeadIntakePage({
                     }}>
                       {getInitials(lead.name)}
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
+                      {lead.isDraft ? (
+                        <span
+                          style={{
+                            backgroundColor: "#fff7ed",
+                            color: "#c2410c",
+                            border: "1px solid #fdba74",
+                            borderRadius: 999,
+                            padding: "2px 8px",
+                            fontSize: 10,
+                            fontWeight: 800,
+                            letterSpacing: "0.2px",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Draft
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 );
               },
@@ -1616,25 +1621,6 @@ export default function CallCenterLeadIntakePage({
                   <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 2 }}>{lead.source}</div>
                 </div>
               ),
-            },
-            {
-              header: "Type",
-              key: "type",
-              render: (lead) => {
-                const tc = getTypeConfig(lead.type);
-                return (
-                  <span style={{
-                    backgroundColor: tc.bg,
-                    color: tc.color,
-                    borderRadius: 6,
-                    padding: "3px 10px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                  }}>
-                    {lead.type}
-                  </span>
-                );
-              },
             },
             {
               header: "Centre",
@@ -1686,7 +1672,13 @@ export default function CallCenterLeadIntakePage({
                     <button
                       className="lead-action-btn"
                       type="button"
-                      onClick={() => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`)}
+                      onClick={() => {
+                        if (lead.isDraft) {
+                          void openLeadFromGrid(lead);
+                          return;
+                        }
+                        router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
+                      }}
                       style={{
                         border: `1px solid ${T.border}`,
                         borderRadius: 8,
@@ -1749,11 +1741,11 @@ export default function CallCenterLeadIntakePage({
                     items={
                       canEditTransferLeads
                         ? [
-                            { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) },
+                            { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
                             { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
                             { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
                           ]
-                        : [{ label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) }]
+                        : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
                     }
                   />
                 </div>

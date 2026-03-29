@@ -280,6 +280,7 @@ export default function TransferLeadApplicationForm({
   });
   const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const displayBpoName = (centerName || "").trim() || "BPO";
 
   const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
     // Always force leadSource to the fixed value
@@ -744,7 +745,7 @@ export default function TransferLeadApplicationForm({
           </svg>
         </button>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, color: T.textDark, fontWeight: 800 }}>Ascendra BPO Application</h1>
+          <h1 style={{ margin: 0, fontSize: 22, color: T.textDark, fontWeight: 800 }}>{displayBpoName} Application</h1>
           <p style={{ margin: "4px 0 0", color: T.textMuted, fontWeight: 600, fontSize: 13 }}>All information needed to track sales for Live Transfers</p>
         </div>
       </div>
