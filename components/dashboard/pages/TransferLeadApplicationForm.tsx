@@ -484,9 +484,13 @@ export default function TransferLeadApplicationForm({
     setShowPhoneDupDetails((prev) => !prev);
   };
 
-  const normalizeSsnDigits = (value: string) => value.replace(/\D/g, "");
-  const formatSsn = (digits: string) =>
-    digits.length === 9 ? `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}` : digits;
+  function normalizeSsnDigits(value: string) {
+    return value.replace(/\D/g, "");
+  }
+
+  function formatSsn(digits: string) {
+    return digits.length === 9 ? `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}` : digits;
+  }
 
   const isEditMode = (submitButtonLabel || "").toLowerCase().includes("update");
   const [phoneGatePassed, setPhoneGatePassed] = useState(isEditMode);
