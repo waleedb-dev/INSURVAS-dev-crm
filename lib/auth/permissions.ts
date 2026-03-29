@@ -18,6 +18,7 @@ export const PERMISSION_KEYS = [
   "action.transfer_leads.edit",
   "action.transfer_leads.claim_reclaim_visit",
   "page.imo_management.access",
+  "page.upline_carrier_states.access",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -94,7 +95,8 @@ export function canAccessPage(
     | "pipeline-management"
     | "carrier-management"
     | "bpo-centres"
-    | "imo-management",
+    | "imo-management"
+    | "upline-carrier-states",
   role: RoleKey | null,
   permissionKeys: Set<PermissionKey>,
 ): boolean {
@@ -139,6 +141,10 @@ export function canAccessPage(
   }
 
   if (page === "imo-management") {
+    return role === "system_admin";
+  }
+
+  if (page === "upline-carrier-states") {
     return role === "system_admin";
   }
 

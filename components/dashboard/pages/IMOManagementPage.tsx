@@ -34,6 +34,8 @@ interface Agent {
   carrierCount: number;
   stateCount: number;
   createdAt: string;
+  uplineId?: number;
+  language?: string;
 }
 
 interface Carrier {
@@ -45,6 +47,11 @@ interface Carrier {
 interface State {
   code: string;
   name: string;
+}
+
+interface UplineCarrierState {
+  carrierId: number;
+  stateCode: string;
 }
 
 interface User {
@@ -84,6 +91,7 @@ export default function IMOManagementPage() {
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [states, setStates] = useState<State[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [uplineCarrierStates, setUplineCarrierStates] = useState<UplineCarrierState[]>([]);
   
   // Loading states
   const [loading, setLoading] = useState(true);
@@ -109,6 +117,8 @@ export default function IMOManagementPage() {
     userId: "",
     slackUsername: "",
     status: "Active" as 'Active' | 'Inactive',
+    uplineId: null as number | null,
+    language: "English" as string,
   });
   const [selectedCarriers, setSelectedCarriers] = useState<Set<number>>(new Set());
   const [selectedStates, setSelectedStates] = useState<Set<string>>(new Set());
@@ -120,15 +130,17 @@ export default function IMOManagementPage() {
   // Fetch all reference data
   async function fetchReferenceData() {
     try {
-      const [{ data: carriersData, error: carriersError }, { data: statesData, error: statesError }, { data: usersData, error: usersError }] = await Promise.all([
+      const [{ data: carriersData, error: carriersError }, { data: statesData, error: statesError }, { data: usersData, error: usersError }, { data: uplineData, error: uplineError }] = await Promise.all([
         supabase.from("carriers").select("id, name, requires_state_appointment").order("name"),
         supabase.from("states").select("code, name").order("name"),
         supabase.from("users").select("id, email, full_name").order("email"),
+        supabase.from("upline_carrier_states").select("carrier_id, state_code"),
       ]);
       
       if (carriersError) console.error("Error fetching carriers:", carriersError.message);
       if (statesError) console.error("Error fetching states:", statesError.message);
       if (usersError) console.error("Error fetching users:", usersError.message);
+      if (uplineError) console.error("Error fetching upline carrier states:", uplineError.message);
       
       setCarriers((carriersData ?? []).map((c: any) => ({ 
         id: Number(c.id), 
@@ -137,6 +149,10 @@ export default function IMOManagementPage() {
       })));
       setStates((statesData ?? []).map((s: any) => ({ code: s.code, name: s.name })));
       setUsers((usersData ?? []).map((u: any) => ({ id: u.id, email: u.email, fullName: u.full_name })));
+      setUplineCarrierStates((uplineData ?? []).map((u: any) => ({ 
+        carrierId: Number(u.carrier_id), 
+        stateCode: u.state_code 
+      })));
     } catch (error: any) {
       console.error("Error fetching reference data:", error?.message || error);
     }
@@ -278,6 +294,8 @@ export default function IMOManagementPage() {
           users:user_id (email),
           slack_username,
           status,
+          upline_id,
+          language,
           created_at
         `)
         .eq("agency_id", agencyId)
@@ -332,6 +350,8 @@ export default function IMOManagementPage() {
         carrierCount: carrierCountMap.get(agent.id) || 0,
         stateCount: stateCountMap.get(agent.id) || 0,
         createdAt: new Date(agent.created_at).toLocaleDateString(),
+        uplineId: agent.upline_id ? Number(agent.upline_id) : undefined,
+        language: agent.language || 'English',
       })));
     } catch (error: any) {
       console.error("Error in fetchAgents:", error?.message || error);
@@ -407,6 +427,8 @@ export default function IMOManagementPage() {
       userId: "",
       slackUsername: "",
       status: "Active",
+      uplineId: null,
+      language: "English",
     });
     setSelectedCarriers(new Set());
     setSelectedStates(new Set());
@@ -422,6 +444,8 @@ export default function IMOManagementPage() {
       userId: users.find(u => u.email === agent.email)?.id || "",
       slackUsername: agent.slackUsername === '-' ? '' : agent.slackUsername,
       status: agent.status,
+      uplineId: agent.uplineId || null,
+      language: agent.language || "English",
     });
     
     // Fetch agent's carriers
@@ -515,6 +539,8 @@ export default function IMOManagementPage() {
             user_id: agentForm.userId || null,
             slack_username: agentForm.slackUsername.trim() || null,
             status: agentForm.status,
+            upline_id: agentForm.uplineId,
+            language: agentForm.language,
           })
           .eq("id", editingAgentId);
         
@@ -536,6 +562,8 @@ export default function IMOManagementPage() {
             user_id: agentForm.userId || null,
             slack_username: agentForm.slackUsername.trim() || null,
             status: agentForm.status,
+            upline_id: agentForm.uplineId,
+            language: agentForm.language,
           }])
           .select()
           .single();
@@ -600,6 +628,56 @@ export default function IMOManagementPage() {
       console.error(`Error deleting ${type}:`, error);
       alert(`Error deleting ${type}`);
     }
+  }
+
+  // Helper function to check if any selected carrier+state requires an upline
+  function getUplineRequirements(): Array<{carrier: string; state: string}> {
+    const requirements: Array<{carrier: string; state: string}> = [];
+    
+    // Check global states (from Step 3) against carriers
+    selectedCarriers.forEach(carrierId => {
+      const carrier = carriers.find(c => c.id === carrierId);
+      if (!carrier) return;
+      
+      selectedStates.forEach(stateCode => {
+        const requiresUpline = uplineCarrierStates.some(
+          ucs => ucs.carrierId === carrierId && ucs.stateCode === stateCode
+        );
+        if (requiresUpline) {
+          const state = states.find(s => s.code === stateCode);
+          requirements.push({
+            carrier: carrier.name,
+            state: state ? `${state.code} - ${state.name}` : stateCode
+          });
+        }
+      });
+    });
+    
+    // Check carrier-specific states (from Step 4)
+    carrierSpecificStates.forEach((stateCodes, carrierId) => {
+      const carrier = carriers.find(c => c.id === carrierId);
+      if (!carrier) return;
+      
+      stateCodes.forEach(stateCode => {
+        const requiresUpline = uplineCarrierStates.some(
+          ucs => ucs.carrierId === carrierId && ucs.stateCode === stateCode
+        );
+        if (requiresUpline) {
+          const state = states.find(s => s.code === stateCode);
+          const alreadyAdded = requirements.some(
+            r => r.carrier === carrier.name && r.state.includes(stateCode)
+          );
+          if (!alreadyAdded) {
+            requirements.push({
+              carrier: carrier.name,
+              state: state ? `${state.code} - ${state.name}` : stateCode
+            });
+          }
+        }
+      });
+    });
+    
+    return requirements;
   }
 
   // Render breadcrumbs
@@ -1022,6 +1100,93 @@ export default function IMOManagementPage() {
                   ))}
                 </div>
               </div>
+
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>Language</label>
+                <select
+                  value={agentForm.language}
+                  onChange={e => setAgentForm({...agentForm, language: e.target.value})}
+                  style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15 }}
+                >
+                  <option value="English">English</option>
+                  <option value="Spanish">Spanish</option>
+                  <option value="French">French</option>
+                  <option value="German">German</option>
+                  <option value="Portuguese">Portuguese</option>
+                  <option value="Italian">Italian</option>
+                  <option value="Chinese">Chinese</option>
+                  <option value="Japanese">Japanese</option>
+                  <option value="Korean">Korean</option>
+                  <option value="Arabic">Arabic</option>
+                  <option value="Hindi">Hindi</option>
+                  <option value="Tagalog">Tagalog</option>
+                  <option value="Vietnamese">Vietnamese</option>
+                  <option value="Russian">Russian</option>
+                  <option value="Polish">Polish</option>
+                </select>
+                <p style={{ fontSize: 12, color: T.textMuted, marginTop: 6 }}>
+                  Select the agent's primary language for communication
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>Upline Agent</label>
+                <select
+                  value={agentForm.uplineId || ""}
+                  onChange={e => setAgentForm({...agentForm, uplineId: e.target.value ? Number(e.target.value) : null})}
+                  style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15 }}
+                >
+                  <option value="">No Upline Agent</option>
+                  {agents
+                    .filter(a => a.id !== editingAgentId)
+                    .map(a => (
+                      <option key={a.id} value={a.id}>{a.fullName} ({a.email})</option>
+                    ))}
+                </select>
+                <p style={{ fontSize: 12, color: T.textMuted, marginTop: 6 }}>
+                  Select the agent's upline for compliance routing
+                </p>
+              </div>
+
+              {/* Upline Requirements Info */}
+              {(() => {
+                const requirements = getUplineRequirements();
+                const hasUpline = agentForm.uplineId !== null;
+                
+                if (requirements.length > 0 && !hasUpline) {
+                  return (
+                    <div style={{ 
+                      backgroundColor: '#e0f2fe', 
+                      border: '1.5px solid #38bdf8', 
+                      borderRadius: 8, 
+                      padding: 16,
+                      marginBottom: 24
+                    }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="12" y1="16" x2="12" y2="12"/>
+                          <line x1="12" y1="8" x2="12.01" y2="8"/>
+                        </svg>
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#0369a1', marginBottom: 8 }}>
+                            Upline Agent Recommended
+                          </div>
+                          <div style={{ fontSize: 13, color: '#0c4a6e', marginBottom: 8 }}>
+                            The following carrier/state combinations typically require an upline agent:
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: '#0c4a6e' }}>
+                            {requirements.map((req, idx) => (
+                              <li key={idx}>{req.carrier} - {req.state}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </>
           )}
 
@@ -1232,6 +1397,49 @@ export default function IMOManagementPage() {
               </div>
             </>
           )}
+
+          {/* Final Step Upline Warning (Informational Only) */}
+          {wizardStep === totalSteps && (() => {
+            const requirements = getUplineRequirements();
+            const hasUpline = agentForm.uplineId !== null;
+            
+            if (requirements.length > 0 && !hasUpline) {
+              return (
+                <div style={{ 
+                  backgroundColor: '#e0f2fe', 
+                  border: '1.5px solid #38bdf8', 
+                  borderRadius: 8, 
+                  padding: 16,
+                  marginBottom: 24
+                }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="16" x2="12" y2="12"/>
+                      <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#0369a1', marginBottom: 8 }}>
+                        Upline Agent Recommended
+                      </div>
+                      <div style={{ fontSize: 13, color: '#0c4a6e', marginBottom: 8 }}>
+                        The following carrier/state combinations typically require an upline agent for compliance:
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: '#0c4a6e' }}>
+                        {requirements.map((req, idx) => (
+                          <li key={idx}>{req.carrier} - {req.state}</li>
+                        ))}
+                      </ul>
+                      <div style={{ fontSize: 13, color: '#0c4a6e', marginTop: 8 }}>
+                        You can still save without an upline, but you may want to assign one for compliance purposes.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {/* Navigation Buttons */}
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32, paddingTop: 24, borderTop: `1.5px solid ${T.borderLight}` }}>
