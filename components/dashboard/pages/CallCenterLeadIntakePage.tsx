@@ -2240,34 +2240,65 @@ export default function CallCenterLeadIntakePage({
                             className="lead-action-btn"
                             type="button"
                             onClick={() => {
-                        {canViewLead && (
-                          <ShadcnButton
-                            variant="brandOutline"
-                            size="sm"
-                            className="h-8 rounded-lg px-4"
-                            onClick={() => void openLeadFromGrid(lead)}
+                              if (lead.isDraft) {
+                                void openLeadFromGrid(lead);
+                                return;
+                              }
+                              router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
+                            }}
+                            style={{
+                              border: `1.5px solid ${T.border}`,
+                              borderRadius: 8,
+                              background: T.cardBg,
+                              color: T.textDark,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              padding: "6px 12px",
+                              cursor: "pointer",
+                              transition: "all 160ms ease",
+                            }}
                           >
                             View Lead
-                          </ShadcnButton>
+                          </button>
                         )}
                         {canViewTransferClaimReclaimVisit && (
                           <>
-                            <ShadcnButton
-                              variant="brand"
-                              size="sm"
-                              className="h-8 rounded-lg px-4 font-bold"
+                            <button
+                              className="lead-action-btn"
+                              type="button"
                               onClick={() => void openClaimModalForLead(lead)}
+                              style={{
+                                border: `1.5px solid ${T.border}`,
+                                borderRadius: 8,
+                                background: T.cardBg,
+                                color: T.textDark,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                padding: "6px 12px",
+                                cursor: "pointer",
+                                transition: "all 160ms ease",
+                              }}
                             >
                               Claim Call
-                            </ShadcnButton>
-                            <ShadcnButton
-                              variant="amber"
-                              size="sm"
-                              className="h-8 rounded-lg px-4 font-bold"
+                            </button>
+                            <button
+                              className="lead-action-btn"
+                              type="button"
                               onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
+                              style={{
+                                border: `1.5px solid ${T.border}`,
+                                borderRadius: 8,
+                                background: T.cardBg,
+                                color: T.textDark,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                padding: "6px 12px",
+                                cursor: "pointer",
+                                transition: "all 160ms ease",
+                              }}
                             >
                               Claim Retention
-                            </ShadcnButton>
+                            </button>
                           </>
                         )}
                         <ActionMenu
