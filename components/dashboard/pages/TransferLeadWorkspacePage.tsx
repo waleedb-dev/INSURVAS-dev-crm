@@ -295,6 +295,14 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             sessionId={sessionId}
             showProgressSummary={false}
             onProgressChange={setVerificationProgress}
+            onTransferToLicensedAgent={() => {
+              if (!canViewTransferClaimReclaimVisit) {
+                setError("Missing permission to transfer this lead.");
+                return;
+              }
+              setSelection({ ...defaultSelection, workflowType: "licensed" });
+              setOpenClaim(true);
+            }}
           />
           <TransferLeadCallFixForm
             leadRowId={lead.rowId}

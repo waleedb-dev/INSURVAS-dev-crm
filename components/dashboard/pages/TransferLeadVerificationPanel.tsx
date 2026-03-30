@@ -16,6 +16,8 @@ type Props = {
   sessionId: string;
   showProgressSummary?: boolean;
   onProgressChange?: (payload: { verifiedCount: number; totalCount: number; progress: number }) => void;
+  /** Opens claim flow to assign another licensed agent (Transfer Leads workspace). */
+  onTransferToLicensedAgent?: () => void;
 };
 
 const VERIFICATION_FIELD_SEQUENCE = [
@@ -92,6 +94,7 @@ export default function TransferLeadVerificationPanel({
   sessionId,
   showProgressSummary = true,
   onProgressChange,
+  onTransferToLicensedAgent,
 }: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [items, setItems] = useState<VerificationItemRow[]>([]);
@@ -114,7 +117,10 @@ export default function TransferLeadVerificationPanel({
     message: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const [callOutcomeBusy, setCallOutcomeBusy] = useState(false);
   const firstFieldInputRef = useRef<HTMLInputElement | null>(null);
+  /** Prevents duplicate auto-runs for the same session + 10-digit phone (e.g. Strict Mode). */
+  const autoPhoneCheckRanRef = useRef<string | null>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
   const [underwritingSaving, setUnderwritingSaving] = useState(false);
   const [toolkitUrl, setToolkitUrl] = useState("https://insurancetoolkits.com/login");
@@ -336,46 +342,128 @@ export default function TransferLeadVerificationPanel({
     setDncModal({ open: false, status: "clear", itemId: null, phone: "", message: "" });
   };
 
+  /**
+   * Transfer phone check (blacklist + DNC/TCPA edge functions).
+   * Manual: always opens the result modal (except tcpa still shows litigator copy when `auto`).
+   * Auto (page open): runs once per session+phone; TCPA → inline "Litigator" + TCPA modal; otherwise no modal and no message.
+   */
+  const runTransferPhoneCheck = useCallback(
+    async (item: VerificationItemRow, rawPhone: string, options?: { auto?: boolean }) => {
+      const auto = Boolean(options?.auto);
+      const cleanPhone = String(rawPhone).replace(/\D/g, "");
+      if (cleanPhone.length !== 10) {
+        if (!auto) {
+          setDncStatusByItem((prev) => ({ ...prev, [item.id]: "error" }));
+          setDncMessageByItem((prev) => ({
+            ...prev,
+            [item.id]: "Please enter a valid 10-digit US phone number first.",
+          }));
+        }
+        return;
+      }
+
+      setDncCheckingIds((prev) => ({ ...prev, [item.id]: true }));
+      setDncStatusByItem((prev) => ({ ...prev, [item.id]: "clear" }));
+      setDncMessageByItem((prev) => ({ ...prev, [item.id]: "" }));
+
+      try {
+        const { status: resolvedStatus, message } = await runBlacklistDncPhoneCheck(supabase, cleanPhone);
+
+        setDncStatusByItem((prev) => ({ ...prev, [item.id]: resolvedStatus }));
+
+        if (resolvedStatus === "tcpa") {
+          const tcpaMessage = auto ? "Litigator" : message;
+          setDncMessageByItem((prev) => ({ ...prev, [item.id]: tcpaMessage }));
+          setDncModal({
+            open: true,
+            status: "tcpa",
+            itemId: item.id,
+            phone: String(rawPhone || cleanPhone),
+            message: tcpaMessage,
+          });
+          return;
+        }
+
+        if (auto) {
+          setDncMessageByItem((prev) => ({ ...prev, [item.id]: "" }));
+          return;
+        }
+
+        setDncMessageByItem((prev) => ({ ...prev, [item.id]: message }));
+        setDncModal({
+          open: true,
+          status: resolvedStatus,
+          itemId: item.id,
+          phone: String(rawPhone || cleanPhone),
+          message,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unable to check DNC status.";
+        setDncStatusByItem((prev) => ({ ...prev, [item.id]: "error" }));
+        setDncMessageByItem((prev) => ({ ...prev, [item.id]: msg }));
+        if (!auto) {
+          setDncModal({
+            open: true,
+            status: "error",
+            itemId: item.id,
+            phone: String(rawPhone || cleanPhone),
+            message: msg,
+          });
+        }
+      } finally {
+        setDncCheckingIds((prev) => ({ ...prev, [item.id]: false }));
+      }
+    },
+    [supabase],
+  );
+
   const checkDncForItem = async (item: VerificationItemRow) => {
     const rawPhone = draftValues[item.id] ?? item.verified_value ?? item.original_value ?? "";
-    const cleanPhone = String(rawPhone).replace(/\D/g, "");
-    if (cleanPhone.length !== 10) {
-      setDncStatusByItem((prev) => ({ ...prev, [item.id]: "error" }));
-      setDncMessageByItem((prev) => ({ ...prev, [item.id]: "Please enter a valid 10-digit US phone number first." }));
+    await runTransferPhoneCheck(item, rawPhone, { auto: false });
+  };
+
+  const setCallDroppedField = async (dropped: boolean) => {
+    const item = items.find((row) => row.field_name === "call_dropped");
+    if (!item) {
+      setError("Call Dropped field is not available for this session.");
       return;
     }
-
-    setDncCheckingIds((prev) => ({ ...prev, [item.id]: true }));
-    setDncStatusByItem((prev) => ({ ...prev, [item.id]: "clear" }));
-    setDncMessageByItem((prev) => ({ ...prev, [item.id]: "" }));
-
+    const value = dropped ? "Yes" : "No";
+    setCallOutcomeBusy(true);
+    setError(null);
     try {
-      const { status: resolvedStatus, message } = await runBlacklistDncPhoneCheck(supabase, cleanPhone);
-
-      setDncStatusByItem((prev) => ({ ...prev, [item.id]: resolvedStatus }));
-      setDncMessageByItem((prev) => ({ ...prev, [item.id]: message }));
-      setDncModal({
-        open: true,
-        status: resolvedStatus,
-        itemId: item.id,
-        phone: String(rawPhone || cleanPhone),
-        message,
+      await updateVerificationItem(supabase, item.id, {
+        isVerified: true,
+        verifiedValue: value,
       });
+      setItems((prev) =>
+        prev.map((row) =>
+          row.id === item.id
+            ? { ...row, is_verified: true, verified_value: value }
+            : row,
+        ),
+      );
+      setDraftValues((prev) => ({ ...prev, [item.id]: value }));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unable to check DNC status.";
-      setDncStatusByItem((prev) => ({ ...prev, [item.id]: "error" }));
-      setDncMessageByItem((prev) => ({ ...prev, [item.id]: msg }));
-      setDncModal({
-        open: true,
-        status: "error",
-        itemId: item.id,
-        phone: String(rawPhone || cleanPhone),
-        message: msg,
-      });
+      setError(err instanceof Error ? err.message : "Failed to save call outcome.");
     } finally {
-      setDncCheckingIds((prev) => ({ ...prev, [item.id]: false }));
+      setCallOutcomeBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (items.length === 0) return;
+    const phoneItem = items.find((row) => row.field_name === "phone_number");
+    if (!phoneItem) return;
+    const raw =
+      draftValues[phoneItem.id] ?? phoneItem.verified_value ?? phoneItem.original_value ?? "";
+    const clean = String(raw).replace(/\D/g, "");
+    if (clean.length !== 10) return;
+    const key = `${sessionId}:${clean}`;
+    if (autoPhoneCheckRanRef.current === key) return;
+    autoPhoneCheckRanRef.current = key;
+    void runTransferPhoneCheck(phoneItem, raw, { auto: true });
+  }, [sessionId, items, draftValues, runTransferPhoneCheck]);
 
   const verificationNotStarted = orderedItems.length > 0 && verifiedCount === 0;
 
@@ -585,6 +673,86 @@ export default function TransferLeadVerificationPanel({
             </div>
           );
         })}
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          paddingTop: 16,
+          borderTop: `1px solid ${T.border}`,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          alignItems: "center",
+        }}
+      >
+        <button
+          type="button"
+          disabled={callOutcomeBusy}
+          onClick={() => {
+            void setCallDroppedField(true);
+          }}
+          style={{
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 16px",
+            fontWeight: 800,
+            fontSize: 13,
+            fontFamily: T.font,
+            cursor: callOutcomeBusy ? "not-allowed" : "pointer",
+            opacity: callOutcomeBusy ? 0.65 : 1,
+            backgroundColor: "#dc2626",
+            color: "#fff",
+            flex: "0 1 auto",
+          }}
+        >
+          Call Dropped
+        </button>
+        <button
+          type="button"
+          disabled={callOutcomeBusy}
+          onClick={() => {
+            void setCallDroppedField(false);
+          }}
+          style={{
+            border: `1px solid ${T.border}`,
+            borderRadius: 8,
+            padding: "10px 16px",
+            fontWeight: 800,
+            fontSize: 13,
+            fontFamily: T.font,
+            cursor: callOutcomeBusy ? "not-allowed" : "pointer",
+            opacity: callOutcomeBusy ? 0.65 : 1,
+            backgroundColor: "#f3f4f6",
+            color: "#111827",
+            flex: "0 1 auto",
+          }}
+        >
+          Call Done
+        </button>
+        <button
+          type="button"
+          disabled={callOutcomeBusy || !onTransferToLicensedAgent}
+          onClick={() => {
+            onTransferToLicensedAgent?.();
+          }}
+          style={{
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 16px",
+            fontWeight: 800,
+            fontSize: 13,
+            fontFamily: T.font,
+            cursor: callOutcomeBusy || !onTransferToLicensedAgent ? "not-allowed" : "pointer",
+            opacity: callOutcomeBusy || !onTransferToLicensedAgent ? 0.65 : 1,
+            backgroundColor: "#0f172a",
+            color: "#fff",
+            flex: "1 1 220px",
+            minWidth: 200,
+          }}
+        >
+          Transfer to Other Licensed Agent
+        </button>
       </div>
 
       {dncModal.open && (

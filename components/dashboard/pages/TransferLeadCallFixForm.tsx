@@ -249,7 +249,11 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
 
       const userId = session?.user?.id || null;
       const finalStatus =
-        applicationSubmitted === true ? (sentToUnderwriting === true ? "Underwriting" : "Submitted") : status;
+        applicationSubmitted === true
+          ? sentToUnderwriting === true
+            ? "Underwriting"
+            : "Pending Approval"
+          : status;
 
       const payload: Record<string, unknown> = {
         submission_id: submissionId,
@@ -381,7 +385,11 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
         application_submitted: applicationSubmitted,
         sent_to_underwriting: sentToUnderwriting,
         call_result:
-          applicationSubmitted === true ? (sentToUnderwriting === true ? "Underwriting" : "Submitted") : "Not Submitted",
+          applicationSubmitted === true
+            ? sentToUnderwriting === true
+              ? "Underwriting"
+              : "Pending Approval"
+            : "Not Submitted",
         carrier: carrier || null,
         product_type: productType || null,
         draft_date: draftDate || null,
