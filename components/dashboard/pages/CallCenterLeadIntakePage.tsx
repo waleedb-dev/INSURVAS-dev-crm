@@ -1533,11 +1533,11 @@ export default function CallCenterLeadIntakePage({
           </>
         }
         activeFilters={
-          (search.trim() !== "" || filterType !== "All" || filterSource !== "All") ? (
+          (search.trim() !== "" || filterSource !== "All") ? (
             <>
               {filterSource !== "All" && <FilterChip label={`Source: ${filterSource}`} onClear={() => setFilterSource("All")} />}
               <button
-                onClick={() => { setSearch(""); setFilterType("All"); setFilterSource("All"); }}
+                onClick={() => { setSearch(""); setFilterSource("All"); }}
                 style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", fontFamily: T.font, marginLeft: "auto" }}
                 onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "underline")}
                 onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "none")}
