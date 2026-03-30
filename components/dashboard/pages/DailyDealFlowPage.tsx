@@ -49,6 +49,44 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
   const [hourFromFilter, setHourFromFilter] = useState(ALL_OPTION);
   const [hourToFilter, setHourToFilter] = useState(ALL_OPTION);
 
+  const hasActiveFilters =
+    searchTerm.trim() !== "" ||
+    dateFilter !== "" ||
+    dateFromFilter !== "" ||
+    dateToFilter !== "" ||
+    bufferAgentFilter !== ALL_OPTION ||
+    retentionAgentFilter.length > 0 ||
+    licensedAgentFilter !== ALL_OPTION ||
+    leadVendorFilter !== ALL_OPTION ||
+    statusFilter !== ALL_OPTION ||
+    carrierFilter !== ALL_OPTION ||
+    callResultFilter !== ALL_OPTION ||
+    retentionFilter !== ALL_OPTION ||
+    incompleteUpdatesFilter !== ALL_OPTION ||
+    laCallbackFilter !== ALL_OPTION ||
+    hourFromFilter !== ALL_OPTION ||
+    hourToFilter !== ALL_OPTION;
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setDateFilter("");
+    setDateFromFilter("");
+    setDateToFilter("");
+    setBufferAgentFilter(ALL_OPTION);
+    setRetentionAgentFilter([]);
+    setLicensedAgentFilter(ALL_OPTION);
+    setLeadVendorFilter(ALL_OPTION);
+    setStatusFilter(ALL_OPTION);
+    setCarrierFilter(ALL_OPTION);
+    setCallResultFilter(ALL_OPTION);
+    setRetentionFilter(ALL_OPTION);
+    setIncompleteUpdatesFilter(ALL_OPTION);
+    setLaCallbackFilter(ALL_OPTION);
+    setHourFromFilter(ALL_OPTION);
+    setHourToFilter(ALL_OPTION);
+    setCurrentPage(1);
+  };
+
   type VendorRow = { lead_vendor: string | null };
   type BufferRow = { buffer_agent: string | null };
 
@@ -261,6 +299,8 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
         callResultOptions={CALL_RESULT_OPTIONS}
         laCallbackOptions={LA_CALLBACK_OPTIONS}
         totalRows={totalRecords}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={clearFilters}
       />
 
       {rows.length === 0 ? (

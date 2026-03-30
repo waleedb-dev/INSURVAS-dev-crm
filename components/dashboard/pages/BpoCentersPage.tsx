@@ -618,8 +618,19 @@ export default function BpoCentersPage() {
           </select>
         }
         activeFilters={
-          filterAdmin !== "All" && (
-            <FilterChip label={`Admin: ${filterAdmin}`} onClear={() => setFilterAdmin("All")} />
+          (search.trim() !== "" || filterAdmin !== "All") && (
+            <>
+              {filterAdmin !== "All" && <FilterChip label={`Admin: ${filterAdmin}`} onClear={() => setFilterAdmin("All")} />}
+              <button
+                type="button"
+                onClick={() => { setSearch(""); setFilterAdmin("All"); setPage(1); }}
+                style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", marginLeft: "auto" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.textDecoration = "underline")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.textDecoration = "none")}
+              >
+                Clear Filters
+              </button>
+            </>
           )
         }
         pagination={
