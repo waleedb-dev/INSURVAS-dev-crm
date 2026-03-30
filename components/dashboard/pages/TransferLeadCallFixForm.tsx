@@ -46,6 +46,8 @@ type Props = {
   leadRowId: string;
   submissionId: string;
   leadName: string;
+  leadPhone?: string;
+  leadVendor?: string;
 };
 
 const mapStatusToSheetValue = (userSelectedStatus: string) => {
@@ -90,7 +92,7 @@ const getMissingColumnFromError = (error: unknown): string | null => {
   return match?.[1] || null;
 };
 
-export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadName }: Props) {
+export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadName, leadPhone, leadVendor }: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
   const params = useParams<{ role?: string }>();
@@ -379,6 +381,8 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
       await invokeOptionalFunction("update-daily-deal-flow-entry", {
         submission_id: submissionId,
         insured_name: leadName || null,
+        client_phone_number: leadPhone || null,
+        lead_vendor: leadVendor || null,
         call_source: callSource,
         buffer_agent: bufferAgent || null,
         agent: agentWhoTookCall || null,

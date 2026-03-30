@@ -308,6 +308,8 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             leadRowId={lead.rowId}
             submissionId={lead.submissionId || lead.rowId}
             leadName={lead.leadName}
+            leadPhone={lead.phone}
+            leadVendor={lead.source}
           />
         </div>
       ) : (

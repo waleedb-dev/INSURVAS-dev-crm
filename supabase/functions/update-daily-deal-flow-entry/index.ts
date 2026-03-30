@@ -125,9 +125,16 @@ serve(async (req) => {
     const todayDate = getTodayDateEST();
     const { data: leadData } = await supabase
       .from("leads")
-      .select("customer_full_name, phone_number, email, lead_vendor")
+      .select("first_name, last_name, phone, email, lead_source")
       .eq("submission_id", submission_id)
       .maybeSingle();
+
+    const resolvedInsuredName =
+      `${String(leadData?.first_name || "").trim()} ${String(leadData?.last_name || "").trim()}`.trim() ||
+      insured_name ||
+      null;
+    const resolvedPhone = leadData?.phone ?? client_phone_number ?? null;
+    const resolvedLeadVendor = leadData?.lead_source ?? lead_vendor ?? null;
 
     const finalStatus = determineFinalStatus(application_submitted, sent_to_underwriting, status);
     const callResultStatus = determineCallResultStatus(
@@ -141,6 +148,18 @@ serve(async (req) => {
     let savedRecord: unknown = null;
 
     if (call_source === "First Time Transfer") {
+      // If a callback row for this base submission already exists today, reuse it and update in-place.
+      const { data: existingCallbackToday } = await supabase
+        .from("daily_deal_flow")
+        .select("submission_id")
+        .eq("date", todayDate)
+        .like("submission_id", `CB%${submission_id}`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingCallbackToday?.submission_id) {
+        finalSubmissionId = existingCallbackToday.submission_id;
+      } else {
       const { data: latestEntry } = await supabase
         .from("daily_deal_flow")
         .select("id, date")
@@ -151,6 +170,7 @@ serve(async (req) => {
 
       const shouldCreateCallback = !!(latestEntry?.date && latestEntry.date !== todayDate);
       finalSubmissionId = shouldCreateCallback ? generateCallbackSubmissionId(submission_id) : submission_id;
+      }
     }
 
     const { data: existingTodayEntry } = await supabase
@@ -162,9 +182,9 @@ serve(async (req) => {
 
     const dailyFlowPayload = {
       submission_id: finalSubmissionId,
-      lead_vendor: leadData?.lead_vendor ?? lead_vendor ?? null,
-      insured_name: leadData?.customer_full_name ?? insured_name ?? null,
-      client_phone_number: leadData?.phone_number ?? client_phone_number ?? null,
+      lead_vendor: resolvedLeadVendor,
+      insured_name: resolvedInsuredName,
+      client_phone_number: resolvedPhone,
       date: todayDate,
       buffer_agent,
       retention_agent,
@@ -221,7 +241,7 @@ serve(async (req) => {
 
     if (application_submitted === true && lead_vendor) {
       try {
-        await supabase.from("leads").update({ lead_vendor }).eq("submission_id", submission_id);
+        await supabase.from("leads").update({ lead_source: lead_vendor }).eq("submission_id", submission_id);
       } catch (leadVendorError) {
         console.error("Lead vendor update failed:", leadVendorError);
       }
@@ -235,7 +255,7 @@ serve(async (req) => {
           body: JSON.stringify({
             channel: "#test-bpo",
             submissionId: finalSubmissionId,
-            leadData: { customer_full_name: leadData?.customer_full_name },
+            leadData: { customer_full_name: resolvedInsuredName },
             callResult: {
               application_submitted,
               status: finalStatus,
@@ -250,7 +270,7 @@ serve(async (req) => {
               face_amount,
               sent_to_underwriting,
               notes,
-              lead_vendor: leadData?.lead_vendor ?? lead_vendor ?? null,
+              lead_vendor: resolvedLeadVendor,
             },
           }),
         });
@@ -267,16 +287,16 @@ serve(async (req) => {
           body: JSON.stringify({
             submissionId: finalSubmissionId,
             leadData: {
-              customer_full_name: leadData?.customer_full_name,
-              phone_number: leadData?.phone_number,
+              customer_full_name: resolvedInsuredName,
+              phone_number: resolvedPhone,
               email: leadData?.email,
-              lead_vendor: leadData?.lead_vendor ?? lead_vendor ?? null,
+              lead_vendor: resolvedLeadVendor,
             },
             callResult: {
               status: finalStatus,
               dq_reason: dq_reason ?? null,
               notes,
-              lead_vendor: leadData?.lead_vendor ?? lead_vendor ?? null,
+              lead_vendor: resolvedLeadVendor,
               agent_who_took_call: agent,
               buffer_agent,
               call_source,
@@ -299,17 +319,17 @@ serve(async (req) => {
           body: JSON.stringify({
             submissionId: finalSubmissionId,
             leadData: {
-              customer_full_name: leadData?.customer_full_name,
-              phone_number: leadData?.phone_number,
+              customer_full_name: resolvedInsuredName,
+              phone_number: resolvedPhone,
               email: leadData?.email,
-              lead_vendor: leadData?.lead_vendor ?? lead_vendor ?? null,
+              lead_vendor: resolvedLeadVendor,
             },
             callResult: {
               application_submitted,
               sent_to_underwriting,
               status: finalStatus,
               notes,
-              lead_vendor: leadData?.lead_vendor ?? lead_vendor ?? null,
+              lead_vendor: resolvedLeadVendor,
               agent_who_took_call: agent,
               buffer_agent,
               call_source,
