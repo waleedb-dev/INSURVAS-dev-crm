@@ -216,7 +216,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         premium: premiumValue,
         source: String(row.lead_source || (isTransferPipeline ? "Transfer Portal" : "")),
         agent: isTransferPipeline ? "BPO" : "SS",
-        agentColor: "#4285f4",
+        agentColor: "#638b4b",
         daysInStage: 0,
         stage: stageName,
       };
@@ -886,7 +886,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         premium: newLead.premium,
         source: newLead.source,
         agent: "SS",
-        agentColor: "#4285f4",
+        agentColor: "#638b4b",
         daysInStage: 0,
         stage: newLead.stage as Stage
       };

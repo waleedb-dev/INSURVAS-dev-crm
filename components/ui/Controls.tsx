@@ -31,13 +31,13 @@ export function Checkbox({ checked = false, onChange, label, disabled, indetermi
                     height: 18,
                     borderRadius: 5,
                     border: checked || indeterminate ? "none" : "2px solid #d1d5db",
-                    backgroundColor: checked || indeterminate ? "#4285f4" : "white",
+                    backgroundColor: checked || indeterminate ? "#638b4b" : "white",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     transition: "all 0.15s",
                     flexShrink: 0,
-                    boxShadow: checked ? "0 2px 8px rgba(66,133,244,0.25)" : "none",
+                    boxShadow: checked ? "0 2px 8px rgba(99,139,75,0.25)" : "none",
                 }}
             >
                 {checked && <IconCheck size={11} color="white" strokeWidth={3} />}
@@ -80,11 +80,11 @@ export function Radio({ checked = false, onChange, label, disabled }: RadioProps
                     width: 18,
                     height: 18,
                     borderRadius: "50%",
-                    border: checked ? "5px solid #4285f4" : "2px solid #d1d5db",
+                    border: checked ? "5px solid #638b4b" : "2px solid #d1d5db",
                     backgroundColor: "white",
                     transition: "all 0.15s",
                     flexShrink: 0,
-                    boxShadow: checked ? "0 2px 8px rgba(66,133,244,0.25)" : "none",
+                    boxShadow: checked ? "0 2px 8px rgba(99,139,75,0.25)" : "none",
                 }}
             />
             {label && (
@@ -121,11 +121,11 @@ export function Switch({ checked = false, onChange, label, disabled }: SwitchPro
                     width: 40,
                     height: 22,
                     borderRadius: 11,
-                    backgroundColor: checked ? "#4285f4" : "#d1d5db",
+                    backgroundColor: checked ? "#638b4b" : "#d1d5db",
                     position: "relative",
                     transition: "background-color 0.2s",
                     flexShrink: 0,
-                    boxShadow: checked ? "0 2px 8px rgba(66,133,244,0.3)" : "none",
+                    boxShadow: checked ? "0 2px 8px rgba(99,139,75,0.3)" : "none",
                 }}
             >
                 <div
@@ -179,14 +179,14 @@ export function SegmentedControl({ options, value, onChange }: SegmentedControlP
                             padding: "7px 16px",
                             borderRadius: 8,
                             border: "none",
-                            backgroundColor: isSelected ? "#4285f4" : "transparent",
+                            backgroundColor: isSelected ? "#638b4b" : "transparent",
                             color: isSelected ? "white" : "#6b7280",
                             fontSize: 13,
                             fontWeight: 700,
                             cursor: "pointer",
                             fontFamily: "inherit",
                             transition: "all 0.15s",
-                            boxShadow: isSelected ? "0 2px 8px rgba(66,133,244,0.25)" : "none",
+                            boxShadow: isSelected ? "0 2px 8px rgba(99,139,75,0.25)" : "none",
                         }}
                     >
                         {opt.label}

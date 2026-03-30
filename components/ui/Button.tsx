@@ -61,13 +61,13 @@ export function Button({
                         ? "#3574e2"
                         : isDisabled
                             ? "#c7d8fc"
-                            : "#4285f4",
+                            : "#638b4b",
             color: isDisabled ? "rgba(255,255,255,0.7)" : "white",
             boxShadow: isDisabled
                 ? "none"
                 : state === "pressed"
                     ? "inset 0 2px 6px rgba(0,0,0,0.15)"
-                    : "0 4px 12px rgba(66,133,244,0.3)",
+                    : "0 4px 12px rgba(99,139,75,0.3)",
         },
         secondary: {
             backgroundColor:
@@ -78,8 +78,8 @@ export function Button({
                         : isDisabled
                             ? "#f3f4f6"
                             : "white",
-            color: isDisabled ? "#9ca3af" : "#4285f4",
-            border: `1.5px solid ${isDisabled ? "#e5e7eb" : state === "pressed" ? "#bfcffd" : "#4285f4"}`,
+            color: isDisabled ? "#9ca3af" : "#638b4b",
+            border: `1.5px solid ${isDisabled ? "#e5e7eb" : state === "pressed" ? "#bfcffd" : "#638b4b"}`,
         },
         ghost: {
             backgroundColor:
@@ -101,15 +101,15 @@ export function Button({
                         ? "#3574e2"
                         : isDisabled
                             ? "#c7d8fc"
-                            : "#4285f4",
+                            : "#638b4b",
             color: "white",
             padding: size === "sm" ? 7 : size === "lg" ? 12 : 10,
             borderRadius: 10,
-            boxShadow: isDisabled ? "none" : "0 4px 12px rgba(66,133,244,0.3)",
+            boxShadow: isDisabled ? "none" : "0 4px 12px rgba(99,139,75,0.3)",
         },
         link: {
             backgroundColor: "transparent",
-            color: isDisabled ? "#9ca3af" : state === "pressed" ? "#1d4ed8" : "#4285f4",
+            color: isDisabled ? "#9ca3af" : state === "pressed" ? "#1d4ed8" : "#638b4b",
             padding: 0,
             borderRadius: 0,
             gap: 4,

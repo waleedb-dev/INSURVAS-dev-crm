@@ -27,16 +27,16 @@ interface BadgeProps {
 
 const VARIANT_MAP: Record<BadgeVariant, { label: string; color: string; bg: string }> = {
     "todo": { label: "To Do", color: "#6b7280", bg: "#f3f4f6" },
-    "in-progress": { label: "In Progress", color: "#4285f4", bg: "#EEF4FF" },
+    "in-progress": { label: "In Progress", color: "#638b4b", bg: "#EEF4FF" },
     "in-review": { label: "In Review", color: "#7c3aed", bg: "#f5f3ff" },
     "done": { label: "Done", color: "#059669", bg: "#ecfdf5" },
     "approved": { label: "Approved", color: "#059669", bg: "#ecfdf5" },
     "pending": { label: "Pending", color: "#d97706", bg: "#fffbeb" },
     "junior": { label: "Junior", color: "#059669", bg: "#ecfdf5" },
-    "middle": { label: "Middle", color: "#4285f4", bg: "#EEF4FF" },
+    "middle": { label: "Middle", color: "#638b4b", bg: "#EEF4FF" },
     "senior": { label: "Senior", color: "#7c3aed", bg: "#f5f3ff" },
     "sick-leave": { label: "Sick Leave", color: "#6b7280", bg: "#f3f4f6" },
-    "vacation": { label: "Vacation", color: "#4285f4", bg: "#EEF4FF" },
+    "vacation": { label: "Vacation", color: "#638b4b", bg: "#EEF4FF" },
     "work-remotely": { label: "Work Remotely", color: "#0891b2", bg: "#ecfeff" },
     "custom": { label: "", color: "#374151", bg: "#f3f4f6" },
 };
@@ -94,7 +94,7 @@ export function ProgressSpinner({
     value = 65,
     size = 52,
     strokeWidth = 5,
-    color = "#4285f4",
+    color = "#638b4b",
 }: ProgressProps) {
     const r = (size - strokeWidth) / 2;
     const circ = 2 * Math.PI * r;
@@ -136,7 +136,7 @@ interface AvatarProps {
 function stringToColor(str: string) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    const colors = ["#4285f4", "#34a853", "#ea4335", "#fbbc05", "#7c3aed", "#0891b2"];
+    const colors = ["#638b4b", "#34a853", "#ea4335", "#fbbc05", "#7c3aed", "#0891b2"];
     return colors[Math.abs(hash) % colors.length];
 }
 

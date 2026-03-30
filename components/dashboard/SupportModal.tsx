@@ -50,7 +50,7 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
         <div style={{ marginBottom: 28 }}>
           <label style={{ fontSize: 13, fontWeight: 700, color: "#8a94a6", display: "block", marginBottom: 8 }}>Description</label>
           <textarea placeholder="Add some description of the request" style={{ width: "100%", padding: "13px 16px", border: "1.5px solid #e2e8f0", borderRadius: 12, fontSize: 14, color: "#374151", resize: "vertical", minHeight: 110, fontFamily: "inherit", lineHeight: 1.5, transition: "border-color 0.15s" }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#4285f4"; }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#638b4b"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
           />
         </div>
@@ -60,7 +60,7 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#8a94a6"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#e2e8f0"; }}
           >Cancel</button>
-          <button style={{ backgroundColor: "#4285f4", color: "#fff", border: "none", borderRadius: 12, padding: "13px 32px", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 14px rgba(66,133,244,0.35)", fontFamily: "inherit", transition: "opacity 0.15s, transform 0.1s" }}
+          <button style={{ backgroundColor: "#638b4b", color: "#fff", border: "none", borderRadius: 12, padding: "13px 32px", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 14px rgba(99,139,75,0.35)", fontFamily: "inherit", transition: "opacity 0.15s, transform 0.1s" }}
             onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.opacity = "0.88"; el.style.transform = "scale(0.99)"; }}
             onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.opacity = "1"; el.style.transform = "scale(1)"; }}
           >Send Request</button>

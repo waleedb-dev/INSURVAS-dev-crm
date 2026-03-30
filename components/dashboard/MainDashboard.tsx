@@ -12,7 +12,7 @@ const C = {
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 const MEMBERS = [
-  { initials: "SS", name: "Shawn Stone",    role: "UI/UX Designer", level: "Middle", color: "#4285f4", tasks: 8,  done: 5,  skills: ["Figma","Prototyping","User Research"] },
+  { initials: "SS", name: "Shawn Stone",    role: "UI/UX Designer", level: "Middle", color: "#638b4b", tasks: 8,  done: 5,  skills: ["Figma","Prototyping","User Research"] },
   { initials: "RD", name: "Randy Delgado",  role: "UI/UX Designer", level: "Junior", color: "#f59e0b", tasks: 4,  done: 2,  skills: ["Figma","Illustration"] },
   { initials: "ET", name: "Emily Tyler",    role: "Copywriter",     level: "Middle", color: "#ec4899", tasks: 11, done: 7,  skills: ["SEO","Content Strategy","Editing"] },
   { initials: "LC", name: "Louis Castro",   role: "Copywriter",     level: "Senior", color: "#8b5cf6", tasks: 14, done: 12, skills: ["Brand Voice","Copy","Content"] },
@@ -38,7 +38,7 @@ const PROJECTS = [
   {
     id: "PN0001265", name: "Medical App (iOS native)", created: "Sep 12, 2020",
     priority: "Medium" as const, allTasks: 34, activeTasks: 13,
-    assignees: ["#4285f4","#f59e0b","#ec4899","#8b5cf6"], extraAssignees: 2,
+    assignees: ["#638b4b","#f59e0b","#ec4899","#8b5cf6"], extraAssignees: 2,
     emoji: "💊", color: "#e8edf8", progress: 38,
     description: "A fully native iOS medical application for patient management, appointment scheduling, and telemedicine consultations.",
     tags: ["iOS","Healthcare","Mobile"],
@@ -54,7 +54,7 @@ const PROJECTS = [
   {
     id: "PN0001290", name: "Food Delivery Service", created: "May 28, 2020",
     priority: "Low" as const, allTasks: 23, activeTasks: 20,
-    assignees: ["#4285f4","#ec4899","#8b5cf6"], extraAssignees: 5,
+    assignees: ["#638b4b","#ec4899","#8b5cf6"], extraAssignees: 5,
     emoji: "📦", color: "#fdf4ff", progress: 86,
     description: "Cloud-based logistics platform.",
     tags: ["Web","Logistics"],

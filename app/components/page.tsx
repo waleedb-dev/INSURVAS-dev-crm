@@ -225,12 +225,12 @@ export default function ComponentsPage() {
     ];
 
     const filledIcons = [
-        <IconHome size={20} fill="#4285f4" color="#4285f4" />,
-        <IconSearch size={20} fill="#4285f4" color="#4285f4" />,
-        <IconBell size={20} fill="#4285f4" color="#4285f4" />,
+        <IconHome size={20} fill="#638b4b" color="#638b4b" />,
+        <IconSearch size={20} fill="#638b4b" color="#638b4b" />,
+        <IconBell size={20} fill="#638b4b" color="#638b4b" />,
         <IconStar size={20} fill="#fbbc05" color="#fbbc05" />,
         <IconHeart size={20} fill="#ea4335" color="#ea4335" />,
-        <IconBookmark size={20} fill="#4285f4" color="#4285f4" />,
+        <IconBookmark size={20} fill="#638b4b" color="#638b4b" />,
         <IconFlag size={20} fill="#ea4335" color="#ea4335" />,
         <IconThumbUp size={20} fill="#34a853" color="#34a853" />,
     ];
@@ -460,8 +460,8 @@ export default function ComponentsPage() {
                                     <button
                                         onClick={() => setInputChipMembers(["Violet Robbins"])}
                                         style={{
-                                            fontSize: 13, color: "#4285f4", fontWeight: 600,
-                                            background: "none", border: "1.5px dashed #4285f4",
+                                            fontSize: 13, color: "#638b4b", fontWeight: 600,
+                                            background: "none", border: "1.5px dashed #638b4b",
                                             borderRadius: 20, padding: "5px 14px", cursor: "pointer",
                                             fontFamily: "inherit",
                                         }}
@@ -487,7 +487,7 @@ export default function ComponentsPage() {
                             <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Side Bar Icons
                             </div>
-                            <IconGrid icons={sidebarIcons} color="#4285f4" />
+                            <IconGrid icons={sidebarIcons} color="#638b4b" />
                         </div>
                         <div>
                             <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>

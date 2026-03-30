@@ -43,7 +43,7 @@ export function Input({
         fontSize: 12,
         fontWeight: 700,
         letterSpacing: "0.04em",
-        color: isError ? "#ef4444" : isActive ? "#4285f4" : "#6b7280",
+        color: isError ? "#ef4444" : isActive ? "#638b4b" : "#6b7280",
         textTransform: "uppercase",
         transition: "color 0.15s",
     };
@@ -57,7 +57,7 @@ export function Input({
     const inputStyle: React.CSSProperties = {
         width: "100%",
         padding: leftIcon ? "11px 16px 11px 42px" : rightIcon ? "11px 42px 11px 16px" : "11px 16px",
-        border: `1.5px solid ${isError ? "#ef4444" : isActive ? "#4285f4" : "#e5e7eb"
+        border: `1.5px solid ${isError ? "#ef4444" : isActive ? "#638b4b" : "#e5e7eb"
             }`,
         borderRadius: 10,
         fontSize: 14,
@@ -68,7 +68,7 @@ export function Input({
         outline: "none",
         transition: "border-color 0.15s, box-shadow 0.15s",
         boxShadow: isActive
-            ? "0 0 0 3px rgba(66,133,244,0.12)"
+            ? "0 0 0 3px rgba(99,139,75,0.12)"
             : isError
                 ? "0 0 0 3px rgba(239,68,68,0.1)"
                 : "none",

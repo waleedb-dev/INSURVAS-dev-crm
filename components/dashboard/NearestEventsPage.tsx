@@ -67,7 +67,7 @@ export default function NearestEventsPage({ onBack }: Props) {
             backgroundColor: C.blue, color: "#fff", border: "none", borderRadius: 12,
             padding: "12px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer",
             display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit",
-            boxShadow: "0 4px 14px rgba(66,133,244,0.35)", transition: "opacity 0.15s, transform 0.1s",
+            boxShadow: "0 4px 14px rgba(99,139,75,0.35)", transition: "opacity 0.15s, transform 0.1s",
           }}
             onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.opacity = "0.88"; el.style.transform = "scale(1.02)"; }}
             onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.opacity = "1"; el.style.transform = "scale(1)"; }}
@@ -186,14 +186,14 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
 
         <Field label="Event Title">
           <input value={title} onChange={(e) => { setTitle(e.target.value); setError(""); }} placeholder="e.g. Team standup" style={inputStyle}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#4285f4"; }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#638b4b"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
           />
         </Field>
 
         <Field label="Date & Time">
           <input value={when} onChange={(e) => { setWhen(e.target.value); setError(""); }} placeholder="e.g. Tomorrow | 3:00 PM" style={inputStyle}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#4285f4"; }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#638b4b"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
           />
         </Field>
@@ -250,7 +250,7 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#8a94a6"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = C.border; }}
           >Cancel</button>
-          <button onClick={handleSubmit} style={{ flex: 2, padding: "13px", borderRadius: 12, border: "none", backgroundColor: C.blue, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(66,133,244,0.3)", transition: "opacity 0.15s, transform 0.1s" }}
+          <button onClick={handleSubmit} style={{ flex: 2, padding: "13px", borderRadius: 12, border: "none", backgroundColor: C.blue, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(99,139,75,0.3)", transition: "opacity 0.15s, transform 0.1s" }}
             onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.opacity = "0.88"; el.style.transform = "scale(0.99)"; }}
             onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.opacity = "1"; el.style.transform = "scale(1)"; }}
           >Add Event</button>

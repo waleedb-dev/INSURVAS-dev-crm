@@ -16,7 +16,7 @@ interface Lead {
 }
 
 const AGENTS = [
-  { name: "Shawn Stone",    color: "#4285f4", capacity: 8,  current: 6 },
+  { name: "Shawn Stone",    color: "#638b4b", capacity: 8,  current: 6 },
   { name: "Emily Tyler",    color: "#ec4899", capacity: 10, current: 7 },
   { name: "Louis Castro",   color: "#8b5cf6", capacity: 12, current: 12 },
   { name: "Blake Silva",    color: "#0ea5e9", capacity: 10, current: 4 },

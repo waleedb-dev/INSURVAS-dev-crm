@@ -27,7 +27,7 @@ type Commission = {
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   pending:  { bg: "#fffbeb", color: "#d97706" },
   approved: { bg: "#ecfdf5", color: "#059669" },
-  paid:     { bg: "#eff6ff", color: "#4285f4" },
+  paid:     { bg: "#eff6ff", color: "#638b4b" },
   rejected: { bg: "#fef2f2", color: "#ef4444" },
 };
 

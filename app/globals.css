@@ -1,5 +1,38 @@
 @import "tailwindcss";
 
+/* ── SpotifyMix Local Fonts ──────────────────────────────────────────────── */
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Extrabold.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ── Design tokens ───────────────────────────────────────────────────────── */
 :root {
   --color-page-bg:       #f4f9fd;
@@ -7,10 +40,10 @@
   --color-card-bg:       #ffffff;
   --color-row-bg:        #f4f9fd;
 
-  --color-blue:          #4285f4;
-  --color-blue-hover:    #2d6fd4;
-  --color-blue-light:    #dbeafe;
-  --color-blue-faint:    #f0f7ff;
+  --color-blue:          #638b4b;
+  --color-blue-hover:    #4e6e3a;
+  --color-blue-light:    #ddecd4;
+  --color-blue-faint:    #f2f8ee;
 
   --color-text-dark:     #1a202c;
   --color-text-mid:      #2d3748;
@@ -37,10 +70,11 @@
 }
 
 html, body {
-  font-family: 'Nunito Sans', sans-serif;
+  font-family: 'SpotifyMix', sans-serif;
   background-color: var(--color-page-bg);
   color: var(--color-text-dark);
   -webkit-font-smoothing: antialiased;
+  font-weight: 500;
 }
 
 input:focus,

@@ -11,10 +11,10 @@ export const T = {
   rowBg:       "#f4f9fd",   // table row / member card bg
 
   // ── Brand ────────────────────────────────────────────────────────────────
-  blue:        "#4285f4",   // primary – active nav, buttons, links
-  blueHover:   "#2d6fd4",   // button hover
-  blueLight:   "#dbeafe",   // blue tint bg
-  blueFaint:   "#f0f7ff",   // subtle blue wash
+  blue:        "#638b4b",   // primary – active nav, buttons, links
+  blueHover:   "#4e6e3a",   // button hover
+  blueLight:   "#ddecd4",   // green tint bg
+  blueFaint:   "#f2f8ee",   // subtle green wash
 
   // ── Text ─────────────────────────────────────────────────────────────────
   textDark:    "#1a202c",   // headings, primary labels
@@ -26,7 +26,7 @@ export const T = {
   borderLight: "#f0f4f8",   // subtle divider
 
   // ── Event accent bars ─────────────────────────────────────────────────────
-  accentBlue:   "#4285f4",
+  accentBlue:   "#638b4b",
   accentPink:   "#e879a0",
   accentPurple: "#a855f7",
 
@@ -40,7 +40,7 @@ export const T = {
   warning:     "#f59e0b",
 
   // ── Member avatar palette (kept here so they're consistent everywhere) ───
-  memberBlue:   "#4285f4",
+  memberBlue:   "#638b4b",
   memberAmber:  "#f59e0b",
   memberPink:   "#ec4899",
   memberViolet: "#8b5cf6",
@@ -62,5 +62,5 @@ export const T = {
   radiusXl:  20,
 
   // ── Font ─────────────────────────────────────────────────────────────────
-  font: "'Nunito Sans', sans-serif",
+  font: "'SpotifyMix', sans-serif",
 } as const;
