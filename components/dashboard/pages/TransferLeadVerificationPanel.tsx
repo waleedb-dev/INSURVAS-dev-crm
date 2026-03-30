@@ -18,6 +18,76 @@ type Props = {
   onProgressChange?: (payload: { verifiedCount: number; totalCount: number; progress: number }) => void;
 };
 
+const VERIFICATION_FIELD_SEQUENCE = [
+  "lead_vendor",
+  "customer_full_name",
+  "street_address",
+  "beneficiary_information",
+  "phone_number",
+  "date_of_birth",
+  "age",
+  "social_security",
+  "driver_license",
+  "existing_coverage",
+  "height",
+  "weight",
+  "doctors_name",
+  "tobacco_use",
+  "health_conditions",
+  "medications",
+  "carrier",
+  "monthly_premium",
+  "coverage_amount",
+  "draft_date",
+  "institution_name",
+  "beneficiary_routing",
+  "beneficiary_account",
+  "account_type",
+  "birth_state",
+  "email",
+  "previous_applications",
+  "product_type",
+  "future_draft_date",
+  "additional_notes",
+  "la_notes",
+  "call_dropped",
+] as const;
+
+const VERIFICATION_FIELD_LABELS: Record<string, string> = {
+  lead_vendor: "Lead Vendor",
+  customer_full_name: "Customer Full Name",
+  street_address: "Street Address",
+  beneficiary_information: "Beneficiary Information",
+  phone_number: "Phone Number",
+  date_of_birth: "Date Of Birth",
+  age: "Age",
+  social_security: "Social Security",
+  driver_license: "Driver License",
+  existing_coverage: "Existing Coverage",
+  height: "Height",
+  weight: "Weight",
+  doctors_name: "Doctors Name",
+  tobacco_use: "Tobacco Use",
+  health_conditions: "Health Conditions",
+  medications: "Medications",
+  carrier: "Carrier",
+  monthly_premium: "Monthly Premium",
+  coverage_amount: "Coverage Amount",
+  draft_date: "Draft Date",
+  institution_name: "Institution Name",
+  beneficiary_routing: "Beneficiary Routing",
+  beneficiary_account: "Beneficiary Account",
+  account_type: "Account Type",
+  birth_state: "Birth State",
+  email: "Email",
+  previous_applications: "Previous Applications",
+  product_type: "Product Type",
+  future_draft_date: "Future Draft Date",
+  additional_notes: "BPO Closer Notes",
+  la_notes: "LA Notes",
+  call_dropped: "Call Dropped",
+};
+
 export default function TransferLeadVerificationPanel({
   sessionId,
   showProgressSummary = true,
@@ -117,13 +187,16 @@ export default function TransferLeadVerificationPanel({
     onProgressChange({ verifiedCount, totalCount: items.length, progress });
   }, [onProgressChange, progress, verifiedCount, items.length]);
 
-  const grouped = useMemo(() => {
-    const byGroup = new Map<string, VerificationItemRow[]>();
-    items.forEach((item) => {
-      const key = item.field_category || "other";
-      byGroup.set(key, [...(byGroup.get(key) || []), item]);
+  const orderedItems = useMemo(() => {
+    const orderMap = new Map<string, number>(
+      VERIFICATION_FIELD_SEQUENCE.map((fieldName, index) => [fieldName, index]),
+    );
+    return [...items].sort((a, b) => {
+      const aOrder = orderMap.get(a.field_name) ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = orderMap.get(b.field_name) ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.field_name.localeCompare(b.field_name);
     });
-    return Array.from(byGroup.entries());
   }, [items]);
 
   const getValueByFieldName = (fieldName: string) => {
@@ -346,133 +419,125 @@ export default function TransferLeadVerificationPanel({
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: 560, overflowY: "auto", paddingRight: 4 }}>
-        {grouped.map(([groupName, groupItems]) => (
-          <section key={groupName}>
-            <h4 style={{ margin: "0 0 8px", textTransform: "capitalize", fontSize: 12, letterSpacing: 0.3, color: T.textMuted }}>
-              {groupName}
-            </h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {groupItems.map((item) => {
-                const isSaving = Boolean(savingIds[item.id]);
-                const isPhoneField = item.field_name === "phone_number";
-                const dncStatus = dncStatusByItem[item.id];
-                const dncMessage = dncMessageByItem[item.id];
-                const dncChecking = Boolean(dncCheckingIds[item.id]);
-                return (
-                  <div
-                    key={item.id}
-                    style={{
-                      border: `1px solid ${T.border}`,
-                      borderRadius: 10,
-                      padding: 10,
-                      backgroundColor: item.is_verified ? "#f0fdf4" : "#fff",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>
-                        {isPhoneField && dncStatus ? (
-                          <span style={{ marginRight: 6 }}>
-                            {dncStatus === "clear" ? "✓" : dncStatus === "error" ? "!" : "×"}
-                          </span>
-                        ) : null}
-                        {item.field_name.replaceAll("_", " ")}
-                      </span>
-                      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.textMid }}>
-                        {isPhoneField && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void checkDncForItem(item);
-                            }}
-                            disabled={dncChecking}
-                            style={{
-                              borderRadius: 8,
-                              border: "none",
-                              padding: "5px 12px",
-                              fontWeight: 700,
-                              cursor: dncChecking ? "not-allowed" : "pointer",
-                              backgroundColor: dncChecking ? "#d1d5db" : T.blue,
-                              color: "#fff",
-                            }}
-                          >
-                            {dncChecking ? "Checking..." : "Check"}
-                          </button>
-                        )}
-                        <input
-                          type="checkbox"
-                          checked={Boolean(item.is_verified)}
-                          disabled={isSaving}
-                          onChange={(e) => {
-                            void saveOne(item, e.target.checked);
-                          }}
-                        />
-                        Verified
-                      </label>
-                    </div>
-
-                    {isPhoneField && dncMessage && (
-                      <div
-                        style={{
-                          marginBottom: 8,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color:
-                            dncStatus === "error" || dncStatus === "tcpa"
-                              ? T.danger
-                              : dncStatus === "dnc"
-                                ? "#b45309"
-                                : "#166534",
-                        }}
-                      >
-                        {dncMessage}
-                      </div>
-                    )}
-
-                    <input
-                      value={draftValues[item.id] ?? ""}
-                      onChange={(e) => setDraftValues((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                      onBlur={() => {
-                        const current = draftValues[item.id] ?? "";
-                        if (current === (item.verified_value ?? item.original_value ?? "")) return;
-                        void saveOne(item, Boolean(item.is_verified));
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 560, overflowY: "auto", paddingRight: 4 }}>
+        {orderedItems.map((item) => {
+          const isSaving = Boolean(savingIds[item.id]);
+          const isPhoneField = item.field_name === "phone_number";
+          const dncStatus = dncStatusByItem[item.id];
+          const dncMessage = dncMessageByItem[item.id];
+          const dncChecking = Boolean(dncCheckingIds[item.id]);
+          const label = VERIFICATION_FIELD_LABELS[item.field_name] || item.field_name.replaceAll("_", " ");
+          return (
+            <div
+              key={item.id}
+              style={{
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
+                padding: 10,
+                backgroundColor: item.is_verified ? "#f0fdf4" : "#fff",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>
+                  {isPhoneField && dncStatus ? (
+                    <span style={{ marginRight: 6 }}>
+                      {dncStatus === "clear" ? "✓" : dncStatus === "error" ? "!" : "×"}
+                    </span>
+                  ) : null}
+                  {label}
+                </span>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.textMid }}>
+                  {isPhoneField && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void checkDncForItem(item);
                       }}
+                      disabled={dncChecking}
                       style={{
-                        width: "100%",
-                        border: `1px solid ${T.border}`,
                         borderRadius: 8,
-                        padding: "7px 9px",
-                        fontSize: 12,
-                        color: T.textDark,
-                        backgroundColor: "#fff",
+                        border: "none",
+                        padding: "5px 12px",
+                        fontWeight: 700,
+                        cursor: dncChecking ? "not-allowed" : "pointer",
+                        backgroundColor: dncChecking ? "#d1d5db" : T.blue,
+                        color: "#fff",
                       }}
-                    />
-                    {isPhoneField && (
-                      <button
-                        type="button"
-                        onClick={openUnderwritingModal}
-                        style={{
-                          width: "100%",
-                          marginTop: 10,
-                          border: "none",
-                          backgroundColor: "#7c3aed",
-                          color: "#fff",
-                          borderRadius: 8,
-                          padding: "10px 12px",
-                          fontWeight: 800,
-                          cursor: "pointer",
-                          fontSize: 14,
-                        }}
-                      >
-                        Underwriting
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+                    >
+                      {dncChecking ? "Checking..." : "Check"}
+                    </button>
+                  )}
+                  <input
+                    type="checkbox"
+                    checked={Boolean(item.is_verified)}
+                    disabled={isSaving}
+                    onChange={(e) => {
+                      void saveOne(item, e.target.checked);
+                    }}
+                  />
+                  Verified
+                </label>
+              </div>
+
+              {isPhoneField && dncMessage && (
+                <div
+                  style={{
+                    marginBottom: 8,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color:
+                      dncStatus === "error" || dncStatus === "tcpa"
+                        ? T.danger
+                        : dncStatus === "dnc"
+                          ? "#b45309"
+                          : "#166534",
+                  }}
+                >
+                  {dncMessage}
+                </div>
+              )}
+
+              <input
+                value={draftValues[item.id] ?? ""}
+                onChange={(e) => setDraftValues((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                onBlur={() => {
+                  const current = draftValues[item.id] ?? "";
+                  if (current === (item.verified_value ?? item.original_value ?? "")) return;
+                  void saveOne(item, Boolean(item.is_verified));
+                }}
+                style={{
+                  width: "100%",
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 8,
+                  padding: "7px 9px",
+                  fontSize: 12,
+                  color: T.textDark,
+                  backgroundColor: "#fff",
+                }}
+              />
+              {isPhoneField && (
+                <button
+                  type="button"
+                  onClick={openUnderwritingModal}
+                  style={{
+                    width: "100%",
+                    marginTop: 10,
+                    border: "none",
+                    backgroundColor: "#7c3aed",
+                    color: "#fff",
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    fontSize: 14,
+                  }}
+                >
+                  Underwriting
+                </button>
+              )}
             </div>
-          </section>
-        ))}
+          );
+        })}
       </div>
 
       {dncModal.open && (

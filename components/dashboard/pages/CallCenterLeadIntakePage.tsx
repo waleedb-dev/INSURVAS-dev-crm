@@ -41,7 +41,9 @@ type DuplicateLeadMatch = {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  social: string | null;
   stage: string | null;
+  match_type: "phone" | "ssn";
   created_at?: string | null;
 };
 
@@ -63,6 +65,16 @@ type SsnDuplicateRule = {
   is_addable: boolean;
   is_active: boolean;
 };
+type DuplicateQueryLead = {
+  id: string;
+  lead_unique_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  social: string | null;
+  stage: string | null;
+  created_at: string | null;
+};
 
 const DEFAULT_CLAIM_SELECTION: ClaimSelections = {
   workflowType: "buffer",
@@ -77,22 +89,6 @@ const DEFAULT_CLAIM_SELECTION: ClaimSelections = {
   quoteCoverage: "",
   quoteMonthlyPremium: "",
 };
-
-// ── Color maps matching the DailyDealFlow style ─────────────────────────────
-const TYPE_CONFIG: Record<string, { bg: string; color: string }> = {
-  "Preferred":  { bg: "#eff6ff", color: "#2563eb" },
-  "Standard":   { bg: "#f0fdf4", color: "#16a34a" },
-  "Graded":     { bg: "#fdf4ff", color: "#9333ea" },
-  "Modified":   { bg: "#fff7ed", color: "#ea580c" },
-  "GI":         { bg: "#fef9c3", color: "#ca8a04" },
-  "Immediate":  { bg: "#fdf4ff", color: "#d946ef" },
-  "Level":      { bg: "#f0fdf4", color: "#059669" },
-  "ROP":        { bg: "#f8fafc", color: "#475569" },
-  "Transfer":   { bg: "#eff6ff", color: "#2563eb" },
-};
-
-const getTypeConfig = (type: string) =>
-  TYPE_CONFIG[type] ?? { bg: T.blueFaint, color: T.blue };
 
 // Generate a consistent avatar color from a string
 function stringToColor(str: string) {
@@ -146,6 +142,15 @@ function buildSubmissionId(centerName: string): string {
 
 function normalizePhoneDigits(value: string) {
   return String(value || "").replace(/\D/g, "");
+}
+
+function normalizeSsnDigits(value: string) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function formatSsn(digits: string) {
+  if (digits.length !== 9) return digits;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
 }
 
 function formatUsPhone(digits: string) {
@@ -335,7 +340,6 @@ export default function CallCenterLeadIntakePage({
   const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
   const [editingLead, setEditingLead] = useState<{ rowId: string; formData: TransferLeadFormData } | null>(null);
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("All");
   const [filterSource, setFilterSource] = useState("All");
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
@@ -410,14 +414,20 @@ export default function CallCenterLeadIntakePage({
     const canViewAll = permissionKeys.has("action.transfer_leads.view_all");
     const canViewCallCenter = permissionKeys.has("action.transfer_leads.view_call_center");
     const canViewOwn = permissionKeys.has("action.transfer_leads.view_own");
+    const hideDraftsForSalesRole =
+      currentRole === "sales_admin" ||
+      currentRole === "sales_manager" ||
+      currentRole === "sales_agent_licensed" ||
+      currentRole === "sales_agent_unlicensed";
 
-    const query = canViewAll
+    const scopedQuery = canViewAll
       ? baseQuery
       : canViewCallCenter && userProfile?.call_center_id
         ? baseQuery.eq("call_center_id", userProfile.call_center_id)
         : canViewOwn
           ? baseQuery.eq("submitted_by", session.user.id)
           : baseQuery.eq("id", "__no_access__");
+    const query = hideDraftsForSalesRole ? scopedQuery.eq("is_draft", false) : scopedQuery;
 
     const { data, error } = await query;
 
@@ -536,11 +546,9 @@ export default function CallCenterLeadIntakePage({
     void fetchDefaultTransferStage();
   }, [supabase]);
 
-  const types = Array.from(new Set(leads.map((lead) => lead.type)));
   const sources = Array.from(new Set(leads.map((lead) => lead.source)));
 
   const filtered = leads.filter((lead) => {
-    const matchType = filterType === "All" || lead.type === filterType;
     const matchSource = filterSource === "All" || lead.source === filterSource;
     const query = search.toLowerCase().trim();
     const matchSearch =
@@ -548,13 +556,13 @@ export default function CallCenterLeadIntakePage({
       lead.name.toLowerCase().includes(query) ||
       lead.phone.toLowerCase().includes(query) ||
       lead.id.toLowerCase().includes(query);
-    return matchType && matchSource && matchSearch;
+    return matchSource && matchSearch;
   });
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
-  useEffect(() => { setPage(1); }, [search, filterType, filterSource]);
+  useEffect(() => { setPage(1); }, [search, filterSource]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) setPage(totalPages);
@@ -566,26 +574,9 @@ export default function CallCenterLeadIntakePage({
   const avgPremium = leads.length ? totalPremium / leads.length : 0;
   const uniquePipelines = new Set(leads.map((l) => l.pipeline)).size;
 
-  const handleCreateLead = async (payload: TransferLeadFormData) => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user?.id) {
-      setToast({ message: "You are not logged in", type: "error" });
-      return;
-    }
-
-    const { data: userProfile } = await supabase
-      .from("users")
-      .select("call_center_id")
-      .eq("id", session.user.id)
-      .maybeSingle();
-
-    const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
-    const generatedSubmissionId = buildSubmissionId(callCenterName);
-
+  const promptDuplicateIfAny = async (payload: TransferLeadFormData): Promise<boolean> => {
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
+    const ssnDigits = normalizeSsnDigits(payload.social || "");
 
     const loadDuplicateRulesByStage = async () => {
       const { data: rulesData, error: rulesError } = await supabase
@@ -611,7 +602,7 @@ export default function CallCenterLeadIntakePage({
       );
       const { data: existing, error: existingError } = await supabase
         .from("leads")
-        .select("id, lead_unique_id, first_name, last_name, phone, stage, created_at")
+        .select("id, lead_unique_id, first_name, last_name, phone, social, stage, created_at")
         .in("phone", variants)
         .order("created_at", { ascending: false });
       if (existingError) return null;
@@ -622,15 +613,31 @@ export default function CallCenterLeadIntakePage({
       );
     };
 
-    // 1) Phone duplicate check (first)
-    const existingLead = await findDuplicateByPhone();
-    if (existingLead) {
+    const findDuplicateBySsn = async () => {
+      if (ssnDigits.length !== 9) return null;
+      const variants = Array.from(
+        new Set([payload.social?.trim(), ssnDigits, formatSsn(ssnDigits)].filter(Boolean)),
+      );
+      const { data: existing, error: existingError } = await supabase
+        .from("leads")
+        .select("id, lead_unique_id, first_name, last_name, phone, social, stage, created_at")
+        .in("social", variants)
+        .order("created_at", { ascending: false });
+      if (existingError) return null;
+      return (
+        (existing || []).find(
+          (row: { social: string | null }) => normalizeSsnDigits(String(row.social || "")) === ssnDigits,
+        ) || null
+      );
+    };
+
+    const showDuplicateDialogForLead = async (existingLead: DuplicateQueryLead, matchType: "phone" | "ssn") => {
       try {
         const ruleByStage = await loadDuplicateRulesByStage();
         const stage = String(existingLead.stage || "").trim();
         const rule = stage ? ruleByStage.get(stage.toLowerCase()) : undefined;
         const ghlStage = rule?.ghl_stage ? ` (GHL: ${rule.ghl_stage})` : "";
-        const baseMessage = rule?.message || "A lead already exists with this phone number.";
+        const baseMessage = rule?.message || `A lead already exists with this ${matchType === "phone" ? "phone number" : "SSN"}.`;
         setDuplicateRuleMessage(`${baseMessage}${stage ? ` Stage: ${stage}.` : ""}${ghlStage}`);
         setDuplicateIsAddable(rule?.is_addable ?? true);
       } catch (e) {
@@ -638,6 +645,7 @@ export default function CallCenterLeadIntakePage({
         setDuplicateRuleMessage(message);
         setDuplicateIsAddable(true);
       }
+
       setPendingCreatePayload(payload);
       setDuplicateLeadMatch({
         id: existingLead.id,
@@ -645,12 +653,51 @@ export default function CallCenterLeadIntakePage({
         first_name: existingLead.first_name ?? null,
         last_name: existingLead.last_name ?? null,
         phone: existingLead.phone ?? null,
+        social: existingLead.social ?? null,
         stage: existingLead.stage ?? null,
+        match_type: matchType,
         created_at: existingLead.created_at ?? null,
       });
       setShowDuplicateDialog(true);
+    };
+
+    const phoneMatch = await findDuplicateByPhone();
+    if (phoneMatch) {
+      await showDuplicateDialogForLead(phoneMatch, "phone");
+      return true;
+    }
+
+    const ssnMatch = await findDuplicateBySsn();
+    if (ssnMatch) {
+      await showDuplicateDialogForLead(ssnMatch, "ssn");
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleCreateLead = async (payload: TransferLeadFormData) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user?.id) {
+      setToast({ message: "You are not logged in", type: "error" });
       return;
     }
+
+    const { data: userProfile } = await supabase
+      .from("users")
+      .select("call_center_id")
+      .eq("id", session.user.id)
+      .maybeSingle();
+
+    const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
+    const generatedSubmissionId = buildSubmissionId(callCenterName);
+
+    const phoneDigits = normalizePhoneDigits(payload.phone || "");
+    const hasDuplicate = await promptDuplicateIfAny(payload);
+    if (hasDuplicate) return;
 
     // 2) DNC check (submit-time) — same parsing as Transfer Lead / lib/dncCheck (incl. dnc-test tcpa_litigator lists)
     try {
@@ -869,17 +916,89 @@ export default function CallCenterLeadIntakePage({
   };
 
   const handleEditExistingDuplicateLead = async () => {
+    if (!pendingCreatePayload) return;
     if (!canEditTransferLeads) {
       setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
       return;
     }
     if (!duplicateLeadMatch?.id) return;
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user?.id) {
+      setToast({ message: "You are not logged in", type: "error" });
+      return;
+    }
+
+    const { data: userProfile } = await supabase
+      .from("users")
+      .select("call_center_id")
+      .eq("id", session.user.id)
+      .maybeSingle();
+
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        lead_unique_id: normalizeLeadUniqueId(pendingCreatePayload.leadUniqueId) || buildLeadUniqueId(pendingCreatePayload),
+        lead_value: Number(pendingCreatePayload.leadValue || 0),
+        lead_source: FIXED_BPO_LEAD_SOURCE,
+        submission_date: pendingCreatePayload.submissionDate,
+        first_name: pendingCreatePayload.firstName,
+        last_name: pendingCreatePayload.lastName,
+        street1: pendingCreatePayload.street1,
+        street2: pendingCreatePayload.street2 || null,
+        city: pendingCreatePayload.city,
+        state: pendingCreatePayload.state,
+        zip_code: pendingCreatePayload.zipCode,
+        phone: pendingCreatePayload.phone,
+        birth_state: pendingCreatePayload.birthState,
+        date_of_birth: pendingCreatePayload.dateOfBirth,
+        age: pendingCreatePayload.age,
+        social: pendingCreatePayload.social,
+        driver_license_number: pendingCreatePayload.driverLicenseNumber,
+        existing_coverage_last_2_years: pendingCreatePayload.existingCoverageLast2Years,
+        previous_applications_2_years: pendingCreatePayload.previousApplications2Years,
+        height: pendingCreatePayload.height,
+        weight: pendingCreatePayload.weight,
+        doctor_name: pendingCreatePayload.doctorName,
+        tobacco_use: pendingCreatePayload.tobaccoUse,
+        health_conditions: pendingCreatePayload.healthConditions,
+        medications: pendingCreatePayload.medications,
+        monthly_premium: pendingCreatePayload.monthlyPremium,
+        coverage_amount: pendingCreatePayload.coverageAmount,
+        carrier: pendingCreatePayload.carrier,
+        product_type: pendingCreatePayload.productType,
+        draft_date: pendingCreatePayload.draftDate,
+        beneficiary_information: pendingCreatePayload.beneficiaryInformation,
+        bank_account_type: pendingCreatePayload.bankAccountType || null,
+        institution_name: pendingCreatePayload.institutionName,
+        routing_number: pendingCreatePayload.routingNumber,
+        account_number: pendingCreatePayload.accountNumber,
+        future_draft_date: pendingCreatePayload.futureDraftDate,
+        additional_information: pendingCreatePayload.additionalInformation || null,
+        pipeline: pendingCreatePayload.pipeline || "Transfer Portal",
+        stage: pendingCreatePayload.stage || "Transfer API",
+        stage_id: defaultTransferStageId,
+        is_draft: false,
+        call_center_id: userProfile?.call_center_id || null,
+      })
+      .eq("id", duplicateLeadMatch.id);
+
+    if (error) {
+      setToast({ message: error.message || "Failed to update existing duplicate lead", type: "error" });
+      return;
+    }
+
     setShowDuplicateDialog(false);
     setPendingCreatePayload(null);
-    const existingId = duplicateLeadMatch.id;
     setDuplicateLeadMatch(null);
+    setDuplicateRuleMessage("");
     setShowCreateLead(false);
-    await handleEditLead(existingId);
+    setToast({ message: "Existing lead updated successfully", type: "success" });
+    setPage(1);
+    await refreshLeads();
   };
 
   const handleCreateDraftLead = async (payload: TransferLeadFormData) => {
@@ -959,11 +1078,7 @@ export default function CallCenterLeadIntakePage({
     await refreshLeads();
   };
 
-  const handleEditLead = async (rowId: string) => {
-    if (!canEditTransferLeads) {
-      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
-      return;
-    }
+  const openLeadInForm = async (rowId: string) => {
     const { data, error } = await supabase
       .from("leads")
       .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline, stage, is_draft")
@@ -1021,9 +1136,26 @@ export default function CallCenterLeadIntakePage({
     setEditingLead({ rowId, formData: mapped });
   };
 
+  const handleEditLead = async (rowId: string) => {
+    if (!canEditTransferLeads) {
+      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
+      return;
+    }
+    await openLeadInForm(rowId);
+  };
+
+  const openLeadFromGrid = async (lead: IntakeLead) => {
+    if (lead.isDraft && isCallCenterTransferRole) {
+      await openLeadInForm(lead.rowId);
+      return;
+    }
+    setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId });
+  };
+
   const handleUpdateLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
-    if (!canEditTransferLeads) {
+    const canResumeDraftAsCallCenter = Boolean(isCallCenterTransferRole && editingLead.formData.isDraft);
+    if (!canEditTransferLeads && !canResumeDraftAsCallCenter) {
       setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
       return;
     }
@@ -1100,7 +1232,8 @@ export default function CallCenterLeadIntakePage({
 
   const handleUpdateDraftLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
-    if (!canEditTransferLeads) {
+    const canResumeDraftAsCallCenter = Boolean(isCallCenterTransferRole && editingLead.formData.isDraft);
+    if (!canEditTransferLeads && !canResumeDraftAsCallCenter) {
       setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
       return;
     }
@@ -1216,14 +1349,15 @@ export default function CallCenterLeadIntakePage({
           onBack={() => setShowCreateLead(false)}
           onSubmit={handleCreateLead}
           onSaveDraft={handleCreateDraftLead}
+          onInstantDuplicateCheck={(payload) => void promptDuplicateIfAny(payload)}
           centerName={callCenterName}
         />
         {showDuplicateDialog && duplicateLeadMatch && (
           <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
             <div style={{ width: "100%", maxWidth: 560, backgroundColor: "#fff", borderRadius: 12, border: `1px solid ${T.border}`, padding: 22, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Lead already exists</h3>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Duplicate lead found</h3>
               <p style={{ marginTop: 10, marginBottom: 14, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
-                {duplicateRuleMessage || "We found an existing lead with the same phone number."}
+                {duplicateRuleMessage || `We found an existing lead with the same ${duplicateLeadMatch.match_type === "ssn" ? "SSN" : "phone number"}.`}
               </p>
               <div style={{ backgroundColor: T.rowBg, border: `1px solid ${T.borderLight}`, borderRadius: 10, padding: 12, marginBottom: 16 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>
@@ -1236,7 +1370,13 @@ export default function CallCenterLeadIntakePage({
                   Phone: {duplicateLeadMatch.phone || "Unknown"}
                 </div>
                 <div style={{ fontSize: 12, color: T.textMuted }}>
+                  SSN: {duplicateLeadMatch.social || "Unknown"}
+                </div>
+                <div style={{ fontSize: 12, color: T.textMuted }}>
                   Stage: {duplicateLeadMatch.stage || "Unknown"}
+                </div>
+                <div style={{ fontSize: 12, color: T.textMuted }}>
+                  Match Type: {duplicateLeadMatch.match_type === "ssn" ? "SSN" : "Phone"}
                 </div>
                 {duplicateLeadMatch.created_at && (
                   <div style={{ fontSize: 12, color: T.textMuted }}>
@@ -1251,6 +1391,7 @@ export default function CallCenterLeadIntakePage({
                     setPendingCreatePayload(null);
                     setDuplicateLeadMatch(null);
                     setDuplicateRuleMessage("");
+                    setDuplicateIsAddable(true);
                   }}
                   style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
                 >
@@ -1261,7 +1402,7 @@ export default function CallCenterLeadIntakePage({
                     onClick={() => void handleEditExistingDuplicateLead()}
                     style={{ background: "#fff", border: `1px solid ${T.blue}`, color: T.blue, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
                   >
-                    Edit Existing
+                    Update Existing
                   </button>
                 )}
                 {duplicateIsAddable ? (
@@ -1380,16 +1521,6 @@ export default function CallCenterLeadIntakePage({
         filters={
           <>
             <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}
-            >
-              <option value="All">All Types</option>
-              {types.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-            <select
               value={filterSource}
               onChange={(e) => setFilterSource(e.target.value)}
               style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}
@@ -1404,7 +1535,6 @@ export default function CallCenterLeadIntakePage({
         activeFilters={
           (search.trim() !== "" || filterType !== "All" || filterSource !== "All") ? (
             <>
-              {filterType !== "All" && <FilterChip label={`Type: ${filterType}`} onClear={() => setFilterType("All")} />}
               {filterSource !== "All" && <FilterChip label={`Source: ${filterSource}`} onClear={() => setFilterSource("All")} />}
               <button
                 onClick={() => { setSearch(""); setFilterType("All"); setFilterSource("All"); }}
@@ -1429,7 +1559,9 @@ export default function CallCenterLeadIntakePage({
       >
         <Table
           data={paginated}
-          onRowClick={(lead) => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId })}
+          onRowClick={(lead) => {
+            void openLeadFromGrid(lead);
+          }}
           columns={[
             {
               header: "Lead ID",
@@ -1462,7 +1594,26 @@ export default function CallCenterLeadIntakePage({
                     }}>
                       {getInitials(lead.name)}
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
+                      {lead.isDraft ? (
+                        <span
+                          style={{
+                            backgroundColor: "#fff7ed",
+                            color: "#c2410c",
+                            border: "1px solid #fdba74",
+                            borderRadius: 999,
+                            padding: "2px 8px",
+                            fontSize: 10,
+                            fontWeight: 800,
+                            letterSpacing: "0.2px",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Draft
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 );
               },
@@ -1476,25 +1627,6 @@ export default function CallCenterLeadIntakePage({
                   <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 2 }}>{lead.source}</div>
                 </div>
               ),
-            },
-            {
-              header: "Type",
-              key: "type",
-              render: (lead) => {
-                const tc = getTypeConfig(lead.type);
-                return (
-                  <span style={{
-                    backgroundColor: tc.bg,
-                    color: tc.color,
-                    borderRadius: 6,
-                    padding: "3px 10px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                  }}>
-                    {lead.type}
-                  </span>
-                );
-              },
             },
             {
               header: "Centre",
@@ -1546,7 +1678,13 @@ export default function CallCenterLeadIntakePage({
                     <button
                       className="lead-action-btn"
                       type="button"
-                      onClick={() => router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`)}
+                      onClick={() => {
+                        if (lead.isDraft) {
+                          void openLeadFromGrid(lead);
+                          return;
+                        }
+                        router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
+                      }}
                       style={{
                         border: `1px solid ${T.border}`,
                         borderRadius: 8,
@@ -1609,11 +1747,11 @@ export default function CallCenterLeadIntakePage({
                     items={
                       canEditTransferLeads
                         ? [
-                            { label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) },
+                            { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
                             { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
                             { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
                           ]
-                        : [{ label: "View Details", onClick: () => setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId }) }]
+                        : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
                     }
                   />
                 </div>
