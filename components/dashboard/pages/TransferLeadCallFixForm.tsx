@@ -7,19 +7,6 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Toast } from "@/components/ui";
 import { useCarrierProductDropdowns } from "@/lib/useCarrierProductDropdowns";
 
-const statusOptions = [
-  "Needs callback",
-  "Not Interested",
-  "DQ",
-  "Chargeback DQ",
-  "Future Submission Date",
-  "Updated Banking/draft date",
-  "Fulfilled carrier requirements",
-  "Call Never Sent",
-  "Disconnected",
-  "GI - Currently DQ",
-];
-
 const bufferAgentOptions = ["Justine", "Maria", "Muhammad Ahmed", "Catarina", "Nicole Mejia", "Aubrey Nichols", "N/A"];
 const agentOptions = ["Lydia", "Muhammad Ahmed", "Zack", "Tatumn", "Benjamin", "Brandon Blake Flinchum", "Isaac", "N/A"];
 const licensedAccountOptions = ["Claudia", "Lydia", "Isaac", "Brandon Blake Flinchum", "Abdul", "Trinity", "Benjamin", "Tatumn", "Noah"];
@@ -72,11 +59,7 @@ function mapDispositionToLeadStageName(applicationSubmitted: boolean | null, dis
   if (applicationSubmitted === true) {
     return "Pending Approval";
   }
-  const sheet = mapStatusToSheetValue(dispositionStatus);
-  if (sheet === "Pending Failed Payment Fix") {
-    return "Chargeback Fix API";
-  }
-  return sheet;
+  return dispositionStatus;
 }
 
 const isSchemaColumnError = (error: unknown) => {
@@ -117,6 +100,8 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
   const [carrierAttempted1, setCarrierAttempted1] = useState("");
   const [carrierAttempted2, setCarrierAttempted2] = useState("");
   const [carrierAttempted3, setCarrierAttempted3] = useState("");
+  const [transferPipelineStages, setTransferPipelineStages] = useState<string[]>([]);
+  const [transferStagesLoading, setTransferStagesLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [hydrating, setHydrating] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -131,6 +116,8 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
     },
   });
   const carrierOptions = carriers.map((c) => c.name);
+
+  const statusOptions = useMemo(() => transferPipelineStages, [transferPipelineStages]);
 
   const reasons = reasonMap[status] || [];
   const showSubmittedFields = applicationSubmitted === true;
@@ -163,6 +150,49 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
     !!callSource &&
     applicationSubmitted !== null &&
     (applicationSubmitted === true ? submittedMissingFields.length === 0 : notSubmittedMissingFields.length === 0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTransferPipelineStages = async () => {
+      setTransferStagesLoading(true);
+      try {
+        const { data: pipelineRow, error: pipelineError } = await supabase
+          .from("pipelines")
+          .select("id")
+          .eq("name", "Transfer Portal")
+          .maybeSingle();
+        if (pipelineError || !pipelineRow?.id) {
+          if (!cancelled) setTransferPipelineStages([]);
+          return;
+        }
+
+        const { data: stageRows, error: stageError } = await supabase
+          .from("pipeline_stages")
+          .select("name")
+          .eq("pipeline_id", pipelineRow.id)
+          .order("created_at", { ascending: true });
+        if (stageError) {
+          if (!cancelled) setTransferPipelineStages([]);
+          return;
+        }
+
+        const names = Array.from(
+          new Set(
+            (stageRows || [])
+              .map((row) => String((row as { name?: string | null }).name || "").trim())
+              .filter(Boolean),
+          ),
+        );
+        if (!cancelled) setTransferPipelineStages(names);
+      } finally {
+        if (!cancelled) setTransferStagesLoading(false);
+      }
+    };
+    void loadTransferPipelineStages();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -699,9 +729,16 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
                     setStatus(e.target.value);
                     setStatusReason("");
                   }}
+                  disabled={transferStagesLoading}
                   style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!status ? "#fca5a5" : T.border}` }}
                 >
-                  <option value="">Select status</option>
+                  <option value="">
+                    {transferStagesLoading
+                      ? "Loading stages..."
+                      : statusOptions.length > 0
+                        ? "Select stage"
+                        : "No transfer stages configured"}
+                  </option>
                   {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
                 {!status && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Status/Stage is required</p>}
