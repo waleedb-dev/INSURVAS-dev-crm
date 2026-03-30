@@ -48,6 +48,18 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
   const [laCallbackFilter, setLaCallbackFilter] = useState(ALL_OPTION);
   const [hourFromFilter, setHourFromFilter] = useState(ALL_OPTION);
   const [hourToFilter, setHourToFilter] = useState(ALL_OPTION);
+  const visiblePremium = useMemo(
+    () => rows.reduce((sum, row) => sum + (Number(row.monthly_premium) || 0), 0),
+    [rows],
+  );
+  const visibleAveragePremium = useMemo(
+    () => (rows.length ? visiblePremium / rows.length : 0),
+    [rows, visiblePremium],
+  );
+  const activeCarriers = useMemo(
+    () => new Set(rows.map((row) => String(row.carrier || "").trim()).filter(Boolean)).size,
+    [rows],
+  );
 
   const hasActiveFilters =
     searchTerm.trim() !== "" ||
@@ -219,11 +231,6 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: T.textDark }}>Daily Deal Flow</h1>
-          <p style={{ margin: "4px 0 0", color: T.textMuted, fontSize: 13 }}>
-            {isCallCenterScoped
-              ? `Showing entries for your call center only${callCenterName ? ` (${callCenterName})` : ""}. Vendor and buffer filters list values from your center's data.`
-              : "Manage and edit daily deal flow data in real-time."}
-          </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {hasWritePermissions && (
@@ -256,6 +263,87 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
           Your profile is not linked to a call center. You cannot create Daily Deal Flow entries until an administrator assigns your center in Users.
         </div>
       )}
+
+      <style>{`
+        @keyframes stat-card-in {
+          from { opacity: 0; transform: translateY(8px) scale(0.99); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        {[
+          {
+            label: "TOTAL ENTRIES",
+            value: totalRecords.toLocaleString(),
+            color: T.blue,
+            icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
+            ),
+          },
+          {
+            label: "VISIBLE PREMIUM",
+            value: `$${visiblePremium.toLocaleString()}`,
+            color: T.memberAmber,
+            icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+            ),
+          },
+          {
+            label: "AVG PREMIUM",
+            value: `$${visibleAveragePremium.toFixed(0)}`,
+            color: T.memberPink,
+            icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
+            ),
+          },
+          {
+            label: "ACTIVE CARRIERS",
+            value: activeCarriers.toString(),
+            color: T.memberTeal,
+            icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /></svg>
+            ),
+          },
+        ].map(({ label, value, color, icon }, index) => (
+          <div
+            key={label}
+            style={{
+              borderRadius: 12,
+              border: `1px solid ${T.border}`,
+              borderBottom: `4px solid ${color}`,
+              background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+              padding: "20px 24px",
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "space-between",
+              animation: "stat-card-in 0.3s cubic-bezier(0.16,1,0.3,1) both",
+              animationDelay: `${index * 50}ms`,
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
+              <div style={{ fontSize: 32, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+            </div>
+            <div
+              style={{
+                color,
+                backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
+                width: 54,
+                height: 54,
+                borderRadius: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </div>
+          </div>
+        ))}
+      </div>
 
       <DdfToolbar
         searchTerm={searchTerm}

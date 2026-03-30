@@ -34,7 +34,7 @@ export function Pagination({
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        backgroundColor: T.blueLight,
+        backgroundColor: T.rowBg,
       }}
     >
       {hideSummary ? <span /> : (

@@ -160,7 +160,6 @@ export default function UsersAccessPage(){
     <div style={{ animation: "fadeIn 0.3s ease-out" }}>
       <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>System Administration — {new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" })}</p>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>My Staff & Access</h1>
         </div>
         <div style={{ display: "flex", gap: 12 }}>

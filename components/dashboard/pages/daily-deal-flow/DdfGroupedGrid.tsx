@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState, type CSSProperties } from "react";
-import { Button, Input } from "@/components/ui";
+import { Button, Input, Pagination } from "@/components/ui";
 import { T } from "@/lib/theme";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DailyDealFlowRow } from "./types";
@@ -216,7 +216,7 @@ export function DdfGroupedGrid({
     const isDuplicate = duplicateRows.has(duplicateKey(row));
     const data = isEditing && draft ? draft : row;
     return (
-      <tr key={row.id} style={{ background: isDuplicate ? "#fef9c3" : "transparent" }}>
+      <tr key={row.id} style={{ background: isDuplicate ? T.blueFaint : "transparent" }}>
         <td style={rowCellStyle}>{serialNumber}</td>
         <td style={rowCellStyle}>{isEditing ? <Input type="date" value={data.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} /> : formatDateShort(row.date)}</td>
         <td style={rowCellStyle}>
@@ -303,7 +303,7 @@ export function DdfGroupedGrid({
                       onClick={() => markIncomplete(row)}
                       aria-label="Mark incomplete (Zap)"
                       title="Mark incomplete"
-                      style={{ ...actionIconBtn, color: "#b45309", borderColor: "#fcd34d", background: "#fffbeb" }}
+                      style={{ ...actionIconBtn, color: T.warning, borderColor: T.blueLight, background: T.blueFaint }}
                     >
                       <IconBolt size={16} stroke={2} />
                     </Button>
@@ -328,10 +328,10 @@ export function DdfGroupedGrid({
                         title="Call"
                         style={{
                           ...actionIconBtn,
-                          border: `1.5px solid #c8d4bb`,
+                          border: `1.5px solid ${T.border}`,
                           borderRadius: 10,
-                          color: "#15803d",
-                          background: "#f0fdf4",
+                          color: T.success,
+                          background: T.blueFaint,
                           textDecoration: "none",
                         }}
                       >
@@ -345,9 +345,9 @@ export function DdfGroupedGrid({
                           ...actionIconBtn,
                           opacity: 0.35,
                           cursor: "not-allowed",
-                          border: `1.5px solid #c8d4bb`,
+                          border: `1.5px solid ${T.border}`,
                           borderRadius: 10,
-                          color: "#6b7a5f",
+                          color: T.textMuted,
                         }}
                       >
                         <IconPhone size={16} stroke={2} />
@@ -361,7 +361,7 @@ export function DdfGroupedGrid({
                     onClick={() => deleteRow(row)}
                     aria-label="Delete row"
                     title="Delete"
-                    style={{ ...actionIconBtn, color: "#b91c1c", borderColor: "#fecaca" }}
+                    style={{ ...actionIconBtn, color: T.priorityHigh, borderColor: T.border }}
                   >
                     <IconTrash size={16} stroke={2} />
                   </Button>
@@ -375,7 +375,7 @@ export function DdfGroupedGrid({
   };
 
   return (
-    <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
+    <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", padding: 14, borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: "flex", gap: 10 }}>
           <SelectInput value={groupBy} onChange={(v) => { setGroupBy(String(v)); setExpandedGroups(new Set()); onPageChange(1); }} options={[{ value: "none", label: "No Grouping" }, { value: "lead_vendor", label: "Lead Vendor" }, { value: "buffer_agent", label: "Buffer Agent" }, { value: "retention_agent", label: "Retention Agent" }, { value: "agent", label: "Agent" }, { value: "licensed_agent_account", label: "Licensed Agent" }, { value: "status", label: "Status" }, { value: "call_result", label: "Call Result" }, { value: "carrier", label: "Carrier" }, { value: "product_type", label: "Product Type" }, { value: "is_callback", label: "Callback" }, { value: "is_retention_call", label: "Retention" }]} />
@@ -422,9 +422,9 @@ export function DdfGroupedGrid({
             {groupBy !== "none" &&
               grouped.groups.map((group) => (
                 <Fragment key={group.key}>
-                  <tr key={`${group.key}-header`} style={{ background: "#f8fafc" }}>
+                  <tr key={`${group.key}-header`} style={{ background: T.blueFaint }}>
                     <td colSpan={showColumns.length} style={{ padding: 10, borderBottom: `1px solid ${T.border}` }}>
-                      <button onClick={() => toggleGroup(group.key)} style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 800 }}>
+                      <button onClick={() => toggleGroup(group.key)} style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, color: T.textDark }}>
                         {expandedGroups.has(group.key) ? "v" : ">"} {group.label} ({group.count})
                       </button>
                     </td>
@@ -434,9 +434,9 @@ export function DdfGroupedGrid({
                       ? group.items.map((row, i) => renderRow(row, startIndex + i + 1))
                       : group.subgroups.map((subgroup) => (
                           <Fragment key={subgroup.key}>
-                            <tr key={`${subgroup.key}-header`} style={{ background: "#f1f5f9" }}>
+                            <tr key={`${subgroup.key}-header`} style={{ background: T.pageBg }}>
                               <td colSpan={showColumns.length} style={{ padding: "8px 26px", borderBottom: `1px solid ${T.borderLight}` }}>
-                                <button onClick={() => toggleGroup(subgroup.key)} style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                                <button onClick={() => toggleGroup(subgroup.key)} style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 700, fontSize: 12, color: T.textMid }}>
                                   {expandedGroups.has(subgroup.key) ? "v" : ">"} {subgroup.label} ({subgroup.count})
                                 </button>
                               </td>
@@ -450,12 +450,13 @@ export function DdfGroupedGrid({
         </table>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: 12, borderTop: `1px solid ${T.border}` }}>
-        <Button size="sm" variant="ghost" onClick={() => onPageChange(1)} disabled={currentPage === 1}>First</Button>
-        <Button size="sm" variant="ghost" onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>Prev</Button>
-        <Button size="sm" variant="ghost" onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>Next</Button>
-        <Button size="sm" variant="ghost" onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages}>Last</Button>
-      </div>
+      <Pagination
+        page={currentPage}
+        totalItems={totalRecords}
+        itemsPerPage={recordsPerPage}
+        itemLabel="entries"
+        onPageChange={onPageChange}
+      />
 
       <Modal open={Boolean(detailId) && Boolean(draft)} title={`Lead Details - ${draft?.insured_name || ""}`} onClose={() => setDetailId(null)}>
         {draft && (
@@ -474,7 +475,7 @@ export function DdfGroupedGrid({
             <div><label style={{ fontSize: 12, fontWeight: 700 }}>LA Callback</label><SelectInput value={draft.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={{ fontSize: 12, fontWeight: 700 }}>Notes</label>
-              <textarea value={draft.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ width: "100%", minHeight: 110, borderRadius: 8, border: "1px solid #c8d4bb", padding: 10 }} />
+              <textarea value={draft.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ width: "100%", minHeight: 110, borderRadius: 8, border: `1px solid ${T.border}`, background: T.cardBg, color: T.textMid, padding: 10 }} />
             </div>
             <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <Button variant="ghost" onClick={() => setDetailId(null)}>Close</Button>

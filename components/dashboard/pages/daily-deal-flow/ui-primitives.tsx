@@ -49,7 +49,7 @@ export function SelectInput({
         border: `1.5px solid ${T.border}`,
         borderRadius: 8,
         fontSize: 13,
-        color: T.textDark,
+        color: T.textMid,
         padding: multiple ? "8px" : "8px 10px",
         background: T.cardBg,
         minHeight: multiple ? 92 : 36,
@@ -85,7 +85,7 @@ export function Modal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(15,23,42,0.45)",
+        background: "rgba(28,32,26,0.45)",
         zIndex: 999,
         display: "flex",
         alignItems: "center",

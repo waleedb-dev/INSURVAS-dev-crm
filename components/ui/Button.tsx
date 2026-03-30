@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { IconPlus, IconLoader2 } from "@tabler/icons-react";
+import { IconLoader2 } from "@tabler/icons-react";
+import { T } from "@/lib/theme";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "link" | "icon";
 type ButtonSize = "sm" | "md" | "lg";
@@ -41,7 +42,7 @@ export function Button({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        fontFamily: "'Nunito Sans', sans-serif",
+        fontFamily: T.font,
         fontWeight: 700,
         borderRadius: 10,
         border: "none",
@@ -56,52 +57,52 @@ export function Button({
         primary: {
             backgroundColor:
                 state === "pressed"
-                    ? "#2563eb"
+                    ? T.blueHover
                     : state === "hover"
-                        ? "#3574e2"
+                        ? T.blueHover
                         : isDisabled
-                            ? "#c7d8fc"
-                            : "#638b4b",
+                            ? T.border
+                            : T.blue,
             color: isDisabled ? "rgba(255,255,255,0.7)" : "white",
             boxShadow: isDisabled
                 ? "none"
-                : state === "pressed"
+                    : state === "pressed"
                     ? "inset 0 2px 6px rgba(0,0,0,0.15)"
                     : "0 4px 12px rgba(99,139,75,0.3)",
         },
         secondary: {
             backgroundColor:
                 state === "pressed"
-                    ? "#e0e9ff"
+                    ? T.blueLight
                     : state === "hover"
-                        ? "#edf2ff"
+                        ? T.blueFaint
                         : isDisabled
-                            ? "#f3f4f6"
-                            : "white",
-            color: isDisabled ? "#6b7a5f" : "#638b4b",
-            border: `1.5px solid ${isDisabled ? "#c8d4bb" : state === "pressed" ? "#bbd9a9" : "#638b4b"}`,
+                            ? T.pageBg
+                            : T.cardBg,
+            color: isDisabled ? T.textMuted : T.blue,
+            border: `1.5px solid ${isDisabled ? T.border : state === "pressed" ? T.blueLight : T.blue}`,
         },
         ghost: {
             backgroundColor:
                 state === "pressed"
-                    ? "#e8edf8"
+                    ? T.blueLight
                     : state === "hover"
-                        ? "#f0f4fb"
+                        ? T.blueFaint
                         : isDisabled
-                            ? "#f9fafb"
+                            ? T.pageBg
                             : "transparent",
-            color: isDisabled ? "#6b7a5f" : "#2e3429",
-            border: `1.5px solid ${isDisabled ? "#c8d4bb" : "#c8d4bb"}`,
+            color: isDisabled ? T.textMuted : T.textMid,
+            border: `1.5px solid ${T.border}`,
         },
         icon: {
             backgroundColor:
                 state === "pressed"
-                    ? "#2563eb"
+                    ? T.blueHover
                     : state === "hover"
-                        ? "#3574e2"
+                        ? T.blueHover
                         : isDisabled
-                            ? "#c7d8fc"
-                            : "#638b4b",
+                            ? T.border
+                            : T.blue,
             color: "white",
             padding: size === "sm" ? 7 : size === "lg" ? 12 : 10,
             borderRadius: 10,
@@ -109,7 +110,7 @@ export function Button({
         },
         link: {
             backgroundColor: "transparent",
-            color: isDisabled ? "#6b7a5f" : state === "pressed" ? "#3b5229" : "#638b4b",
+            color: isDisabled ? T.textMuted : state === "pressed" ? T.blueHover : T.blue,
             padding: 0,
             borderRadius: 0,
             gap: 4,

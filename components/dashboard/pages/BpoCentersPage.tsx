@@ -1152,7 +1152,6 @@ export default function BpoCentersPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 8px" }}>BPO Centres</h1>
-          <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Manage your call centers and BPO locations. Assign admins and link agents to specific centers.</p>
         </div>
         <button 
           onClick={handleOpenCreate} 

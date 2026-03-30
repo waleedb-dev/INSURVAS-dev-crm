@@ -448,7 +448,6 @@ export default function PipelineManagementPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 8px" }}>Pipelines</h1>
-          <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Pipelines help you manage Opportunities step by step, giving you a clear view of progress and sales outcomes.</p>
         </div>
         <button onClick={handleCreatePipeline} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>+ Create Pipeline</button>
       </div>

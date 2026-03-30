@@ -726,7 +726,6 @@ export default function IMOManagementPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
           <div>
             <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 8px" }}>IMO Management</h1>
-            <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Manage Insurance Marketing Organizations and their hierarchy</p>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
             {editingId === -1 ? (

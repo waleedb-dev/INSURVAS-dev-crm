@@ -2129,7 +2129,15 @@ export default function CallCenterLeadIntakePage({
           />
         }
       >
-        <div style={{ borderRadius: 12, border: `1.5px solid ${T.border}`, overflow: "hidden", backgroundColor: T.cardBg }}>
+        <div
+          style={{
+            borderRadius: "12px 12px 0 0",
+            border: `1.5px solid ${T.border}`,
+            borderBottom: "none",
+            overflow: "hidden",
+            backgroundColor: T.cardBg,
+          }}
+        >
           <ShadcnTable>
             <TableHeader style={{ backgroundColor: T.blue }}>
               <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">

@@ -934,7 +934,6 @@ export default function AgentHierarchyManagementPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 8px" }}>Agents</h1>
-          <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Manage insurance agents, their agency affiliations, and licensing information.</p>
         </div>
         <button 
           onClick={handleOpenCreate} 

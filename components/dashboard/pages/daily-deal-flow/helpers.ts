@@ -2,6 +2,7 @@
 
 import type { DailyDealFlowRow } from "./types";
 import type { CSSProperties } from "react";
+import { T } from "@/lib/theme";
 
 export function formatDateShort(value?: string | null): string {
   if (!value) return "";
@@ -48,33 +49,32 @@ export function duplicateKey(row: DailyDealFlowRow): string {
 
 export function getBadgeStyle(kind: "vendor" | "status" | "result" | "agent" | "licensed", value?: string | null): CSSProperties {
   const v = (value || "").toLowerCase();
-  const map: Record<string, string> = {
-    "pending approval": "#16a34a",
-    "needs bpo callback": "#eab308",
-    "returned to center - dq": "#74a557",
-    "dq'd can't be sold": "#6b7a5f",
-    "application withdrawn": "#4e6e3a",
-    "call back fix": "#94c278",
-    "incomplete transfer": "#6366f1",
-    submitted: "#16a34a",
-    underwriting: "#ca8a04",
-    "not submitted": "#dc2626",
+  const map: Record<string, { backgroundColor: string; color: string }> = {
+    "pending approval": { backgroundColor: T.success, color: "#fff" },
+    "needs bpo callback": { backgroundColor: T.warning, color: "#fff" },
+    "returned to center - dq": { backgroundColor: T.priorityLow, color: "#fff" },
+    "dq'd can't be sold": { backgroundColor: T.memberSlate, color: "#fff" },
+    "application withdrawn": { backgroundColor: T.priorityHigh, color: "#fff" },
+    "call back fix": { backgroundColor: T.accentPink, color: T.textDark },
+    "incomplete transfer": { backgroundColor: T.blueLight, color: T.textDark },
+    submitted: { backgroundColor: T.success, color: "#fff" },
+    underwriting: { backgroundColor: T.warning, color: "#fff" },
+    "not submitted": { backgroundColor: T.priorityHigh, color: "#fff" },
   };
 
-  let bg = "#6b7a5f";
+  let colors = { backgroundColor: T.memberSlate, color: "#fff" };
   if (kind === "status" || kind === "result") {
-    bg = map[v] || "#6b7a5f";
+    colors = map[v] || colors;
   } else if (kind === "vendor") {
-    bg = "#638b4b";
+    colors = { backgroundColor: T.memberBlue, color: "#fff" };
   } else if (kind === "agent") {
-    bg = "#bbd9a9";
+    colors = { backgroundColor: T.memberSky, color: T.textDark };
   } else if (kind === "licensed") {
-    bg = "#4e6e3a";
+    colors = { backgroundColor: T.memberViolet, color: "#fff" };
   }
 
   return {
-    backgroundColor: bg,
-    color: "#fff",
+    ...colors,
     borderRadius: 999,
     padding: "3px 8px",
     fontSize: 11,

@@ -78,6 +78,9 @@ export default function SignInPage() {
               width={200}
               height={100}
               className="object-contain w-full h-full"
+              style={{
+                filter: "brightness(0) invert(1) drop-shadow(0 4px 10px rgba(0,0,0,0.18))",
+              }}
               priority
             />
           </div>

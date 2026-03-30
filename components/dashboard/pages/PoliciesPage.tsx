@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, Badge, Button, EmptyState, Input, Pagination, Table } from "@/components/ui";
+import { ActionMenu, Badge, Button, EmptyState, FilterChip, Input, Pagination, Table } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { IconRefresh } from "@tabler/icons-react";
 import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
@@ -60,6 +60,7 @@ export default function PoliciesPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
+  const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
 
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -117,6 +118,30 @@ export default function PoliciesPage() {
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const totalDealValue = useMemo(
+    () => filtered.reduce((sum, row) => sum + (Number(row.deal_value) || 0), 0),
+    [filtered],
+  );
+  const activePolicies = useMemo(
+    () => filtered.filter((row) => row.is_active).length,
+    [filtered],
+  );
+  const activeCarriers = useMemo(
+    () => new Set(filtered.map((row) => String(row.carrier || "").trim()).filter(Boolean)).size,
+    [filtered],
+  );
+  const activeFilterChips = useMemo(
+    () =>
+      [
+        activeFilter !== ALL_OPTION ? { label: `Active: ${activeFilter}`, onClear: () => setActiveFilter(ALL_OPTION) } : null,
+        carrierFilter !== ALL_OPTION ? { label: `Carrier: ${carrierFilter}`, onClear: () => setCarrierFilter(ALL_OPTION) } : null,
+        agentFilter !== ALL_OPTION ? { label: `Agent: ${agentFilter}`, onClear: () => setAgentFilter(ALL_OPTION) } : null,
+        typeFilter !== ALL_OPTION ? { label: `Type: ${typeFilter}`, onClear: () => setTypeFilter(ALL_OPTION) } : null,
+        fromDate !== "" ? { label: `From: ${fromDate}`, onClear: () => setFromDate("") } : null,
+        toDate !== "" ? { label: `To: ${toDate}`, onClear: () => setToDate("") } : null,
+      ].filter(Boolean) as Array<{ label: string; onClear: () => void }>,
+    [activeFilter, carrierFilter, agentFilter, typeFilter, fromDate, toDate],
+  );
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) setPage(totalPages);
@@ -130,7 +155,6 @@ export default function PoliciesPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 16 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: T.textDark }}>Policies</h1>
-          <p style={{ margin: "4px 0 0", color: T.textMuted, fontSize: 13 }}>View and filter policy records.</p>
         </div>
         <Button variant="ghost" size="sm" icon={<IconRefresh size={14} />} onClick={() => void loadRows()} disabled={loading}>
           Refresh
@@ -143,62 +167,173 @@ export default function PoliciesPage() {
         </div>
       )}
 
-      {/* Filter panel — same structure as DdfToolbar */}
-      <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, boxShadow: T.shadowSm, display: "grid", gap: 12, marginBottom: 16 }}>
-        {/* Row 1: search + dates */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(150px, 1fr))", gap: 12 }}>
-          <div style={{ gridColumn: "span 2" }}>
-            <FieldLabel label="Search" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-              placeholder="Policy #, deal name, agent, carrier…"
-            />
-          </div>
-          <div>
-            <FieldLabel label="Effective From" />
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: "100%", height: 36, border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.textDark, padding: "0 8px" }} />
-          </div>
-          <div>
-            <FieldLabel label="Effective To" />
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ width: "100%", height: 36, border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.textDark, padding: "0 8px" }} />
-          </div>
-        </div>
+      <style>{`
+        @keyframes stat-card-in {
+          from { opacity: 0; transform: translateY(8px) scale(0.99); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
 
-        {/* Row 2: dropdowns */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-          <div>
-            <FieldLabel label="Active Status" />
-            <SelectInput value={activeFilter} onChange={(v) => setActiveFilter(String(v))} options={ACTIVE_OPTS} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+        {[
+          {
+            label: "TOTAL POLICIES",
+            value: filtered.length.toLocaleString(),
+            color: T.blue,
+            icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
+            ),
+          },
+          {
+            label: "ACTIVE POLICIES",
+            value: activePolicies.toLocaleString(),
+            color: T.memberTeal,
+            icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+            ),
+          },
+          {
+            label: "TOTAL DEAL VALUE",
+            value: `$${totalDealValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            color: T.memberAmber,
+            icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+            ),
+          },
+          {
+            label: "ACTIVE CARRIERS",
+            value: activeCarriers.toLocaleString(),
+            color: T.memberPink,
+            icon: (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /></svg>
+            ),
+          },
+        ].map(({ label, value, color, icon }, index) => (
+          <div
+            key={label}
+            style={{
+              borderRadius: 12,
+              border: `1px solid ${T.border}`,
+              borderBottom: `4px solid ${color}`,
+              background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+              padding: "20px 24px",
+              display: "flex",
+              justifyContent: "space-between",
+              animation: "stat-card-in 0.3s cubic-bezier(0.16,1,0.3,1) both",
+              animationDelay: `${index * 50}ms`,
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
+              <div style={{ fontSize: 32, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+            </div>
+            <div style={{ color, backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`, width: 54, height: 54, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {icon}
+            </div>
           </div>
-          <div>
-            <FieldLabel label="Carrier" />
-            <SelectInput value={carrierFilter} onChange={(v) => setCarrierFilter(String(v))} options={carrierOptions} />
-          </div>
-          <div>
-            <FieldLabel label="Agent" />
-            <SelectInput value={agentFilter} onChange={(v) => setAgentFilter(String(v))} options={agentOptions} />
-          </div>
-          <div>
-            <FieldLabel label="Policy Type" />
-            <SelectInput value={typeFilter} onChange={(v) => setTypeFilter(String(v))} options={typeOptions} />
-          </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Footer: row count + clear */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{filtered.length.toLocaleString()} rows</div>
-          {hasFilters && (
-            <button onClick={clearFilters}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: T.cardBg, color: T.textMid, fontSize: 12, fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "all 0.15s" }}
-              onMouseEnter={(e) => { const el = e.currentTarget; el.style.borderColor = "#3b5229"; el.style.color = "#3b5229"; el.style.backgroundColor = "#fef2f2"; }}
-              onMouseLeave={(e) => { const el = e.currentTarget; el.style.borderColor = T.border; el.style.color = T.textMid; el.style.backgroundColor = T.cardBg; }}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+        <div
+          style={{
+            background: T.cardBg,
+            border: `1px solid ${T.border}`,
+            borderRadius: 12,
+            padding: "10px 16px",
+            boxShadow: T.shadowSm,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 260, maxWidth: 440 }}>
+            <Input value={search} onChange={(e) => setSearch(e.currentTarget.value)} placeholder="Search policies by number, deal, agent, carrier..." />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, whiteSpace: "nowrap" }}>{filtered.length.toLocaleString()} total</span>
+            <button
+              type="button"
+              onClick={() => setFilterPanelExpanded((prev) => !prev)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                height: 34,
+                padding: "0 14px",
+                borderRadius: 8,
+                border: filterPanelExpanded ? `1.5px solid ${T.blue}` : `1px solid ${T.border}`,
+                background: filterPanelExpanded ? T.blueLight : T.pageBg,
+                color: filterPanelExpanded ? T.blue : T.textDark,
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: "pointer",
+              }}
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              Clear Filters
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              Filters
+              {activeFilterChips.length > 0 && <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, background: T.blue, color: "#fff", fontSize: 11, fontWeight: 800 }}>{activeFilterChips.length}</span>}
             </button>
-          )}
+          </div>
         </div>
+
+        {(filterPanelExpanded || hasFilters) && (
+          <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 20px", boxShadow: T.shadowSm, display: "grid", gap: 16 }}>
+            {filterPanelExpanded && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(150px, 1fr))", gap: 12 }}>
+                  <div>
+                    <FieldLabel label="Effective From" />
+                    <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: "100%", height: 36, border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.textDark, padding: "0 8px" }} />
+                  </div>
+                  <div>
+                    <FieldLabel label="Effective To" />
+                    <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ width: "100%", height: 36, border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.textDark, padding: "0 8px" }} />
+                  </div>
+                  <div>
+                    <FieldLabel label="Active Status" />
+                    <SelectInput value={activeFilter} onChange={(v) => setActiveFilter(String(v))} options={ACTIVE_OPTS} />
+                  </div>
+                  <div>
+                    <FieldLabel label="Carrier" />
+                    <SelectInput value={carrierFilter} onChange={(v) => setCarrierFilter(String(v))} options={carrierOptions} />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(150px, 1fr))", gap: 12 }}>
+                  <div>
+                    <FieldLabel label="Agent" />
+                    <SelectInput value={agentFilter} onChange={(v) => setAgentFilter(String(v))} options={agentOptions} />
+                  </div>
+                  <div>
+                    <FieldLabel label="Policy Type" />
+                    <SelectInput value={typeFilter} onChange={(v) => setTypeFilter(String(v))} options={typeOptions} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {hasFilters && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", paddingTop: filterPanelExpanded ? 16 : 0, borderTop: filterPanelExpanded ? `1px solid ${T.borderLight}` : "none" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Active:</span>
+                  {activeFilterChips.map((chip) => (
+                    <FilterChip key={chip.label} label={chip.label} onClear={chip.onClear} />
+                  ))}
+                </div>
+                <button type="button" onClick={clearFilters} style={{ background: "none", border: "none", color: T.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "4px 0" }}>
+                  Clear filters
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Table section */}
@@ -262,9 +397,7 @@ export default function PoliciesPage() {
         </div>
 
         {totalPages > 1 && (
-          <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "flex-end" }}>
-            <Pagination page={page} totalItems={filtered.length} itemsPerPage={ITEMS_PER_PAGE} itemLabel="records" onPageChange={setPage} />
-          </div>
+          <Pagination page={page} totalItems={filtered.length} itemsPerPage={ITEMS_PER_PAGE} itemLabel="records" onPageChange={setPage} />
         )}
       </div>
     </div>

@@ -1269,7 +1269,6 @@ export default function CarrierManagementPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 8px" }}>Carriers</h1>
-          <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Manage insurance carriers that provide policies to your clients. These carriers will be selectable in the deal editor.</p>
         </div>
         <button 
           onClick={handleOpenCreate} 
