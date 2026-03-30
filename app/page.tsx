@@ -55,7 +55,7 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: "#f4f9fd" }}>
+    <div className="min-h-screen flex" style={{ backgroundColor: "#f2f8ee" }}>
       <div
         className="hidden md:flex flex-col relative overflow-hidden items-center justify-center text-center"
         style={{
@@ -64,29 +64,23 @@ export default function SignInPage() {
           padding: "48px 56px",
         }}
       >
-        <div className="flex items-center justify-center gap-3 mb-12 w-full">
+        <div className="flex items-center justify-center mb-12 w-full">
           <div
             className="flex items-center justify-center flex-shrink-0"
             style={{
-              width: 56,
-              height: 56,
-              backgroundColor: "white",
-              borderRadius: 14,
+              height: 100,
+              backgroundColor: "transparent",
             }}
           >
-            <svg width="30" height="30" viewBox="0 0 26 26" fill="none">
-              <path
-                d="M10.5 4C10.5 2.895 11.395 2 12.5 2H13.5C14.605 2 15.5 2.895 15.5 4V5H18.5C19.605 5 20.5 5.895 20.5 7V10H21.5C22.605 10 23.5 10.895 23.5 12V13C23.5 14.105 22.605 15 21.5 15H20.5V18C20.5 19.105 19.605 20 18.5 20H15.5V21C15.5 22.105 14.605 23 13.5 23H12.5C11.395 23 10.5 22.105 10.5 21V20H7.5C6.395 20 5.5 19.105 5.5 18V15H4.5C3.395 15 2.5 14.105 2.5 13V12C2.5 10.895 3.395 10 4.5 10H5.5V7C5.5 5.895 6.395 5 7.5 5H10.5V4Z"
-                fill="#638b4b"
-              />
-            </svg>
+            <Image
+              src="/logo.png"
+              alt="Logo"
+              width={200}
+              height={100}
+              className="object-contain w-full h-full"
+              priority
+            />
           </div>
-          <span
-            className="font-extrabold text-white"
-            style={{ fontSize: 26, letterSpacing: "-0.3px" }}
-          >
-            Orbito
-          </span>
         </div>
 
         <div className="mb-12 w-full">
@@ -118,7 +112,7 @@ export default function SignInPage() {
 
       <div
         className="flex-1 flex items-center justify-center px-4"
-        style={{ backgroundColor: "#f4f9fd" }}
+        style={{ backgroundColor: "#f2f8ee" }}
       >
         <form
           onSubmit={handleSignIn}
@@ -141,7 +135,7 @@ export default function SignInPage() {
           <div style={{ marginBottom: 20 }}>
             <label
               className="block font-semibold"
-              style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}
+              style={{ fontSize: 13, color: "#6b7a5f", marginBottom: 8 }}
             >
               Email Address
             </label>
@@ -154,10 +148,10 @@ export default function SignInPage() {
               style={{
                 width: "100%",
                 padding: "13px 16px",
-                border: "1.5px solid #e5e7eb",
+                border: "1.5px solid #c8d4bb",
                 borderRadius: 12,
                 fontSize: 14,
-                color: "#374151",
+                color: "#2e3429",
                 fontFamily: "inherit",
               }}
             />
@@ -166,7 +160,7 @@ export default function SignInPage() {
           <div style={{ marginBottom: 20 }}>
             <label
               className="block font-semibold"
-              style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}
+              style={{ fontSize: 13, color: "#6b7a5f", marginBottom: 8 }}
             >
               Password
             </label>
@@ -179,10 +173,10 @@ export default function SignInPage() {
                 style={{
                   width: "100%",
                   padding: "13px 48px 13px 16px",
-                  border: "1.5px solid #e5e7eb",
+                  border: "1.5px solid #c8d4bb",
                   borderRadius: 12,
                   fontSize: 14,
-                  color: "#374151",
+                  color: "#2e3429",
                   fontFamily: "inherit",
                 }}
               />
@@ -190,7 +184,7 @@ export default function SignInPage() {
                 type="button"
                 onClick={() => setShowPassword((state) => !state)}
                 className="absolute right-4 top-1/2 -translate-y-1/2"
-                style={{ color: "#9ca3af" }}
+                style={{ color: "#6b7a5f" }}
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
@@ -207,7 +201,7 @@ export default function SignInPage() {
                 checked={rememberMe}
                 onChange={() => setRememberMe((state) => !state)}
               />
-              <span style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>
+              <span style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 600 }}>
                 Remember me
               </span>
             </label>
@@ -237,7 +231,7 @@ export default function SignInPage() {
             style={{
               width: "100%",
               padding: "14px",
-              backgroundColor: isSubmitting ? "#9ca3af" : "#638b4b",
+              backgroundColor: isSubmitting ? "#6b7a5f" : "#638b4b",
               color: "white",
               borderRadius: 12,
               fontSize: 15,

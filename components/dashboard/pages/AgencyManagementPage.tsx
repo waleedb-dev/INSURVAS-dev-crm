@@ -207,7 +207,7 @@ export default function AgencyManagementPage() {
               ))}
             </select>
             {imos.length === 0 && (
-              <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: "#3b5229", marginTop: 8 }}>
                 No IMOs found. Please create an IMO first.
               </div>
             )}
@@ -318,7 +318,7 @@ export default function AgencyManagementPage() {
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleDeleteAgency(agency); }}
-                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                    style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6, borderRadius: 6 }} 
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                     title="Delete agency"

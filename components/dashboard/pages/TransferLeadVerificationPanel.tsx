@@ -594,7 +594,7 @@ export default function TransferLeadVerificationPanel({
                         padding: "5px 12px",
                         fontWeight: 700,
                         cursor: dncChecking ? "not-allowed" : "pointer",
-                        backgroundColor: dncChecking ? "#d1d5db" : T.blue,
+                        backgroundColor: dncChecking ? "#c8d4bb" : T.blue,
                         color: "#fff",
                       }}
                     >
@@ -658,7 +658,7 @@ export default function TransferLeadVerificationPanel({
                     width: "100%",
                     marginTop: 10,
                     border: "none",
-                    backgroundColor: "#7c3aed",
+                    backgroundColor: "#4e6e3a",
                     color: "#fff",
                     borderRadius: 8,
                     padding: "10px 12px",
@@ -774,7 +774,7 @@ export default function TransferLeadVerificationPanel({
               maxWidth: 760,
               backgroundColor: "#fff",
               borderRadius: 12,
-              border: dncModal.status === "tcpa" ? "2px solid #ef4444" : `1.5px solid ${T.border}`,
+              border: dncModal.status === "tcpa" ? "2px solid #3b5229" : `1.5px solid ${T.border}`,
               boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
               padding: 18,
             }}
@@ -827,7 +827,7 @@ export default function TransferLeadVerificationPanel({
                     ⚠️ This number is on the Do Not Call list
                   </p>
                 )}
-                <div style={{ backgroundColor: "#f8fafc", padding: 18, borderRadius: 10, border: "2px solid #e5e7eb" }}>
+                <div style={{ backgroundColor: "#f8fafc", padding: 18, borderRadius: 10, border: "2px solid #c8d4bb" }}>
                   <p style={{ fontSize: 20, margin: "0 0 12px", fontWeight: 600, lineHeight: 1.45 }}>
                     Is your phone number{" "}
                     <span style={{ color: T.blue, fontWeight: 800 }}>{dncModal.phone || ""}</span> on the Federal, National or
@@ -923,7 +923,7 @@ export default function TransferLeadVerificationPanel({
               padding: 18,
             }}
           >
-            <h4 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#7c3aed" }}>Underwriting</h4>
+            <h4 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#4e6e3a" }}>Underwriting</h4>
             <p style={{ marginTop: 8, marginBottom: 12, color: T.textMid, fontSize: 16 }}>
               Please read the following script to the customer and verify all information.
             </p>
@@ -961,7 +961,7 @@ export default function TransferLeadVerificationPanel({
               </div>
 
               <div style={{ border: "2px solid #c4b5fd", borderRadius: 10, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-                <div style={{ backgroundColor: "#7c3aed", color: "#fff", padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ backgroundColor: "#4e6e3a", color: "#fff", padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>Insurance Toolkit</span>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button

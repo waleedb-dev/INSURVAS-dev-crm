@@ -810,7 +810,7 @@ export default function TransferLeadApplicationForm({
                     padding: "0 14px 0 12px",
                     fontWeight: 700,
                     cursor: dncChecking || phoneDupChecking ? "not-allowed" : "pointer",
-                    backgroundColor: dncChecking || phoneDupChecking ? "#d1d5db" : T.blue,
+                    backgroundColor: dncChecking || phoneDupChecking ? "#c8d4bb" : T.blue,
                     color: "#fff",
                     whiteSpace: "nowrap",
                   }}
@@ -887,18 +887,18 @@ export default function TransferLeadApplicationForm({
               </button>
             </div>
             {showPhoneDupDetails && (
-              <div style={{ marginTop: 12, backgroundColor: "#f9fafb", padding: 12, borderRadius: 10, border: "1px solid #e5e7eb" }}>
+              <div style={{ marginTop: 12, backgroundColor: "#f9fafb", padding: 12, borderRadius: 10, border: "1px solid #c8d4bb" }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: T.textDark }}>
                   {(phoneDupMatch.first_name || "")} {(phoneDupMatch.last_name || "")}
                 </div>
-                <div style={{ marginTop: 4, fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                <div style={{ marginTop: 4, fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                   Lead ID: {phoneDupMatch.lead_unique_id || phoneDupMatch.id}
                 </div>
-                <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                   Stage: {phoneDupMatch.stage || "Unknown"}
                 </div>
                 {phoneDupMatch.created_at && (
-                  <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                  <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                     Created: {new Date(phoneDupMatch.created_at).toLocaleString()}
                   </div>
                 )}
@@ -1022,24 +1022,24 @@ export default function TransferLeadApplicationForm({
                     </button>
                   </div>
                   {showSsnDupDetails && (
-                    <div style={{ marginTop: 12, backgroundColor: "#f9fafb", padding: 12, borderRadius: 10, border: "1px solid #e5e7eb" }}>
+                    <div style={{ marginTop: 12, backgroundColor: "#f9fafb", padding: 12, borderRadius: 10, border: "1px solid #c8d4bb" }}>
                       <div style={{ fontSize: 16, fontWeight: 800, color: T.textDark }}>
                         {(ssnDupMatch.first_name || "")} {(ssnDupMatch.last_name || "")}
                       </div>
-                      <div style={{ marginTop: 4, fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                      <div style={{ marginTop: 4, fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                         Lead ID: {ssnDupMatch.lead_unique_id || ssnDupMatch.id}
                       </div>
-                      <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                      <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                         Phone: {ssnDupMatch.phone || "Unknown"}
                       </div>
-                      <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                      <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                         SSN: {ssnDupMatch.social || "Unknown"}
                       </div>
-                      <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                      <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                         Stage: {ssnDupMatch.stage || "Unknown"}
                       </div>
                       {ssnDupMatch.created_at && (
-                        <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                        <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                           Created: {new Date(ssnDupMatch.created_at).toLocaleString()}
                         </div>
                       )}
@@ -1089,7 +1089,7 @@ export default function TransferLeadApplicationForm({
                   type="button"
                   onClick={openUnderwritingModal}
                   style={{
-                    backgroundColor: "#7c3aed",
+                    backgroundColor: "#4e6e3a",
                     color: "#fff",
                     border: "none",
                     borderRadius: 8,
@@ -1229,7 +1229,7 @@ export default function TransferLeadApplicationForm({
       {showUnderwritingModal && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ width: "98vw", maxWidth: "98vw", height: "96vh", maxHeight: "96vh", overflowY: "auto", backgroundColor: "#fff", borderRadius: 14, border: `1px solid ${T.border}`, padding: 20 }}>
-            <h2 style={{ margin: 0, fontSize: 30, color: "#7c3aed", fontWeight: 800 }}>Underwriting</h2>
+            <h2 style={{ margin: 0, fontSize: 30, color: "#4e6e3a", fontWeight: 800 }}>Underwriting</h2>
             <p style={{ margin: "8px 0 0", fontSize: 16, color: T.textMuted, fontWeight: 600 }}>
               Please read the following script to the customer and verify all information.
             </p>
@@ -1292,7 +1292,7 @@ export default function TransferLeadApplicationForm({
               </div>
 
               <div style={{ backgroundColor: "#fff", border: "2px solid #ddd6fe", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-                <div style={{ backgroundColor: "#7c3aed", color: "#fff", padding: "8px 16px", fontWeight: 800, fontSize: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ backgroundColor: "#4e6e3a", color: "#fff", padding: "8px 16px", fontWeight: 800, fontSize: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>Insurance Toolkit</span>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
@@ -1349,7 +1349,7 @@ export default function TransferLeadApplicationForm({
                   style={{ ...fieldStyle, fontSize: 24, height: 48 }}
                 />
               </div>
-              <p style={{ fontSize: 14, color: "#6b7280", marginTop: 8 }}>Click on conditions above to add them, or type custom conditions.</p>
+              <p style={{ fontSize: 14, color: "#6b7a5f", marginTop: 8 }}>Click on conditions above to add them, or type custom conditions.</p>
             </div>
 
             <div style={{ marginTop: 16 }}>
@@ -1483,7 +1483,7 @@ export default function TransferLeadApplicationForm({
               maxWidth: 760,
               backgroundColor: "#fff",
               borderRadius: 12,
-              border: dncStatus === "tcpa" ? "2px solid #ef4444" : `1.5px solid ${T.border}`,
+              border: dncStatus === "tcpa" ? "2px solid #3b5229" : `1.5px solid ${T.border}`,
               boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
               padding: 18,
             }}
@@ -1536,7 +1536,7 @@ export default function TransferLeadApplicationForm({
                     This number is on the Do Not Call list.
                   </p>
                 )}
-                <div style={{ backgroundColor: "#f8fafc", padding: 18, borderRadius: 10, border: "2px solid #e5e7eb" }}>
+                <div style={{ backgroundColor: "#f8fafc", padding: 18, borderRadius: 10, border: "2px solid #c8d4bb" }}>
                   <p style={{ fontSize: 20, margin: "0 0 12px", fontWeight: 600, lineHeight: 1.45 }}>
                     Is your phone number <span style={{ color: T.blue, fontWeight: 800 }}>{formData.phone || ""}</span> on the
                     Federal, National or State Do Not Call List?

@@ -55,13 +55,13 @@ const DEFAULT_STAGES: Stage[] = [
   "Needs Quote", "Quoted", "Underwriting", "Bound", "Won", "Lost"
 ];
 const STAGE_CONFIG: Record<string, { color: string; bg: string; header: string }> = {
-  "New Lead":          { color: "#3b82f6", bg: "#eff6ff", header: "#dbeafe" },
+  "New Lead":          { color: "#638b4b", bg: "#f2f8ee", header: "#ddecd4" },
   "Attempted Contact": { color: "#6366f1", bg: "#eef2ff", header: "#e0e7ff" },
-  "Contacted":         { color: "#8b5cf6", bg: "#f5f3ff", header: "#ede9fe" },
+  "Contacted":         { color: "#4e6e3a", bg: "#f5f3ff", header: "#ede9fe" },
   "Discovery Call":    { color: "#d946ef", bg: "#fdf4ff", header: "#fae8ff" },
-  "Presentation":      { color: "#ec4899", bg: "#fdf2f8", header: "#fce7f3" },
+  "Presentation":      { color: "#94c278", bg: "#fdf2f8", header: "#fce7f3" },
   "Needs Quote":       { color: "#f43f5e", bg: "#fff1f2", header: "#ffe4e6" },
-  "Quoted":            { color: "#f59e0b", bg: "#fffbeb", header: "#fef3c7" },
+  "Quoted":            { color: "#74a557", bg: "#fffbeb", header: "#fef3c7" },
   "Underwriting":      { color: "#eab308", bg: "#fefce8", header: "#fef08a" },
   "Bound":             { color: "#84cc16", bg: "#f7fee7", header: "#d9f99d" },
   "Won":               { color: "#16a34a", bg: "#f0fdf4", header: "#dcfce7" },
@@ -78,7 +78,7 @@ function getStageConfig(stage: string, index: number) {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  Auto: "#3b82f6", Home: "#9333ea", Life: "#16a34a", Health: "#ea580c", Commercial: "#64748b",
+  Auto: "#638b4b", Home: "#9333ea", Life: "#16a34a", Health: "#ea580c", Commercial: "#6b7a5f",
 };
 
 const LEAD_ALL_LEADS_ROLES = new Set([
@@ -677,7 +677,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         }
         .kanban-board::-webkit-scrollbar { height: 6px; }
         .kanban-board::-webkit-scrollbar-track { background: transparent; }
-        .kanban-board::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 10px; }
+        .kanban-board::-webkit-scrollbar-thumb { background-color: #c8d4bb; border-radius: 10px; }
         
         .kanban-column-wrapper {
           min-width: 300px;
@@ -702,7 +702,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         }
         .kanban-column-body::-webkit-scrollbar { width: 5px; }
         .kanban-column-body::-webkit-scrollbar-track { background: transparent; }
-        .kanban-column-body::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 10px; }
+        .kanban-column-body::-webkit-scrollbar-thumb { background-color: #c8d4bb; border-radius: 10px; }
       `}</style>
       
       <div className="kanban-container">

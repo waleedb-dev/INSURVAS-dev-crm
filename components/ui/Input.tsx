@@ -43,7 +43,7 @@ export function Input({
         fontSize: 12,
         fontWeight: 700,
         letterSpacing: "0.04em",
-        color: isError ? "#ef4444" : isActive ? "#638b4b" : "#6b7280",
+        color: isError ? "#3b5229" : isActive ? "#638b4b" : "#6b7a5f",
         textTransform: "uppercase",
         transition: "color 0.15s",
     };
@@ -57,12 +57,12 @@ export function Input({
     const inputStyle: React.CSSProperties = {
         width: "100%",
         padding: leftIcon ? "11px 16px 11px 42px" : rightIcon ? "11px 42px 11px 16px" : "11px 16px",
-        border: `1.5px solid ${isError ? "#ef4444" : isActive ? "#638b4b" : "#e5e7eb"
+        border: `1.5px solid ${isError ? "#3b5229" : isActive ? "#638b4b" : "#c8d4bb"
             }`,
         borderRadius: 10,
         fontSize: 14,
         fontWeight: 400,
-        color: isDisabled ? "#9ca3af" : "#374151",
+        color: isDisabled ? "#6b7a5f" : "#2e3429",
         backgroundColor: "white",
         fontFamily: "'Nunito Sans', sans-serif",
         outline: "none",
@@ -80,7 +80,7 @@ export function Input({
             {label && <label style={labelStyle}>{label}</label>}
             <div style={wrapStyle}>
                 {leftIcon && (
-                    <span style={{ position: "absolute", left: 14, color: "#9ca3af", display: "flex" }}>
+                    <span style={{ position: "absolute", left: 14, color: "#6b7a5f", display: "flex" }}>
                         {leftIcon}
                     </span>
                 )}
@@ -92,18 +92,18 @@ export function Input({
                     onBlur={(e) => { setFocused(false); onBlur?.(e); }}
                 />
                 {rightIcon && (
-                    <span style={{ position: "absolute", right: 14, color: "#9ca3af", display: "flex" }}>
+                    <span style={{ position: "absolute", right: 14, color: "#6b7a5f", display: "flex" }}>
                         {rightIcon}
                     </span>
                 )}
             </div>
             {isError && errorMessage && (
-                <span style={{ fontSize: 12, color: "#ef4444", fontWeight: 600 }}>
+                <span style={{ fontSize: 12, color: "#3b5229", fontWeight: 600 }}>
                     {errorMessage}
                 </span>
             )}
             {hint && !isError && (
-                <span style={{ fontSize: 12, color: "#9ca3af" }}>{hint}</span>
+                <span style={{ fontSize: 12, color: "#6b7a5f" }}>{hint}</span>
             )}
         </div>
     );

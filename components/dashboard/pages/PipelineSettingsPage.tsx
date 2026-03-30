@@ -250,7 +250,7 @@ export default function PipelineManagementPage() {
             top: 20,
             right: 20,
             backgroundColor: "#fef2f2",
-            border: "1.5px solid #ef4444",
+            border: "1.5px solid #3b5229",
             borderRadius: 12,
             padding: "16px 20px",
             boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
@@ -263,7 +263,7 @@ export default function PipelineManagementPage() {
                 width: 32,
                 height: 32,
                 borderRadius: "50%",
-                backgroundColor: "#ef4444",
+                backgroundColor: "#3b5229",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -422,7 +422,7 @@ export default function PipelineManagementPage() {
               render: (stage) => (
                 <button 
                   onClick={() => handleDeleteStage(stage.id)}
-                  style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                  style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6, borderRadius: 6 }} 
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                 >

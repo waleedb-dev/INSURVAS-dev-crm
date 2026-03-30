@@ -961,7 +961,7 @@ export default function CarrierManagementPage() {
                             <button
                               type="button"
                               onClick={() => void deleteProduct(p.id)}
-                              style={{ background: "transparent", border: "none", color: "#ef4444", padding: "6px 6px", cursor: "pointer", borderRadius: 8 }}
+                              style={{ background: "transparent", border: "none", color: "#3b5229", padding: "6px 6px", cursor: "pointer", borderRadius: 8 }}
                               title="Delete product"
                               onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fef2f2")}
                               onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
@@ -1218,7 +1218,7 @@ export default function CarrierManagementPage() {
                                 style={{ 
                                   background: "transparent", 
                                   border: "none", 
-                                  color: "#ef4444", 
+                                  color: "#3b5229", 
                                   padding: "8px", 
                                   cursor: "pointer", 
                                   borderRadius: 6 
@@ -1358,7 +1358,7 @@ export default function CarrierManagementPage() {
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleDeleteCarrier(carrier.id); }}
-                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                    style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6, borderRadius: 6 }} 
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                     title="Delete carrier"

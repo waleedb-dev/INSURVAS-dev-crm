@@ -26,19 +26,19 @@ interface BadgeProps {
 }
 
 const VARIANT_MAP: Record<BadgeVariant, { label: string; color: string; bg: string }> = {
-    "todo": { label: "To Do", color: "#6b7280", bg: "#f3f4f6" },
-    "in-progress": { label: "In Progress", color: "#638b4b", bg: "#EEF4FF" },
-    "in-review": { label: "In Review", color: "#7c3aed", bg: "#f5f3ff" },
+    "todo": { label: "To Do", color: "#6b7a5f", bg: "#f3f4f6" },
+    "in-progress": { label: "In Progress", color: "#638b4b", bg: "#f2f8ee" },
+    "in-review": { label: "In Review", color: "#4e6e3a", bg: "#f5f3ff" },
     "done": { label: "Done", color: "#059669", bg: "#ecfdf5" },
     "approved": { label: "Approved", color: "#059669", bg: "#ecfdf5" },
     "pending": { label: "Pending", color: "#d97706", bg: "#fffbeb" },
     "junior": { label: "Junior", color: "#059669", bg: "#ecfdf5" },
-    "middle": { label: "Middle", color: "#638b4b", bg: "#EEF4FF" },
-    "senior": { label: "Senior", color: "#7c3aed", bg: "#f5f3ff" },
-    "sick-leave": { label: "Sick Leave", color: "#6b7280", bg: "#f3f4f6" },
-    "vacation": { label: "Vacation", color: "#638b4b", bg: "#EEF4FF" },
-    "work-remotely": { label: "Work Remotely", color: "#0891b2", bg: "#ecfeff" },
-    "custom": { label: "", color: "#374151", bg: "#f3f4f6" },
+    "middle": { label: "Middle", color: "#638b4b", bg: "#f2f8ee" },
+    "senior": { label: "Senior", color: "#4e6e3a", bg: "#f5f3ff" },
+    "sick-leave": { label: "Sick Leave", color: "#6b7a5f", bg: "#f3f4f6" },
+    "vacation": { label: "Vacation", color: "#638b4b", bg: "#f2f8ee" },
+    "work-remotely": { label: "Work Remotely", color: "#94c278", bg: "#ecfeff" },
+    "custom": { label: "", color: "#2e3429", bg: "#f3f4f6" },
 };
 
 export function Badge({ variant = "custom", label, dot = false, color, bgColor }: BadgeProps) {
@@ -106,7 +106,7 @@ export function ProgressSpinner({
             <circle
                 cx={size / 2} cy={size / 2} r={r}
                 fill="none"
-                stroke="#e5e7eb"
+                stroke="#c8d4bb"
                 strokeWidth={strokeWidth}
             />
             {/* Progress */}
@@ -136,7 +136,7 @@ interface AvatarProps {
 function stringToColor(str: string) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    const colors = ["#638b4b", "#34a853", "#ea4335", "#fbbc05", "#7c3aed", "#0891b2"];
+    const colors = ["#638b4b", "#638b4b", "#3b5229", "#74a557", "#4e6e3a", "#94c278"];
     return colors[Math.abs(hash) % colors.length];
 }
 

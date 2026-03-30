@@ -129,7 +129,7 @@ export function DdfCreateEntryModal({
         </div>
         <div style={{ marginTop: 10 }}>
           <label style={{ fontSize: 12, fontWeight: 700 }}>Notes</label>
-          <textarea value={form.notes} onChange={(e) => setField("notes", e.currentTarget.value)} style={{ width: "100%", minHeight: 90, borderRadius: 8, border: "1px solid #d1d5db", padding: 10 }} />
+          <textarea value={form.notes} onChange={(e) => setField("notes", e.currentTarget.value)} style={{ width: "100%", minHeight: 90, borderRadius: 8, border: "1px solid #c8d4bb", padding: 10 }} />
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>

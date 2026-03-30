@@ -17,13 +17,13 @@ interface Lead {
 
 const AGENTS = [
   { name: "Shawn Stone",    color: "#638b4b", capacity: 8,  current: 6 },
-  { name: "Emily Tyler",    color: "#ec4899", capacity: 10, current: 7 },
-  { name: "Louis Castro",   color: "#8b5cf6", capacity: 12, current: 12 },
-  { name: "Blake Silva",    color: "#0ea5e9", capacity: 10, current: 4 },
-  { name: "Randy Delgado",  color: "#f59e0b", capacity: 8,  current: 3 },
-  { name: "Joel Phillips",  color: "#14b8a6", capacity: 10, current: 8 },
-  { name: "Wayne Marsh",    color: "#64748b", capacity: 8,  current: 2 },
-  { name: "Oscar Holloway", color: "#f97316", capacity: 10, current: 9 },
+  { name: "Emily Tyler",    color: "#94c278", capacity: 10, current: 7 },
+  { name: "Louis Castro",   color: "#4e6e3a", capacity: 12, current: 12 },
+  { name: "Blake Silva",    color: "#bbd9a9", capacity: 10, current: 4 },
+  { name: "Randy Delgado",  color: "#74a557", capacity: 8,  current: 3 },
+  { name: "Joel Phillips",  color: "#3b5229", capacity: 10, current: 8 },
+  { name: "Wayne Marsh",    color: "#6b7a5f", capacity: 8,  current: 2 },
+  { name: "Oscar Holloway", color: "#74a557", capacity: 10, current: 9 },
 ];
 
 const INITIAL_LEADS: Lead[] = [
@@ -38,7 +38,7 @@ const INITIAL_LEADS: Lead[] = [
 ];
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
-  Auto:       { bg: "#eff6ff", color: "#2563eb" },
+  Auto:       { bg: "#f2f8ee", color: "#2563eb" },
   Home:       { bg: "#fdf4ff", color: "#9333ea" },
   Life:       { bg: "#f0fdf4", color: "#16a34a" },
   Health:     { bg: "#fff7ed", color: "#ea580c" },
@@ -87,7 +87,7 @@ export default function AssigningPage({ canAssignActions = true }: { canAssignAc
           { label: "Unassigned Leads", value: unassigned.length, color: T.danger },
           { label: "Assigned Today",   value: assigned.length,   color: "#16a34a" },
           { label: "Total Agents",     value: agentLoads.length, color: T.blue },
-          { label: "Avg Capacity",     value: `${Math.round(agentLoads.reduce((s,a)=>(s+(a.current/a.capacity)*100),0)/agentLoads.length)}%`, color: "#7c3aed" },
+          { label: "Avg Capacity",     value: `${Math.round(agentLoads.reduce((s,a)=>(s+(a.current/a.capacity)*100),0)/agentLoads.length)}%`, color: "#4e6e3a" },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ backgroundColor: T.cardBg, borderRadius: T.radiusLg, padding: "18px 20px", boxShadow: T.shadowSm }}>
             <p style={{ margin: "0 0 4px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{label}</p>

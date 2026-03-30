@@ -172,7 +172,7 @@ function MultiSelectDropdown({
                   gap: 8,
                   borderRadius: 6,
                   padding: "6px 8px",
-                  background: checked ? "#eff6ff" : "transparent",
+                  background: checked ? "#f2f8ee" : "transparent",
                   cursor: "pointer",
                 }}
               >

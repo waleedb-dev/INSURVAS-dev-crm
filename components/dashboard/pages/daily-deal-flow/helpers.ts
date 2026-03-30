@@ -51,25 +51,25 @@ export function getBadgeStyle(kind: "vendor" | "status" | "result" | "agent" | "
   const map: Record<string, string> = {
     "pending approval": "#16a34a",
     "needs bpo callback": "#eab308",
-    "returned to center - dq": "#f97316",
-    "dq'd can't be sold": "#6b7280",
-    "application withdrawn": "#a855f7",
-    "call back fix": "#ec4899",
+    "returned to center - dq": "#74a557",
+    "dq'd can't be sold": "#6b7a5f",
+    "application withdrawn": "#4e6e3a",
+    "call back fix": "#94c278",
     "incomplete transfer": "#6366f1",
     submitted: "#16a34a",
     underwriting: "#ca8a04",
     "not submitted": "#dc2626",
   };
 
-  let bg = "#9ca3af";
+  let bg = "#6b7a5f";
   if (kind === "status" || kind === "result") {
-    bg = map[v] || "#9ca3af";
+    bg = map[v] || "#6b7a5f";
   } else if (kind === "vendor") {
-    bg = "#3b82f6";
+    bg = "#638b4b";
   } else if (kind === "agent") {
-    bg = "#0ea5e9";
+    bg = "#bbd9a9";
   } else if (kind === "licensed") {
-    bg = "#8b5cf6";
+    bg = "#4e6e3a";
   }
 
   return {

@@ -34,19 +34,19 @@ export function Toast({ message, type = "success", duration = 3000, onClose }: T
     error: {
       icon: <IconX size={18} />,
       bg: "#fef2f2",
-      border: "#ef4444",
+      border: "#3b5229",
       color: "#991b1b"
     },
     info: {
       icon: <IconInfoCircle size={18} />,
-      bg: "#eff6ff",
-      border: "#3b82f6",
+      bg: "#f2f8ee",
+      border: "#638b4b",
       color: "#1e40af"
     },
     warning: {
       icon: <IconAlertTriangle size={18} />,
       bg: "#fffbeb",
-      border: "#f59e0b",
+      border: "#74a557",
       color: "#92400e"
     }
   }[type];

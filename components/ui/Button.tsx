@@ -78,8 +78,8 @@ export function Button({
                         : isDisabled
                             ? "#f3f4f6"
                             : "white",
-            color: isDisabled ? "#9ca3af" : "#638b4b",
-            border: `1.5px solid ${isDisabled ? "#e5e7eb" : state === "pressed" ? "#bfcffd" : "#638b4b"}`,
+            color: isDisabled ? "#6b7a5f" : "#638b4b",
+            border: `1.5px solid ${isDisabled ? "#c8d4bb" : state === "pressed" ? "#bbd9a9" : "#638b4b"}`,
         },
         ghost: {
             backgroundColor:
@@ -90,8 +90,8 @@ export function Button({
                         : isDisabled
                             ? "#f9fafb"
                             : "transparent",
-            color: isDisabled ? "#9ca3af" : "#374151",
-            border: `1.5px solid ${isDisabled ? "#e5e7eb" : "#e5e7eb"}`,
+            color: isDisabled ? "#6b7a5f" : "#2e3429",
+            border: `1.5px solid ${isDisabled ? "#c8d4bb" : "#c8d4bb"}`,
         },
         icon: {
             backgroundColor:
@@ -109,7 +109,7 @@ export function Button({
         },
         link: {
             backgroundColor: "transparent",
-            color: isDisabled ? "#9ca3af" : state === "pressed" ? "#1d4ed8" : "#638b4b",
+            color: isDisabled ? "#6b7a5f" : state === "pressed" ? "#3b5229" : "#638b4b",
             padding: 0,
             borderRadius: 0,
             gap: 4,

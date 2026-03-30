@@ -27,8 +27,8 @@ type Commission = {
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   pending:  { bg: "#fffbeb", color: "#d97706" },
   approved: { bg: "#ecfdf5", color: "#059669" },
-  paid:     { bg: "#eff6ff", color: "#638b4b" },
-  rejected: { bg: "#fef2f2", color: "#ef4444" },
+  paid:     { bg: "#f2f8ee", color: "#638b4b" },
+  rejected: { bg: "#fef2f2", color: "#3b5229" },
 };
 
 const ITEMS_PER_PAGE = 100;
@@ -164,7 +164,7 @@ export default function CommissionsPage() {
           {hasFilters && (
             <button onClick={clearFilters}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: T.cardBg, color: T.textMid, fontSize: 12, fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "all 0.15s" }}
-              onMouseEnter={(e) => { const el = e.currentTarget; el.style.borderColor = "#ef4444"; el.style.color = "#ef4444"; el.style.backgroundColor = "#fef2f2"; }}
+              onMouseEnter={(e) => { const el = e.currentTarget; el.style.borderColor = "#3b5229"; el.style.color = "#3b5229"; el.style.backgroundColor = "#fef2f2"; }}
               onMouseLeave={(e) => { const el = e.currentTarget; el.style.borderColor = T.border; el.style.color = T.textMid; el.style.backgroundColor = T.cardBg; }}
             >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -206,7 +206,7 @@ export default function CommissionsPage() {
                 render: (r) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{r.commission_rate != null ? `${r.commission_rate}%` : "—"}</span> },
               { header: "Status", key: "status",
                 render: (r) => {
-                  const sc = STATUS_COLORS[r.status] ?? { bg: "#f3f4f6", color: "#6b7280" };
+                  const sc = STATUS_COLORS[r.status] ?? { bg: "#f3f4f6", color: "#6b7a5f" };
                   return <Badge variant="custom" label={r.status.charAt(0).toUpperCase() + r.status.slice(1)} bgColor={sc.bg} color={sc.color} />;
                 } },
               { header: "Earned At", key: "earned_at",

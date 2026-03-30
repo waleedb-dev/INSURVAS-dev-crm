@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { T } from "@/lib/theme";
 import { ActionMenu, DataGrid, FilterChip, Input, Pagination, Table, Toast, EmptyState } from "@/components/ui";
 import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
 import LeadViewComponent from "./LeadViewComponent";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
@@ -61,7 +63,7 @@ const TL_DATE_INPUT_STYLE: CSSProperties = {
   color: T.textDark,
   padding: "0 8px",
   boxSizing: "border-box",
-  background: "#fff",
+  background: T.cardBg,
 };
 
 function transferLeadDayKey(iso: string): string {
@@ -122,7 +124,7 @@ const DEFAULT_CLAIM_SELECTION: ClaimSelections = {
 
 // Generate a consistent avatar color from a string
 function stringToColor(str: string) {
-  const colors = [T.blue, "#ec4899", "#8b5cf6", "#0ea5e9", "#f59e0b", "#f97316", "#14b8a6", "#64748b"];
+  const colors = [T.blue, "#94c278", "#4e6e3a", "#bbd9a9", "#74a557", "#74a557", "#3b5229", "#6b7a5f"];
   let hash = 0;
   for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
@@ -607,7 +609,6 @@ export default function CallCenterLeadIntakePage({
     const minP = filterMinPremium.trim();
     const maxP = filterMaxPremium.trim();
     return (
-      search.trim() !== "" ||
       filterSource !== "All" ||
       filterDateSingle !== "" ||
       filterDateFrom !== "" ||
@@ -1639,7 +1640,7 @@ export default function CallCenterLeadIntakePage({
                   <button
                     type="button"
                     disabled
-                    style={{ background: "#d1d5db", color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "not-allowed" }}
+                    style={{ background: "#c8d4bb", color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "not-allowed" }}
                     title="A second lead is not allowed for this stage (see SSN duplicate stage rules)."
                   >
                     Duplicate Not Allowed
@@ -1690,9 +1691,6 @@ export default function CallCenterLeadIntakePage({
       {/* Header */}
       <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>
-            Transfer workflow — {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-          </p>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Transfer Leads</h1>
         </div>
         <button
@@ -1723,107 +1721,206 @@ export default function CallCenterLeadIntakePage({
         </button>
       </div>
 
-      {/* Stats Row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+      {/* Stats Row - Shadcn Vibes */}
+      <style>{`
+        @keyframes stat-card-in {
+          from { opacity: 0; transform: translateY(8px) scale(0.99); }
+          to   { opacity: 1; transform: translateY(0)   scale(1);    }
+        }
+        @keyframes filter-panel-in {
+          from { opacity: 0; transform: translateY(-8px); transform-origin: top; }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
-          { label: "Total Leads", value: filtered.length.toString(), color: T.blue },
-          { label: "Total Premium Volume", value: `$${totalPremium.toLocaleString()}`, color: "#16a34a" },
-          { label: "Avg Premium", value: `$${avgPremium.toFixed(0)}`, color: "#ca8a04" },
-          { label: "Active Pipelines", value: uniquePipelines.toString(), color: "#7c3aed" },
-        ].map(({ label, value, color }) => (
-          <div key={label} style={{ backgroundColor: T.cardBg, borderRadius: T.radiusLg, padding: "18px 20px", boxShadow: T.shadowSm, borderLeft: `4px solid ${color}` }}>
-            <p style={{ margin: "0 0 6px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{label}</p>
-            <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color }}>{value}</p>
-          </div>
+          { label: "TOTAL LEADS", value: filtered.length.toString(), color: T.blue, icon: (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          ) },
+          { label: "TOTAL PREMIUM", value: `$${totalPremium.toLocaleString()}`, color: T.memberAmber, icon: (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+          ) },
+          { label: "AVG PREMIUM", value: `$${avgPremium.toFixed(0)}`, color: T.memberPink, icon: (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
+          ) },
+          { label: "ACTIVE PIPELINES", value: uniquePipelines.toString(), color: T.memberTeal, icon: (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          ) },
+        ].map(({ label, value, color, icon }, i) => (
+          <Card key={label} style={{ 
+            borderRadius: 12, 
+            border: `1px solid ${T.border}`, 
+            borderBottom: `4px solid ${color}`, 
+            background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`, 
+            boxShadow: "0 4px 12px rgba(0,0,0,0.03)", 
+            padding: "20px 24px", 
+            display: "flex", 
+            flexDirection: "row", 
+            justifyContent: "space-between",
+            animation: "stat-card-in 0.3s cubic-bezier(0.16,1,0.3,1) both", 
+            animationDelay: `${i * 50}ms` 
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
+              <div style={{ fontSize: 32, fontWeight: 800, color: color, lineHeight: 1 }}>
+                {value}
+              </div>
+            </div>
+            <div style={{ 
+              color: color, 
+              backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
+              width: 54,
+              height: 54,
+              borderRadius: 14,
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              flexShrink: 0
+            }}>
+              {icon}
+            </div>
+          </Card>
         ))}
       </div>
 
-      {/* Filter toolbar — search always visible; detailed filters collapsible */}
-      <div
-        style={{
-          background: "#fff",
-          border: `1px solid ${T.border}`,
-          borderRadius: 12,
-          padding: "16px 20px",
-          marginBottom: 16,
-          boxShadow: T.shadowSm,
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}
-      >
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-          <div style={{ flex: "1 1 240px", minWidth: 200 }}>
-            <FieldLabel label="Search" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Name, phone, submission ID, lead ID..."
-              style={{ height: 36 }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setFilterPanelExpanded((v) => !v)}
-            style={{
-              flexShrink: 0,
-              display: "inline-flex",
+      {/* Filter toolbar */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+        {/* Top Bar */}
+        <div
+          style={{
+            background: T.cardBg,
+            border: `1px solid ${T.border}`,
+            borderRadius: 12,
+            padding: "10px 16px",
+            boxShadow: T.shadowSm,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          {/* Left: Search */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            {/* Search */}
+            <div style={{
+              position: "relative",
+              display: "flex",
               alignItems: "center",
-              gap: 8,
-              height: 36,
-              padding: "0 14px",
-              borderRadius: 8,
-              border: `1.5px solid ${T.border}`,
-              background: filterPanelExpanded ? T.rowBg : "#fff",
-              color: T.textDark,
-              fontSize: 13,
-              fontWeight: 700,
-              fontFamily: T.font,
-              cursor: "pointer",
-              boxSizing: "border-box",
-            }}
-            aria-expanded={filterPanelExpanded}
-          >
-            <span>{filterPanelExpanded ? "Hide filters" : "More filters"}</span>
-            {transferLeadDetailedFilterCount > 0 && (
-              <span
+            }}>
+              <svg
+                width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ position: "absolute", left: 10, pointerEvents: "none", zIndex: 1 }}
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search leads..."
                 style={{
-                  minWidth: 22,
-                  height: 22,
-                  padding: "0 7px",
+                  height: 34,
+                  minWidth: 240,
+                  paddingLeft: 32,
+                  paddingRight: 12,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: T.textDark,
+                  background: T.pageBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "border-color 0.2s, box-shadow 0.2s",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = T.blue;
+                  e.currentTarget.style.boxShadow = `0 0 0 3px ${T.blue}20`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Right: Total count + Filters button */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{
+              fontSize: 13,
+              color: T.textMuted,
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}>
+              {filtered.length} total
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setFilterPanelExpanded((v) => !v)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                height: 34,
+                padding: "0 14px",
+                borderRadius: 8,
+                border: filterPanelExpanded
+                  ? `1.5px solid ${T.blue}`
+                  : `1px solid ${T.border}`,
+                background: filterPanelExpanded ? T.blueLight : T.pageBg,
+                color: filterPanelExpanded ? T.blue : T.textDark,
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              Filters
+              {transferLeadDetailedFilterCount > 0 && (
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 18,
+                  height: 18,
+                  padding: "0 5px",
                   borderRadius: 999,
                   background: T.blue,
                   color: "#fff",
                   fontSize: 11,
                   fontWeight: 800,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {transferLeadDetailedFilterCount}
-              </span>
-            )}
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={T.textMuted}
-              strokeWidth="2"
-              style={{
-                transform: filterPanelExpanded ? "rotate(180deg)" : "none",
-                transition: "transform 0.2s ease",
-              }}
-            >
-              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+                }}>
+                  {transferLeadDetailedFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
-        {filterPanelExpanded && (
-          <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+        {(filterPanelExpanded || transferLeadsHasActiveFilters) && (
+          <div
+            style={{
+              background: T.cardBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: 12,
+              padding: "16px 20px",
+              boxShadow: T.shadowSm,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              animation: "filter-panel-in 0.2s cubic-bezier(0.16,1,0.3,1) both",
+            }}
+          >
+            {filterPanelExpanded && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
               <div>
                 <FieldLabel label="Single date" />
                 <input
@@ -1950,44 +2047,23 @@ export default function CallCenterLeadIntakePage({
                 </div>
               </div>
             </div>
-          </>
-        )}
+              </div>
+            )}
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
-            {filtered.length.toLocaleString()} leads match filters
-          </div>
-          {transferLeadsHasActiveFilters && (
-            <button
-              type="button"
-              onClick={clearTransferLeadFilters}
-              style={{
-                background: "none",
-                border: "none",
-                color: T.blue,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: "pointer",
-                padding: "4px 0",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.textDecoration = "underline";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.textDecoration = "none";
-              }}
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
-
-        {transferLeadsHasActiveFilters && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            {transferLeadsHasActiveFilters && (
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "space-between", 
+                gap: 12, 
+                flexWrap: "wrap",
+                paddingTop: filterPanelExpanded ? 16 : 0,
+                borderTop: filterPanelExpanded ? `1px solid ${T.borderLight}` : "none",
+              }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
               Active:
             </span>
-            {search.trim() !== "" && <FilterChip label={`Search: ${search.trim()}`} onClear={() => setSearch("")} />}
             {filterSource !== "All" && <FilterChip label={`Source: ${filterSource}`} onClear={() => setFilterSource("All")} />}
             {filterDateSingle !== "" && <FilterChip label={`Date: ${filterDateSingle}`} onClear={() => setFilterDateSingle("")} />}
             {filterDateFrom !== "" && <FilterChip label={`From: ${filterDateFrom}`} onClear={() => setFilterDateFrom("")} />}
@@ -2009,6 +2085,31 @@ export default function CallCenterLeadIntakePage({
             {filterMaxPremium.trim() !== "" && !Number.isNaN(Number(filterMaxPremium)) && (
               <FilterChip label={`Max $: ${filterMaxPremium}`} onClear={() => setFilterMaxPremium("")} />
             )}
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={clearTransferLeadFilters}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: T.blue,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    padding: "4px 0",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.textDecoration = "underline";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.textDecoration = "none";
+                  }}
+                >
+                  Clear filters
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2028,215 +2129,169 @@ export default function CallCenterLeadIntakePage({
           />
         }
       >
-        <Table
-          data={paginated}
-          onRowClick={(lead) => {
-            void openLeadFromGrid(lead);
-          }}
-          columns={[
-            {
-              header: "Lead ID",
-              key: "id",
-              render: (lead) => (
-                <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, textDecoration: "underline" }}>
-                  {lead.id}
-                </span>
-              ),
-            },
-            {
-              header: "Client",
-              key: "name",
-              render: (lead) => {
+        <div style={{ borderRadius: 12, border: `1.5px solid ${T.border}`, overflow: "hidden", backgroundColor: T.cardBg }}>
+          <ShadcnTable>
+            <TableHeader style={{ backgroundColor: T.blue }}>
+              <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                {[
+                  "LEAD ID", "CLIENT", "CONTACT", "CENTRE", "PIPELINE", "PREMIUM", "CREATED", "CREATED BY", "ACTIONS"
+                ].map(header => (
+                  <TableHead key={header} style={{ 
+                    color: "white", 
+                    fontWeight: 800, 
+                    fontSize: 11, 
+                    letterSpacing: "0.5px",
+                    padding: "16px",
+                    whiteSpace: "nowrap",
+                    textAlign: header === "ACTIONS" ? "center" : "left"
+                  }}>
+                    {header}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginated.map((lead) => {
                 const avatarColor = stringToColor(lead.name);
                 return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      backgroundColor: avatarColor,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#fff",
-                      fontSize: 11,
-                      fontWeight: 800,
-                      flexShrink: 0,
-                    }}>
-                      {getInitials(lead.name)}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
-                      {lead.isDraft ? (
-                        <span
-                          style={{
-                            backgroundColor: "#fff7ed",
-                            color: "#c2410c",
-                            border: "1px solid #fdba74",
-                            borderRadius: 999,
-                            padding: "2px 8px",
-                            fontSize: 10,
-                            fontWeight: 800,
-                            letterSpacing: "0.2px",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          Draft
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
+                  <TableRow 
+                    key={lead.id}
+                    onClick={() => void openLeadFromGrid(lead)}
+                    style={{ cursor: "pointer", borderBottom: `1px solid ${T.borderLight}` }}
+                    className="hover:bg-muted/30 transition-colors"
+                  >
+                    <TableCell style={{ padding: "12px 16px" }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: T.blue, textDecoration: "underline" }}>
+                        {lead.id}
+                      </span>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "50%",
+                          backgroundColor: avatarColor,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          fontSize: 11,
+                          fontWeight: 800,
+                          flexShrink: 0,
+                        }}>
+                          {getInitials(lead.name)}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
+                          {lead.isDraft ? (
+                            <span
+                              style={{
+                                backgroundColor: "#fff7ed",
+                                color: "#c2410c",
+                                border: "1px solid #fdba74",
+                                borderRadius: 999,
+                                padding: "2px 8px",
+                                fontSize: 10,
+                                fontWeight: 800,
+                                letterSpacing: "0.2px",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              Draft
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px" }}>
+                      <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.phone}</div>
+                      <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.source}</div>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px" }}>
+                      <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700 }}>
+                        {lead.centerName}
+                      </span>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px" }}>
+                      <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.pipeline}</div>
+                      <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.stage}</div>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px" }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>
+                        ${lead.premium.toLocaleString()}
+                      </span>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px" }}>
+                      <span style={{ fontSize: 12, color: T.textMid, fontWeight: 600 }}>{lead.createdAt}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px" }}>
+                      <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700 }}>
+                        {lead.createdBy}
+                      </span>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
+                      >
+                        {!isCallCenterTransferRole && (
+                          <button
+                            className="lead-action-btn"
+                            type="button"
+                            onClick={() => {
+                        {canViewLead && (
+                          <ShadcnButton
+                            variant="brandOutline"
+                            size="sm"
+                            className="h-8 rounded-lg px-4"
+                            onClick={() => void openLeadFromGrid(lead)}
+                          >
+                            View Lead
+                          </ShadcnButton>
+                        )}
+                        {canViewTransferClaimReclaimVisit && (
+                          <>
+                            <ShadcnButton
+                              variant="brand"
+                              size="sm"
+                              className="h-8 rounded-lg px-4 font-bold"
+                              onClick={() => void openClaimModalForLead(lead)}
+                            >
+                              Claim Call
+                            </ShadcnButton>
+                            <ShadcnButton
+                              variant="amber"
+                              size="sm"
+                              className="h-8 rounded-lg px-4 font-bold"
+                              onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
+                            >
+                              Claim Retention
+                            </ShadcnButton>
+                          </>
+                        )}
+                        <ActionMenu
+                          id={lead.id}
+                          activeId={activeMenu}
+                          onToggle={setActiveMenu}
+                          items={
+                            canEditTransferLeads
+                              ? [
+                                  { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
+                                  { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
+                                  { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
+                                ]
+                              : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
+                          }
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 );
-              },
-            },
-            {
-              header: "Contact",
-              key: "phone",
-              render: (lead) => (
-                <div>
-                  <div style={{ fontSize: 12, color: T.textDark, fontWeight: 700 }}>{lead.phone}</div>
-                  <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 2 }}>{lead.source}</div>
-                </div>
-              ),
-            },
-            {
-              header: "Centre",
-              key: "centerName",
-              render: (lead) => (
-                <span style={{ fontSize: 12, color: T.textMid, fontWeight: 700 }}>
-                  {lead.centerName}
-                </span>
-              ),
-            },
-            {
-              header: "Pipeline",
-              key: "pipeline",
-              render: (lead) => (
-                <div>
-                  <div style={{ fontSize: 12, color: T.textDark, fontWeight: 700 }}>{lead.pipeline}</div>
-                  <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 2 }}>{lead.stage}</div>
-                </div>
-              ),
-            },
-            {
-              header: "Premium",
-              key: "premium",
-              render: (lead) => (
-                <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>
-                  ${lead.premium.toLocaleString()}
-                </span>
-              ),
-            },
-            {
-              header: "Created",
-              key: "createdAt",
-              render: (lead) => (
-                <span style={{ fontSize: 12, color: T.textMid, fontWeight: 600 }}>{lead.createdAt}</span>
-              ),
-            },
-            {
-              header: "Created By",
-              key: "createdBy",
-              render: (lead) => (
-                <span style={{ fontSize: 12, color: T.textMid, fontWeight: 700 }}>
-                  {lead.createdBy}
-                </span>
-              ),
-            },
-            {
-              header: "Actions",
-              key: "actions",
-              align: "center",
-              render: (lead) => (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
-                >
-                  {!isCallCenterTransferRole && (
-                    <button
-                      className="lead-action-btn"
-                      type="button"
-                      onClick={() => {
-                        if (lead.isDraft) {
-                          void openLeadFromGrid(lead);
-                          return;
-                        }
-                        router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
-                      }}
-                      style={{
-                        border: `1px solid ${T.border}`,
-                        borderRadius: 8,
-                        background: "#fff",
-                        color: T.textDark,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        padding: "6px 10px",
-                        cursor: "pointer",
-                        transition: "all 160ms ease",
-                      }}
-                    >
-                      View Lead
-                    </button>
-                  )}
-                  {canViewTransferClaimReclaimVisit && (
-                    <>
-                      <button
-                        className="lead-action-btn"
-                        type="button"
-                        onClick={() => void openClaimModalForLead(lead)}
-                        style={{
-                          border: `1px solid ${T.border}`,
-                          borderRadius: 8,
-                          background: "#fff",
-                          color: T.textDark,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          padding: "6px 10px",
-                          cursor: "pointer",
-                          transition: "all 160ms ease",
-                        }}
-                      >
-                        Start verification
-                      </button>
-                      <button
-                        className="lead-action-btn"
-                        type="button"
-                        onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
-                        style={{
-                          border: `1px solid ${T.border}`,
-                          borderRadius: 8,
-                          background: "#fff",
-                          color: T.textDark,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          padding: "6px 10px",
-                          cursor: "pointer",
-                          transition: "all 160ms ease",
-                        }}
-                      >
-                        Claim Retention
-                      </button>
-                    </>
-                  )}
-                  <ActionMenu
-                    id={lead.id}
-                    activeId={activeMenu}
-                    onToggle={setActiveMenu}
-                    items={
-                      canEditTransferLeads
-                        ? [
-                            { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                            { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
-                            { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
-                          ]
-                        : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
-                    }
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
+              })}
+            </TableBody>
+          </ShadcnTable>
+        </div>
         {filtered.length === 0 && (
           <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
         )}
@@ -2259,7 +2314,7 @@ export default function CallCenterLeadIntakePage({
             style={{
               width: "100%",
               maxWidth: 520,
-              backgroundColor: "#fff",
+              backgroundColor: T.cardBg,
               borderRadius: 12,
               border: `1.5px solid ${T.border}`,
               boxShadow: "0 18px 45px rgba(0,0,0,0.24)",
@@ -2277,7 +2332,7 @@ export default function CallCenterLeadIntakePage({
                 onClick={() => setPendingDeleteLead(null)}
                 style={{
                   border: `1px solid ${T.border}`,
-                  background: "#fff",
+                  background: T.cardBg,
                   color: T.textMid,
                   borderRadius: 8,
                   padding: "10px 14px",
@@ -2324,8 +2379,8 @@ export default function CallCenterLeadIntakePage({
       />
       <style jsx>{`
         .lead-action-btn:hover {
-          background: #1d4ed8;
-          border-color: #1d4ed8;
+          background: #3b5229;
+          border-color: #3b5229;
           color: #fff;
           transform: translateY(-1px);
           box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);

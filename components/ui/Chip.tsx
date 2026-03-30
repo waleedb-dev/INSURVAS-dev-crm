@@ -34,9 +34,9 @@ export function Chip({
         gap: 6,
         padding: isInput || avatar ? "5px 10px 5px 6px" : "5px 14px",
         borderRadius: 20,
-        border: `1.5px solid ${selected ? "#638b4b" : "#e5e7eb"}`,
-        backgroundColor: selected ? "#EEF4FF" : "white",
-        color: selected ? "#638b4b" : "#374151",
+        border: `1.5px solid ${selected ? "#638b4b" : "#c8d4bb"}`,
+        backgroundColor: selected ? "#f2f8ee" : "white",
+        color: selected ? "#638b4b" : "#2e3429",
         fontSize: 13,
         fontWeight: 600,
         cursor: disabled ? "not-allowed" : "pointer",
@@ -87,7 +87,7 @@ export function Chip({
                         border: "none",
                         cursor: "pointer",
                         padding: 0,
-                        color: "#9ca3af",
+                        color: "#6b7a5f",
                         marginLeft: 2,
                     }}
                 >

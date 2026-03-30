@@ -13,24 +13,24 @@ const C = {
 // ── Data ─────────────────────────────────────────────────────────────────────
 const MEMBERS = [
   { initials: "SS", name: "Shawn Stone",    role: "UI/UX Designer", level: "Middle", color: "#638b4b", tasks: 8,  done: 5,  skills: ["Figma","Prototyping","User Research"] },
-  { initials: "RD", name: "Randy Delgado",  role: "UI/UX Designer", level: "Junior", color: "#f59e0b", tasks: 4,  done: 2,  skills: ["Figma","Illustration"] },
-  { initials: "ET", name: "Emily Tyler",    role: "Copywriter",     level: "Middle", color: "#ec4899", tasks: 11, done: 7,  skills: ["SEO","Content Strategy","Editing"] },
-  { initials: "LC", name: "Louis Castro",   role: "Copywriter",     level: "Senior", color: "#8b5cf6", tasks: 14, done: 12, skills: ["Brand Voice","Copy","Content"] },
-  { initials: "BS", name: "Blake Silva",    role: "IOS Developer",  level: "Senior", color: "#0ea5e9", tasks: 19, done: 16, skills: ["Swift","Xcode","UIKit","Core Data"] },
-  { initials: "JP", name: "Joel Phillips",  role: "UI/UX Designer", level: "Middle", color: "#14b8a6", tasks: 7,  done: 4,  skills: ["Figma","Design Systems"] },
-  { initials: "WM", name: "Wayne Marsh",    role: "Copywriter",     level: "Junior", color: "#64748b", tasks: 3,  done: 1,  skills: ["Blogging","Research"] },
-  { initials: "OH", name: "Oscar Holloway", role: "UI/UX Designer", level: "Middle", color: "#f97316", tasks: 9,  done: 6,  skills: ["Figma","Motion","Illustration"] },
+  { initials: "RD", name: "Randy Delgado",  role: "UI/UX Designer", level: "Junior", color: "#74a557", tasks: 4,  done: 2,  skills: ["Figma","Illustration"] },
+  { initials: "ET", name: "Emily Tyler",    role: "Copywriter",     level: "Middle", color: "#94c278", tasks: 11, done: 7,  skills: ["SEO","Content Strategy","Editing"] },
+  { initials: "LC", name: "Louis Castro",   role: "Copywriter",     level: "Senior", color: "#4e6e3a", tasks: 14, done: 12, skills: ["Brand Voice","Copy","Content"] },
+  { initials: "BS", name: "Blake Silva",    role: "IOS Developer",  level: "Senior", color: "#bbd9a9", tasks: 19, done: 16, skills: ["Swift","Xcode","UIKit","Core Data"] },
+  { initials: "JP", name: "Joel Phillips",  role: "UI/UX Designer", level: "Middle", color: "#3b5229", tasks: 7,  done: 4,  skills: ["Figma","Design Systems"] },
+  { initials: "WM", name: "Wayne Marsh",    role: "Copywriter",     level: "Junior", color: "#6b7a5f", tasks: 3,  done: 1,  skills: ["Blogging","Research"] },
+  { initials: "OH", name: "Oscar Holloway", role: "UI/UX Designer", level: "Middle", color: "#74a557", tasks: 9,  done: 6,  skills: ["Figma","Motion","Illustration"] },
   { initials: "AM", name: "Alice Murphy",   role: "IOS Developer",  level: "Middle", color: "#10b981", tasks: 6,  done: 4,  skills: ["SwiftUI","Combine"] },
   { initials: "GT", name: "George Thompson",role: "Copywriter",     level: "Junior", color: "#6366f1", tasks: 5,  done: 1,  skills: ["Blogging"] },
   { initials: "KL", name: "Kate Lewis",     role: "UI/UX Designer", level: "Senior", color: "#f43f5e", tasks: 12, done: 10, skills: ["Strategy","Prototying"] },
   { initials: "DB", name: "David Bell",     role: "IOS Developer",  level: "Senior", color: "#84cc16", tasks: 15, done: 14, skills: ["Architecture"] },
   { initials: "RM", name: "Rose Miller",    role: "QA Engineer",    level: "Middle", color: "#06b6d4", tasks: 22, done: 15, skills: ["Testing","Automation"] },
-  { initials: "FW", name: "Frank Wright",   role: "Backend Dev",    level: "Senior", color: "#3b82f6", tasks: 10, done: 2,  skills: ["Node.js","SQL"] },
-  { initials: "HJ", name: "Helen Jones",    role: "Product Manager",level: "Senior", color: "#8b5cf6", tasks: 8,  done: 7,  skills: ["Planning","Agile"] },
+  { initials: "FW", name: "Frank Wright",   role: "Backend Dev",    level: "Senior", color: "#638b4b", tasks: 10, done: 2,  skills: ["Node.js","SQL"] },
+  { initials: "HJ", name: "Helen Jones",    role: "Product Manager",level: "Senior", color: "#4e6e3a", tasks: 8,  done: 7,  skills: ["Planning","Agile"] },
   { initials: "MK", name: "Mark Knight",    role: "Backend Dev",    level: "Middle", color: "#10b981", tasks: 14, done: 11, skills: ["Go","Postgres"] },
-  { initials: "SR", name: "Sarah Reed",     role: "QA Engineer",    level: "Junior", color: "#f59e0b", tasks: 18, done: 16, skills: ["Manual Testing"] },
-  { initials: "TW", name: "Tom White",      role: "Support",        level: "Middle", color: "#64748b", tasks: 25, done: 20, skills: ["Zendesk","CRM"] },
-  { initials: "PB", name: "Peter Brown",    role: "Marketing",      level: "Middle", color: "#ea4335", tasks: 9,  done: 4,  skills: ["Ads","Social"] },
+  { initials: "SR", name: "Sarah Reed",     role: "QA Engineer",    level: "Junior", color: "#74a557", tasks: 18, done: 16, skills: ["Manual Testing"] },
+  { initials: "TW", name: "Tom White",      role: "Support",        level: "Middle", color: "#6b7a5f", tasks: 25, done: 20, skills: ["Zendesk","CRM"] },
+  { initials: "PB", name: "Peter Brown",    role: "Marketing",      level: "Middle", color: "#3b5229", tasks: 9,  done: 4,  skills: ["Ads","Social"] },
   { initials: "CW", name: "Chloe Wood",     role: "HR",             level: "Senior", color: "#db2777", tasks: 5,  done: 5,  skills: ["Hiring"] },
 ];
 
@@ -38,7 +38,7 @@ const PROJECTS = [
   {
     id: "PN0001265", name: "Medical App (iOS native)", created: "Sep 12, 2020",
     priority: "Medium" as const, allTasks: 34, activeTasks: 13,
-    assignees: ["#638b4b","#f59e0b","#ec4899","#8b5cf6"], extraAssignees: 2,
+    assignees: ["#638b4b","#74a557","#94c278","#4e6e3a"], extraAssignees: 2,
     emoji: "💊", color: "#e8edf8", progress: 38,
     description: "A fully native iOS medical application for patient management, appointment scheduling, and telemedicine consultations.",
     tags: ["iOS","Healthcare","Mobile"],
@@ -46,7 +46,7 @@ const PROJECTS = [
   {
     id: "PN0001221", name: "Food Delivery Service", created: "Sep 10, 2020",
     priority: "Medium" as const, allTasks: 50, activeTasks: 24,
-    assignees: ["#14b8a6","#f97316","#0ea5e9"], extraAssignees: 0,
+    assignees: ["#3b5229","#74a557","#bbd9a9"], extraAssignees: 0,
     emoji: "🍔", color: "#f0fdf4", progress: 52,
     description: "End-to-end food delivery platform with real-time order tracking, restaurant dashboard, and driver apps.",
     tags: ["Web","Mobile","Logistics"],
@@ -54,7 +54,7 @@ const PROJECTS = [
   {
     id: "PN0001290", name: "Food Delivery Service", created: "May 28, 2020",
     priority: "Low" as const, allTasks: 23, activeTasks: 20,
-    assignees: ["#638b4b","#ec4899","#8b5cf6"], extraAssignees: 5,
+    assignees: ["#638b4b","#94c278","#4e6e3a"], extraAssignees: 5,
     emoji: "📦", color: "#fdf4ff", progress: 86,
     description: "Cloud-based logistics platform.",
     tags: ["Web","Logistics"],
@@ -65,7 +65,7 @@ const ACTIVITIES = [
   { 
     id: 1, 
     user: "Oscar Holloway", role: "UI/UX Designer", 
-    avatar: "OH", color: "#f97316",
+    avatar: "OH", color: "#74a557",
     action: "Updated the status of Mind Map task to In Progress",
     time: "2 mins ago", icon: "☁️"
   },
@@ -79,14 +79,14 @@ const ACTIVITIES = [
   { 
     id: 3, 
     user: "Emily Tyler", role: "Copywriter", 
-    avatar: "ET", color: "#ec4899",
+    avatar: "ET", color: "#94c278",
     action: "Updated the status of Mind Map task to In Progress",
     time: "45 mins ago", icon: "☁️"
   }
 ];
 
 const NEAREST_EVENTS = [
-  { title: "Presentation of the new department", time: "Today | 5:00 PM", icon: "🔥", color: "#f59e0b" },
+  { title: "Presentation of the new department", time: "Today | 5:00 PM", icon: "🔥", color: "#74a557" },
   { title: "Anna's Birthday", time: "Today | 6:00 PM", icon: "⏲️", color: "#16a34a" },
   { title: "Ray's Birthday", time: "Tomorrow | 2:00 PM", icon: "⏲️", color: "#16a34a" },
 ];
@@ -117,7 +117,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
         </div>
         
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div style={{ backgroundColor: "#eff6ff", borderRadius: T.radiusMd, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, border: `1px solid ${T.blue}22` }}>
+          <div style={{ backgroundColor: "#f2f8ee", borderRadius: T.radiusMd, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, border: `1px solid ${T.blue}22` }}>
              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
              <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>Nov 16, 2020 - Dec 16, 2020</span>
              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
@@ -285,7 +285,7 @@ function MemberCard({ initials, name, role, level, color, tasks, done, onClick }
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = `0 12px 20px -10px ${color}33`; e.currentTarget.style.backgroundColor = "#fff"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.backgroundColor = T.pageBg; }}
     >
-      <div style={{ position: "absolute", top: 12, right: 12, width: 8, height: 8, borderRadius: "50%", backgroundColor: isHighLoad ? T.danger : "#22c55e" }} title={isHighLoad ? "High Load" : "Balanced Load"} />
+      <div style={{ position: "absolute", top: 12, right: 12, width: 8, height: 8, borderRadius: "50%", backgroundColor: isHighLoad ? T.danger : "#638b4b" }} title={isHighLoad ? "High Load" : "Balanced Load"} />
       
       <div style={{ width: 44, height: 44, borderRadius: "50%", border: `2.5px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color + "10", marginBottom: 4 }}>
         <span style={{ fontSize: 13, fontWeight: 900, color }}>{initials}</span>

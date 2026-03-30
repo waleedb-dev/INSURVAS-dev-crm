@@ -28,7 +28,7 @@ type Policy = {
 
 const LOCK_COLORS: Record<string, { bg: string; color: string }> = {
   pending:  { bg: "#fffbeb", color: "#d97706" },
-  locked:   { bg: "#fef2f2", color: "#ef4444" },
+  locked:   { bg: "#fef2f2", color: "#3b5229" },
   unlocked: { bg: "#ecfdf5", color: "#059669" },
 };
 
@@ -191,7 +191,7 @@ export default function PoliciesPage() {
           {hasFilters && (
             <button onClick={clearFilters}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, backgroundColor: T.cardBg, color: T.textMid, fontSize: 12, fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "all 0.15s" }}
-              onMouseEnter={(e) => { const el = e.currentTarget; el.style.borderColor = "#ef4444"; el.style.color = "#ef4444"; el.style.backgroundColor = "#fef2f2"; }}
+              onMouseEnter={(e) => { const el = e.currentTarget; el.style.borderColor = "#3b5229"; el.style.color = "#3b5229"; el.style.backgroundColor = "#fef2f2"; }}
               onMouseLeave={(e) => { const el = e.currentTarget; el.style.borderColor = T.border; el.style.color = T.textMid; el.style.backgroundColor = T.cardBg; }}
             >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -238,12 +238,12 @@ export default function PoliciesPage() {
               { header: "Lock", key: "lock_status",
                 render: (r) => {
                   const ls = r.lock_status || "pending";
-                  const lc = LOCK_COLORS[ls] ?? { bg: "#f3f4f6", color: "#6b7280" };
+                  const lc = LOCK_COLORS[ls] ?? { bg: "#f3f4f6", color: "#6b7a5f" };
                   return <Badge variant="custom" label={ls.charAt(0).toUpperCase() + ls.slice(1)} bgColor={lc.bg} color={lc.color} />;
                 } },
               { header: "Active", key: "is_active", align: "center",
                 render: (r) => (
-                  <Badge variant="custom" label={r.is_active ? "Active" : "Inactive"} bgColor={r.is_active ? "#ecfdf5" : "#f3f4f6"} color={r.is_active ? "#059669" : "#6b7280"} />
+                  <Badge variant="custom" label={r.is_active ? "Active" : "Inactive"} bgColor={r.is_active ? "#ecfdf5" : "#f3f4f6"} color={r.is_active ? "#059669" : "#6b7a5f"} />
                 ) },
               { header: "Effective", key: "effective_date",
                 render: (r) => <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{r.effective_date ? new Date(r.effective_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" }) : "—"}</span> },

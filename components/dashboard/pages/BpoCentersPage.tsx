@@ -1270,7 +1270,7 @@ export default function BpoCentersPage() {
                       e.stopPropagation();
                       void handleDeleteCenter(center.id);
                     }}
-                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                    style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6, borderRadius: 6 }} 
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                   >

@@ -30,7 +30,7 @@ export function Checkbox({ checked = false, onChange, label, disabled, indetermi
                     width: 18,
                     height: 18,
                     borderRadius: 5,
-                    border: checked || indeterminate ? "none" : "2px solid #d1d5db",
+                    border: checked || indeterminate ? "none" : "2px solid #c8d4bb",
                     backgroundColor: checked || indeterminate ? "#638b4b" : "white",
                     display: "flex",
                     alignItems: "center",
@@ -46,7 +46,7 @@ export function Checkbox({ checked = false, onChange, label, disabled, indetermi
                 )}
             </div>
             {label && (
-                <span style={{ fontSize: 14, fontWeight: 500, color: "#374151" }}>{label}</span>
+                <span style={{ fontSize: 14, fontWeight: 500, color: "#2e3429" }}>{label}</span>
             )}
         </label>
     );
@@ -80,7 +80,7 @@ export function Radio({ checked = false, onChange, label, disabled }: RadioProps
                     width: 18,
                     height: 18,
                     borderRadius: "50%",
-                    border: checked ? "5px solid #638b4b" : "2px solid #d1d5db",
+                    border: checked ? "5px solid #638b4b" : "2px solid #c8d4bb",
                     backgroundColor: "white",
                     transition: "all 0.15s",
                     flexShrink: 0,
@@ -88,7 +88,7 @@ export function Radio({ checked = false, onChange, label, disabled }: RadioProps
                 }}
             />
             {label && (
-                <span style={{ fontSize: 14, fontWeight: 500, color: "#374151" }}>{label}</span>
+                <span style={{ fontSize: 14, fontWeight: 500, color: "#2e3429" }}>{label}</span>
             )}
         </label>
     );
@@ -121,7 +121,7 @@ export function Switch({ checked = false, onChange, label, disabled }: SwitchPro
                     width: 40,
                     height: 22,
                     borderRadius: 11,
-                    backgroundColor: checked ? "#638b4b" : "#d1d5db",
+                    backgroundColor: checked ? "#638b4b" : "#c8d4bb",
                     position: "relative",
                     transition: "background-color 0.2s",
                     flexShrink: 0,
@@ -143,7 +143,7 @@ export function Switch({ checked = false, onChange, label, disabled }: SwitchPro
                 />
             </div>
             {label && (
-                <span style={{ fontSize: 14, fontWeight: 500, color: "#374151" }}>{label}</span>
+                <span style={{ fontSize: 14, fontWeight: 500, color: "#2e3429" }}>{label}</span>
             )}
         </label>
     );
@@ -180,7 +180,7 @@ export function SegmentedControl({ options, value, onChange }: SegmentedControlP
                             borderRadius: 8,
                             border: "none",
                             backgroundColor: isSelected ? "#638b4b" : "transparent",
-                            color: isSelected ? "white" : "#6b7280",
+                            color: isSelected ? "white" : "#6b7a5f",
                             fontSize: 13,
                             fontWeight: 700,
                             cursor: "pointer",

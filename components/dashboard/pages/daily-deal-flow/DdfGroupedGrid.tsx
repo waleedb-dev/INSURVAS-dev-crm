@@ -328,7 +328,7 @@ export function DdfGroupedGrid({
                         title="Call"
                         style={{
                           ...actionIconBtn,
-                          border: `1.5px solid #e5e7eb`,
+                          border: `1.5px solid #c8d4bb`,
                           borderRadius: 10,
                           color: "#15803d",
                           background: "#f0fdf4",
@@ -345,9 +345,9 @@ export function DdfGroupedGrid({
                           ...actionIconBtn,
                           opacity: 0.35,
                           cursor: "not-allowed",
-                          border: `1.5px solid #e5e7eb`,
+                          border: `1.5px solid #c8d4bb`,
                           borderRadius: 10,
-                          color: "#9ca3af",
+                          color: "#6b7a5f",
                         }}
                       >
                         <IconPhone size={16} stroke={2} />
@@ -474,7 +474,7 @@ export function DdfGroupedGrid({
             <div><label style={{ fontSize: 12, fontWeight: 700 }}>LA Callback</label><SelectInput value={draft.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={{ fontSize: 12, fontWeight: 700 }}>Notes</label>
-              <textarea value={draft.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ width: "100%", minHeight: 110, borderRadius: 8, border: "1px solid #d1d5db", padding: 10 }} />
+              <textarea value={draft.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ width: "100%", minHeight: 110, borderRadius: 8, border: "1px solid #c8d4bb", padding: 10 }} />
             </div>
             <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <Button variant="ghost" onClick={() => setDetailId(null)}>Close</Button>

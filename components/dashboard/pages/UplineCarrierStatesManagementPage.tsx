@@ -304,7 +304,7 @@ export default function UplineCarrierStatesManagementPage() {
                   style={{ 
                     background: "none", 
                     border: "none", 
-                    color: "#ef4444", 
+                    color: "#3b5229", 
                     cursor: "pointer", 
                     padding: 6 
                   }}

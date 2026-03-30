@@ -1,5 +1,31 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-background: var(--color-page-bg);
+  --color-foreground: var(--color-text-dark);
+  --color-card: var(--color-card-bg);
+  --color-card-foreground: var(--color-text-dark);
+  --color-popover: var(--color-card-bg);
+  --color-popover-foreground: var(--color-text-dark);
+  --color-primary: var(--color-blue);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--green-100);
+  --color-secondary-foreground: var(--color-text-dark);
+  --color-muted: var(--color-row-bg);
+  --color-muted-foreground: var(--color-text-muted);
+  --color-accent: var(--green-100);
+  --color-accent-foreground: var(--color-text-dark);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--color-border);
+  --color-input: var(--color-border);
+  --color-ring: var(--color-blue);
+  --radius-sm: 0.3rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
 /* ── SpotifyMix Local Fonts ──────────────────────────────────────────────── */
 @font-face {
   font-family: 'SpotifyMix';
@@ -35,31 +61,50 @@
 
 /* ── Design tokens ───────────────────────────────────────────────────────── */
 :root {
-  --color-page-bg:       #f4f9fd;
-  --color-sidebar-bg:    #ffffff;
-  --color-card-bg:       #ffffff;
-  --color-row-bg:        #f4f9fd;
+  /* ── Monochromatic Green Scale (base: #638b4b) ── */
+  --green-50:   #f2f8ee;
+  --green-100:  #ddecd4;
+  --green-200:  #bbd9a9;
+  --green-300:  #94c278;
+  --green-400:  #74a557;
+  --green-500:  #638b4b;   /* PRIMARY */
+  --green-600:  #4e6e3a;
+  --green-700:  #3b5229;
+  --green-800:  #28381b;
+  --green-900:  #1c201a;
 
+  /* ── Backgrounds ── */
+  --color-page-bg:       #f2f8ee;
+  --color-sidebar-bg:    #f9fbf7;
+  --color-card-bg:       #ffffff;
+  --color-row-bg:        #f2f8ee;
+
+  /* ── Primary ── */
   --color-blue:          #638b4b;
   --color-blue-hover:    #4e6e3a;
   --color-blue-light:    #ddecd4;
   --color-blue-faint:    #f2f8ee;
 
-  --color-text-dark:     #1a202c;
-  --color-text-mid:      #2d3748;
-  --color-text-muted:    #8a94a6;
+  /* ── Text ── */
+  --color-text-dark:     #1c201a;
+  --color-text-mid:      #2e3429;
+  --color-text-muted:    #6b7a5f;
 
-  --color-border:        #e2e8f0;
-  --color-border-light:  #f0f4f8;
+  /* ── Borders ── */
+  --color-border:        #c8d4bb;
+  --color-border-light:  #ddecd4;
 
-  --color-accent-pink:   #e879a0;
-  --color-accent-purple: #a855f7;
+  /* ── Accents (green shades) ── */
+  --color-accent-pink:   #94c278;
+  --color-accent-purple: #4e6e3a;
 
-  --color-priority-high: #f59e0b;
-  --color-priority-low:  #22c55e;
+  /* ── Priority ── */
+  --color-priority-high: #3b5229;
+  --color-priority-low:  #74a557;
 
-  --color-danger:        #ef4444;
-  --color-success:       #22c55e;
+  /* ── Semantic ── */
+  --color-danger:        #3b5229;
+  --color-success:       #638b4b;
 }
 
 /* ── Reset ───────────────────────────────────────────────────────────────── */
@@ -102,4 +147,48 @@ textarea:focus {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+.dark-theme {
+  --pageBg:      #121311;
+  --sidebarBg:   #191b17;
+  --cardBg:      #1e221b;
+  --rowBg:       #252922;
+
+  --blue:        #84af65;
+  --blueHover:   #94c278;
+  --blueLight:   #2e3429;
+  --blueFaint:   #252922;
+
+  --textDark:    #f2f8ee;
+  --textMid:     #ddecd4;
+  --textMuted:   #9cae8d;
+
+  --border:      #3b4234;
+  --borderLight: #2e3429;
+
+  --accentBlue:  #84af65;
+  --accentPink:  #b3dba0;
+  --accentPurple:#638b4b;
+
+  --priorityHigh: #b3dba0;
+  --priorityLow:  #84af65;
+
+  --danger:      #e57373;
+  --success:     #66bb6a;
+  --warning:     #ffb74d;
+
+  --memberBlue:   #84af65;
+  --memberAmber:  #ffb74d;
+  --memberPink:   #b3dba0;
+  --memberViolet: #9cae8d;
+  --memberSky:    #638b4b;
+  --memberTeal:   #4e6e3a;
+  --memberSlate:  #74a557;
+  --memberOrange: #ffb74d;
+
+  --color-page-bg: #121311;
+  --color-text-dark: #f2f8ee;
+  --color-card-bg: #1e221b;
+  --color-row-bg: #252922;
+  --color-border: #3b4234;
 }

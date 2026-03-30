@@ -103,7 +103,7 @@ function Section({
                     {title}
                 </div>
                 {description && (
-                    <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 500, lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 12, color: "#6b7a5f", fontWeight: 500, lineHeight: 1.5 }}>
                         {description}
                     </div>
                 )}
@@ -132,7 +132,7 @@ function StateColumns({
                 {states.map((s) => (
                     <div
                         key={s}
-                        style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em" }}
+                        style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em" }}
                     >
                         {s}
                     </div>
@@ -152,7 +152,7 @@ function StateColumns({
 }
 
 // ─── Icon grid ────────────────────────────────────────────────────────────────
-function IconGrid({ icons, color = "#374151" }: { icons: React.ReactNode[]; color?: string }) {
+function IconGrid({ icons, color = "#2e3429" }: { icons: React.ReactNode[]; color?: string }) {
     return (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
             {icons.map((icon, i) => (
@@ -228,11 +228,11 @@ export default function ComponentsPage() {
         <IconHome size={20} fill="#638b4b" color="#638b4b" />,
         <IconSearch size={20} fill="#638b4b" color="#638b4b" />,
         <IconBell size={20} fill="#638b4b" color="#638b4b" />,
-        <IconStar size={20} fill="#fbbc05" color="#fbbc05" />,
-        <IconHeart size={20} fill="#ea4335" color="#ea4335" />,
+        <IconStar size={20} fill="#74a557" color="#74a557" />,
+        <IconHeart size={20} fill="#3b5229" color="#3b5229" />,
         <IconBookmark size={20} fill="#638b4b" color="#638b4b" />,
-        <IconFlag size={20} fill="#ea4335" color="#ea4335" />,
-        <IconThumbUp size={20} fill="#34a853" color="#34a853" />,
+        <IconFlag size={20} fill="#3b5229" color="#3b5229" />,
+        <IconThumbUp size={20} fill="#638b4b" color="#638b4b" />,
     ];
 
     return (
@@ -258,7 +258,7 @@ export default function ComponentsPage() {
                 <h1 style={{ fontSize: 26, fontWeight: 800, color: "#1a1a2e", margin: 0 }}>
                     UI Components
                 </h1>
-                <p style={{ fontSize: 14, color: "#9ca3af", margin: "4px 0 0", fontWeight: 500 }}>
+                <p style={{ fontSize: 14, color: "#6b7a5f", margin: "4px 0 0", fontWeight: 500 }}>
                     Reusable building blocks — Nunito Sans · Tabler Icons
                 </p>
             </div>
@@ -330,7 +330,7 @@ export default function ComponentsPage() {
                     </StateColumns>
 
                     <div style={{ marginTop: 24 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                             Error
                         </div>
                         <Input
@@ -366,7 +366,7 @@ export default function ComponentsPage() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 32 }}>
                         {/* Checkboxes */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 14 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 14 }}>
                                 Checkboxes
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -379,7 +379,7 @@ export default function ComponentsPage() {
 
                         {/* Radio */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 14 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 14 }}>
                                 Radio buttons
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -391,7 +391,7 @@ export default function ComponentsPage() {
 
                         {/* Switches */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 14 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 14 }}>
                                 Switches
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -403,7 +403,7 @@ export default function ComponentsPage() {
 
                         {/* Segmented */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 14 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 14 }}>
                                 Segmented Controls
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -431,7 +431,7 @@ export default function ComponentsPage() {
                     <div style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
                         {/* Choice chips */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Choice chips
                             </div>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -443,7 +443,7 @@ export default function ComponentsPage() {
 
                         {/* Input chips */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Input chips
                             </div>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -478,19 +478,19 @@ export default function ComponentsPage() {
                 <Section title="Icons" description="Side bar and general icons">
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 32 }}>
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Outlined Icons
                             </div>
-                            <IconGrid icons={outlinedIcons} color="#374151" />
+                            <IconGrid icons={outlinedIcons} color="#2e3429" />
                         </div>
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Side Bar Icons
                             </div>
                             <IconGrid icons={sidebarIcons} color="#638b4b" />
                         </div>
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Filled Icons
                             </div>
                             <IconGrid icons={filledIcons} />
@@ -503,7 +503,7 @@ export default function ComponentsPage() {
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 36 }}>
                         {/* Task statuses */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Task statuses
                             </div>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -516,13 +516,13 @@ export default function ComponentsPage() {
 
                         {/* Vacation Indicators */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Vacation Indicators
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                                 {/* Sick Leave */}
                                 <div>
-                                    <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600, marginBottom: 8 }}>Sick Leave</div>
+                                    <div style={{ fontSize: 12, color: "#6b7a5f", fontWeight: 600, marginBottom: 8 }}>Sick Leave</div>
                                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                         <Badge variant="approved" dot label="Approved" />
                                         <Badge variant="pending" dot label="Pending" />
@@ -530,7 +530,7 @@ export default function ComponentsPage() {
                                 </div>
                                 {/* Vacation */}
                                 <div>
-                                    <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600, marginBottom: 8 }}>Vacation</div>
+                                    <div style={{ fontSize: 12, color: "#6b7a5f", fontWeight: 600, marginBottom: 8 }}>Vacation</div>
                                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                         <Badge variant="approved" dot label="Approved" />
                                         <Badge variant="pending" dot label="Pending" />
@@ -538,7 +538,7 @@ export default function ComponentsPage() {
                                 </div>
                                 {/* Remote */}
                                 <div>
-                                    <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600, marginBottom: 8 }}>Work Remotely</div>
+                                    <div style={{ fontSize: 12, color: "#6b7a5f", fontWeight: 600, marginBottom: 8 }}>Work Remotely</div>
                                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                         <Badge variant="approved" dot label="Approved" />
                                         <Badge variant="pending" dot label="Pending" />
@@ -549,7 +549,7 @@ export default function ComponentsPage() {
 
                         {/* Vacation statuses */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Vacation statuses
                             </div>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -560,19 +560,19 @@ export default function ComponentsPage() {
 
                         {/* Progress */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Progress
                             </div>
                             <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
                                 <ProgressSpinner value={65} size={52} />
-                                <ProgressSpinner value={30} size={52} color="#34a853" />
-                                <ProgressSpinner value={85} size={52} color="#7c3aed" />
+                                <ProgressSpinner value={30} size={52} color="#638b4b" />
+                                <ProgressSpinner value={85} size={52} color="#4e6e3a" />
                             </div>
                         </div>
 
                         {/* Employees' level */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Employees&apos; level
                             </div>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -584,7 +584,7 @@ export default function ComponentsPage() {
 
                         {/* Avatars */}
                         <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.04em", marginBottom: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7a5f", letterSpacing: "0.04em", marginBottom: 12 }}>
                                 Avatars
                             </div>
                             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

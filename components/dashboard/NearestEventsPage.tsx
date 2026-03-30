@@ -18,12 +18,12 @@ interface Event {
 
 const INITIAL_EVENTS: Event[] = [
   { id:"E001", title:"Presentation of the new department", when:"Today | 6:00 PM",   duration:"4h",     type:"presentation",  accent:C.blue,    direction:"up" },
-  { id:"E002", title:"Anna's Birthday",                   when:"Today | 5:00 PM",   duration:"2h",     type:"birthday",      accent:"#e879a0", direction:"down" },
-  { id:"E003", title:"Meeting with Development Team",     when:"Tomorrow | 5:00 PM",duration:"4h",     type:"meeting-people",accent:"#f59e0b", direction:"up" },
-  { id:"E004", title:"Ray's Birthday",                    when:"Tomorrow | 2:00 PM",duration:"1h 30m", type:"birthday",      accent:"#a855f7", direction:"down" },
+  { id:"E002", title:"Anna's Birthday",                   when:"Today | 5:00 PM",   duration:"2h",     type:"birthday",      accent:"#94c278", direction:"down" },
+  { id:"E003", title:"Meeting with Development Team",     when:"Tomorrow | 5:00 PM",duration:"4h",     type:"meeting-people",accent:"#74a557", direction:"up" },
+  { id:"E004", title:"Ray's Birthday",                    when:"Tomorrow | 2:00 PM",duration:"1h 30m", type:"birthday",      accent:"#4e6e3a", direction:"down" },
   { id:"E005", title:"Meeting with CEO",                  when:"Sep 14 | 5:00 PM",  duration:"1h",     type:"presentation",  accent:C.blue,    direction:"up" },
-  { id:"E006", title:"Movie night (Tenet)",               when:"Sep 15 | 5:00 PM",  duration:"3h",     type:"tv",            accent:"#a855f7", direction:"down" },
-  { id:"E007", title:"Lucas's Birthday",                  when:"Sep 29 | 5:30 PM",  duration:"2h",     type:"birthday",      accent:"#e879a0", direction:"down" },
+  { id:"E006", title:"Movie night (Tenet)",               when:"Sep 15 | 5:00 PM",  duration:"3h",     type:"tv",            accent:"#4e6e3a", direction:"down" },
+  { id:"E007", title:"Lucas's Birthday",                  when:"Sep 29 | 5:30 PM",  duration:"2h",     type:"birthday",      accent:"#94c278", direction:"down" },
   { id:"E008", title:"Meeting with CTO",                  when:"Sep 30 | 12:00",    duration:"1h",     type:"presentation",  accent:C.blue,    direction:"up" },
 ];
 
@@ -125,7 +125,7 @@ function EventCard({ id, title, when, duration, type, accent, direction, isDelet
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>{when}</span>
           <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.textMuted, fontWeight: 700, backgroundColor: C.bg, borderRadius: 6, padding: "3px 10px" }}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#8a94a6" strokeWidth="1.3" /><path d="M6 3.5V6L7.5 7.5" stroke="#8a94a6" strokeWidth="1.3" strokeLinecap="round" /></svg>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#6b7a5f" strokeWidth="1.3" /><path d="M6 3.5V6L7.5 7.5" stroke="#6b7a5f" strokeWidth="1.3" strokeLinecap="round" /></svg>
             {duration}
           </span>
         </div>
@@ -136,12 +136,12 @@ function EventCard({ id, title, when, duration, type, accent, direction, isDelet
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           style={{
-            position: "absolute", top: 10, right: 10, background: "#fff5f5", border: "none", borderRadius: 8,
-            padding: "4px 6px", cursor: "pointer", color: "#ef4444", fontSize: 12, lineHeight: 1,
+            position: "absolute", top: 10, right: 10, background: "#f2f8ee", border: "none", borderRadius: 8,
+            padding: "4px 6px", cursor: "pointer", color: "#3b5229", fontSize: 12, lineHeight: 1,
             animation: "fadeIn 0.15s ease", transition: "background-color 0.15s",
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#fee2e2"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#fff5f5"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#f2f8ee"; }}
           title="Remove event"
         >✕</button>
       )}
@@ -158,7 +158,7 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
   const [accent, setAccent] = useState<string>(C.blue);
   const [error, setError] = useState("");
 
-  const ACCENTS = [C.blue, "#e879a0", "#a855f7", "#f59e0b", "#22c55e", "#ef4444"];
+  const ACCENTS = [C.blue, "#94c278", "#4e6e3a", "#74a557", "#638b4b", "#3b5229"];
   const TYPES: { id: EventType; label: string }[] = [
     { id: "presentation", label: "Presentation" },
     { id: "birthday", label: "Birthday" },
@@ -175,26 +175,26 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, animation: "fadeIn 0.18s ease" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: "#fff", borderRadius: 20, padding: "36px 36px 32px", width: "100%", maxWidth: 460, position: "relative", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "fadeInDown 0.2s ease" }}>
-        <button onClick={onClose} style={{ position: "absolute", top: 18, right: 18, background: "none", border: "none", cursor: "pointer", color: "#8a94a6", fontSize: 18, lineHeight: 1, padding: 4, borderRadius: 8, transition: "color 0.15s" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#ef4444"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#8a94a6"; }}
+        <button onClick={onClose} style={{ position: "absolute", top: 18, right: 18, background: "none", border: "none", cursor: "pointer", color: "#6b7a5f", fontSize: 18, lineHeight: 1, padding: 4, borderRadius: 8, transition: "color 0.15s" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#3b5229"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#6b7a5f"; }}
         >✕</button>
 
         <h2 style={{ margin: "0 0 24px", fontSize: 20, fontWeight: 800, color: C.textDark }}>Add New Event</h2>
 
-        {error && <div style={{ backgroundColor: "#fff5f5", color: "#ef4444", borderRadius: 10, padding: "10px 14px", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{error}</div>}
+        {error && <div style={{ backgroundColor: "#f2f8ee", color: "#3b5229", borderRadius: 10, padding: "10px 14px", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{error}</div>}
 
         <Field label="Event Title">
           <input value={title} onChange={(e) => { setTitle(e.target.value); setError(""); }} placeholder="e.g. Team standup" style={inputStyle}
             onFocus={(e) => { e.currentTarget.style.borderColor = "#638b4b"; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "#c8d4bb"; }}
           />
         </Field>
 
         <Field label="Date & Time">
           <input value={when} onChange={(e) => { setWhen(e.target.value); setError(""); }} placeholder="e.g. Tomorrow | 3:00 PM" style={inputStyle}
             onFocus={(e) => { e.currentTarget.style.borderColor = "#638b4b"; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "#c8d4bb"; }}
           />
         </Field>
 
@@ -204,7 +204,7 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
               <select value={duration} onChange={(e) => setDuration(e.target.value)} style={{ ...inputStyle, paddingRight: 32, appearance: "none", cursor: "pointer" }}>
                 {["30m","1h","1h 30m","2h","3h","4h","All day"].map((d) => <option key={d}>{d}</option>)}
               </select>
-              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#8a94a6", fontSize: 11 }}>▾</span>
+              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7a5f", fontSize: 11 }}>▾</span>
             </div>
           </Field>
           <Field label="Type">
@@ -212,7 +212,7 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
               <select value={type} onChange={(e) => setType(e.target.value as EventType)} style={{ ...inputStyle, paddingRight: 32, appearance: "none", cursor: "pointer" }}>
                 {TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
-              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#8a94a6", fontSize: 11 }}>▾</span>
+              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7a5f", fontSize: 11 }}>▾</span>
             </div>
           </Field>
         </div>
@@ -237,7 +237,7 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
           <div style={{ display: "flex", gap: 8 }}>
             {ACCENTS.map((a) => (
               <button key={a} onClick={() => setAccent(a)} style={{
-                width: 28, height: 28, borderRadius: "50%", backgroundColor: a, border: `2.5px solid ${accent === a ? "#1a202c" : "transparent"}`,
+                width: 28, height: 28, borderRadius: "50%", backgroundColor: a, border: `2.5px solid ${accent === a ? "#1c201a" : "transparent"}`,
                 cursor: "pointer", transition: "transform 0.15s, border-color 0.15s",
                 transform: accent === a ? "scale(1.15)" : "scale(1)",
               }} />
@@ -247,7 +247,7 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
 
         <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
           <button onClick={onClose} style={{ flex: 1, padding: "13px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: C.textMuted, transition: "border-color 0.15s" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#8a94a6"; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#6b7a5f"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = C.border; }}
           >Cancel</button>
           <button onClick={handleSubmit} style={{ flex: 2, padding: "13px", borderRadius: 12, border: "none", backgroundColor: C.blue, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(99,139,75,0.3)", transition: "opacity 0.15s, transform 0.1s" }}
@@ -263,15 +263,15 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#8a94a6", marginBottom: 6 }}>{label}</label>
+      <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#6b7a5f", marginBottom: 6 }}>{label}</label>
       {children}
     </div>
   );
 }
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", border: "1.5px solid #e2e8f0",
-  borderRadius: 10, fontSize: 13, color: "#374151", fontFamily: "inherit",
+  width: "100%", padding: "11px 14px", border: "1.5px solid #c8d4bb",
+  borderRadius: 10, fontSize: 13, color: "#2e3429", fontFamily: "inherit",
   transition: "border-color 0.15s", boxSizing: "border-box", backgroundColor: "#fff",
 };
 

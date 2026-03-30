@@ -49,14 +49,14 @@ export function Dropdown({
         alignItems: "center",
         gap: 8,
         padding: "9px 14px",
-        border: `1.5px solid ${open ? "#638b4b" : "#e5e7eb"}`,
+        border: `1.5px solid ${open ? "#638b4b" : "#c8d4bb"}`,
         borderRadius: 10,
         backgroundColor: "white",
         cursor: disabled ? "not-allowed" : "pointer",
         fontFamily: "'Nunito Sans', sans-serif",
         fontSize: 14,
         fontWeight: 600,
-        color: disabled ? "#9ca3af" : "#374151",
+        color: disabled ? "#6b7a5f" : "#2e3429",
         outline: "none",
         minWidth: 160,
         justifyContent: "space-between",
@@ -73,7 +73,7 @@ export function Dropdown({
         left: 0,
         minWidth: "100%",
         backgroundColor: "white",
-        border: "1.5px solid #e5e7eb",
+        border: "1.5px solid #c8d4bb",
         borderRadius: 12,
         boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
         zIndex: 100,
@@ -103,7 +103,7 @@ export function Dropdown({
                 <IconChevronDown
                     size={16}
                     style={{
-                        color: "#6b7280",
+                        color: "#6b7a5f",
                         transition: "transform 0.2s",
                         transform: open ? "rotate(180deg)" : "rotate(0deg)",
                     }}
@@ -122,8 +122,8 @@ export function Dropdown({
                                     padding: "10px 16px",
                                     fontSize: 14,
                                     fontWeight: isSelected ? 700 : 500,
-                                    color: isSelected ? "#638b4b" : "#374151",
-                                    backgroundColor: isSelected ? "#EEF4FF" : "transparent",
+                                    color: isSelected ? "#638b4b" : "#2e3429",
+                                    backgroundColor: isSelected ? "#f2f8ee" : "transparent",
                                     cursor: "pointer",
                                     display: "flex",
                                     alignItems: "center",
@@ -135,7 +135,7 @@ export function Dropdown({
                                     if (!isSelected) (e.currentTarget as HTMLDivElement).style.backgroundColor = "#f9fafb";
                                 }}
                                 onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLDivElement).style.backgroundColor = isSelected ? "#EEF4FF" : "transparent";
+                                    (e.currentTarget as HTMLDivElement).style.backgroundColor = isSelected ? "#f2f8ee" : "transparent";
                                 }}
                             >
                                 {opt.label}

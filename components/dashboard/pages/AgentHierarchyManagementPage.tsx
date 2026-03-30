@@ -449,7 +449,7 @@ export default function AgentHierarchyManagementPage() {
                 width: 8, 
                 height: 8, 
                 borderRadius: "50%", 
-                backgroundColor: agent.status === 'Active' ? '#22c55e' : '#ef4444' 
+                backgroundColor: agent.status === 'Active' ? '#638b4b' : '#3b5229' 
               }}/>
               {agent.status}
             </div>
@@ -1013,7 +1013,7 @@ export default function AgentHierarchyManagementPage() {
                     width: 6, 
                     height: 6, 
                     borderRadius: "50%", 
-                    backgroundColor: agent.status === 'Active' ? '#22c55e' : '#ef4444' 
+                    backgroundColor: agent.status === 'Active' ? '#638b4b' : '#3b5229' 
                   }}/>
                   {agent.status}
                 </div>
@@ -1045,7 +1045,7 @@ export default function AgentHierarchyManagementPage() {
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleDeleteAgent(agent); }}
-                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                    style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6, borderRadius: 6 }} 
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                     title="Delete agent"

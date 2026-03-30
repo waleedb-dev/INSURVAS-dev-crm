@@ -116,7 +116,7 @@ export function DataGrid({
       {!noHeader && activeFilters && (
         <div style={{ 
           padding: "10px 20px", 
-          backgroundColor: "#fafcfe", 
+          backgroundColor: T.sidebarBg, 
           borderBottom: `1px solid ${T.border}`, 
           display: "flex", 
           flexWrap: "wrap", 
@@ -150,7 +150,7 @@ export function FilterChip({ label, onClear }: { label: string; onClear: () => v
       display: "flex", 
       alignItems: "center", 
       gap: 6, 
-      backgroundColor: "#fff", 
+      backgroundColor: T.cardBg, 
       border: `1px solid ${T.border}`, 
       borderRadius: 100, 
       padding: "4px 4px 4px 12px", 
