@@ -369,7 +369,8 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
           notes: notes || null,
           newDraftDate: requiresDraftDate ? newDraftDate || null : null,
           sent_to_underwriting: sentToUnderwriting,
-          mapped_status: mapStatusToSheetValue(finalStatus),
+          mapped_status:
+            applicationSubmitted === false ? finalStatus : mapStatusToSheetValue(finalStatus),
         },
         agent_id: userId,
       });
@@ -377,6 +378,7 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
 
       await invokeOptionalFunction("update-daily-deal-flow-entry", {
         submission_id: submissionId,
+        insured_name: leadName || null,
         call_source: callSource,
         buffer_agent: bufferAgent || null,
         agent: agentWhoTookCall || null,
@@ -389,7 +391,7 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
             ? sentToUnderwriting === true
               ? "Underwriting"
               : "Pending Approval"
-            : "Not Submitted",
+            : finalStatus,
         carrier: carrier || null,
         product_type: productType || null,
         draft_date: draftDate || null,

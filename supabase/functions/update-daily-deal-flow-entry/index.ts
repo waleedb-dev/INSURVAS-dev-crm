@@ -58,17 +58,18 @@ const determineFinalStatus = (
   originalStatus?: string,
 ) => {
   if (applicationSubmitted === true) return "Pending Approval";
-  return mapStatusToSheetValue(originalStatus || "Not Submitted");
+  return originalStatus || "Not Submitted";
 };
 
 const determineCallResultStatus = (
   applicationSubmitted: boolean | null,
   sentToUnderwriting: boolean | null,
+  originalStatus?: string,
 ) => {
   if (applicationSubmitted === true) {
-    return sentToUnderwriting === true ? "Underwriting" : "Submitted";
+    return sentToUnderwriting === true ? "Underwriting" : "Pending Approval";
   }
-  return "Not Submitted";
+  return originalStatus || "Not Submitted";
 };
 
 serve(async (req) => {
@@ -112,6 +113,8 @@ serve(async (req) => {
       application_submitted = null,
       sent_to_underwriting = null,
       lead_vendor,
+      insured_name,
+      client_phone_number,
       is_retention_call = false,
       dq_reason = null,
     } = body;
@@ -127,7 +130,11 @@ serve(async (req) => {
       .maybeSingle();
 
     const finalStatus = determineFinalStatus(application_submitted, sent_to_underwriting, status);
-    const callResultStatus = determineCallResultStatus(application_submitted, sent_to_underwriting);
+    const callResultStatus = determineCallResultStatus(
+      application_submitted,
+      sent_to_underwriting,
+      status,
+    );
 
     let finalSubmissionId = submission_id as string;
     let operation = "inserted";
@@ -156,8 +163,8 @@ serve(async (req) => {
     const dailyFlowPayload = {
       submission_id: finalSubmissionId,
       lead_vendor: leadData?.lead_vendor ?? lead_vendor ?? null,
-      insured_name: leadData?.customer_full_name ?? null,
-      client_phone_number: leadData?.phone_number ?? null,
+      insured_name: leadData?.customer_full_name ?? insured_name ?? null,
+      client_phone_number: leadData?.phone_number ?? client_phone_number ?? null,
       date: todayDate,
       buffer_agent,
       retention_agent,

@@ -66,14 +66,26 @@ export async function ensureSubmissionId(
   if (clean) return clean;
 
   const fallback = leadRowId.trim();
-  const { error } = await supabase
+  // Some legacy rows store `submission_id` as an empty string instead of NULL.
+  // We treat both as "missing" so downstream daily deal flow can populate insured_name/lead_vendor.
+  const { error: nullError } = await supabase
     .from("leads")
     .update({ submission_id: fallback })
     .eq("id", leadRowId)
     .is("submission_id", null);
 
-  if (error) {
-    throw new Error(error.message || "Could not set submission id for this lead.");
+  if (nullError) {
+    throw new Error(nullError.message || "Could not set submission id for this lead.");
+  }
+
+  const { error: emptyError } = await supabase
+    .from("leads")
+    .update({ submission_id: fallback })
+    .eq("id", leadRowId)
+    .eq("submission_id", "");
+
+  if (emptyError) {
+    throw new Error(emptyError.message || "Could not set submission id for this lead.");
   }
 
   return fallback;
