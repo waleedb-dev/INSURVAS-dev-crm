@@ -12,6 +12,8 @@ interface DataGridProps {
   children: ReactNode;
   pagination?: ReactNode;
   style?: React.CSSProperties;
+  /** When true, omit the built-in search/filter header (use an external toolbar). */
+  noHeader?: boolean;
 }
 
 export function DataGrid({
@@ -23,6 +25,7 @@ export function DataGrid({
   children,
   pagination,
   style,
+  noHeader = false,
 }: DataGridProps) {
   return (
     <div style={{ 
@@ -35,6 +38,7 @@ export function DataGrid({
       ...style 
     }}>
       {/* Filters + Search Header */}
+      {!noHeader && (
       <div style={{ 
         padding: "20px 20px", 
         borderBottom: `1px solid ${T.border}`, 
@@ -106,9 +110,10 @@ export function DataGrid({
           </div>
         )}
       </div>
+      )}
 
       {/* Active Filter Chips Row */}
-      {activeFilters && (
+      {!noHeader && activeFilters && (
         <div style={{ 
           padding: "10px 20px", 
           backgroundColor: "#fafcfe", 

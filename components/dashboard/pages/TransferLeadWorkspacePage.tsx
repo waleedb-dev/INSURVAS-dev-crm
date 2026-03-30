@@ -142,7 +142,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     setClaimLoading(true);
     setError(null);
     try {
-      // Initialize verification session as soon as Claim Call is clicked.
+      // Initialize verification session as soon as Start verification is clicked.
       const found = await findOrCreateVerificationSession(supabase, lead, defaultSelection);
       setSessionId(found.sessionId);
     } catch (err) {
@@ -270,7 +270,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                       cursor: "pointer",
                     }}
                   >
-                    Claim Call
+                    Start verification
                   </button>
                 </>
               ) : (
@@ -306,7 +306,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
         <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 14, padding: 18 }}>
           <h3 style={{ margin: 0, fontSize: 18, color: T.textDark }}>No active verification session</h3>
           <p style={{ margin: "8px 0 0", fontSize: 13, color: T.textMid }}>
-            Start by claiming this lead. That will initialize verification sessions and items, then unlock the verification panel and call fix forms.
+            Use <strong style={{ fontWeight: 800 }}>Start verification</strong> above to claim and initialize the session, then complete the verification panel and call forms.
           </p>
         </div>
       )}

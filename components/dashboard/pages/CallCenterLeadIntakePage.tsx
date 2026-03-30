@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, DataGrid, FilterChip, Pagination, Table, Toast, EmptyState } from "@/components/ui";
+import { ActionMenu, DataGrid, FilterChip, Input, Pagination, Table, Toast, EmptyState } from "@/components/ui";
+import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
 import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
 import LeadViewComponent from "./LeadViewComponent";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
@@ -32,6 +33,8 @@ type IntakeLead = {
   stage: string;
   createdBy: string;
   createdAt: string;
+  /** ISO `created_at` for date-range filtering */
+  createdAtIso: string;
   isDraft?: boolean;
 };
 
@@ -48,6 +51,33 @@ type DuplicateLeadMatch = {
 };
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
+
+const TL_DATE_INPUT_STYLE: CSSProperties = {
+  width: "100%",
+  height: 36,
+  border: `1.5px solid ${T.border}`,
+  borderRadius: 8,
+  fontSize: 13,
+  color: T.textDark,
+  padding: "0 8px",
+  boxSizing: "border-box",
+  background: "#fff",
+};
+
+function transferLeadDayKey(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function mapSelectOptions(values: string[], allLabel: string) {
+  const sorted = [...new Set(values)].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  return [{ value: "All", label: allLabel }, ...sorted.map((v) => ({ value: v, label: v }))];
+}
 
 /** BPO name for Slack vendor channel mapping (must match `leadVendorChannelMapping` keys in `slack-notification`). */
 const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
@@ -347,6 +377,19 @@ export default function CallCenterLeadIntakePage({
   const [editingLead, setEditingLead] = useState<{ rowId: string; formData: TransferLeadFormData } | null>(null);
   const [search, setSearch] = useState("");
   const [filterSource, setFilterSource] = useState("All");
+  const [filterDateSingle, setFilterDateSingle] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterCenter, setFilterCenter] = useState("All");
+  const [filterPipeline, setFilterPipeline] = useState("All");
+  const [filterStage, setFilterStage] = useState("All");
+  const [filterCreatedBy, setFilterCreatedBy] = useState("All");
+  const [filterProductType, setFilterProductType] = useState("All");
+  const [filterDraft, setFilterDraft] = useState<"All" | "draft" | "live">("All");
+  const [filterMinPremium, setFilterMinPremium] = useState("");
+  const [filterMaxPremium, setFilterMaxPremium] = useState("");
+  /** Detailed filters (dates, dropdowns, premium) — search + chips stay usable when false */
+  const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -461,6 +504,7 @@ export default function CallCenterLeadIntakePage({
         stage: typeof lead.stage === "string" && lead.stage.trim() !== "" ? lead.stage : "Transfer API",
         createdBy: typeof userObj?.full_name === "string" && userObj.full_name.trim() !== "" ? userObj.full_name.trim() : "Unknown",
         createdAt: lead.created_at ? new Date(String(lead.created_at)).toLocaleString() : "Just now",
+        createdAtIso: lead.created_at ? String(lead.created_at) : "",
         isDraft: typeof lead.is_draft === "boolean" ? lead.is_draft : false,
       };
     });
@@ -470,7 +514,7 @@ export default function CallCenterLeadIntakePage({
 
   const openClaimModalForLead = async (lead: IntakeLead) => {
     if (!canViewTransferClaimReclaimVisit) {
-      setToast({ message: "Missing permission to Claim Call.", type: "error" });
+      setToast({ message: "Missing permission to start verification.", type: "error" });
       return;
     }
     const context: ClaimLeadContext = {
@@ -491,7 +535,7 @@ export default function CallCenterLeadIntakePage({
       const loaded = await fetchClaimAgents(supabase);
       setClaimAgents(loaded);
 
-      // Clicking "Claim Call" should initialize verification immediately,
+      // Clicking "Start verification" should initialize verification immediately,
       // even before the user confirms assignments in the modal.
       await findOrCreateVerificationSession(supabase, context, initialSelection);
     } catch (error) {
@@ -552,33 +596,191 @@ export default function CallCenterLeadIntakePage({
     void fetchDefaultTransferStage();
   }, [supabase]);
 
-  const sources = Array.from(new Set(leads.map((lead) => lead.source)));
+  const sources = useMemo(() => Array.from(new Set(leads.map((lead) => lead.source))), [leads]);
+  const centerOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.centerName))), [leads]);
+  const pipelineOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.pipeline))), [leads]);
+  const stageOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.stage))), [leads]);
+  const createdByOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.createdBy))), [leads]);
+  const productTypeOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.type))), [leads]);
 
-  const filtered = leads.filter((lead) => {
-    const matchSource = filterSource === "All" || lead.source === filterSource;
+  const transferLeadsHasActiveFilters = useMemo(() => {
+    const minP = filterMinPremium.trim();
+    const maxP = filterMaxPremium.trim();
+    return (
+      search.trim() !== "" ||
+      filterSource !== "All" ||
+      filterDateSingle !== "" ||
+      filterDateFrom !== "" ||
+      filterDateTo !== "" ||
+      filterCenter !== "All" ||
+      filterPipeline !== "All" ||
+      filterStage !== "All" ||
+      filterCreatedBy !== "All" ||
+      filterProductType !== "All" ||
+      filterDraft !== "All" ||
+      (minP !== "" && !Number.isNaN(Number(minP))) ||
+      (maxP !== "" && !Number.isNaN(Number(maxP)))
+    );
+  }, [
+    search,
+    filterSource,
+    filterDateSingle,
+    filterDateFrom,
+    filterDateTo,
+    filterCenter,
+    filterPipeline,
+    filterStage,
+    filterCreatedBy,
+    filterProductType,
+    filterDraft,
+    filterMinPremium,
+    filterMaxPremium,
+  ]);
+
+  const transferLeadDetailedFilterCount = useMemo(() => {
+    const minP = filterMinPremium.trim();
+    const maxP = filterMaxPremium.trim();
+    let n = 0;
+    if (filterSource !== "All") n++;
+    if (filterDateSingle !== "") n++;
+    if (filterDateFrom !== "") n++;
+    if (filterDateTo !== "") n++;
+    if (filterCenter !== "All") n++;
+    if (filterPipeline !== "All") n++;
+    if (filterStage !== "All") n++;
+    if (filterCreatedBy !== "All") n++;
+    if (filterProductType !== "All") n++;
+    if (filterDraft !== "All") n++;
+    if (minP !== "" && !Number.isNaN(Number(minP))) n++;
+    if (maxP !== "" && !Number.isNaN(Number(maxP))) n++;
+    return n;
+  }, [
+    filterSource,
+    filterDateSingle,
+    filterDateFrom,
+    filterDateTo,
+    filterCenter,
+    filterPipeline,
+    filterStage,
+    filterCreatedBy,
+    filterProductType,
+    filterDraft,
+    filterMinPremium,
+    filterMaxPremium,
+  ]);
+
+  const clearTransferLeadFilters = () => {
+    setSearch("");
+    setFilterSource("All");
+    setFilterDateSingle("");
+    setFilterDateFrom("");
+    setFilterDateTo("");
+    setFilterCenter("All");
+    setFilterPipeline("All");
+    setFilterStage("All");
+    setFilterCreatedBy("All");
+    setFilterProductType("All");
+    setFilterDraft("All");
+    setFilterMinPremium("");
+    setFilterMaxPremium("");
+    setPage(1);
+  };
+
+  const filtered = useMemo(() => {
     const query = search.toLowerCase().trim();
-    const matchSearch =
-      !query ||
-      lead.name.toLowerCase().includes(query) ||
-      lead.phone.toLowerCase().includes(query) ||
-      lead.id.toLowerCase().includes(query);
-    return matchSource && matchSearch;
-  });
+    const minPrem = filterMinPremium.trim() ? Number(filterMinPremium) : null;
+    const maxPrem = filterMaxPremium.trim() ? Number(filterMaxPremium) : null;
+    const minOk = minPrem == null || !Number.isNaN(minPrem);
+    const maxOk = maxPrem == null || !Number.isNaN(maxPrem);
+
+    return leads.filter((lead) => {
+      const matchSource = filterSource === "All" || lead.source === filterSource;
+      const matchSearch =
+        !query ||
+        lead.name.toLowerCase().includes(query) ||
+        lead.phone.replace(/\D/g, "").includes(query.replace(/\D/g, "")) ||
+        lead.id.toLowerCase().includes(query) ||
+        (lead.submissionId && String(lead.submissionId).toLowerCase().includes(query));
+      const day = transferLeadDayKey(lead.createdAtIso);
+      let matchDate = true;
+      if (filterDateSingle) {
+        matchDate = day === filterDateSingle;
+      } else {
+        if (filterDateFrom && day && day < filterDateFrom) matchDate = false;
+        if (filterDateTo && day && day > filterDateTo) matchDate = false;
+      }
+      const matchCenter = filterCenter === "All" || lead.centerName === filterCenter;
+      const matchPipeline = filterPipeline === "All" || lead.pipeline === filterPipeline;
+      const matchStage = filterStage === "All" || lead.stage === filterStage;
+      const matchCreatedBy = filterCreatedBy === "All" || lead.createdBy === filterCreatedBy;
+      const matchType = filterProductType === "All" || lead.type === filterProductType;
+      const matchDraft =
+        filterDraft === "All" ||
+        (filterDraft === "draft" ? Boolean(lead.isDraft) : !lead.isDraft);
+      let matchPrem = true;
+      if (minOk && minPrem != null) matchPrem = matchPrem && lead.premium >= minPrem;
+      if (maxOk && maxPrem != null) matchPrem = matchPrem && lead.premium <= maxPrem;
+
+      return (
+        matchSource &&
+        matchSearch &&
+        matchDate &&
+        matchCenter &&
+        matchPipeline &&
+        matchStage &&
+        matchCreatedBy &&
+        matchType &&
+        matchDraft &&
+        matchPrem
+      );
+    });
+  }, [
+    leads,
+    search,
+    filterSource,
+    filterDateSingle,
+    filterDateFrom,
+    filterDateTo,
+    filterCenter,
+    filterPipeline,
+    filterStage,
+    filterCreatedBy,
+    filterProductType,
+    filterDraft,
+    filterMinPremium,
+    filterMaxPremium,
+  ]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
-  useEffect(() => { setPage(1); }, [search, filterSource]);
+  useEffect(() => {
+    setPage(1);
+  }, [
+    search,
+    filterSource,
+    filterDateSingle,
+    filterDateFrom,
+    filterDateTo,
+    filterCenter,
+    filterPipeline,
+    filterStage,
+    filterCreatedBy,
+    filterProductType,
+    filterDraft,
+    filterMinPremium,
+    filterMaxPremium,
+  ]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) setPage(totalPages);
     if (filtered.length === 0 && page !== 1) setPage(1);
   }, [filtered.length, page, totalPages]);
 
-  // Stats
-  const totalPremium = leads.reduce((s, l) => s + l.premium, 0);
-  const avgPremium = leads.length ? totalPremium / leads.length : 0;
-  const uniquePipelines = new Set(leads.map((l) => l.pipeline)).size;
+  // Stats (match filtered table)
+  const totalPremium = filtered.reduce((s, l) => s + l.premium, 0);
+  const avgPremium = filtered.length ? totalPremium / filtered.length : 0;
+  const uniquePipelines = new Set(filtered.map((l) => l.pipeline)).size;
 
   const promptDuplicateIfAny = async (payload: TransferLeadFormData): Promise<boolean> => {
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
@@ -1524,7 +1726,7 @@ export default function CallCenterLeadIntakePage({
       {/* Stats Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
         {[
-          { label: "Total Leads", value: leads.length.toString(), color: T.blue },
+          { label: "Total Leads", value: filtered.length.toString(), color: T.blue },
           { label: "Total Premium Volume", value: `$${totalPremium.toLocaleString()}`, color: "#16a34a" },
           { label: "Avg Premium", value: `$${avgPremium.toFixed(0)}`, color: "#ca8a04" },
           { label: "Active Pipelines", value: uniquePipelines.toString(), color: "#7c3aed" },
@@ -1536,39 +1738,286 @@ export default function CallCenterLeadIntakePage({
         ))}
       </div>
 
+      {/* Filter toolbar — search always visible; detailed filters collapsible */}
+      <div
+        style={{
+          background: "#fff",
+          border: `1px solid ${T.border}`,
+          borderRadius: 12,
+          padding: "16px 20px",
+          marginBottom: 16,
+          boxShadow: T.shadowSm,
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+          <div style={{ flex: "1 1 240px", minWidth: 200 }}>
+            <FieldLabel label="Search" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, phone, submission ID, lead ID..."
+              style={{ height: 36 }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setFilterPanelExpanded((v) => !v)}
+            style={{
+              flexShrink: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              height: 36,
+              padding: "0 14px",
+              borderRadius: 8,
+              border: `1.5px solid ${T.border}`,
+              background: filterPanelExpanded ? T.rowBg : "#fff",
+              color: T.textDark,
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: T.font,
+              cursor: "pointer",
+              boxSizing: "border-box",
+            }}
+            aria-expanded={filterPanelExpanded}
+          >
+            <span>{filterPanelExpanded ? "Hide filters" : "More filters"}</span>
+            {transferLeadDetailedFilterCount > 0 && (
+              <span
+                style={{
+                  minWidth: 22,
+                  height: 22,
+                  padding: "0 7px",
+                  borderRadius: 999,
+                  background: T.blue,
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 800,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {transferLeadDetailedFilterCount}
+              </span>
+            )}
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={T.textMuted}
+              strokeWidth="2"
+              style={{
+                transform: filterPanelExpanded ? "rotate(180deg)" : "none",
+                transition: "transform 0.2s ease",
+              }}
+            >
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+
+        {filterPanelExpanded && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+              <div>
+                <FieldLabel label="Single date" />
+                <input
+                  type="date"
+                  value={filterDateSingle}
+                  onChange={(e) => {
+                    setFilterDateSingle(e.target.value);
+                    setFilterDateFrom("");
+                    setFilterDateTo("");
+                  }}
+                  style={TL_DATE_INPUT_STYLE}
+                />
+              </div>
+              <div>
+                <FieldLabel label="Date from" />
+                <input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => {
+                    setFilterDateFrom(e.target.value);
+                    setFilterDateSingle("");
+                  }}
+                  style={TL_DATE_INPUT_STYLE}
+                />
+              </div>
+              <div>
+                <FieldLabel label="Date to" />
+                <input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => {
+                    setFilterDateTo(e.target.value);
+                    setFilterDateSingle("");
+                  }}
+                  style={TL_DATE_INPUT_STYLE}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+              <div>
+                <FieldLabel label="Source" />
+                <SelectInput
+                  value={filterSource}
+                  onChange={(v) => setFilterSource(String(v))}
+                  options={mapSelectOptions(sources, "All sources")}
+                />
+              </div>
+              <div>
+                <FieldLabel label="Centre" />
+                <SelectInput
+                  value={filterCenter}
+                  onChange={(v) => setFilterCenter(String(v))}
+                  options={mapSelectOptions(centerOptions, "All centres")}
+                />
+              </div>
+              <div>
+                <FieldLabel label="Pipeline" />
+                <SelectInput
+                  value={filterPipeline}
+                  onChange={(v) => setFilterPipeline(String(v))}
+                  options={mapSelectOptions(pipelineOptions, "All pipelines")}
+                />
+              </div>
+              <div>
+                <FieldLabel label="Stage" />
+                <SelectInput
+                  value={filterStage}
+                  onChange={(v) => setFilterStage(String(v))}
+                  options={mapSelectOptions(stageOptions, "All stages")}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+              <div>
+                <FieldLabel label="Created by" />
+                <SelectInput
+                  value={filterCreatedBy}
+                  onChange={(v) => setFilterCreatedBy(String(v))}
+                  options={mapSelectOptions(createdByOptions, "All users")}
+                />
+              </div>
+              <div>
+                <FieldLabel label="Product type" />
+                <SelectInput
+                  value={filterProductType}
+                  onChange={(v) => setFilterProductType(String(v))}
+                  options={mapSelectOptions(productTypeOptions, "All types")}
+                />
+              </div>
+              <div>
+                <FieldLabel label="Draft status" />
+                <SelectInput
+                  value={filterDraft}
+                  onChange={(v) => setFilterDraft(String(v) as "All" | "draft" | "live")}
+                  options={[
+                    { value: "All", label: "All records" },
+                    { value: "live", label: "Submitted only" },
+                    { value: "draft", label: "Drafts only" },
+                  ]}
+                />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <FieldLabel label="Min premium ($)" />
+                  <Input
+                    value={filterMinPremium}
+                    onChange={(e) => setFilterMinPremium(e.target.value)}
+                    placeholder="Any"
+                    inputMode="decimal"
+                    style={{ height: 36 }}
+                  />
+                </div>
+                <div>
+                  <FieldLabel label="Max premium ($)" />
+                  <Input
+                    value={filterMaxPremium}
+                    onChange={(e) => setFilterMaxPremium(e.target.value)}
+                    placeholder="Any"
+                    inputMode="decimal"
+                    style={{ height: 36 }}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+            {filtered.length.toLocaleString()} leads match filters
+          </div>
+          {transferLeadsHasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearTransferLeadFilters}
+              style={{
+                background: "none",
+                border: "none",
+                color: T.blue,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: "4px 0",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.textDecoration = "underline";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.textDecoration = "none";
+              }}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        {transferLeadsHasActiveFilters && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              Active:
+            </span>
+            {search.trim() !== "" && <FilterChip label={`Search: ${search.trim()}`} onClear={() => setSearch("")} />}
+            {filterSource !== "All" && <FilterChip label={`Source: ${filterSource}`} onClear={() => setFilterSource("All")} />}
+            {filterDateSingle !== "" && <FilterChip label={`Date: ${filterDateSingle}`} onClear={() => setFilterDateSingle("")} />}
+            {filterDateFrom !== "" && <FilterChip label={`From: ${filterDateFrom}`} onClear={() => setFilterDateFrom("")} />}
+            {filterDateTo !== "" && <FilterChip label={`To: ${filterDateTo}`} onClear={() => setFilterDateTo("")} />}
+            {filterCenter !== "All" && <FilterChip label={`Centre: ${filterCenter}`} onClear={() => setFilterCenter("All")} />}
+            {filterPipeline !== "All" && <FilterChip label={`Pipeline: ${filterPipeline}`} onClear={() => setFilterPipeline("All")} />}
+            {filterStage !== "All" && <FilterChip label={`Stage: ${filterStage}`} onClear={() => setFilterStage("All")} />}
+            {filterCreatedBy !== "All" && <FilterChip label={`Created by: ${filterCreatedBy}`} onClear={() => setFilterCreatedBy("All")} />}
+            {filterProductType !== "All" && <FilterChip label={`Type: ${filterProductType}`} onClear={() => setFilterProductType("All")} />}
+            {filterDraft !== "All" && (
+              <FilterChip
+                label={filterDraft === "draft" ? "Drafts only" : "Submitted only"}
+                onClear={() => setFilterDraft("All")}
+              />
+            )}
+            {filterMinPremium.trim() !== "" && !Number.isNaN(Number(filterMinPremium)) && (
+              <FilterChip label={`Min $: ${filterMinPremium}`} onClear={() => setFilterMinPremium("")} />
+            )}
+            {filterMaxPremium.trim() !== "" && !Number.isNaN(Number(filterMaxPremium)) && (
+              <FilterChip label={`Max $: ${filterMaxPremium}`} onClear={() => setFilterMaxPremium("")} />
+            )}
+          </div>
+        )}
+      </div>
+
       <DataGrid
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search leads by name, phone, source, or ID..."
-        filters={
-          <>
-            <select
-              value={filterSource}
-              onChange={(e) => setFilterSource(e.target.value)}
-              style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}
-            >
-              <option value="All">All Sources</option>
-              {sources.map((source) => (
-                <option key={source} value={source}>{source}</option>
-              ))}
-            </select>
-          </>
-        }
-        activeFilters={
-          (search.trim() !== "" || filterSource !== "All") ? (
-            <>
-              {filterSource !== "All" && <FilterChip label={`Source: ${filterSource}`} onClear={() => setFilterSource("All")} />}
-              <button
-                onClick={() => { setSearch(""); setFilterSource("All"); }}
-                style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", fontFamily: T.font, marginLeft: "auto" }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "underline")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "none")}
-              >
-                Clear Filters
-              </button>
-            </>
-          ) : null
-        }
+        noHeader
         pagination={
           <Pagination
             page={page}
@@ -1679,6 +2128,13 @@ export default function CallCenterLeadIntakePage({
               ),
             },
             {
+              header: "Created",
+              key: "createdAt",
+              render: (lead) => (
+                <span style={{ fontSize: 12, color: T.textMid, fontWeight: 600 }}>{lead.createdAt}</span>
+              ),
+            },
+            {
               header: "Created By",
               key: "createdBy",
               render: (lead) => (
@@ -1740,7 +2196,7 @@ export default function CallCenterLeadIntakePage({
                           transition: "all 160ms ease",
                         }}
                       >
-                        Claim Call
+                        Start verification
                       </button>
                       <button
                         className="lead-action-btn"

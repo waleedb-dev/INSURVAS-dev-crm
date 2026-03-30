@@ -77,6 +77,125 @@ function fmtBool(value: unknown) {
   return "—";
 }
 
+/** Single policy row from `public.policies` (keyed by schema column names). */
+type PolicyRow = Record<string, unknown>;
+
+type PolicyFieldSpec = {
+  key: string;
+  label: string;
+  /** Match `public.policies` column semantics */
+  wide?: boolean;
+  multiline?: boolean;
+  kind?: "text" | "ts" | "num" | "bool";
+};
+
+function policyDisplayValue(row: PolicyRow | null, key: string, kind: PolicyFieldSpec["kind"] = "text"): string {
+  if (!row) return "";
+  const v = row[key];
+  if (v == null || v === "") return "";
+  if (kind === "bool") return fmtBool(v);
+  if (kind === "ts") return formatTs(v);
+  if (kind === "num") {
+    if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
+    const n = Number(v);
+    return Number.isFinite(n) ? String(n) : String(v);
+  }
+  return String(v);
+}
+
+/** Read-only layout aligned to `public.policies` columns (see Supabase schema). */
+const POLICY_SCHEMA_SECTIONS: { title: string; fields: PolicyFieldSpec[] }[] = [
+  {
+    title: "Policy",
+    fields: [
+      { key: "deal_name", label: "deal_name" },
+      { key: "policy_type", label: "policy_type" },
+      { key: "carrier", label: "carrier" },
+      { key: "carrier_status", label: "carrier_status" },
+      { key: "policy_number", label: "policy_number" },
+      { key: "policy_status", label: "policy_status" },
+      { key: "status", label: "status" },
+      { key: "deal_value", label: "deal_value", kind: "num" },
+      { key: "cc_value", label: "cc_value", kind: "num" },
+      { key: "is_active", label: "is_active", kind: "bool" },
+      { key: "group_title", label: "group_title" },
+      { key: "group_color", label: "group_color" },
+    ],
+  },
+  {
+    title: "People & placement",
+    fields: [
+      { key: "sales_agent", label: "sales_agent" },
+      { key: "call_center", label: "call_center" },
+      { key: "phone_number", label: "phone_number" },
+    ],
+  },
+  {
+    title: "Dates",
+    fields: [
+      { key: "effective_date", label: "effective_date", kind: "ts" },
+      { key: "deal_creation_date", label: "deal_creation_date", kind: "ts" },
+      { key: "lead_creation_date", label: "lead_creation_date", kind: "ts" },
+      { key: "last_updated", label: "last_updated", kind: "ts" },
+    ],
+  },
+  {
+    title: "Commission & writing",
+    fields: [
+      { key: "writing_no", label: "writing_no" },
+      { key: "commission_type", label: "commission_type" },
+      { key: "cc_pmt_ws", label: "cc_pmt_ws" },
+      { key: "cc_cb_ws", label: "cc_cb_ws" },
+    ],
+  },
+  {
+    title: "CRM",
+    fields: [
+      { key: "ghl_name", label: "ghl_name" },
+      { key: "ghl_stage", label: "ghl_stage" },
+      { key: "monday_item_id", label: "monday_item_id" },
+    ],
+  },
+  {
+    title: "Notes",
+    fields: [
+      { key: "notes", label: "notes", wide: true, multiline: true },
+      { key: "tasks", label: "tasks", wide: true, multiline: true },
+    ],
+  },
+  {
+    title: "Disposition",
+    fields: [
+      { key: "disposition", label: "disposition" },
+      { key: "disposition_date", label: "disposition_date", kind: "ts" },
+      { key: "disposition_agent_id", label: "disposition_agent_id" },
+      { key: "disposition_agent_name", label: "disposition_agent_name" },
+      { key: "disposition_notes", label: "disposition_notes", wide: true, multiline: true },
+      { key: "callback_datetime", label: "callback_datetime", kind: "ts" },
+      { key: "disposition_count", label: "disposition_count", kind: "num" },
+    ],
+  },
+  {
+    title: "Lock",
+    fields: [
+      { key: "lock_status", label: "lock_status" },
+      { key: "locked_at", label: "locked_at", kind: "ts" },
+      { key: "locked_by", label: "locked_by" },
+      { key: "locked_by_name", label: "locked_by_name" },
+      { key: "lock_reason", label: "lock_reason", wide: true, multiline: true },
+    ],
+  },
+  {
+    title: "Record",
+    fields: [
+      { key: "id", label: "id" },
+      { key: "lead_id", label: "lead_id" },
+      { key: "created_at", label: "created_at", kind: "ts" },
+      { key: "updated_at", label: "updated_at", kind: "ts" },
+    ],
+  },
+];
+
 const CALL_RESULT_FIELD_ORDER: { key: string; label: string; format?: (v: unknown) => string }[] = [
   { key: "submission_id", label: "Submission ID" },
   { key: "customer_name", label: "Customer name" },
@@ -152,6 +271,9 @@ export default function LeadViewComponent({
   const [callResultsRows, setCallResultsRows] = useState<LeadRow[]>([]);
   const [callUpdatesLoading, setCallUpdatesLoading] = useState(false);
   const [callUpdateLogRows, setCallUpdateLogRows] = useState<CallUpdateLogRow[]>([]);
+
+  const [policyRow, setPolicyRow] = useState<PolicyRow | null>(null);
+  const [policyLoading, setPolicyLoading] = useState(false);
 
   const resolveLeadUuid = useCallback(
     async (id: string | undefined): Promise<string | null> => {
@@ -378,6 +500,31 @@ export default function LeadViewComponent({
     );
     setNotesLoading(false);
   }, [rowUuid, supabase]);
+
+  const loadPolicyForLead = useCallback(async () => {
+    if (!rowUuid) {
+      setPolicyRow(null);
+      return;
+    }
+    setPolicyLoading(true);
+    const { data, error } = await supabase
+      .from("policies")
+      .select("*")
+      .eq("lead_id", rowUuid)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    setPolicyLoading(false);
+    if (error) {
+      setPolicyRow(null);
+      return;
+    }
+    const row = data?.[0];
+    setPolicyRow(row ? (row as PolicyRow) : null);
+  }, [rowUuid, supabase]);
+
+  useEffect(() => {
+    void loadPolicyForLead();
+  }, [loadPolicyForLead]);
 
   const loadCallUpdates = useCallback(async () => {
     if (!rowUuid) return;
@@ -1146,70 +1293,74 @@ export default function LeadViewComponent({
             {activeTab === "Policy & coverage" && !isCreation && (
               <div>
                 <h3 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800 }}>Policy & coverage</h3>
-                {(() => {
-                  const d = isEditing && editDraft ? editDraft : display;
-                  const ro = !isEditing;
-                  const roStyle = { ...inputStyle, backgroundColor: T.pageBg, color: T.textMid } as const;
-                  const fieldStyle = ro ? roStyle : inputStyle;
-
-                  return (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, maxWidth: 900 }}>
-                      <div>
-                        <label style={labelStyle}>Product type</label>
-                        <input
-                          value={String(d?.product_type ?? "")}
-                          readOnly={ro}
-                          onChange={(e) => patchDraft("product_type", e.target.value)}
-                          style={fieldStyle}
-                        />
+                <p style={{ margin: "0 0 16px", fontSize: 12, color: T.textMuted, lineHeight: 1.5 }}>
+                  Newest <code style={{ fontSize: 11 }}>public.policies</code> row for this lead. Field labels match column names.
+                </p>
+                {policyLoading ? (
+                  <p style={{ color: T.textMuted, fontSize: 14, margin: 0 }}>Loading policy…</p>
+                ) : (
+                  (() => {
+                    const roStyle = { ...inputStyle, backgroundColor: T.pageBg, color: T.textMid } as const;
+                    return (
+                      <div style={{ maxWidth: 960 }}>
+                        {!policyRow ? (
+                          <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 20 }}>
+                            No policy row linked to this lead — fields below show the schema layout.
+                          </p>
+                        ) : null}
+                        {POLICY_SCHEMA_SECTIONS.map((section) => (
+                          <div key={section.title} style={{ marginBottom: 28 }}>
+                            <h4
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 800,
+                                color: T.textMuted,
+                                textTransform: "uppercase",
+                                letterSpacing: 0.5,
+                                margin: "0 0 14px",
+                              }}
+                            >
+                              {section.title}
+                            </h4>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: 20,
+                              }}
+                            >
+                              {section.fields.map((field) => {
+                                const val = policyDisplayValue(policyRow, field.key, field.kind);
+                                const colStyle = field.wide ? { gridColumn: "1 / -1" as const } : undefined;
+                                return (
+                                  <div key={field.key} style={colStyle}>
+                                    <label style={labelStyle}>{field.label}</label>
+                                    {field.multiline ? (
+                                      <textarea
+                                        readOnly
+                                        value={val}
+                                        rows={field.key === "notes" || field.key === "tasks" ? 4 : 3}
+                                        style={{
+                                          ...roStyle,
+                                          width: "100%",
+                                          resize: "vertical",
+                                          fontFamily: T.font,
+                                          minHeight: 80,
+                                        }}
+                                      />
+                                    ) : (
+                                      <input readOnly value={val} style={roStyle} />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <label style={labelStyle}>Carrier</label>
-                        <input
-                          value={String(d?.carrier ?? "")}
-                          readOnly={ro}
-                          onChange={(e) => patchDraft("carrier", e.target.value)}
-                          style={fieldStyle}
-                        />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Monthly premium</label>
-                        <input
-                          value={String(d?.monthly_premium ?? "")}
-                          readOnly={ro}
-                          onChange={(e) => patchDraft("monthly_premium", e.target.value)}
-                          style={fieldStyle}
-                        />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Coverage amount</label>
-                        <input
-                          value={String(d?.coverage_amount ?? "")}
-                          readOnly={ro}
-                          onChange={(e) => patchDraft("coverage_amount", e.target.value)}
-                          style={fieldStyle}
-                        />
-                      </div>
-                      <div style={{ gridColumn: "1 / -1" }}>
-                        <label style={labelStyle}>Tags</label>
-                        <input
-                          value={tags.length ? tags.join(", ") : ""}
-                          readOnly={ro}
-                          onChange={(e) =>
-                            patchDraft(
-                              "tags",
-                              e.target.value
-                                .split(",")
-                                .map((s) => s.trim())
-                                .filter(Boolean)
-                            )
-                          }
-                          style={fieldStyle}
-                        />
-                      </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()
+                )}
               </div>
             )}
           </div>

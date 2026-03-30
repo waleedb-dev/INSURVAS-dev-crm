@@ -11,6 +11,13 @@ export type AgentOption = {
   roleKey: string;
 };
 
+/** Roles that can take a “Direct to Licensed” claim */
+const LICENSED_CLAIM_ROLE_KEYS = new Set([
+  "sales_agent_licensed",
+  "sales_manager",
+  "sales_admin",
+]);
+
 export type ClaimSelections = {
   workflowType: ClaimWorkflowType;
   bufferAgentId: string | null;
@@ -79,8 +86,8 @@ export async function fetchClaimAgents(supabase: SupabaseClient): Promise<{
 }> {
   const { data, error } = await supabase
     .from("users")
-    .select("id, full_name, role_id, roles!inner(key)")
-    .eq("status", "active");
+    .select("id, full_name, is_licensed, role_id, roles!inner(key)")
+    .in("status", ["active", "invited"]);
 
   if (error) {
     throw new Error(error.message || "Failed to load claim agents.");
@@ -89,11 +96,14 @@ export async function fetchClaimAgents(supabase: SupabaseClient): Promise<{
   const rows = (data || []) as Array<{
     id: string;
     full_name: string | null;
+    is_licensed?: boolean | null;
     role_id: string | null;
     roles: { key: string } | { key: string }[] | null;
   }>;
 
-  const normalized: AgentOption[] = rows
+  type Norm = AgentOption & { isLicensedProfile: boolean };
+
+  const normalized: Norm[] = rows
     .map((row) => {
       const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
       const key = role?.key || "";
@@ -101,17 +111,44 @@ export async function fetchClaimAgents(supabase: SupabaseClient): Promise<{
         id: row.id,
         roleKey: key,
         name: row.full_name?.trim() || "Unknown User",
+        isLicensedProfile: row.is_licensed === true,
       };
     })
     .filter((row) => row.roleKey.length > 0);
 
-  const licensedAgents = normalized.filter((row) => row.roleKey === "sales_agent_licensed");
-  const bufferAgents = normalized.filter(
-    (row) => row.roleKey === "sales_agent_unlicensed" || row.roleKey === "call_center_agent",
-  );
-  const retentionAgents = normalized.filter(
-    (row) => row.roleKey === "sales_manager" || row.roleKey === "sales_agent_licensed",
-  );
+  const byName = (a: AgentOption, b: AgentOption) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+
+  const toOption = (row: Norm): AgentOption => ({
+    id: row.id,
+    name: row.name,
+    roleKey: row.roleKey,
+  });
+
+  /** Direct to Licensed — sales roles + anyone flagged `users.is_licensed` (except pure call-center roles) */
+  const licensedAgents = normalized
+    .filter((row) => {
+      if (LICENSED_CLAIM_ROLE_KEYS.has(row.roleKey)) return true;
+      if (!row.isLicensedProfile) return false;
+      if (row.roleKey === "call_center_agent" || row.roleKey === "call_center_admin") return false;
+      return (
+        row.roleKey === "sales_agent_unlicensed" ||
+        row.roleKey === "sales_agent_licensed" ||
+        row.roleKey === "sales_manager" ||
+        row.roleKey === "sales_admin"
+      );
+    })
+    .map(toOption)
+    .sort(byName);
+
+  /** Buffer to Licensed — role unlicensed sales, and not marked licensed on profile */
+  const bufferAgents = normalized
+    .filter((row) => row.roleKey === "sales_agent_unlicensed" && !row.isLicensedProfile)
+    .map(toOption)
+    .sort(byName);
+  const retentionAgents = normalized
+    .filter((row) => row.roleKey === "sales_manager" || LICENSED_CLAIM_ROLE_KEYS.has(row.roleKey))
+    .map(toOption)
+    .sort(byName);
 
   return { bufferAgents, licensedAgents, retentionAgents };
 }

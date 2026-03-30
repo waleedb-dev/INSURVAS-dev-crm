@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -114,6 +114,7 @@ export default function TransferLeadVerificationPanel({
     message: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const firstFieldInputRef = useRef<HTMLInputElement | null>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
   const [underwritingSaving, setUnderwritingSaving] = useState(false);
   const [toolkitUrl, setToolkitUrl] = useState("https://insurancetoolkits.com/login");
@@ -376,8 +377,11 @@ export default function TransferLeadVerificationPanel({
     }
   };
 
+  const verificationNotStarted = orderedItems.length > 0 && verifiedCount === 0;
+
   return (
     <div
+      id="transfer-lead-verification-panel"
       style={{
         backgroundColor: "#fff",
         border: `1.5px solid ${T.border}`,
@@ -413,6 +417,48 @@ export default function TransferLeadVerificationPanel({
         </div>
       )}
 
+      {verificationNotStarted && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: `1px solid ${T.border}`,
+            backgroundColor: T.pageBg,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: T.textMid }}>
+            Verification has not started — review each field and mark as verified when correct.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              firstFieldInputRef.current?.focus({ preventScroll: false });
+              firstFieldInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+            style={{
+              flexShrink: 0,
+              border: "none",
+              backgroundColor: T.blue,
+              color: "#fff",
+              borderRadius: 8,
+              padding: "8px 14px",
+              fontWeight: 800,
+              cursor: "pointer",
+              fontSize: 13,
+              fontFamily: T.font,
+            }}
+          >
+            Start verification
+          </button>
+        </div>
+      )}
+
       {error && (
         <div style={{ marginBottom: 10, color: "#991b1b", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "8px 10px", fontSize: 12 }}>
           {error}
@@ -420,7 +466,7 @@ export default function TransferLeadVerificationPanel({
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 560, overflowY: "auto", paddingRight: 4 }}>
-        {orderedItems.map((item) => {
+        {orderedItems.map((item, itemIndex) => {
           const isSaving = Boolean(savingIds[item.id]);
           const isPhoneField = item.field_name === "phone_number";
           const dncStatus = dncStatusByItem[item.id];
@@ -498,6 +544,7 @@ export default function TransferLeadVerificationPanel({
               )}
 
               <input
+                ref={itemIndex === 0 ? firstFieldInputRef : undefined}
                 value={draftValues[item.id] ?? ""}
                 onChange={(e) => setDraftValues((prev) => ({ ...prev, [item.id]: e.target.value }))}
                 onBlur={() => {
