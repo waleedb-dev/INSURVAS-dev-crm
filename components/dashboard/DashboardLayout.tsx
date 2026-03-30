@@ -9,7 +9,9 @@ export type DashPage =
   | "call-center-lead-intake"
   | "users-access" | "pipeline-management"
   | "carrier-management" | "bpo-centres"
-  | "commissions" | "policies";
+  | "commissions" | "policies"
+  | "imo-management"
+  | "upline-carrier-states";
 
 interface Props {
   activePage: DashPage;
@@ -39,6 +41,8 @@ const NAV_ITEMS: { id: DashPage; label: string; Icon: React.FC<{ active: boolean
   { id: "pipeline-management", label: "Pipelines",     Icon: InfoPortalIcon },
   { id: "carrier-management", label: "Carriers",       Icon: ProjectsIcon },
   { id: "bpo-centres",      label: "BPO Centres",      Icon: VacationsIcon },
+  { id: "imo-management",   label: "IMO Management",   Icon: InfoPortalIcon },
+  { id: "upline-carrier-states", label: "Upline States", Icon: InfoPortalIcon },
 ];
 
 const NOTIFICATIONS = [

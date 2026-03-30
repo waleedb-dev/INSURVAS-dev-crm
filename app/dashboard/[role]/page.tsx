@@ -14,6 +14,8 @@ import CarrierManagementPage from "@/components/dashboard/pages/CarrierManagemen
 import BpoCentersPage from "@/components/dashboard/pages/BpoCentersPage";
 import CommissionsPage from "@/components/dashboard/pages/CommissionsPage";
 import PoliciesPage from "@/components/dashboard/pages/PoliciesPage";
+import IMOManagementPage from "@/components/dashboard/pages/IMOManagementPage";
+import UplineCarrierStatesManagementPage from "@/components/dashboard/pages/UplineCarrierStatesManagementPage";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 export default function RoleDashboardPage() {
@@ -70,6 +72,8 @@ export default function RoleDashboardPage() {
       {activePage === "bpo-centres" && <BpoCentersPage />}
       {activePage === "commissions" && <CommissionsPage />}
       {activePage === "policies" && <PoliciesPage />}
+      {activePage === "imo-management" && <IMOManagementPage />}
+      {activePage === "upline-carrier-states" && <UplineCarrierStatesManagementPage />}
     </>
   );
 }

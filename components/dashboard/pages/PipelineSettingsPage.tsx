@@ -33,6 +33,7 @@ export default function PipelineManagementPage() {
   const [tempPipelineName, setTempPipelineName] = useState("");
   const [search, setSearch] = useState("");
   const [filterStages, setFilterStages] = useState<"All" | "Empty" | "With Stages">("All");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPipelines();
@@ -102,6 +103,7 @@ export default function PipelineManagementPage() {
            showInReports: s.show_in_reports
          }))
        });
+       setDeleteError(null);
        setView("edit");
     }
     setLoading(false);
@@ -148,18 +150,53 @@ export default function PipelineManagementPage() {
 
   async function handleDeleteStage(id: string) {
     if (!selectedPipeline) return;
-    const { error } = await supabase
-      .from("pipeline_stages")
-      .delete()
-      .eq("id", id);
-    
-    if (error) {
-      console.error("Error deleting stage:", error);
-    } else {
-      setSelectedPipeline({
-        ...selectedPipeline,
-        stages: selectedPipeline.stages.filter(s => s.id !== id)
-      });
+
+    const stageName = selectedPipeline.stages.find(s => s.id === id)?.name || "This stage";
+
+    try {
+      // Check if there are any leads using this stage
+      // Note: stage_id in leads table references pipeline_stages(id)
+      const { data: leadsData, error: leadsError } = await supabase
+        .from("leads")
+        .select("id, first_name, last_name")
+        .eq("stage_id", id)
+        .limit(1);
+
+      if (leadsError) {
+        console.error("Error checking leads:", {
+          message: leadsError.message,
+          code: leadsError.code,
+          details: leadsError.details,
+          hint: leadsError.hint
+        });
+        // FAIL CLOSED: If we can't check leads, don't allow deletion
+        setDeleteError(`Cannot delete "${stageName}". Unable to verify if leads are assigned to this stage. Please try again or contact support.`);
+        return;
+      } else if (leadsData && leadsData.length > 0) {
+        // FAIL CLOSED: If there are leads using this stage, show error
+        setDeleteError(`Cannot delete "${stageName}". This stage has leads assigned to it. Please move all leads to another stage first.`);
+        return;
+      }
+
+      // No leads found, proceed with deletion
+      const { error } = await supabase
+        .from("pipeline_stages")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        console.error("Error deleting stage:", error);
+        setDeleteError(`Failed to delete stage. Please try again.`);
+      } else {
+        setSelectedPipeline({
+          ...selectedPipeline,
+          stages: selectedPipeline.stages.filter(s => s.id !== id)
+        });
+      }
+    } catch (err) {
+      console.error("Unexpected error in handleDeleteStage:", err);
+      // FAIL CLOSED: If error occurs, don't delete
+      setDeleteError(`Cannot delete "${stageName}". An unexpected error occurred. Please try again.`);
     }
   }
 
@@ -206,10 +243,72 @@ export default function PipelineManagementPage() {
   if (view === "edit" && selectedPipeline) {
     return (
       <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }}>
+        {/* Error Popup */}
+        {deleteError && (
+          <div style={{
+            position: "fixed",
+            top: 20,
+            right: 20,
+            backgroundColor: "#fef2f2",
+            border: "1.5px solid #ef4444",
+            borderRadius: 12,
+            padding: "16px 20px",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+            zIndex: 1000,
+            maxWidth: 400,
+            animation: "slideIn 0.3s ease-out"
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                backgroundColor: "#ef4444",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, color: "#991b1b", marginBottom: 4, fontSize: 15 }}>
+                  Cannot Delete Stage
+                </div>
+                <div style={{ fontSize: 13, color: "#7f1d1d", lineHeight: 1.5 }}>
+                  {deleteError}
+                </div>
+              </div>
+              <button
+                onClick={() => setDeleteError(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#991b1b",
+                  cursor: "pointer",
+                  padding: 4,
+                  borderRadius: 4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Detail Header */}
         <div style={{ marginBottom: 24 }}>
           <button 
-            onClick={() => setView("list")} 
+            onClick={() => { setView("list"); setDeleteError(null); }} 
             style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", color: T.textMuted, fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -431,4 +530,24 @@ export default function PipelineManagementPage() {
       </DataGrid>
     </div>
   );
+}
+
+// Add CSS animation for the error popup
+const styles = `
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+`;
+
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement("style");
+  styleSheet.innerText = styles;
+  document.head.appendChild(styleSheet);
 }

@@ -28,6 +28,28 @@ interface CenterDetail extends CenterRow {
   agents: UserLink[];
 }
 
+interface CenterThreshold {
+  id: string;
+  centerName: string;
+  leadVendor: string;
+  tier: 'A' | 'B' | 'C';
+  dailyTransferTarget: number;
+  dailySalesTarget: number;
+  maxDqPercentage: number;
+  minApprovalRatio: number;
+  transferWeight: number;
+  approvalRatioWeight: number;
+  dqWeight: number;
+  isActive: boolean;
+  slackWebhookUrl: string | null;
+  slackChannel: string | null;
+  slackManagerId: string | null;
+  slackChannelId: string | null;
+  underwritingThreshold: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Up to 3 letters from the first word of the centre name (e.g. "Sellers-BPO" → "SEL"). */
 function centreNameInitials(name: string): string {
   const trimmed = name.trim();
@@ -67,6 +89,12 @@ export default function BpoCentersPage() {
     slack_channel: false,
     email: false,
   });
+  
+  // Threshold settings state
+  const [activeTab, setActiveTab] = useState<"info" | "thresholds">("info");
+  const [thresholdData, setThresholdData] = useState<CenterThreshold | null>(null);
+  const [thresholdLoading, setThresholdLoading] = useState(false);
+  const [thresholdSaving, setThresholdSaving] = useState(false);
 
   const isMissingRequired = (value: string | null | undefined) => String(value ?? "").trim() === "";
 
@@ -147,9 +175,137 @@ export default function BpoCentersPage() {
       setSelectedCenter(refreshed);
       setEditingCenterName(refreshed?.name ?? "");
       setLogoUrl(refreshed?.logo_url ?? null);
+      // Fetch threshold data when center is loaded
+      void fetchThresholdData(refreshed?.name ?? "");
     }
 
     setLoading(false);
+  }
+
+  async function fetchThresholdData(centerName: string) {
+    if (!centerName) {
+      setThresholdData(null);
+      return;
+    }
+    
+    setThresholdLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("center_thresholds")
+        .select("*")
+        .eq("center_name", centerName)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error fetching threshold data:", error);
+      }
+
+      if (data) {
+        setThresholdData({
+          id: data.id,
+          centerName: data.center_name,
+          leadVendor: data.lead_vendor,
+          tier: data.tier || 'C',
+          dailyTransferTarget: data.daily_transfer_target || 10,
+          dailySalesTarget: data.daily_sales_target || 5,
+          maxDqPercentage: data.max_dq_percentage || 20,
+          minApprovalRatio: data.min_approval_ratio || 20,
+          transferWeight: data.transfer_weight || 40,
+          approvalRatioWeight: data.approval_ratio_weight || 35,
+          dqWeight: data.dq_weight || 25,
+          isActive: data.is_active ?? true,
+          slackWebhookUrl: data.slack_webhook_url,
+          slackChannel: data.slack_channel,
+          slackManagerId: data.slack_manager_id,
+          slackChannelId: data.slack_channel_id,
+          underwritingThreshold: data.underwriting_threshold || 5,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+        });
+      } else {
+        // Initialize with defaults if no threshold record exists
+        setThresholdData({
+          id: "",
+          centerName: centerName,
+          leadVendor: "",
+          tier: 'C',
+          dailyTransferTarget: 10,
+          dailySalesTarget: 5,
+          maxDqPercentage: 20,
+          minApprovalRatio: 20,
+          transferWeight: 40,
+          approvalRatioWeight: 35,
+          dqWeight: 25,
+          isActive: true,
+          slackWebhookUrl: null,
+          slackChannel: null,
+          slackManagerId: null,
+          slackChannelId: null,
+          underwritingThreshold: 5,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      console.error("Error in fetchThresholdData:", error);
+    } finally {
+      setThresholdLoading(false);
+    }
+  }
+
+  async function saveThresholdData() {
+    if (!thresholdData || !selectedCenter) return;
+
+    setThresholdSaving(true);
+    try {
+      const payload = {
+        center_name: thresholdData.centerName,
+        lead_vendor: thresholdData.leadVendor,
+        tier: thresholdData.tier,
+        daily_transfer_target: thresholdData.dailyTransferTarget,
+        daily_sales_target: thresholdData.dailySalesTarget,
+        max_dq_percentage: thresholdData.maxDqPercentage,
+        min_approval_ratio: thresholdData.minApprovalRatio,
+        transfer_weight: thresholdData.transferWeight,
+        approval_ratio_weight: thresholdData.approvalRatioWeight,
+        dq_weight: thresholdData.dqWeight,
+        is_active: thresholdData.isActive,
+        slack_webhook_url: thresholdData.slackWebhookUrl,
+        slack_channel: thresholdData.slackChannel,
+        slack_manager_id: thresholdData.slackManagerId,
+        slack_channel_id: thresholdData.slackChannelId,
+        underwriting_threshold: thresholdData.underwritingThreshold,
+      };
+
+      if (thresholdData.id) {
+        // Update existing
+        const { error } = await supabase
+          .from("center_thresholds")
+          .update(payload)
+          .eq("id", thresholdData.id);
+
+        if (error) throw error;
+        setToast({ message: "Threshold settings saved successfully.", type: "success" });
+      } else {
+        // Insert new
+        const { data, error } = await supabase
+          .from("center_thresholds")
+          .insert([payload])
+          .select()
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          setThresholdData(prev => prev ? { ...prev, id: data.id } : null);
+        }
+        setToast({ message: "Threshold settings created successfully.", type: "success" });
+      }
+    } catch (error: any) {
+      console.error("Error saving threshold data:", error);
+      setToast({ message: `Failed to save threshold settings: ${error?.message || "Unknown error"}`, type: "error" });
+    } finally {
+      setThresholdSaving(false);
+    }
   }
 
   useEffect(() => {
@@ -181,6 +337,8 @@ export default function BpoCentersPage() {
     setLogoUrl(null);
     setSaveAttempted(false);
     setTouchedFields({ name: false, did: false, slack_channel: false, email: false });
+    setActiveTab("info");
+    setThresholdData(null);
     setView("edit");
   }
 
@@ -507,83 +665,479 @@ export default function BpoCentersPage() {
             
             {/* Tabs Header */}
             <div style={{ display: "flex", borderBottom: `1.5px solid ${T.border}`, padding: "0 20px" }}>
-              {["Centre Info"].map((tab, i) => (
-                <div key={tab} style={{ padding: "20px 24px", fontSize: 14, fontWeight: 800, color: T.blue, position: "relative", cursor: "pointer" }}>
-                  {tab}
-                  <div style={{ position: "absolute", bottom: -1.5, left: 0, right: 0, height: 3, backgroundColor: T.blue, borderRadius: "3px 3px 0 0" }} />
-                </div>
-              ))}
+              {[
+                { id: "info", label: "Centre Info" },
+                { id: "thresholds", label: "Threshold Settings" },
+              ].map((tab) => {
+                const isThresholdsTab = tab.id === "thresholds";
+                const isNew = selectedCenter?.id === 'new';
+                const isDisabled = isThresholdsTab && isNew;
+                
+                return (
+                  <div 
+                    key={tab.id} 
+                    onClick={() => !isDisabled && setActiveTab(tab.id as "info" | "thresholds")}
+                    style={{ 
+                      padding: "20px 24px", 
+                      fontSize: 14, 
+                      fontWeight: 800, 
+                      color: isDisabled ? T.border : (activeTab === tab.id ? T.blue : T.textMuted), 
+                      position: "relative", 
+                      cursor: isDisabled ? "not-allowed" : "pointer",
+                      transition: "color 0.2s",
+                      opacity: isDisabled ? 0.5 : 1,
+                    }}
+                    title={isDisabled ? "Save the center first to configure thresholds" : tab.label}
+                  >
+                    {tab.label}
+                    {activeTab === tab.id && !isDisabled && (
+                      <div style={{ position: "absolute", bottom: -1.5, left: 0, right: 0, height: 3, backgroundColor: T.blue, borderRadius: "3px 3px 0 0" }} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Content Body */}
             <div style={{ padding: 40 }}>
+              {activeTab === "info" ? (
+                <>
+                  <div style={{ marginBottom: 40 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>CENTRE NAME *</label>
+                        <input 
+                          autoFocus
+                          value={editingCenterName}
+                          onChange={(e) => setEditingCenterName(e.target.value)}
+                          onBlur={() => setTouchedFields((prev) => ({ ...prev, name: true }))}
+                          placeholder="e.g. Islamabad North Hub"
+                          style={requiredInputStyle(invalidName)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>DIRECT LINE (DID) *</label>
+                        <input 
+                          type="tel"
+                          value={selectedCenter.did || ""}
+                          onChange={e => setSelectedCenter({ ...selectedCenter, did: e.target.value.replace(/[^0-9+]/g, "") })}
+                          onBlur={() => setTouchedFields((prev) => ({ ...prev, did: true }))}
+                          placeholder="e.g. +15550000000"
+                          style={requiredInputStyle(invalidDid)}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>SLACK CHANNEL *</label>
+                        <input 
+                          value={selectedCenter.slack_channel || ""}
+                          onChange={e => setSelectedCenter({ ...selectedCenter, slack_channel: e.target.value })}
+                          onBlur={() => setTouchedFields((prev) => ({ ...prev, slack_channel: true }))}
+                          placeholder="#bpo-centre-slack"
+                          style={requiredInputStyle(invalidSlack)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>EMAIL *</label>
+                        <input 
+                          type="email"
+                          value={selectedCenter.email || ""}
+                          onChange={e => setSelectedCenter({ ...selectedCenter, email: e.target.value })}
+                          onBlur={() => setTouchedFields((prev) => ({ ...prev, email: true }))}
+                          placeholder="centre@email.com"
+                          style={requiredInputStyle(invalidEmail)}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
+                      <button 
+                        onClick={() => setView("list")}
+                        style={{ marginRight: 16, padding: "12px 32px", borderRadius: 10, border: `1.5px solid ${T.border}`, backgroundColor: "#fff", color: T.textDark, fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={isNew ? handleCreateCenter : handleRenameCenter}
+                        style={{ padding: "12px 32px", borderRadius: 10, border: "none", backgroundColor: T.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,102,255,0.25)" }}
+                      >
+                        {isNew ? "Create Centre" : "Save Changes"}
+                      </button>
+                    </div>
+                  </div>
 
-              <div style={{ marginBottom: 40 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>CENTRE NAME *</label>
-                    <input 
-                      autoFocus
-                      value={editingCenterName}
-                      onChange={(e) => setEditingCenterName(e.target.value)}
-                      onBlur={() => setTouchedFields((prev) => ({ ...prev, name: true }))}
-                      placeholder="e.g. Islamabad North Hub"
-                      style={requiredInputStyle(invalidName)}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>DIRECT LINE (DID) *</label>
-                    <input 
-                      type="tel"
-                      value={selectedCenter.did || ""}
-                      onChange={e => setSelectedCenter({ ...selectedCenter, did: e.target.value.replace(/[^0-9+]/g, "") })}
-                      onBlur={() => setTouchedFields((prev) => ({ ...prev, did: true }))}
-                      placeholder="e.g. +15550000000"
-                      style={requiredInputStyle(invalidDid)}
-                    />
-                  </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>SLACK CHANNEL *</label>
-                    <input 
-                      value={selectedCenter.slack_channel || ""}
-                      onChange={e => setSelectedCenter({ ...selectedCenter, slack_channel: e.target.value })}
-                      onBlur={() => setTouchedFields((prev) => ({ ...prev, slack_channel: true }))}
-                      placeholder="#bpo-centre-slack"
-                      style={requiredInputStyle(invalidSlack)}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>EMAIL *</label>
-                    <input 
-                      type="email"
-                      value={selectedCenter.email || ""}
-                      onChange={e => setSelectedCenter({ ...selectedCenter, email: e.target.value })}
-                      onBlur={() => setTouchedFields((prev) => ({ ...prev, email: true }))}
-                      placeholder="centre@email.com"
-                      style={requiredInputStyle(invalidEmail)}
-                    />
-                  </div>
-                </div>
-                <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
-                  <button 
-                    onClick={() => setView("list")}
-                    style={{ marginRight: 16, padding: "12px 32px", borderRadius: 10, border: `1.5px solid ${T.border}`, backgroundColor: "#fff", color: T.textDark, fontSize: 14, fontWeight: 800, cursor: "pointer" }}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={isNew ? handleCreateCenter : handleRenameCenter}
-                    style={{ padding: "12px 32px", borderRadius: 10, border: "none", backgroundColor: T.blue, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,102,255,0.25)" }}
-                  >
-                    {isNew ? "Create Centre" : "Save Changes"}
-                  </button>
-                </div>
-              </div>
+                  {/* Advanced Controls (Only for Existing) */}
+                  {/* Removed Manage Access section */}
+                </>
+              ) : (
+                /* Threshold Settings Tab */
+                <>
+                  {thresholdLoading ? (
+                    <div style={{ padding: 60, textAlign: "center", color: T.textMuted }}>
+                      Loading threshold settings...
+                    </div>
+                  ) : thresholdData ? (
+                    <>
+                      {/* Basic Settings */}
+                      <div style={{ marginBottom: 40 }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, marginBottom: 20, paddingBottom: 12, borderBottom: `1.5px solid ${T.border}` }}>
+                          Basic Information
+                        </h3>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24, marginBottom: 24 }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>CENTER NAME</label>
+                            <input 
+                              value={thresholdData.centerName}
+                              disabled
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                                backgroundColor: T.rowBg,
+                                color: T.textMid,
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>LEAD VENDOR *</label>
+                            <input 
+                              value={thresholdData.leadVendor}
+                              onChange={e => setThresholdData({ ...thresholdData, leadVendor: e.target.value })}
+                              placeholder="e.g. Vendor ABC"
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                                outline: "none",
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>TIER</label>
+                            <select
+                              value={thresholdData.tier}
+                              onChange={e => setThresholdData({ ...thresholdData, tier: e.target.value as 'A' | 'B' | 'C' })}
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                                backgroundColor: "#fff",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <option value="A">Tier A (Elite)</option>
+                              <option value="B">Tier B (Premium)</option>
+                              <option value="C">Tier C (Standard)</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={thresholdData.isActive}
+                              onChange={e => setThresholdData({ ...thresholdData, isActive: e.target.checked })}
+                              style={{ width: 18, height: 18, cursor: "pointer" }}
+                            />
+                            <span style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>Center is Active</span>
+                          </label>
+                        </div>
+                      </div>
 
-              {/* Advanced Controls (Only for Existing) */}
-              {/* Removed Manage Access section */}
+                      {/* Daily Targets */}
+                      <div style={{ marginBottom: 40 }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, marginBottom: 20, paddingBottom: 12, borderBottom: `1.5px solid ${T.border}` }}>
+                          Daily Targets
+                        </h3>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24 }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>DAILY TRANSFER TARGET</label>
+                            <input 
+                              type="number"
+                              min={0}
+                              value={thresholdData.dailyTransferTarget}
+                              onChange={e => setThresholdData({ ...thresholdData, dailyTransferTarget: parseInt(e.target.value) || 0 })}
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>DAILY SALES TARGET</label>
+                            <input 
+                              type="number"
+                              min={0}
+                              value={thresholdData.dailySalesTarget}
+                              onChange={e => setThresholdData({ ...thresholdData, dailySalesTarget: parseInt(e.target.value) || 0 })}
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>UNDERWRITING THRESHOLD</label>
+                            <input 
+                              type="number"
+                              min={0}
+                              value={thresholdData.underwritingThreshold}
+                              onChange={e => setThresholdData({ ...thresholdData, underwritingThreshold: parseInt(e.target.value) || 0 })}
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Performance Thresholds */}
+                      <div style={{ marginBottom: 40 }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, marginBottom: 20, paddingBottom: 12, borderBottom: `1.5px solid ${T.border}` }}>
+                          Performance Thresholds (%)
+                        </h3>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>MAX DQ PERCENTAGE</label>
+                            <input 
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.01}
+                              value={thresholdData.maxDqPercentage}
+                              onChange={e => setThresholdData({ ...thresholdData, maxDqPercentage: parseFloat(e.target.value) || 0 })}
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>MIN APPROVAL RATIO</label>
+                            <input 
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.01}
+                              value={thresholdData.minApprovalRatio}
+                              onChange={e => setThresholdData({ ...thresholdData, minApprovalRatio: parseFloat(e.target.value) || 0 })}
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Performance Weights */}
+                      <div style={{ marginBottom: 40 }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, marginBottom: 20, paddingBottom: 12, borderBottom: `1.5px solid ${T.border}` }}>
+                          Performance Weights (must total 100)
+                        </h3>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24 }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>TRANSFER WEIGHT</label>
+                            <input 
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={thresholdData.transferWeight}
+                              onChange={e => setThresholdData({ ...thresholdData, transferWeight: parseInt(e.target.value) || 0 })}
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>APPROVAL RATIO WEIGHT</label>
+                            <input 
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={thresholdData.approvalRatioWeight}
+                              onChange={e => setThresholdData({ ...thresholdData, approvalRatioWeight: parseInt(e.target.value) || 0 })}
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>DQ WEIGHT</label>
+                            <input 
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={thresholdData.dqWeight}
+                              onChange={e => setThresholdData({ ...thresholdData, dqWeight: parseInt(e.target.value) || 0 })}
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 12, padding: 12, backgroundColor: T.rowBg, borderRadius: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: T.textMid }}>
+                            Total: {thresholdData.transferWeight + thresholdData.approvalRatioWeight + thresholdData.dqWeight}%
+                            {thresholdData.transferWeight + thresholdData.approvalRatioWeight + thresholdData.dqWeight !== 100 && (
+                              <span style={{ color: T.danger, marginLeft: 8 }}>(Should equal 100%)</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Slack Integration */}
+                      <div style={{ marginBottom: 40 }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, marginBottom: 20, paddingBottom: 12, borderBottom: `1.5px solid ${T.border}` }}>
+                          Slack Integration
+                        </h3>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>WEBHOOK URL</label>
+                            <input 
+                              value={thresholdData.slackWebhookUrl || ""}
+                              onChange={e => setThresholdData({ ...thresholdData, slackWebhookUrl: e.target.value })}
+                              placeholder="https://hooks.slack.com/services/..."
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>CHANNEL</label>
+                            <input 
+                              value={thresholdData.slackChannel || ""}
+                              onChange={e => setThresholdData({ ...thresholdData, slackChannel: e.target.value })}
+                              placeholder="#alerts"
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>CHANNEL ID</label>
+                            <input 
+                              value={thresholdData.slackChannelId || ""}
+                              onChange={e => setThresholdData({ ...thresholdData, slackChannelId: e.target.value })}
+                              placeholder="C1234567890"
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>MANAGER ID</label>
+                            <input 
+                              value={thresholdData.slackManagerId || ""}
+                              onChange={e => setThresholdData({ ...thresholdData, slackManagerId: e.target.value })}
+                              placeholder="U1234567890"
+                              style={{ 
+                                width: "100%", 
+                                padding: "14px 18px", 
+                                border: `1.5px solid ${T.border}`, 
+                                borderRadius: 12, 
+                                fontSize: 15, 
+                                fontWeight: 600,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
+                        <button 
+                          onClick={() => setView("list")}
+                          style={{ marginRight: 16, padding: "12px 32px", borderRadius: 10, border: `1.5px solid ${T.border}`, backgroundColor: "#fff", color: T.textDark, fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          onClick={saveThresholdData}
+                          disabled={thresholdSaving || !thresholdData.leadVendor}
+                          style={{ 
+                            padding: "12px 32px", 
+                            borderRadius: 10, 
+                            border: "none", 
+                            backgroundColor: T.blue, 
+                            color: "#fff", 
+                            fontSize: 14, 
+                            fontWeight: 800, 
+                            cursor: "pointer", 
+                            boxShadow: "0 4px 12px rgba(0,102,255,0.25)",
+                            opacity: thresholdSaving || !thresholdData.leadVendor ? 0.5 : 1,
+                          }}
+                        >
+                          {thresholdSaving ? "Saving..." : "Save Threshold Settings"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ padding: 60, textAlign: "center", color: T.textMuted }}>
+                      No threshold data available.
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -651,6 +1205,8 @@ export default function BpoCentersPage() {
               setSelectedCenter(detail);
               setEditingCenterName(detail.name);
               setLogoUrl(detail.logo_url ?? null);
+              setActiveTab("info");
+              void fetchThresholdData(detail.name);
               setView("edit");
             }
           }}
@@ -698,6 +1254,8 @@ export default function BpoCentersPage() {
                         setSelectedCenter(detail);
                         setEditingCenterName(detail.name);
                         setLogoUrl(detail.logo_url ?? null);
+                        setActiveTab("info");
+                        void fetchThresholdData(detail.name);
                         setView("edit");
                       }
                     }}

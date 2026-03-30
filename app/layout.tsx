@@ -21,7 +21,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-['Nunito_Sans',sans-serif] antialiased bg-[#f4f9fd] min-h-screen">
+      <body className="font-['Nunito_Sans',sans-serif] antialiased bg-[#f4f9fd] min-h-screen" suppressHydrationWarning>
         {children}
       </body>
     </html>
