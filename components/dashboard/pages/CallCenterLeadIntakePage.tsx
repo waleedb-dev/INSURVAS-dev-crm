@@ -332,6 +332,12 @@ export default function CallCenterLeadIntakePage({
   const router = useRouter();
   const { permissionKeys, currentRole } = useDashboardContext();
   const canEditTransferLeads = permissionKeys.has("action.transfer_leads.edit");
+  /** Overwrite the matched row: editors always; intake creators only for SSN match (duplicate resolution). */
+  const canOverwriteDuplicateMatch = (match: DuplicateLeadMatch | null) =>
+    Boolean(
+      match &&
+        (canEditTransferLeads || (canCreateLeads && match.match_type === "ssn")),
+    );
   const isCallCenterTransferRole =
     currentRole === "call_center_agent" || currentRole === "call_center_admin";
   const params = useParams<{ role?: string }>();
@@ -917,11 +923,11 @@ export default function CallCenterLeadIntakePage({
 
   const handleEditExistingDuplicateLead = async () => {
     if (!pendingCreatePayload) return;
-    if (!canEditTransferLeads) {
-      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
+    if (!duplicateLeadMatch?.id) return;
+    if (!canOverwriteDuplicateMatch(duplicateLeadMatch)) {
+      setToast({ message: "You do not have permission to overwrite this lead.", type: "error" });
       return;
     }
-    if (!duplicateLeadMatch?.id) return;
 
     const {
       data: { session },
@@ -1356,9 +1362,14 @@ export default function CallCenterLeadIntakePage({
           <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
             <div style={{ width: "100%", maxWidth: 560, backgroundColor: "#fff", borderRadius: 12, border: `1px solid ${T.border}`, padding: 22, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
               <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Duplicate lead found</h3>
-              <p style={{ marginTop: 10, marginBottom: 14, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
+              <p style={{ marginTop: 10, marginBottom: 8, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
                 {duplicateRuleMessage || `We found an existing lead with the same ${duplicateLeadMatch.match_type === "ssn" ? "SSN" : "phone number"}.`}
               </p>
+              {duplicateLeadMatch.match_type === "ssn" && (
+                <p style={{ marginTop: 0, marginBottom: 14, fontSize: 12, color: T.textMuted, lineHeight: 1.45 }}>
+                  Stage rules (SSN duplicate rules) control whether a <strong>second</strong> lead can be created. You can still overwrite the existing lead with the form you entered.
+                </p>
+              )}
               <div style={{ backgroundColor: T.rowBg, border: `1px solid ${T.borderLight}`, borderRadius: 10, padding: 12, marginBottom: 16 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>
                   {(duplicateLeadMatch.first_name || "")} {(duplicateLeadMatch.last_name || "")}
@@ -1397,16 +1408,26 @@ export default function CallCenterLeadIntakePage({
                 >
                   Cancel
                 </button>
-                {canEditTransferLeads && (
+                {canOverwriteDuplicateMatch(duplicateLeadMatch) && (
                   <button
+                    type="button"
                     onClick={() => void handleEditExistingDuplicateLead()}
-                    style={{ background: "#fff", border: `1px solid ${T.blue}`, color: T.blue, borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
+                    style={{
+                      background: duplicateIsAddable ? "#fff" : T.blue,
+                      border: duplicateIsAddable ? `1px solid ${T.blue}` : "none",
+                      color: duplicateIsAddable ? T.blue : "#fff",
+                      borderRadius: 8,
+                      padding: "10px 14px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
                   >
-                    Update Existing
+                    Overwrite existing lead
                   </button>
                 )}
                 {duplicateIsAddable ? (
                   <button
+                    type="button"
                     onClick={() => void handleCreateDuplicateLead()}
                     style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
                   >
@@ -1414,9 +1435,10 @@ export default function CallCenterLeadIntakePage({
                   </button>
                 ) : (
                   <button
+                    type="button"
                     disabled
                     style={{ background: "#d1d5db", color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "not-allowed" }}
-                    title="Duplicate creation is blocked by stage rule"
+                    title="A second lead is not allowed for this stage (see SSN duplicate stage rules)."
                   >
                     Duplicate Not Allowed
                   </button>
