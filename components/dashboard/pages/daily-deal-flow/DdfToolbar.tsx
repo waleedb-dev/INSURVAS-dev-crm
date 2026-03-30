@@ -48,6 +48,8 @@ type Props = {
   callResultOptions: string[];
   laCallbackOptions: string[];
   totalRows: number;
+  hasActiveFilters: boolean;
+  onClearFilters: () => void;
 };
 
 const hourOptions = Array.from({ length: 24 }, (_, i) => ({ value: String(i), label: `${String(i).padStart(2, "0")}:00` }));
@@ -294,9 +296,22 @@ export function DdfToolbar(props: Props) {
         </div>
       </div>
 
-      {/* ── Footer: row count ── */}
-      <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
-        {props.totalRows.toLocaleString()} rows
+      {/* ── Footer: row count + clear filters ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+          {props.totalRows.toLocaleString()} rows
+        </div>
+        {props.hasActiveFilters && (
+          <button
+            type="button"
+            onClick={props.onClearFilters}
+            style={{ background: "none", border: "none", color: T.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "4px 0" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.textDecoration = "underline")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.textDecoration = "none")}
+          >
+            Clear Filters
+          </button>
+        )}
       </div>
     </div>
   );

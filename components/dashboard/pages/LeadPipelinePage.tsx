@@ -870,6 +870,11 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     setFilterMaxPremium("");
   };
 
+  const clearAllFilters = () => {
+    setSearch("");
+    resetDrawerFilters();
+  };
+
   if (showAddLead) {
     return <LeadViewComponent isCreation onBack={() => setShowAddLead(false)} onSubmit={(newLead: any) => {
       const mappedLead: Lead = {
@@ -994,7 +999,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           )}
         </div>
         <div style={{ padding: "16px 24px", borderTop: `1.5px solid ${T.borderLight}`, display: "flex", gap: 12, justifyContent: "flex-end", backgroundColor: "#f9fafb" }}>
-          <button onClick={resetDrawerFilters} style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 16px", fontWeight: 700 }}>Reset</button>
+          <button onClick={clearAllFilters} style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 16px", fontWeight: 700 }}>Clear Filters</button>
           <button onClick={() => setIsFilterOpen(false)} style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 20px", fontWeight: 700 }}>Cancel</button>
           <button onClick={applyDrawerFilters} style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontWeight: 700 }}>Apply</button>
         </div>
@@ -1088,6 +1093,14 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               {filterSource !== "All" && <FilterChip label={`Source: ${filterSource}`} onClear={() => setFilterSource("All")} />}
               {Boolean(filterMinPremium) && <FilterChip label={`Min: $${filterMinPremium}`} onClear={() => setFilterMinPremium("")} />}
               {Boolean(filterMaxPremium) && <FilterChip label={`Max: $${filterMaxPremium}`} onClear={() => setFilterMaxPremium("")} />}
+              <button
+                onClick={clearAllFilters}
+                style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", marginLeft: "auto" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "underline")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "none")}
+              >
+                Clear Filters
+              </button>
             </>
           )
         }

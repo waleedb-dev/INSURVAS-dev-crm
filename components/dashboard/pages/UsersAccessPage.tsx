@@ -204,9 +204,18 @@ export default function UsersAccessPage(){
           </>
         }
         activeFilters={
-          rf !== "All" && (
+          (search.trim() !== "" || rf !== "All") && (
             <>
               {rf !== "All" && <FilterChip label={`Role: ${rf}`} onClear={() => setRf("All")} />}
+              <button
+                type="button"
+                onClick={() => { setSearch(""); setRf("All"); setPage(1); }}
+                style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", marginLeft: "auto" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.textDecoration = "underline")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.textDecoration = "none")}
+              >
+                Clear Filters
+              </button>
             </>
           )
         }
