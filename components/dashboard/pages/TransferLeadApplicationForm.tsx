@@ -69,6 +69,25 @@ type PhoneDuplicateMatch = {
   stage: string | null;
   created_at: string | null;
 };
+type PhoneDuplicateQueryRow = {
+  id: string;
+  lead_unique_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  stage: string | null;
+  created_at: string | null;
+};
+type SsnDuplicateMatch = {
+  id: string;
+  lead_unique_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  social: string | null;
+  stage: string | null;
+  created_at: string | null;
+};
 
 const usStates = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
@@ -122,6 +141,13 @@ function getTodayInEasternYyyyMmDd(): string {
 
 function normalizePhoneDigits(value: string) {
   return String(value || "").replace(/\D/g, "");
+}
+
+function getUsPhone10Digits(value: string): string | null {
+  const digits = normalizePhoneDigits(value);
+  if (digits.length === 10) return digits;
+  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+  return null;
 }
 
 function formatUsPhone(digits: string) {
@@ -206,6 +232,7 @@ export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
   onSaveDraft,
+  onInstantDuplicateCheck,
   initialData,
   submitButtonLabel,
   centerName = ""
@@ -213,6 +240,7 @@ export default function TransferLeadApplicationForm({
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void;
   onSaveDraft?: (data: TransferLeadFormData) => void;
+  onInstantDuplicateCheck?: (data: TransferLeadFormData) => void | Promise<void>;
   initialData?: Partial<TransferLeadFormData>;
   submitButtonLabel?: string;
   centerName?: string;
@@ -235,6 +263,10 @@ export default function TransferLeadApplicationForm({
   const [ssnCheckState, setSsnCheckState] = useState<SsnCheckState>("idle");
   const [ssnCheckMessage, setSsnCheckMessage] = useState("");
   const [lastCheckedSsn, setLastCheckedSsn] = useState("");
+  const [lastAutoCheckedSsn, setLastAutoCheckedSsn] = useState("");
+  const [showSsnDupDetails, setShowSsnDupDetails] = useState(false);
+  const [ssnDupMatch, setSsnDupMatch] = useState<SsnDuplicateMatch | null>(null);
+  const [ssnDupIsAddable, setSsnDupIsAddable] = useState(true);
   const [underwritingData, setUnderwritingData] = useState({
     tobaccoLast12Months: "",
     healthConditions: [] as string[],
@@ -248,6 +280,7 @@ export default function TransferLeadApplicationForm({
   });
   const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const displayBpoName = (centerName || "").trim() || "BPO";
 
   const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
     // Always force leadSource to the fixed value
@@ -303,7 +336,9 @@ export default function TransferLeadApplicationForm({
     },
     );
 
-  const phoneError = formData.phone.length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone);
+  const phoneError = formData.phone.length > 0 && !getUsPhone10Digits(formData.phone);
+  const ssnDigits = normalizeSsnDigits(formData.social);
+  const ssnError = formData.social.trim().length > 0 && ssnDigits.length !== 9;
 
   const fieldStyleWithError = (key: keyof TransferLeadFormData, extra?: CSSProperties): CSSProperties => {
     const error = submitHighlightKeys.has(key);
@@ -332,8 +367,8 @@ export default function TransferLeadApplicationForm({
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
 
   const checkPhoneDuplicate = async (): Promise<{ match: PhoneDuplicateMatch | null; isAddable: boolean }> => {
-    const digits = normalizePhoneDigits(formData.phone);
-    if (digits.length !== 10) {
+    const canonicalDigits = getUsPhone10Digits(formData.phone);
+    if (!canonicalDigits) {
       setPhoneDupMatch(null);
       setPhoneDupRuleMessage("");
       setPhoneDupIsAddable(true);
@@ -342,7 +377,8 @@ export default function TransferLeadApplicationForm({
 
     setPhoneDupChecking(true);
     try {
-      const variants = Array.from(new Set([formData.phone.trim(), digits, formatUsPhone(digits)].filter(Boolean)));
+      const rawDigits = normalizePhoneDigits(formData.phone);
+      const variants = Array.from(new Set([formData.phone.trim(), rawDigits, canonicalDigits, formatUsPhone(canonicalDigits)].filter(Boolean)));
       const { data: existing, error: existingError } = await supabase
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, stage, created_at")
@@ -353,7 +389,10 @@ export default function TransferLeadApplicationForm({
         throw new Error(existingError.message || "Unable to check phone duplicates.");
       }
 
-      const match = ((existing || []) as any[]).find((row) => normalizePhoneDigits(String(row.phone || "")) === digits) || null;
+      const match =
+        ((existing || []) as PhoneDuplicateQueryRow[]).find(
+          (row) => getUsPhone10Digits(String(row.phone || "")) === canonicalDigits,
+        ) || null;
       if (!match) {
         setPhoneDupMatch(null);
         setPhoneDupRuleMessage("No existing lead found for this phone number.");
@@ -410,10 +449,10 @@ export default function TransferLeadApplicationForm({
   };
 
   const checkDnc = async (): Promise<DncStatus> => {
-    const cleanPhone = formData.phone.replace(/\D/g, "");
-    if (cleanPhone.length !== 10) {
+    const cleanPhone = getUsPhone10Digits(formData.phone);
+    if (!cleanPhone) {
       setDncStatus("error");
-      setDncMessage("Please enter a valid 10-digit US phone number first.");
+      setDncMessage("Please enter a valid 10-digit number or 11 digits starting with 1.");
       return "error";
     }
 
@@ -446,11 +485,20 @@ export default function TransferLeadApplicationForm({
     setShowPhoneDupDetails((prev) => !prev);
   };
 
-  const normalizeSsnDigits = (value: string) => value.replace(/\D/g, "");
-  const formatSsn = (digits: string) =>
-    digits.length === 9 ? `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}` : digits;
+  function normalizeSsnDigits(value: string) {
+    return value.replace(/\D/g, "");
+  }
+
+  function formatSsn(digits: string) {
+    return digits.length === 9 ? `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}` : digits;
+  }
 
   const isEditMode = (submitButtonLabel || "").toLowerCase().includes("update");
+  const [phoneGatePassed, setPhoneGatePassed] = useState(isEditMode);
+  useEffect(() => {
+    if (isEditMode) setPhoneGatePassed(true);
+  }, [isEditMode]);
+
   const duplicateBlocked = Boolean(phoneDupMatch && !phoneDupIsAddable);
   const submitBlockMessage =
     ssnCheckState === "blocked"
@@ -467,6 +515,9 @@ export default function TransferLeadApplicationForm({
     if (ssnDigits.length !== 9) {
       setSsnCheckState("idle");
       setSsnCheckMessage("");
+      setSsnDupMatch(null);
+      setSsnDupIsAddable(true);
+      setShowSsnDupDetails(false);
       return { blocked: false, warning: false };
     }
 
@@ -481,7 +532,7 @@ export default function TransferLeadApplicationForm({
       const variants = Array.from(new Set([rawSsn.trim(), ssnDigits, formatSsn(ssnDigits)].filter(Boolean)));
       const { data, error } = await supabase
         .from("leads")
-        .select("id, first_name, last_name, stage, social, created_at")
+        .select("id, lead_unique_id, first_name, last_name, phone, stage, social, created_at")
         .in("social", variants)
         .order("created_at", { ascending: false });
 
@@ -511,18 +562,35 @@ export default function TransferLeadApplicationForm({
         }
       });
 
-      const matchedLeadWithRule = matches
-        .map((row) => {
-          const stage = String(row.stage || "").trim();
-          return {
-            row,
-            rule: stage ? ruleByStage.get(stage.toLowerCase()) : undefined,
-          };
-        })
-        .filter((item) => Boolean(item.rule));
+      const leadWithRule = matches.map((row) => {
+        const stage = String(row.stage || "").trim();
+        return {
+          row,
+          rule: stage ? ruleByStage.get(stage.toLowerCase()) : undefined,
+        };
+      });
+      const blockedLead = leadWithRule.find((item) => item.rule && item.rule.is_addable === false);
+      const warningLead = leadWithRule.find((item) => item.rule && item.rule.is_addable === true);
+      const detailRow = blockedLead?.row || warningLead?.row || matches[0] || null;
 
-      const blockedLead = matchedLeadWithRule.find((item) => item.rule && item.rule.is_addable === false);
-      const warningLead = matchedLeadWithRule.find((item) => item.rule && item.rule.is_addable === true);
+      if (detailRow) {
+        const mappedDetail: SsnDuplicateMatch = {
+          id: String(detailRow.id),
+          lead_unique_id: detailRow.lead_unique_id ?? null,
+          first_name: detailRow.first_name ?? null,
+          last_name: detailRow.last_name ?? null,
+          phone: detailRow.phone ?? null,
+          social: detailRow.social ?? null,
+          stage: detailRow.stage ?? null,
+          created_at: detailRow.created_at ?? null,
+        };
+        setSsnDupMatch(mappedDetail);
+        if (!isEditMode && onInstantDuplicateCheck) {
+          void onInstantDuplicateCheck({ ...formData, leadUniqueId: computedLeadUniqueId });
+        }
+      } else {
+        setSsnDupMatch(null);
+      }
 
       setLastCheckedSsn(ssnDigits);
 
@@ -530,6 +598,7 @@ export default function TransferLeadApplicationForm({
         const leadName = `${blockedLead.row.first_name || ""} ${blockedLead.row.last_name || ""}`.trim() || "existing lead";
         const ghlStage = blockedLead.rule.ghl_stage ? ` (GHL: ${blockedLead.rule.ghl_stage})` : "";
         setSsnCheckState("blocked");
+        setSsnDupIsAddable(false);
         setSsnCheckMessage(
           `${blockedLead.rule.message} Existing lead: ${leadName}.${ghlStage}`,
         );
@@ -539,19 +608,33 @@ export default function TransferLeadApplicationForm({
       if (warningLead?.rule) {
         const ghlStage = warningLead.rule.ghl_stage ? ` (GHL: ${warningLead.rule.ghl_stage})` : "";
         setSsnCheckState("warning");
+        setSsnDupIsAddable(true);
         setSsnCheckMessage(
           `${warningLead.rule.message}${ghlStage}`,
         );
         return { blocked: false, warning: true };
       }
 
+      if (matches.length > 0) {
+        setSsnCheckState("warning");
+        setSsnDupIsAddable(true);
+        setSsnCheckMessage("An existing lead with this SSN was found. Review details before submitting.");
+        return { blocked: false, warning: true };
+      }
+
       setSsnCheckState("clear");
+      setSsnDupIsAddable(true);
+      setSsnDupMatch(null);
+      setShowSsnDupDetails(false);
       setSsnCheckMessage("No blocked SSN conflict found.");
       return { blocked: false, warning: false };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to validate SSN.";
       setSsnCheckState("error");
       setSsnCheckMessage(message);
+      setSsnDupMatch(null);
+      setSsnDupIsAddable(true);
+      setShowSsnDupDetails(false);
       return { blocked: false, warning: false };
     }
   };
@@ -662,7 +745,7 @@ export default function TransferLeadApplicationForm({
           </svg>
         </button>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, color: T.textDark, fontWeight: 800 }}>Ascendra BPO Application</h1>
+          <h1 style={{ margin: 0, fontSize: 22, color: T.textDark, fontWeight: 800 }}>{displayBpoName} Application</h1>
           <p style={{ margin: "4px 0 0", color: T.textMuted, fontWeight: 600, fontSize: 13 }}>All information needed to track sales for Live Transfers</p>
         </div>
       </div>
@@ -680,10 +763,11 @@ export default function TransferLeadApplicationForm({
             <Field label="Phone Number *">
               <div style={{ position: "relative" }}>
                 <input
-                  placeholder="(000) 000-0000"
+                  placeholder="Enter 10 or 11 digits"
                   value={formData.phone}
                   onChange={(e) => {
                     set("phone")(e);
+                    if (!isEditMode) setPhoneGatePassed(false);
                     setDncStatus("idle");
                     setDncMessage("");
                     setShowDncModal(false);
@@ -701,7 +785,16 @@ export default function TransferLeadApplicationForm({
                 />
                 <button
                   type="button"
-                  onClick={() => void checkDnc()}
+                  onClick={async () => {
+                    const dup = await checkPhoneDuplicate();
+                    if (dup.match) setShowPhoneDupDetails(true);
+                    if (dup.match && !dup.isAddable) {
+                      setPhoneGatePassed(false);
+                      return;
+                    }
+                    const dncResult = await checkDnc();
+                    setPhoneGatePassed(dncResult !== "tcpa");
+                  }}
                   disabled={dncChecking || phoneDupChecking}
                   style={{
                     position: "absolute",
@@ -748,8 +841,13 @@ export default function TransferLeadApplicationForm({
                 </div>
               )}
               <div style={{ fontSize: 11, color: phoneError ? T.danger : T.textMuted, marginTop: 4 }}>
-                {phoneError ? "Please enter a valid phone number. Format: (000) 000-0000." : "Format: (000) 000-0000."}
+                {phoneError ? "Please enter a valid phone number (10 digits or 11 digits starting with 1)." : "Enter 10 digits, or 11 digits if it starts with 1."}
               </div>
+              {!isEditMode && !phoneGatePassed && (
+                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
+                  Run phone check first to unlock the full application form.
+                </div>
+              )}
             </Field>
           </div>
         </Section>
@@ -809,240 +907,322 @@ export default function TransferLeadApplicationForm({
           </div>
         )}
 
-        {/* Section: Personal Info */}
-        <Section title="Personal Information" icon={
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        }>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="First Name *">
-              <input value={formData.firstName} onChange={set("firstName")} style={fieldStyleWithError("firstName")} />
-            </Field>
-            <Field label="Last Name *">
-              <input value={formData.lastName} onChange={set("lastName")} style={fieldStyleWithError("lastName")} />
-            </Field>
-            <Field label="Date of Birth *">
-              <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyleWithError("dateOfBirth")} />
-            </Field>
-            <Field label="Age *">
-              <input value={formData.age} onChange={set("age")} style={fieldStyleWithError("age")} />
-            </Field>
-            <Field label="Social Security Number *">
-              <input
-                value={formData.social}
-                onChange={(e) => {
-                  set("social")(e);
-                  setLastCheckedSsn("");
-                  if (ssnCheckState !== "idle") {
-                    setSsnCheckState("idle");
-                    setSsnCheckMessage("");
-                  }
-                }}
-                onBlur={(e) => {
-                  if (!isEditMode) void checkSsnRules(e.target.value);
-                }}
-                placeholder="XXX-XX-XXXX"
-                style={fieldStyleWithError("social")}
-              />
-              {ssnCheckState !== "idle" && (
+        {phoneGatePassed && (
+          <>
+            {/* Section: Personal Info */}
+            <Section title="Personal Information" icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            }>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <Field label="First Name *">
+                  <input value={formData.firstName} onChange={set("firstName")} style={fieldStyleWithError("firstName")} />
+                </Field>
+                <Field label="Last Name *">
+                  <input value={formData.lastName} onChange={set("lastName")} style={fieldStyleWithError("lastName")} />
+                </Field>
+                <Field label="Date of Birth *">
+                  <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyleWithError("dateOfBirth")} />
+                </Field>
+                <Field label="Age *">
+                  <input value={formData.age} onChange={set("age")} style={fieldStyleWithError("age")} />
+                </Field>
+                <Field label="Social Security Number *">
+                  <input
+                    value={formData.social}
+                    onChange={(e) => {
+                      set("social")(e);
+                      setLastCheckedSsn("");
+                      const nextDigits = normalizeSsnDigits(e.target.value || "");
+                      if (nextDigits.length < 9 && lastAutoCheckedSsn) {
+                        setLastAutoCheckedSsn("");
+                      }
+                      if (!isEditMode && nextDigits.length === 9 && nextDigits !== lastAutoCheckedSsn) {
+                        setLastAutoCheckedSsn(nextDigits);
+                        void checkSsnRules(e.target.value);
+                      }
+                      if (ssnCheckState !== "idle") {
+                        setSsnCheckState("idle");
+                        setSsnCheckMessage("");
+                      }
+                      setSsnDupMatch(null);
+                      setSsnDupIsAddable(true);
+                      setShowSsnDupDetails(false);
+                    }}
+                    onBlur={(e) => {
+                      if (!isEditMode) void checkSsnRules(e.target.value);
+                    }}
+                    placeholder="XXX-XX-XXXX"
+                    style={{
+                      ...fieldStyleWithError("social"),
+                      ...(ssnError ? { border: `2px solid ${T.danger}` } : {}),
+                    }}
+                  />
+                  <div style={{ fontSize: 11, color: ssnError ? T.danger : T.textMuted, marginTop: 4 }}>
+                    {ssnError ? "SSN must be exactly 9 digits." : "Enter a valid 9-digit SSN."}
+                  </div>
+                  {ssnCheckState !== "idle" && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        marginTop: 6,
+                        fontWeight: 700,
+                        color:
+                          ssnCheckState === "blocked"
+                            ? T.danger
+                            : ssnCheckState === "warning"
+                              ? "#b45309"
+                              : ssnCheckState === "error"
+                                ? T.danger
+                                : ssnCheckState === "checking"
+                                  ? T.textMuted
+                                  : "#166534",
+                      }}
+                    >
+                      {ssnCheckMessage}
+                    </div>
+                  )}
+                </Field>
+                <Field label="Driver License Number *">
+                  <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyleWithError("driverLicenseNumber")} />
+                </Field>
+              </div>
+              {ssnDupMatch && (
                 <div
                   style={{
-                    fontSize: 11,
-                    marginTop: 6,
-                    fontWeight: 700,
-                    color:
-                      ssnCheckState === "blocked"
-                        ? T.danger
-                        : ssnCheckState === "warning"
-                          ? "#b45309"
-                          : ssnCheckState === "error"
-                            ? T.danger
-                            : ssnCheckState === "checking"
-                              ? T.textMuted
-                              : "#166534",
+                    marginTop: 12,
+                    backgroundColor: "#fff",
+                    borderRadius: 12,
+                    border: !ssnDupIsAddable ? `2px solid ${T.danger}` : `1px solid ${T.border}`,
+                    padding: 16,
                   }}
                 >
-                  {ssnCheckMessage}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: !ssnDupIsAddable ? T.danger : "#ea580c" }}>
+                        🪪 SSN Duplicate Found
+                      </h3>
+                      <p style={{ margin: "6px 0 0", fontSize: 13, color: T.textMuted }}>
+                        {ssnCheckMessage || "A lead already exists with this SSN."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSsnDupDetails((prev) => !prev)}
+                      style={{
+                        background: "#fff",
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 8,
+                        padding: "8px 12px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {showSsnDupDetails ? "Hide Details" : "Show Details"}
+                    </button>
+                  </div>
+                  {showSsnDupDetails && (
+                    <div style={{ marginTop: 12, backgroundColor: "#f9fafb", padding: 12, borderRadius: 10, border: "1px solid #e5e7eb" }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: T.textDark }}>
+                        {(ssnDupMatch.first_name || "")} {(ssnDupMatch.last_name || "")}
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                        Lead ID: {ssnDupMatch.lead_unique_id || ssnDupMatch.id}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                        Phone: {ssnDupMatch.phone || "Unknown"}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                        SSN: {ssnDupMatch.social || "Unknown"}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                        Stage: {ssnDupMatch.stage || "Unknown"}
+                      </div>
+                      {ssnDupMatch.created_at && (
+                        <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 700 }}>
+                          Created: {new Date(ssnDupMatch.created_at).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
-            </Field>
-            <Field label="Driver License Number *">
-              <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyleWithError("driverLicenseNumber")} />
-            </Field>
-          </div>
-        </Section>
+            </Section>
 
-        {/* Section: Contact & Address */}
-        <Section title="Contact & Address" icon={
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        }>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Street Address *" full>
-              <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyleWithError("street1")} />
-            </Field>
-            <Field label="Address Line 2" full>
-              <input placeholder="Apt, Suite, Unit (optional)" value={formData.street2} onChange={set("street2")} style={fieldStyle} />
-            </Field>
-            <Field label="City *">
-              <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
-            </Field>
-            <Field label="State *">
-              <select value={formData.state} onChange={set("state")} style={fieldStyleWithError("state")}>
-                <option value="">Please Select</option>
-                {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-            <Field label="Zip Code *">
-              <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
-            </Field>
-            <Field label="Birth State *">
-              <select value={formData.birthState} onChange={set("birthState")} style={fieldStyleWithError("birthState")}>
-                <option value="">Please Select</option>
-                {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-          </div>
-        </Section>
+            {/* Section: Contact & Address */}
+            <Section title="Contact & Address" icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            }>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <Field label="Street Address *" full>
+                  <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyleWithError("street1")} />
+                </Field>
+                <Field label="Address Line 2" full>
+                  <input placeholder="Apt, Suite, Unit (optional)" value={formData.street2} onChange={set("street2")} style={fieldStyle} />
+                </Field>
+                <Field label="City *">
+                  <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
+                </Field>
+                <Field label="State *">
+                  <select value={formData.state} onChange={set("state")} style={fieldStyleWithError("state")}>
+                    <option value="">Please Select</option>
+                    {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </Field>
+                <Field label="Zip Code *">
+                  <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
+                </Field>
+                <Field label="Birth State *">
+                  <select value={formData.birthState} onChange={set("birthState")} style={fieldStyleWithError("birthState")}>
+                    <option value="">Please Select</option>
+                    {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </Field>
+              </div>
+            </Section>
 
-        {/* Section: Health */}
-        <Section
-          title="Health Information"
-          action={(
-            <button
-              type="button"
-              onClick={openUnderwritingModal}
-              style={{
-                backgroundColor: "#7c3aed",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
+            {/* Section: Health */}
+            <Section
+              title="Health Information"
+              action={(
+                <button
+                  type="button"
+                  onClick={openUnderwritingModal}
+                  style={{
+                    backgroundColor: "#7c3aed",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Open Underwriting Form
+                </button>
+              )}
+              icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              }
             >
-              Open Underwriting Form
-            </button>
-          )}
-          icon={
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          }
-        >
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Any existing / previous coverage in last 2 years? *">
-              <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v }))} hasError={submitHighlightKeys.has("existingCoverageLast2Years")} />
-            </Field>
-            <Field label="Any previous applications in 2 years? *">
-              <YesNo value={formData.previousApplications2Years} onChange={(v) => setFormData((p) => ({ ...p, previousApplications2Years: v }))} hasError={submitHighlightKeys.has("previousApplications2Years")} />
-            </Field>
-            <Field label="Height *">
-              <input placeholder='e.g. 5&apos;10"' value={formData.height} onChange={set("height")} style={fieldStyleWithError("height")} />
-            </Field>
-            <Field label="Weight *">
-              <input placeholder="e.g. 175 lbs" value={formData.weight} onChange={set("weight")} style={fieldStyleWithError("weight")} />
-            </Field>
-            <Field label="Doctor's Name *">
-              <input value={formData.doctorName} onChange={set("doctorName")} style={fieldStyleWithError("doctorName")} />
-            </Field>
-            <Field label="Tobacco Use *">
-              <YesNo value={formData.tobaccoUse} onChange={(v) => setFormData((p) => ({ ...p, tobaccoUse: v }))} hasError={submitHighlightKeys.has("tobaccoUse")} />
-            </Field>
-            <Field label="Health Conditions *" full>
-              <textarea value={formData.healthConditions} onChange={set("healthConditions")} style={{ ...fieldStyleWithError("healthConditions"), minHeight: 80, resize: "vertical" }} />
-            </Field>
-            <Field label="Medications *" full>
-              <textarea value={formData.medications} onChange={set("medications")} style={{ ...fieldStyleWithError("medications"), minHeight: 80, resize: "vertical" }} />
-            </Field>
-          </div>
-        </Section>
-
-        {/* Section: Policy */}
-        <Section title="Policy Details" icon={
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        }>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Monthly Premium *">
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
-                <input value={formData.monthlyPremium} onChange={set("monthlyPremium")} style={fieldStyleWithError("monthlyPremium", { paddingLeft: 28 })} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <Field label="Any existing / previous coverage in last 2 years? *">
+                  <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v }))} hasError={submitHighlightKeys.has("existingCoverageLast2Years")} />
+                </Field>
+                <Field label="Any previous applications in 2 years? *">
+                  <YesNo value={formData.previousApplications2Years} onChange={(v) => setFormData((p) => ({ ...p, previousApplications2Years: v }))} hasError={submitHighlightKeys.has("previousApplications2Years")} />
+                </Field>
+                <Field label="Height *">
+                  <input placeholder='e.g. 5&apos;10"' value={formData.height} onChange={set("height")} style={fieldStyleWithError("height")} />
+                </Field>
+                <Field label="Weight *">
+                  <input placeholder="e.g. 175 lbs" value={formData.weight} onChange={set("weight")} style={fieldStyleWithError("weight")} />
+                </Field>
+                <Field label="Doctor's Name *">
+                  <input value={formData.doctorName} onChange={set("doctorName")} style={fieldStyleWithError("doctorName")} />
+                </Field>
+                <Field label="Tobacco Use *">
+                  <YesNo value={formData.tobaccoUse} onChange={(v) => setFormData((p) => ({ ...p, tobaccoUse: v }))} hasError={submitHighlightKeys.has("tobaccoUse")} />
+                </Field>
+                <Field label="Health Conditions *" full>
+                  <textarea value={formData.healthConditions} onChange={set("healthConditions")} style={{ ...fieldStyleWithError("healthConditions"), minHeight: 80, resize: "vertical" }} />
+                </Field>
+                <Field label="Medications *" full>
+                  <textarea value={formData.medications} onChange={set("medications")} style={{ ...fieldStyleWithError("medications"), minHeight: 80, resize: "vertical" }} />
+                </Field>
               </div>
-            </Field>
-            <Field label="Coverage Amount *">
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
-                <input value={formData.coverageAmount} onChange={set("coverageAmount")} style={fieldStyleWithError("coverageAmount", { paddingLeft: 28 })} />
+            </Section>
+
+            {/* Section: Policy */}
+            <Section title="Policy Details" icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            }>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <Field label="Monthly Premium *">
+                  <div style={{ position: "relative" }}>
+                    <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                    <input value={formData.monthlyPremium} onChange={set("monthlyPremium")} style={fieldStyleWithError("monthlyPremium", { paddingLeft: 28 })} />
+                  </div>
+                </Field>
+                <Field label="Coverage Amount *">
+                  <div style={{ position: "relative" }}>
+                    <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                    <input value={formData.coverageAmount} onChange={set("coverageAmount")} style={fieldStyleWithError("coverageAmount", { paddingLeft: 28 })} />
+                  </div>
+                </Field>
+                <Field label="Carrier *">
+                  <select
+                    value={formData.carrier}
+                    onChange={(e) => {
+                      const nextCarrier = e.target.value;
+                      setFormData((prev) => ({ ...prev, carrier: nextCarrier, productType: "" }));
+                    }}
+                    style={fieldStyleWithError("carrier")}
+                  >
+                    <option value="">Please Select</option>
+                    {carriers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Product Type *">
+                  <select
+                    value={formData.productType}
+                    onChange={set("productType")}
+                    style={fieldStyleWithError("productType")}
+                    disabled={!formData.carrier.trim() || policyCarrierProductsLoading}
+                  >
+                    <option value="">Please Select</option>
+                    {productsForCarrier.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Draft Date *">
+                  <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyleWithError("draftDate")} />
+                </Field>
+                <Field label="Future Draft Date *">
+                  <input type="date" value={formData.futureDraftDate} onChange={set("futureDraftDate")} style={fieldStyleWithError("futureDraftDate")} />
+                </Field>
+                <Field label="Beneficiary Information *" full>
+                  <textarea value={formData.beneficiaryInformation} onChange={set("beneficiaryInformation")} style={{ ...fieldStyleWithError("beneficiaryInformation"), minHeight: 72, resize: "vertical" }} />
+                </Field>
               </div>
-            </Field>
-            <Field label="Carrier *">
-              <select
-                value={formData.carrier}
-                onChange={(e) => {
-                  const nextCarrier = e.target.value;
-                  setFormData((prev) => ({ ...prev, carrier: nextCarrier, productType: "" }));
-                }}
-                style={fieldStyleWithError("carrier")}
-              >
-                <option value="">Please Select</option>
-                {carriers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Product Type *">
-              <select
-                value={formData.productType}
-                onChange={set("productType")}
-                style={fieldStyleWithError("productType")}
-                disabled={!formData.carrier.trim() || policyCarrierProductsLoading}
-              >
-                <option value="">Please Select</option>
-                {productsForCarrier.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Draft Date *">
-              <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyleWithError("draftDate")} />
-            </Field>
-            <Field label="Future Draft Date *">
-              <input type="date" value={formData.futureDraftDate} onChange={set("futureDraftDate")} style={fieldStyleWithError("futureDraftDate")} />
-            </Field>
-            <Field label="Beneficiary Information *" full>
-              <textarea value={formData.beneficiaryInformation} onChange={set("beneficiaryInformation")} style={{ ...fieldStyleWithError("beneficiaryInformation"), minHeight: 72, resize: "vertical" }} />
-            </Field>
-          </div>
-        </Section>
+            </Section>
 
-        {/* Section: Banking */}
-        <Section title="Banking Information" icon={
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-        }>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Bank Account Type">
-              <select value={formData.bankAccountType} onChange={set("bankAccountType")} style={fieldStyle}>
-                <option value="">Please Select</option>
-                <option value="Checking">Checking</option>
-                <option value="Savings">Savings</option>
-              </select>
-            </Field>
-            <Field label="Institution Name *">
-              <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyleWithError("institutionName")} />
-            </Field>
-            <Field label="Routing Number *">
-              <input value={formData.routingNumber} onChange={set("routingNumber")} style={fieldStyleWithError("routingNumber")} />
-            </Field>
-            <Field label="Account Number *">
-              <input value={formData.accountNumber} onChange={set("accountNumber")} style={fieldStyleWithError("accountNumber")} />
-            </Field>
-          </div>
-        </Section>
+            {/* Section: Banking */}
+            <Section title="Banking Information" icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+            }>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <Field label="Bank Account Type">
+                  <select value={formData.bankAccountType} onChange={set("bankAccountType")} style={fieldStyle}>
+                    <option value="">Please Select</option>
+                    <option value="Checking">Checking</option>
+                    <option value="Savings">Savings</option>
+                  </select>
+                </Field>
+                <Field label="Institution Name *">
+                  <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyleWithError("institutionName")} />
+                </Field>
+                <Field label="Routing Number *">
+                  <input value={formData.routingNumber} onChange={set("routingNumber")} style={fieldStyleWithError("routingNumber")} />
+                </Field>
+                <Field label="Account Number *">
+                  <input value={formData.accountNumber} onChange={set("accountNumber")} style={fieldStyleWithError("accountNumber")} />
+                </Field>
+              </div>
+            </Section>
 
-        {/* Section: Additional */}
-        <Section title="Additional Information" icon={
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-        }>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Additional Notes" full>
-              <textarea value={formData.additionalInformation} onChange={set("additionalInformation")} style={{ ...fieldStyle, minHeight: 96, resize: "vertical" }} />
-            </Field>
-          </div>
-        </Section>
+            {/* Section: Additional */}
+            <Section title="Additional Information" icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            }>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <Field label="Additional Notes" full>
+                  <textarea value={formData.additionalInformation} onChange={set("additionalInformation")} style={{ ...fieldStyle, minHeight: 96, resize: "vertical" }} />
+                </Field>
+              </div>
+            </Section>
+          </>
+        )}
 
       </div>
 
@@ -1427,7 +1607,7 @@ export default function TransferLeadApplicationForm({
         >
           Cancel
         </button>
-        {onSaveDraft && (
+        {phoneGatePassed && onSaveDraft && (
           <button
             onClick={() => onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true })}
             style={{
@@ -1445,49 +1625,56 @@ export default function TransferLeadApplicationForm({
             Save Draft
           </button>
         )}
-        <button
-          onClick={async () => {
-            const missingKeys = REQUIRED_FORM_KEYS.filter((key) => !String(formData[key] ?? "").trim());
-            const highlight = new Set<keyof TransferLeadFormData>(missingKeys);
-            if (formData.phone.trim().length > 0 && !/^\(\d{3}\) \d{3}-\d{4}$/.test(formData.phone)) {
-              highlight.add("phone");
-            }
-            if (highlight.size > 0) {
-              setSubmitHighlightKeys(highlight);
-              setToast({ message: "Please fill all required inputs before submitting.", type: "error" });
-              return;
-            }
+        {phoneGatePassed && (
+          <button
+            onClick={async () => {
+              const missingKeys = REQUIRED_FORM_KEYS.filter((key) => !String(formData[key] ?? "").trim());
+              const highlight = new Set<keyof TransferLeadFormData>(missingKeys);
+              if (formData.phone.trim().length > 0 && !getUsPhone10Digits(formData.phone)) {
+                highlight.add("phone");
+              }
+              if (highlight.size > 0) {
+                setSubmitHighlightKeys(highlight);
+                setToast({ message: "Please fill all required inputs before submitting.", type: "error" });
+                return;
+              }
+              if (ssnDigits.length !== 9) {
+                setSubmitHighlightKeys(new Set<keyof TransferLeadFormData>(["social"]));
+                setToast({ message: "Please enter a valid 9-digit SSN before submitting.", type: "error" });
+                return;
+              }
 
-            if (!isEditMode) {
-              const result = await checkSsnRules(formData.social);
-              if (result.blocked) return;
-            }
-            const dup = await checkPhoneDuplicate();
-            if (dup.match) setShowPhoneDupDetails(true);
-            if (dup.match && !dup.isAddable) return;
-            const dncResult = await checkDnc();
-            if (dncResult === "tcpa") return;
-            onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
-          }}
-          disabled={submitDisabled}
-          style={{
-            backgroundColor: submitDisabled ? T.border : T.blue,
-            color: "#fff",
-            border: "none",
-            borderRadius: T.radiusMd,
-            padding: "11px 28px",
-            fontWeight: 800,
-            cursor: submitDisabled ? "not-allowed" : "pointer",
-            fontFamily: T.font,
-            fontSize: 14,
-            boxShadow: submitDisabled ? "none" : `0 4px 12px ${T.blue}44`,
-            transition: "all 0.15s",
-          }}
-        >
-          {submitButtonLabel || "Submit Application"}
-        </button>
+              if (!isEditMode) {
+                const result = await checkSsnRules(formData.social);
+                if (result.blocked) return;
+              }
+              const dup = await checkPhoneDuplicate();
+              if (dup.match) setShowPhoneDupDetails(true);
+              if (dup.match && !dup.isAddable) return;
+              const dncResult = await checkDnc();
+              if (dncResult === "tcpa") return;
+              onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
+            }}
+            disabled={submitDisabled}
+            style={{
+              backgroundColor: submitDisabled ? T.border : T.blue,
+              color: "#fff",
+              border: "none",
+              borderRadius: T.radiusMd,
+              padding: "11px 28px",
+              fontWeight: 800,
+              cursor: submitDisabled ? "not-allowed" : "pointer",
+              fontFamily: T.font,
+              fontSize: 14,
+              boxShadow: submitDisabled ? "none" : `0 4px 12px ${T.blue}44`,
+              transition: "all 0.15s",
+            }}
+          >
+            {submitButtonLabel || "Submit Application"}
+          </button>
+        )}
       </div>
-      {submitBlockMessage && (
+      {phoneGatePassed && submitBlockMessage && (
         <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "right" }}>
           {submitBlockMessage}
         </div>

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Toast } from "@/components/ui";
+import { useCarrierProductDropdowns } from "@/lib/useCarrierProductDropdowns";
 
 const statusOptions = [
   "Needs callback",
@@ -19,23 +20,6 @@ const statusOptions = [
   "GI - Currently DQ",
 ];
 
-const carrierOptions = [
-  "Liberty",
-  "SBLI",
-  "American Home Life",
-  "Corebridge",
-  "MOH",
-  "Aflac",
-  "Transamerica",
-  "Sentinel Security Life",
-  "AMAM",
-  "GTL",
-  "Aetna",
-  "Americo",
-  "CICA",
-];
-
-const productTypeOptions = ["Preferred", "Standard", "Graded", "Modified", "GI", "Immediate", "Level", "ROP"];
 const bufferAgentOptions = ["Justine", "Maria", "Muhammad Ahmed", "Catarina", "Nicole Mejia", "Aubrey Nichols", "N/A"];
 const agentOptions = ["Lydia", "Muhammad Ahmed", "Zack", "Tatumn", "Benjamin", "Brandon Blake Flinchum", "Isaac", "N/A"];
 const licensedAccountOptions = ["Claudia", "Lydia", "Isaac", "Brandon Blake Flinchum", "Abdul", "Trinity", "Benjamin", "Tatumn", "Noah"];
@@ -134,6 +118,17 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
   const [loading, setLoading] = useState(false);
   const [hydrating, setHydrating] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const { carriers, productsForCarrier, loadingProducts } = useCarrierProductDropdowns(supabase, {
+    open: true,
+    carrierName: carrier,
+    onInvalidateProduct: (list, carrierNameSnapshot) => {
+      if (carrierNameSnapshot !== carrier.trim()) return;
+      if (!productType.trim()) return;
+      if (list.some((x) => x.name === productType)) return;
+      setProductType("");
+    },
+  });
+  const carrierOptions = carriers.map((c) => c.name);
 
   const reasons = reasonMap[status] || [];
   const showSubmittedFields = applicationSubmitted === true;
@@ -585,9 +580,32 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                   Product Type *
                 </label>
-                <select value={productType} onChange={(e) => setProductType(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!productType ? "#fca5a5" : T.border}` }}>
-                  <option value="">Select product type</option>
-                  {productTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                <select
+                  value={productType}
+                  onChange={(e) => setProductType(e.target.value)}
+                  disabled={!carrier.trim() || loadingProducts}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: `1.5px solid ${!productType ? "#fca5a5" : T.border}`,
+                    opacity: !carrier.trim() || loadingProducts ? 0.7 : 1,
+                  }}
+                >
+                  <option value="">
+                    {loadingProducts
+                      ? "Loading product types..."
+                      : !carrier.trim()
+                        ? "Select carrier first"
+                        : productsForCarrier.length === 0
+                          ? "No products for this carrier"
+                          : "Select product type"}
+                  </option>
+                  {productsForCarrier.map((option) => (
+                    <option key={option.id} value={option.name}>
+                      {option.name}
+                    </option>
+                  ))}
                 </select>
                 {!productType && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Product Type is required</p>}
               </div>

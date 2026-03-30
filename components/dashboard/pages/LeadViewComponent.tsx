@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { EmptyState } from "@/components/ui";
 
 interface Lead {
   name: string;
@@ -984,9 +985,11 @@ export default function LeadViewComponent({
                 ) : (
                   <>
                     {callResultsRows.length === 0 && callUpdateLogRows.length === 0 ? (
-                      <p style={{ color: T.textMuted, padding: 20, background: T.pageBg, borderRadius: 12, border: `1px solid ${T.border}` }}>
-                        No call results or update events are stored for this lead yet. They appear after a call is logged from Transfer Leads or related flows.
-                      </p>
+                      <EmptyState
+                        title="No call updates yet"
+                        description="Call results and update events appear here after a call is logged from Transfer Leads or related flows."
+                        compact
+                      />
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                         {callResultsRows.map((cr, i) => (
