@@ -892,16 +892,8 @@ export default function TransferLeadApplicationForm({
                   {(phoneDupMatch.first_name || "")} {(phoneDupMatch.last_name || "")}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
-                  Lead ID: {phoneDupMatch.lead_unique_id || phoneDupMatch.id}
-                </div>
-                <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                   Stage: {phoneDupMatch.stage || "Unknown"}
                 </div>
-                {phoneDupMatch.created_at && (
-                  <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
-                    Created: {new Date(phoneDupMatch.created_at).toLocaleString()}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -1027,22 +1019,8 @@ export default function TransferLeadApplicationForm({
                         {(ssnDupMatch.first_name || "")} {(ssnDupMatch.last_name || "")}
                       </div>
                       <div style={{ marginTop: 4, fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
-                        Lead ID: {ssnDupMatch.lead_unique_id || ssnDupMatch.id}
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
-                        Phone: {ssnDupMatch.phone || "Unknown"}
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
-                        SSN: {ssnDupMatch.social || "Unknown"}
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
                         Stage: {ssnDupMatch.stage || "Unknown"}
                       </div>
-                      {ssnDupMatch.created_at && (
-                        <div style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 700 }}>
-                          Created: {new Date(ssnDupMatch.created_at).toLocaleString()}
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
