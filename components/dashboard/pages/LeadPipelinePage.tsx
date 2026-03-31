@@ -796,14 +796,16 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                           </div>
 
                             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-                             <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
-                               <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Lead ID:</span>
-                               <span style={{ color: T.textDark, fontWeight: 600 }}>{lead.id}</span>
-                             </div>
-                             <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
-                               <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Opportunity Value:</span>
-                               <span style={{ color: T.textDark, fontWeight: 600 }}>${lead.premium.toLocaleString()}</span>
-                             </div>
+                              {lead.agent && lead.agent !== "BPO" && lead.agent !== "SS" ? (
+                                <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
+                                  <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Assigned To:</span>
+                                  <span style={{ color: T.textDark, fontWeight: 600 }}>{lead.agent}</span>
+                                </div>
+                              ) : null}
+                              <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
+                                <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Opportunity Value:</span>
+                                <span style={{ color: T.textDark, fontWeight: 600 }}>${lead.premium.toLocaleString()}</span>
+                              </div>
                             </div>
 
                           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 12, borderTop: `1px solid ${T.borderLight}` }}>
