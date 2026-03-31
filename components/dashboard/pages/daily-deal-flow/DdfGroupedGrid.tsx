@@ -1,21 +1,16 @@
 "use client";
 
-import { Fragment, useMemo, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Button, Input, Pagination } from "@/components/ui";
 import { T } from "@/lib/theme";
+import { useCarrierProductDropdowns } from "@/lib/useCarrierProductDropdowns";
 import { fetchCallRecording, formatDuration, formatTimestamp, searchAircallCalls } from "@/lib/aircall";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DailyDealFlowRow } from "./types";
 import { Modal, SelectInput } from "./ui-primitives";
 import {
-  AGENT_OPTIONS,
-  BUFFER_AGENT_OPTIONS,
   CALL_RESULT_OPTIONS,
-  CARRIER_OPTIONS,
   LA_CALLBACK_OPTIONS,
-  LICENSED_ACCOUNT_OPTIONS,
-  PRODUCT_TYPE_OPTIONS,
-  RETENTION_AGENT_OPTIONS,
   STATUS_OPTIONS,
 } from "./constants";
 import { IconBolt, IconCheck, IconEye, IconPencil, IconPhone, IconTrash, IconX } from "@tabler/icons-react";
@@ -47,6 +42,11 @@ type Props = {
   onSuccess: (message: string) => void;
   supabase: SupabaseClient;
   leadVendorOptions: string[];
+  bufferAgentOptions: string[];
+  agentOptions: string[];
+  retentionOptions: string[];
+  licensedOptions: string[];
+  carrierOptions: string[];
 };
 
 type SortConfig = { key: string; direction: "asc" | "desc" } | null;
@@ -89,6 +89,11 @@ export function DdfGroupedGrid({
   onSuccess,
   supabase,
   leadVendorOptions,
+  bufferAgentOptions,
+  agentOptions,
+  retentionOptions,
+  licensedOptions,
+  carrierOptions,
 }: Props) {
   const [groupBy, setGroupBy] = useState("none");
   const [groupBySecondary, setGroupBySecondary] = useState("none");
@@ -99,6 +104,7 @@ export function DdfGroupedGrid({
   const [draft, setDraft] = useState<DailyDealFlowRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [detailTab, setDetailTab] = useState<"details" | "recordings">("details");
+  const [detailEditing, setDetailEditing] = useState(false);
   const [callsLoading, setCallsLoading] = useState(false);
   const [loadingRecordingId, setLoadingRecordingId] = useState<number | null>(null);
   const [playingRecording, setPlayingRecording] = useState<number | null>(null);
@@ -111,6 +117,24 @@ export function DdfGroupedGrid({
     recording: string | null;
     user: { name: string } | null;
   }>>([]);
+  const [dynamicCarrierOptions, setDynamicCarrierOptions] = useState<string[]>([]);
+  const { carriers, productsForCarrier } = useCarrierProductDropdowns(supabase, {
+    open: Boolean(editingId || detailId),
+    carrierName: String(draft?.carrier || ""),
+    onInvalidateProduct: (list) => {
+      if (!draft) return;
+      const selected = String(draft.product_type || "").trim();
+      if (!selected) return;
+      if (list.some((x) => x.name === selected)) return;
+      setDraft((prev) => (prev ? { ...prev, product_type: "" } : prev));
+    },
+  });
+
+  useEffect(() => {
+    const fromTable = (carrierOptions || []).map((x) => String(x).trim()).filter(Boolean);
+    const fromCatalog = carriers.map((x) => String(x.name).trim()).filter(Boolean);
+    setDynamicCarrierOptions(Array.from(new Set([...fromCatalog, ...fromTable])));
+  }, [carrierOptions, carriers]);
 
   const duplicateRows = useMemo(() => {
     const seen = new Map<string, number>();
@@ -178,6 +202,7 @@ export function DdfGroupedGrid({
     if (detail) {
       setDetailId(row.id);
       setDetailTab("details");
+      setDetailEditing(false);
       setCallRecordings([]);
       setCallsLoading(false);
       setPlayingRecording(null);
@@ -234,6 +259,7 @@ export function DdfGroupedGrid({
     if (error) return onError(error.message || "Failed to save row.");
     setEditingId(null);
     setDetailId(null);
+    setDetailEditing(false);
     setDraft(null);
     onSuccess("Row updated.");
     onRefresh();
@@ -282,14 +308,14 @@ export function DdfGroupedGrid({
         </td>
         <td style={rowCellStyle}>{isEditing ? <Input value={data.insured_name || ""} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} /> : row.insured_name}</td>
         <td style={rowCellStyle}>{isEditing ? <Input value={data.client_phone_number || ""} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} /> : row.client_phone_number}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.buffer_agent || ""} onChange={(v) => patchDraft({ buffer_agent: String(v) })} options={BUFFER_AGENT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.buffer_agent)}>{row.buffer_agent || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.retention_agent || ""} onChange={(v) => patchDraft({ retention_agent: String(v) })} options={RETENTION_AGENT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.retention_agent)}>{row.retention_agent || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.agent || ""} onChange={(v) => patchDraft({ agent: String(v) })} options={AGENT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.agent)}>{row.agent || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.licensed_agent_account || ""} onChange={(v) => patchDraft({ licensed_agent_account: String(v) })} options={LICENSED_ACCOUNT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.licensed_agent_account)}>{row.licensed_agent_account || ""}</span>}</td>
+        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.buffer_agent || ""} onChange={(v) => patchDraft({ buffer_agent: String(v) })} options={bufferAgentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.buffer_agent)}>{row.buffer_agent || ""}</span>}</td>
+        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.retention_agent || ""} onChange={(v) => patchDraft({ retention_agent: String(v) })} options={retentionOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.retention_agent)}>{row.retention_agent || ""}</span>}</td>
+        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.agent || ""} onChange={(v) => patchDraft({ agent: String(v) })} options={agentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.agent)}>{row.agent || ""}</span>}</td>
+        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.licensed_agent_account || ""} onChange={(v) => patchDraft({ licensed_agent_account: String(v) })} options={licensedOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.licensed_agent_account)}>{row.licensed_agent_account || ""}</span>}</td>
         <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.status || ""} onChange={(v) => patchDraft({ status: String(v) })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", row.status)}>{row.status || ""}</span>}</td>
         <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.call_result || ""} onChange={(v) => patchDraft({ call_result: String(v) })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("result", row.call_result)}>{row.call_result || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v) })} options={CARRIER_OPTIONS.map((v) => ({ value: v, label: v }))} /> : row.carrier}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={PRODUCT_TYPE_OPTIONS.map((v) => ({ value: v, label: v }))} /> : row.product_type}</td>
+        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v), product_type: "" })} options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))} /> : row.carrier}</td>
+        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))} /> : row.product_type}</td>
         <td style={rowCellStyle}>{isEditing ? <Input type="date" value={data.draft_date || ""} onChange={(e) => patchDraft({ draft_date: e.currentTarget.value })} /> : formatDateShort(row.draft_date)}</td>
         <td style={rowCellStyle}>{isEditing ? <Input type="number" value={String(data.monthly_premium ?? "")} onChange={(e) => patchDraft({ monthly_premium: e.currentTarget.value ? Number(e.currentTarget.value) : null })} /> : row.monthly_premium ? `$${row.monthly_premium.toFixed(2)}` : ""}</td>
         <td style={rowCellStyle}>{isEditing ? <Input type="number" value={String(data.face_amount ?? "")} onChange={(e) => patchDraft({ face_amount: e.currentTarget.value ? Number(e.currentTarget.value) : null })} /> : row.face_amount ? `$${row.face_amount.toLocaleString()}` : ""}</td>
@@ -508,7 +534,7 @@ export function DdfGroupedGrid({
         onPageChange={onPageChange}
       />
 
-      <Modal open={Boolean(detailId) && Boolean(draft)} title={`Lead Details - ${draft?.insured_name || ""}`} onClose={() => setDetailId(null)}>
+      <Modal open={Boolean(detailId) && Boolean(draft)} title={`Lead Details - ${draft?.insured_name || ""}`} onClose={() => { setDetailId(null); setDetailEditing(false); }}>
         {draft && (
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -518,34 +544,106 @@ export function DdfGroupedGrid({
               >
                 Call Records
               </Button>
-              <Button variant={detailTab === "details" ? "primary" : "ghost"} onClick={() => setDetailTab("details")}>
+              <Button
+                variant={detailEditing ? "primary" : "ghost"}
+                onClick={() => {
+                  setDetailTab("details");
+                  setDetailEditing(true);
+                }}
+              >
                 Edit
               </Button>
             </div>
             {detailTab === "details" ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(180px, 1fr))", gap: 10 }}>
-                <Input label="Insured Name" value={draft.insured_name || ""} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} />
-                <Input label="Phone Number" value={draft.client_phone_number || ""} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} />
-                <Input label="Date" type="date" value={draft.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} />
-                <Input label="Draft Date" type="date" value={draft.draft_date || ""} onChange={(e) => patchDraft({ draft_date: e.currentTarget.value })} />
-                <Input label="Monthly Premium" type="number" value={String(draft.monthly_premium ?? "")} onChange={(e) => patchDraft({ monthly_premium: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
-                <Input label="Face Amount" type="number" value={String(draft.face_amount ?? "")} onChange={(e) => patchDraft({ face_amount: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
-                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Lead Vendor</label><SelectInput value={draft.lead_vendor || ""} onChange={(v) => patchDraft({ lead_vendor: String(v) })} options={leadVendorOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Status</label><SelectInput value={draft.status || ""} onChange={(v) => patchDraft({ status: String(v) })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Call Result</label><SelectInput value={draft.call_result || ""} onChange={(v) => patchDraft({ call_result: String(v) })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Carrier</label><SelectInput value={draft.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v) })} options={CARRIER_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Product Type</label><SelectInput value={draft.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={PRODUCT_TYPE_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                <div><label style={{ fontSize: 12, fontWeight: 700 }}>LA Callback</label><SelectInput value={draft.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={{ fontSize: 12, fontWeight: 700 }}>Notes</label>
-                  <textarea value={draft.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ width: "100%", minHeight: 110, borderRadius: 8, border: `1px solid ${T.border}`, background: T.cardBg, color: T.textMid, padding: 10 }} />
+              <div style={{ display: "grid", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(220px, 1fr))", gap: 14 }}>
+                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
+                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Contact Information</h4>
+                    <Input label="Phone Number" value={draft.client_phone_number || ""} disabled={!detailEditing} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} />
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Lead Vendor</label><SelectInput disabled={!detailEditing} value={draft.lead_vendor || ""} onChange={(v) => patchDraft({ lead_vendor: String(v) })} options={leadVendorOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                    <Input label="Insured Name" value={draft.insured_name || ""} disabled={!detailEditing} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} />
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 700 }}>Submission ID</label>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          border: `1px solid ${T.border}`,
+                          borderRadius: 8,
+                          padding: "9px 10px",
+                          background: T.pageBg,
+                          color: T.textMid,
+                          fontSize: 13,
+                          cursor: "default",
+                          userSelect: "text",
+                        }}
+                      >
+                        {draft.submission_id || "N/A"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
+                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Agent Information</h4>
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Buffer Agent</label><SelectInput disabled={!detailEditing} value={draft.buffer_agent || ""} onChange={(v) => patchDraft({ buffer_agent: String(v) })} options={bufferAgentOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Retention Agent</label><SelectInput disabled={!detailEditing} value={draft.retention_agent || ""} onChange={(v) => patchDraft({ retention_agent: String(v) })} options={retentionOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Agent</label><SelectInput disabled={!detailEditing} value={draft.agent || ""} onChange={(v) => patchDraft({ agent: String(v) })} options={agentOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Licensed Agent Account</label><SelectInput disabled={!detailEditing} value={draft.licensed_agent_account || ""} onChange={(v) => patchDraft({ licensed_agent_account: String(v) })} options={licensedOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
+                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Application Information</h4>
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Status</label><SelectInput disabled={!detailEditing} value={draft.status || ""} onChange={(v) => patchDraft({ status: String(v) })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Call Result</label><SelectInput disabled={!detailEditing} value={draft.call_result || ""} onChange={(v) => patchDraft({ call_result: String(v) })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Carrier</label><SelectInput disabled={!detailEditing} value={draft.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v), product_type: "" })} options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Product Type</label><SelectInput disabled={!detailEditing || !draft.carrier} value={draft.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))} style={{ width: "100%" }} /></div>
+                  </div>
                 </div>
-                <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                  <Button variant="ghost" onClick={() => setDetailId(null)}>Close</Button>
-                  <Button onClick={() => {
-                    const source = rows.find((r) => r.id === detailId);
-                    if (source) void saveRow(source);
-                  }} state={saving ? "loading" : "enabled"}>Save Changes</Button>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(240px, 1fr))", gap: 14 }}>
+                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
+                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Financial Information</h4>
+                    <Input label="Monthly Premium" type="number" disabled={!detailEditing} value={String(draft.monthly_premium ?? "")} onChange={(e) => patchDraft({ monthly_premium: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
+                    <Input label="Face Amount" type="number" disabled={!detailEditing} value={String(draft.face_amount ?? "")} onChange={(e) => patchDraft({ face_amount: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
+                    <Input label="Draft Date" type="date" disabled={!detailEditing} value={draft.draft_date || ""} onChange={(e) => patchDraft({ draft_date: e.currentTarget.value })} />
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>From Callback</label><SelectInput disabled={!detailEditing} value={draft.from_callback ? "Yes" : "No"} onChange={(v) => patchDraft({ from_callback: String(v) === "Yes" })} options={[{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }]} style={{ width: "100%" }} /></div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
+                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Additional Information</h4>
+                    <Input label="Date" type="date" disabled={!detailEditing} value={draft.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} />
+                    <Input label="Policy Number" disabled={!detailEditing} value={draft.policy_number || ""} onChange={(e) => patchDraft({ policy_number: e.currentTarget.value })} />
+                    <Input label="Carrier Audit" disabled={!detailEditing} value={draft.carrier_audit || ""} onChange={(e) => patchDraft({ carrier_audit: e.currentTarget.value })} />
+                    <Input label="Product Type Carrier" disabled={!detailEditing} value={draft.product_type_carrier || ""} onChange={(e) => patchDraft({ product_type_carrier: e.currentTarget.value })} />
+                    <Input label="Level or GI" disabled={!detailEditing} value={draft.level_or_gi || ""} onChange={(e) => patchDraft({ level_or_gi: e.currentTarget.value })} />
+                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>LA Callback</label><SelectInput disabled={!detailEditing} value={draft.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 700 }}>Created At</label>
+                      <div style={{ marginTop: 6, border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px", background: T.pageBg, color: T.textMid, fontSize: 13 }}>
+                        {draft.created_at || "N/A"}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 700 }}>Updated At</label>
+                      <div style={{ marginTop: 6, border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px", background: T.pageBg, color: T.textMid, fontSize: 13 }}>
+                        {draft.updated_at || "N/A"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: 8, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
+                  <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Notes</h4>
+                  <textarea disabled={!detailEditing} value={draft.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ width: "100%", minHeight: 110, borderRadius: 8, border: `1px solid ${T.border}`, background: detailEditing ? T.cardBg : T.pageBg, color: T.textMid, padding: 10 }} />
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: `1px solid ${T.borderLight}`, paddingTop: 12 }}>
+                  <Button variant="ghost" onClick={() => { setDetailId(null); setDetailEditing(false); }}>Close</Button>
+                  {detailEditing && (
+                    <Button onClick={() => {
+                      const source = rows.find((r) => r.id === detailId);
+                      if (source) void saveRow(source);
+                    }} state={saving ? "loading" : "enabled"}>Save Changes</Button>
+                  )}
                 </div>
               </div>
             ) : (

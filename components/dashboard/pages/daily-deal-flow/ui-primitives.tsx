@@ -1,17 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { useMemo } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { T } from "@/lib/theme";
 
 export function FieldLabel({ label }: { label: string }) {
@@ -30,18 +20,34 @@ export function FieldLabel({ label }: { label: string }) {
   );
 }
 
+import { Button } from "@/components/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
+
 export function SelectInput({
   value,
   onChange,
   options,
   style,
   multiple = false,
+  disabled = false,
 }: {
   value: string | string[];
   onChange: (value: string | string[]) => void;
   options: { value: string; label: string }[];
   style?: CSSProperties;
   multiple?: boolean;
+  disabled?: boolean;
 }) {
   const selectedLabel = useMemo(() => {
     if (multiple) {
@@ -69,107 +75,66 @@ export function SelectInput({
     );
   }, [multiple, options, value]);
 
-  const triggerStyle: CSSProperties = {
-    width: "100%",
-    minHeight: 38,
-    border: "1px solid #c9d7bc",
-    borderRadius: 12,
-    fontSize: 13,
-    color: T.textDark,
-    padding: "9px 12px",
-    background: "#fcfdf9",
-    boxSizing: "border-box",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    textAlign: "left",
-    boxShadow: "0 1px 2px rgba(28,32,26,0.05)",
-    transition: "border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease",
-    ...style,
-  };
-
-  const contentStyle =
-    "w-(--anchor-width) min-w-[240px] rounded-2xl border border-[#d5e0cb] bg-[#fcfdf9] p-2 shadow-[0_18px_40px_rgba(28,32,26,0.14)]";
-  const itemBaseClass =
-    "min-h-0 rounded-xl px-3 py-2.5 text-[13px] font-medium text-[#233021] outline-none focus:bg-[#edf4e5] focus:text-[#233021] data-[highlighted]:bg-[#edf4e5] data-[highlighted]:text-[#233021]";
-
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger style={triggerStyle}>
-        <span
-          style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            flex: 1,
-            fontWeight: 600,
-          }}
-        >
-          {selectedLabel}
-        </span>
-        <span style={{ color: "#6b7a5f", fontSize: 11, flexShrink: 0 }}>
-          &#9662;
-        </span>
+      <DropdownMenuTrigger
+        disabled={disabled}
+        className="flex items-center justify-between w-full h-[38px] px-3 text-[13px] border font-[600] rounded-[8px] shadow-sm bg-[var(--cardBg,#ffffff)] border-[var(--border,#c8d4bb)] text-[var(--textDark,#1c201a)] hover:bg-[var(--pageBg,#f4f7f1)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+        style={style}
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-2 shrink-0 text-[var(--textMuted,#7b8a6a)]">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={6} className={contentStyle}>
+      
+      <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-[220px] max-h-[300px] overflow-y-auto !p-0 !rounded-xl !border-[var(--border,#c8d4bb)] bg-[var(--cardBg,#ffffff)] shadow-lg overflow-hidden">
         {multiple ? (
           <DropdownMenuGroup>
-            <div className="max-h-72 overflow-y-auto">
-              <DropdownMenuCheckboxItem
-                checked={Array.isArray(value) && value.length === 0}
-                className={`${itemBaseClass} mb-1 bg-[#dfead2] font-semibold text-[#638b4b]`}
-                onCheckedChange={() => onChange([])}
-              >
-                {options[0]?.label ?? "All"}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator className="mx-1 my-2 bg-[#e3eadb]" />
-              {options.slice(1).map((option) => {
-                const checked = Array.isArray(value) && value.includes(option.value);
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={option.value}
-                    checked={checked}
-                    className={`${itemBaseClass} mb-1 ${checked ? "bg-[#edf4e5] font-semibold" : ""}`}
-                    onCheckedChange={(nextChecked) => {
-                      const currentValues = Array.isArray(value) ? value : [];
-                      if (nextChecked) {
-                        onChange([...currentValues, option.value]);
-                        return;
-                      }
-
-                      onChange(
-                        currentValues.filter((entry) => entry !== option.value),
-                      );
-                    }}
-                  >
-                    {option.label}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-            </div>
+            <DropdownMenuCheckboxItem
+              checked={Array.isArray(value) && value.length === 0}
+              onCheckedChange={() => onChange([])}
+              className="!rounded-none !py-2.5 !pl-4 !pr-10 text-[13.5px] !font-medium text-[var(--textDark,#1c201a)] focus:!bg-[var(--blue,#638b4b)] focus:!text-white !cursor-pointer transition-colors"
+            >
+              {options[0]?.label ?? "All"}
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuSeparator className="!m-0 bg-[var(--borderLight,#ddecd4)]" />
+            {options.slice(1).map((option) => {
+              const checked = Array.isArray(value) && value.includes(option.value);
+              return (
+                <DropdownMenuCheckboxItem
+                  key={option.value}
+                  checked={checked}
+                  onCheckedChange={(nextChecked) => {
+                    const currentValues = Array.isArray(value) ? value : [];
+                    if (nextChecked) {
+                      onChange([...currentValues, option.value]);
+                    } else {
+                      onChange(currentValues.filter((entry) => entry !== option.value));
+                    }
+                  }}
+                  className="!rounded-none !py-2.5 !pl-4 !pr-10 text-[13.5px] !font-medium text-[var(--textDark,#1c201a)] focus:!bg-[var(--blue,#638b4b)] focus:!text-white !cursor-pointer transition-colors"
+                >
+                  {option.label}
+                </DropdownMenuCheckboxItem>
+              );
+            })}
           </DropdownMenuGroup>
         ) : (
           <DropdownMenuGroup>
             <DropdownMenuRadioGroup
-              value={Array.isArray(value) ? value[0] : value}
+              value={Array.isArray(value) ? value[0] : (value as string)}
               onValueChange={(nextValue) => onChange(nextValue)}
             >
-              <div>
-                {options.map((option) => (
-                  <DropdownMenuRadioItem
-                    key={option.value}
-                    value={option.value}
-                    className={`${itemBaseClass} mb-1 ${
-                      (Array.isArray(value) ? value[0] : value) === option.value
-                        ? "bg-[#edf4e5] font-semibold text-[#638b4b]"
-                        : ""
-                    }`}
-                  >
-                    {option.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </div>
+              {options.map((option) => (
+                <DropdownMenuRadioItem 
+                  key={option.value} 
+                  value={option.value}
+                  className="!rounded-none !py-2.5 !pl-4 !pr-10 text-[13.5px] !font-medium text-[var(--textDark,#1c201a)] focus:!bg-[var(--blue,#638b4b)] focus:!text-white !cursor-pointer transition-colors"
+                >
+                  {option.label}
+                </DropdownMenuRadioItem>
+              ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
         )}

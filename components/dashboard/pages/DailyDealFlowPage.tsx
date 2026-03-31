@@ -30,6 +30,10 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
   const [callCenterName, setCallCenterName] = useState<string | null>(null);
   const [leadVendorOptions, setLeadVendorOptions] = useState<string[]>([]);
   const [bufferAgentOptions, setBufferAgentOptions] = useState<string[]>([]);
+  const [agentOptions, setAgentOptions] = useState<string[]>([]);
+  const [retentionOptions, setRetentionOptions] = useState<string[]>([]);
+  const [licensedOptions, setLicensedOptions] = useState<string[]>([]);
+  const [carrierOptionsDynamic, setCarrierOptionsDynamic] = useState<string[]>([]);
   const hasWritePermissions = canProcessActions;
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -101,14 +105,30 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
 
   type VendorRow = { lead_vendor: string | null };
   type BufferRow = { buffer_agent: string | null };
+  type AgentRow = { agent: string | null };
+  type RetentionRow = { retention_agent: string | null };
+  type LicensedRow = { licensed_agent_account: string | null };
+  type CarrierRow = { carrier: string | null };
 
   const loadDistinct = useCallback(async () => {
     const { data: vendorRows } = await supabase.from("daily_deal_flow").select("lead_vendor").not("lead_vendor", "is", null);
     const { data: bufferRows } = await supabase.from("daily_deal_flow").select("buffer_agent").not("buffer_agent", "is", null);
+    const { data: agentRows } = await supabase.from("daily_deal_flow").select("agent").not("agent", "is", null);
+    const { data: retentionRows } = await supabase.from("daily_deal_flow").select("retention_agent").not("retention_agent", "is", null);
+    const { data: licensedRows } = await supabase.from("daily_deal_flow").select("licensed_agent_account").not("licensed_agent_account", "is", null);
+    const { data: carrierRows } = await supabase.from("daily_deal_flow").select("carrier").not("carrier", "is", null);
     const vendors = [...new Set(((vendorRows || []) as VendorRow[]).map((r) => r.lead_vendor).filter(Boolean) as string[])];
     const buffers = [...new Set(((bufferRows || []) as BufferRow[]).map((r) => r.buffer_agent).filter(Boolean) as string[])];
+    const agents = [...new Set(((agentRows || []) as AgentRow[]).map((r) => r.agent).filter(Boolean) as string[])];
+    const retention = [...new Set(((retentionRows || []) as RetentionRow[]).map((r) => r.retention_agent).filter(Boolean) as string[])];
+    const licensed = [...new Set(((licensedRows || []) as LicensedRow[]).map((r) => r.licensed_agent_account).filter(Boolean) as string[])];
+    const carriers = [...new Set(((carrierRows || []) as CarrierRow[]).map((r) => r.carrier).filter(Boolean) as string[])];
     setLeadVendorOptions(vendors);
     setBufferAgentOptions(buffers);
+    setAgentOptions(agents);
+    setRetentionOptions(retention);
+    setLicensedOptions(licensed);
+    setCarrierOptionsDynamic(carriers);
   }, [supabase]);
 
   const fetchData = useCallback(async (page = 1, showRefreshToast = false) => {
@@ -414,6 +434,11 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
           onSuccess={(message) => setToast({ message, type: "success" })}
           supabase={supabase}
           leadVendorOptions={leadVendorOptions}
+          bufferAgentOptions={bufferAgentOptions}
+          agentOptions={agentOptions}
+          retentionOptions={retentionOptions}
+          licensedOptions={licensedOptions}
+          carrierOptions={carrierOptionsDynamic}
         />
       )}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
