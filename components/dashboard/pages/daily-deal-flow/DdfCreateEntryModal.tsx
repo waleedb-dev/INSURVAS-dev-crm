@@ -71,10 +71,19 @@ export function DdfCreateEntryModal({
       return onError("Your account must be assigned to a call center before you can create entries. Ask an administrator to assign your center.");
     }
     setSaving(true);
+    const resolvedLeadVendor = callCenterId
+      ? (
+          await supabase
+            .from("call_centers")
+            .select("name")
+            .eq("id", callCenterId)
+            .maybeSingle()
+        ).data?.name || null
+      : null;
     const row: Record<string, unknown> = {
       submission_id: form.submission_id,
       date: form.date,
-      lead_vendor: form.lead_vendor || null,
+      lead_vendor: resolvedLeadVendor,
       insured_name: form.insured_name,
       client_phone_number: form.client_phone_number || null,
       buffer_agent: form.buffer_agent,
@@ -106,14 +115,7 @@ export function DdfCreateEntryModal({
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(220px, 1fr))", gap: 12 }}>
           <Input label="Submission ID" value={form.submission_id} onChange={(e) => setField("submission_id", e.currentTarget.value)} />
           <Input label="Date" type="date" value={form.date} onChange={(e) => setField("date", e.currentTarget.value)} />
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 700 }}>Lead Vendor</label>
-            {leadVendorOptions.length > 0 ? (
-              <SelectInput value={form.lead_vendor} onChange={(v) => setField("lead_vendor", String(v))} options={leadVendorOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} />
-            ) : (
-              <Input value={form.lead_vendor} onChange={(e) => setField("lead_vendor", e.currentTarget.value)} placeholder="Vendor name (type if not listed yet)" />
-            )}
-          </div>
+          <Input label="Lead Vendor" value="Auto from lead call center" disabled />
           <Input label="Customer Name *" value={form.insured_name} onChange={(e) => setField("insured_name", e.currentTarget.value)} />
           <Input label="Phone Number" value={form.client_phone_number} onChange={(e) => setField("client_phone_number", e.currentTarget.value)} />
           <div><label style={{ fontSize: 12, fontWeight: 700 }}>Buffer Agent</label><SelectInput value={form.buffer_agent} onChange={(v) => setField("buffer_agent", String(v))} options={BUFFER_AGENT_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>

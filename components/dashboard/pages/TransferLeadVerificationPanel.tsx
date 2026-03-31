@@ -90,6 +90,8 @@ const VERIFICATION_FIELD_LABELS: Record<string, string> = {
   call_dropped: "Call Dropped",
 };
 
+const HIDDEN_VERIFICATION_FIELDS = new Set<string>(["lead_vendor"]);
+
 export default function TransferLeadVerificationPanel({
   sessionId,
   showProgressSummary = true,
@@ -195,10 +197,11 @@ export default function TransferLeadVerificationPanel({
   }, [onProgressChange, progress, verifiedCount, items.length]);
 
   const orderedItems = useMemo(() => {
+    const visibleItems = items.filter((item) => !HIDDEN_VERIFICATION_FIELDS.has(item.field_name));
     const orderMap = new Map<string, number>(
       VERIFICATION_FIELD_SEQUENCE.map((fieldName, index) => [fieldName, index]),
     );
-    return [...items].sort((a, b) => {
+    return [...visibleItems].sort((a, b) => {
       const aOrder = orderMap.get(a.field_name) ?? Number.MAX_SAFE_INTEGER;
       const bOrder = orderMap.get(b.field_name) ?? Number.MAX_SAFE_INTEGER;
       if (aOrder !== bOrder) return aOrder - bOrder;

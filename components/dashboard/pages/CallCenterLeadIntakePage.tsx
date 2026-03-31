@@ -212,10 +212,19 @@ async function insertDailyDealFlowEntry(
   const face = Number(row.payload.coverageAmount);
   const insuredName = (row.leadName || "").trim() || "Unnamed Lead";
   const flowDate = getTodayInEasternYyyyMmDd();
+  const resolvedLeadVendor = row.callCenterId
+    ? (
+        await supabase
+          .from("call_centers")
+          .select("name")
+          .eq("id", row.callCenterId)
+          .maybeSingle()
+      ).data?.name || null
+    : null;
   const { error } = await supabase.from("daily_deal_flow").insert({
     submission_id: row.submissionId,
     client_phone_number: row.payload.phone || null,
-    lead_vendor: row.leadVendor || null,
+    lead_vendor: resolvedLeadVendor || row.leadVendor || null,
     call_center_id: row.callCenterId || null,
     date: flowDate,
     insured_name: insuredName,

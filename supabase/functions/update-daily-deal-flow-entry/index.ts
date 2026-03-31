@@ -131,7 +131,7 @@ serve(async (req) => {
     const todayDate = getTodayDateEST();
     const { data: leadData } = await supabase
       .from("leads")
-      .select("first_name, last_name, phone, email, lead_source, state")
+      .select("first_name, last_name, phone, email, state, call_center_id, call_centers(name)")
       .eq("submission_id", submission_id)
       .maybeSingle();
 
@@ -140,7 +140,6 @@ serve(async (req) => {
       insured_name ||
       null;
     const resolvedPhone = leadData?.phone ?? client_phone_number ?? null;
-    const resolvedLeadVendor = leadData?.lead_source ?? lead_vendor ?? null;
 
     const finalStatus = determineFinalStatus(application_submitted, sent_to_underwriting, status);
     const callResultStatus = determineCallResultStatus(
@@ -181,14 +180,21 @@ serve(async (req) => {
 
     const { data: existingTodayEntry } = await supabase
       .from("daily_deal_flow")
-      .select("id")
+      .select("id, lead_vendor, call_center_id")
       .eq("submission_id", finalSubmissionId)
       .eq("date", todayDate)
       .maybeSingle();
 
+    const resolvedCallCenterId = leadData?.call_center_id ?? existingTodayEntry?.call_center_id ?? null;
+    const resolvedLeadVendor =
+      leadData?.call_centers?.name ??
+      existingTodayEntry?.lead_vendor ??
+      null;
+
     const dailyFlowPayload = {
       submission_id: finalSubmissionId,
       lead_vendor: resolvedLeadVendor,
+      call_center_id: resolvedCallCenterId,
       insured_name: resolvedInsuredName,
       client_phone_number: resolvedPhone,
       date: todayDate,
@@ -243,14 +249,6 @@ serve(async (req) => {
         .in("status", ["pending", "in_progress", "ready_for_transfer", "transferred"]);
     } catch (sessionError) {
       console.error("Verification session update failed:", sessionError);
-    }
-
-    if (application_submitted === true && lead_vendor) {
-      try {
-        await supabase.from("leads").update({ lead_source: lead_vendor }).eq("submission_id", submission_id);
-      } catch (leadVendorError) {
-        console.error("Lead vendor update failed:", leadVendorError);
-      }
     }
 
     if (application_submitted === true) {

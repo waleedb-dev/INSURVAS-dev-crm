@@ -296,15 +296,7 @@ export function DdfGroupedGrid({
         <td style={rowCellStyle}>{serialNumber}</td>
         <td style={rowCellStyle}>{isEditing ? <Input type="date" value={data.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} /> : formatDateShort(row.date)}</td>
         <td style={rowCellStyle}>
-          {isEditing ? (
-            leadVendorOptions.length > 0 ? (
-              <SelectInput value={data.lead_vendor || ""} onChange={(v) => patchDraft({ lead_vendor: String(v) })} options={leadVendorOptions.map((v) => ({ value: v, label: v }))} />
-            ) : (
-              <Input value={data.lead_vendor || ""} onChange={(e) => patchDraft({ lead_vendor: e.currentTarget.value })} placeholder="Vendor" />
-            )
-          ) : (
-            <span style={getBadgeStyle("vendor", row.lead_vendor)}>{row.lead_vendor || ""}</span>
-          )}
+          <span style={getBadgeStyle("vendor", row.lead_vendor)}>{row.lead_vendor || ""}</span>
         </td>
         <td style={rowCellStyle}>{isEditing ? <Input value={data.insured_name || ""} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} /> : row.insured_name}</td>
         <td style={rowCellStyle}>{isEditing ? <Input value={data.client_phone_number || ""} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} /> : row.client_phone_number}</td>
@@ -560,7 +552,7 @@ export function DdfGroupedGrid({
                   <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
                     <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Contact Information</h4>
                     <Input label="Phone Number" value={draft.client_phone_number || ""} disabled={!detailEditing} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} />
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Lead Vendor</label><SelectInput disabled={!detailEditing} value={draft.lead_vendor || ""} onChange={(v) => patchDraft({ lead_vendor: String(v) })} options={leadVendorOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                    <Input label="Lead Vendor" value={draft.lead_vendor || ""} disabled />
                     <Input label="Insured Name" value={draft.insured_name || ""} disabled={!detailEditing} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} />
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 700 }}>Submission ID</label>
