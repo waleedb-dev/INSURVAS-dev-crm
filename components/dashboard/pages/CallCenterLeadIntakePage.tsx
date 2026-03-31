@@ -85,9 +85,14 @@ const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
 
 /** Must match deployed Edge Function names. */
 const FE_SLACK_NOTIFICATION_EDGE_FUNCTION = "fe-slack-notification" as const;
-const NOTIFY_ELIGIBLE_AGENTS_EDGE_FUNCTION = "notify-eligible-agents" as const;
 const FE_GHL_CREATE_CONTACT_EDGE_FUNCTION = "fe-ghl-create-contact" as const;
 const TEST_BPO_CHANNEL = "#test-bpo" as const;
+const NOTIFY_ELIGIBLE_AGENTS_ENDPOINT =
+  process.env.NEXT_PUBLIC_NOTIFY_ELIGIBLE_AGENTS_URL ||
+  "https://gqhcjqxcvhgwsqfqgekh.supabase.co/functions/v1/notify-eligible-agents";
+const NOTIFY_ELIGIBLE_AGENTS_BEARER_TOKEN =
+  process.env.NEXT_PUBLIC_NOTIFY_ELIGIBLE_AGENTS_ANON_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxaGNqcXhjdmhnd3NxZnFnZWtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIzNjAyNjEsImV4cCI6MjA2NzkzNjI2MX0.s4nuUN7hw_XCltM-XY3jC9o0og3froDRq_i80UCQ-rA";
 
 type SsnDuplicateRule = {
   stage_name: string;
@@ -314,15 +319,31 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
     }
 
     if (payload.carrier && payload.state && centerName) {
-      const { error: notifyError } = await supabase.functions.invoke(NOTIFY_ELIGIBLE_AGENTS_EDGE_FUNCTION, {
-        body: {
-          carrier: payload.carrier,
-          state: payload.state,
-          lead_vendor: centerName,
-          language: "English",
-        },
-      });
-      if (notifyError) console.warn("notify-eligible-agents:", notifyError.message);
+      try {
+        const notifyResponse = await fetch(NOTIFY_ELIGIBLE_AGENTS_ENDPOINT, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${NOTIFY_ELIGIBLE_AGENTS_BEARER_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            carrier: payload.carrier,
+            state: payload.state,
+            lead_vendor: centerName,
+            language: "English",
+          }),
+        });
+
+        if (!notifyResponse.ok) {
+          const errorText = await notifyResponse.text();
+          console.warn("notify-eligible-agents:", errorText || `HTTP ${notifyResponse.status}`);
+        }
+      } catch (notifyError) {
+        console.warn(
+          "notify-eligible-agents:",
+          notifyError instanceof Error ? notifyError.message : "Request failed",
+        );
+      }
     }
 
     if (centerName && payload.phone) {
@@ -459,6 +480,8 @@ export default function CallCenterLeadIntakePage({
     const baseQuery = supabase
       .from("leads")
       .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name), users!submitted_by(full_name)")
+      .eq("pipeline", "Transfer Portal")
+      .eq("stage", "Transfer API")
       .order("created_at", { ascending: false });
 
     const canViewAll = permissionKeys.has("action.transfer_leads.view_all");
@@ -1352,6 +1375,7 @@ export default function CallCenterLeadIntakePage({
   const handleUpdateLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
     const canResumeDraftAsCallCenter = Boolean(isCallCenterTransferRole && editingLead.formData.isDraft);
+    const wasDraftBeforeUpdate = Boolean(editingLead.formData.isDraft);
     if (!canEditTransferLeads && !canResumeDraftAsCallCenter) {
       setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
       return;
@@ -1369,10 +1393,11 @@ export default function CallCenterLeadIntakePage({
           .maybeSingle()
       : { data: null as { call_center_id?: string | null } | null };
 
-    const { error } = await supabase
+    const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
+    const { data: updatedLead, error } = await supabase
       .from("leads")
       .update({
-        lead_unique_id: normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload),
+        lead_unique_id: leadUniqueId,
         lead_value: Number(payload.leadValue || 0),
         lead_source: FIXED_BPO_LEAD_SOURCE,
         submission_date: payload.submissionDate,
@@ -1415,11 +1440,33 @@ export default function CallCenterLeadIntakePage({
         is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
       })
-      .eq("id", editingLead.rowId);
+      .eq("id", editingLead.rowId)
+      .select("id, submission_id")
+      .single();
 
     if (error) {
       setToast({ message: error.message || "Failed to update lead", type: "error" });
       return;
+    }
+
+    if (wasDraftBeforeUpdate && updatedLead?.id) {
+      const submissionId = String(updatedLead.submission_id || "").trim() || buildSubmissionId(callCenterName);
+      const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
+      await insertDailyDealFlowEntry(supabase, {
+        submissionId,
+        leadVendor: callCenterName,
+        leadName,
+        payload,
+        callCenterId: userProfile?.call_center_id || null,
+      });
+      void notifySlackTransferPortalLead(supabase, {
+        leadId: updatedLead.id,
+        submissionId,
+        leadUniqueId,
+        payload,
+        callCenterName,
+        callCenterId: userProfile?.call_center_id || null,
+      });
     }
 
     setToast({ message: "Lead updated successfully", type: "success" });
