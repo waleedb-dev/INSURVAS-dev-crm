@@ -412,14 +412,15 @@ export default function TransferLeadApplicationForm({
       const rules = ((rulesData || []) as SsnDuplicateRule[]).map((rule) => ({
         ...rule,
         stage_name: String(rule.stage_name || "").trim(),
+        ghl_stage: String(rule.ghl_stage || "").trim() || null,
       }));
-      const ruleByStage = new Map<string, SsnDuplicateRule>();
+      const ruleByGhlStage = new Map<string, SsnDuplicateRule>();
       rules.forEach((rule) => {
-        if (rule.stage_name) ruleByStage.set(rule.stage_name.toLowerCase(), rule);
+        if (rule.ghl_stage) ruleByGhlStage.set(rule.ghl_stage.toLowerCase(), rule);
       });
 
       const stage = String(match.stage || "").trim();
-      const rule = stage ? ruleByStage.get(stage.toLowerCase()) : undefined;
+      const rule = stage ? ruleByGhlStage.get(stage.toLowerCase()) : undefined;
       const ghlStage = rule?.ghl_stage ? ` (GHL: ${rule.ghl_stage})` : "";
       const baseMessage = rule?.message || "A lead already exists with this phone number.";
 
@@ -553,12 +554,13 @@ export default function TransferLeadApplicationForm({
       const rules = ((rulesData || []) as SsnDuplicateRule[]).map((rule) => ({
         ...rule,
         stage_name: String(rule.stage_name || "").trim(),
+        ghl_stage: String(rule.ghl_stage || "").trim() || null,
       }));
 
-      const ruleByStage = new Map<string, SsnDuplicateRule>();
+      const ruleByGhlStage = new Map<string, SsnDuplicateRule>();
       rules.forEach((rule) => {
-        if (rule.stage_name) {
-          ruleByStage.set(rule.stage_name.toLowerCase(), rule);
+        if (rule.ghl_stage) {
+          ruleByGhlStage.set(rule.ghl_stage.toLowerCase(), rule);
         }
       });
 
@@ -566,7 +568,7 @@ export default function TransferLeadApplicationForm({
         const stage = String(row.stage || "").trim();
         return {
           row,
-          rule: stage ? ruleByStage.get(stage.toLowerCase()) : undefined,
+          rule: stage ? ruleByGhlStage.get(stage.toLowerCase()) : undefined,
         };
       });
       const blockedLead = leadWithRule.find((item) => item.rule && item.rule.is_addable === false);

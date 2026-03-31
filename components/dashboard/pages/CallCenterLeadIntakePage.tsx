@@ -786,7 +786,7 @@ export default function CallCenterLeadIntakePage({
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
     const ssnDigits = normalizeSsnDigits(payload.social || "");
 
-    const loadDuplicateRulesByStage = async () => {
+    const loadDuplicateRulesByGhlStage = async () => {
       const { data: rulesData, error: rulesError } = await supabase
         .from("ssn_duplicate_stage_rules")
         .select("stage_name, ghl_stage, message, is_addable, is_active")
@@ -795,12 +795,13 @@ export default function CallCenterLeadIntakePage({
       const rules = ((rulesData || []) as SsnDuplicateRule[]).map((rule) => ({
         ...rule,
         stage_name: String(rule.stage_name || "").trim(),
+        ghl_stage: String(rule.ghl_stage || "").trim() || null,
       }));
-      const ruleByStage = new Map<string, SsnDuplicateRule>();
+      const ruleByGhlStage = new Map<string, SsnDuplicateRule>();
       rules.forEach((rule) => {
-        if (rule.stage_name) ruleByStage.set(rule.stage_name.toLowerCase(), rule);
+        if (rule.ghl_stage) ruleByGhlStage.set(rule.ghl_stage.toLowerCase(), rule);
       });
-      return ruleByStage;
+      return ruleByGhlStage;
     };
 
     const findDuplicateByPhone = async () => {
@@ -841,7 +842,7 @@ export default function CallCenterLeadIntakePage({
 
     const showDuplicateDialogForLead = async (existingLead: DuplicateQueryLead, matchType: "phone" | "ssn") => {
       try {
-        const ruleByStage = await loadDuplicateRulesByStage();
+        const ruleByStage = await loadDuplicateRulesByGhlStage();
         const stage = String(existingLead.stage || "").trim();
         const rule = stage ? ruleByStage.get(stage.toLowerCase()) : undefined;
         const ghlStage = rule?.ghl_stage ? ` (GHL: ${rule.ghl_stage})` : "";
