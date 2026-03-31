@@ -135,7 +135,8 @@ export default function CommissionsPage() {
         <div>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: T.textDark }}>Commissions</h1>
         </div>
-        <Button variant="ghost" size="sm" icon={<IconRefresh size={14} />} onClick={() => void loadRows()} disabled={loading}>
+        <Button variant="ghost" size="sm" onClick={() => void loadRows()} disabled={loading}>
+          <IconRefresh size={14} />
           Refresh
         </Button>
       </div>

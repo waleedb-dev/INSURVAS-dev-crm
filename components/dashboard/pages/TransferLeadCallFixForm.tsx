@@ -524,22 +524,24 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
 
       const leadStageName = mapDispositionToLeadStageName(applicationSubmitted, status);
       const { data: tpPipeline } = await supabase.from("pipelines").select("id").eq("name", "Transfer Portal").maybeSingle();
-      let resolvedStageId: string | null = null;
+      let resolvedPipelineId: number | null = null;
+      let resolvedStageId: number | null = null;
       if (tpPipeline?.id) {
+        resolvedPipelineId = Number(tpPipeline.id);
         const { data: stageRow } = await supabase
           .from("pipeline_stages")
           .select("id")
           .eq("pipeline_id", tpPipeline.id)
           .eq("name", leadStageName)
           .maybeSingle();
-        resolvedStageId = stageRow?.id ?? null;
+        resolvedStageId = stageRow?.id ? Number(stageRow.id) : null;
       }
 
       const leadUpdate: Record<string, unknown> = {
-        pipeline: "Transfer Portal",
         stage: leadStageName,
         updated_at: new Date().toISOString(),
       };
+      if (resolvedPipelineId) leadUpdate.pipeline_id = resolvedPipelineId;
       if (resolvedStageId) leadUpdate.stage_id = resolvedStageId;
       if (carrier.trim()) leadUpdate.carrier = carrier.trim();
       if (productType.trim()) leadUpdate.product_type = productType.trim();

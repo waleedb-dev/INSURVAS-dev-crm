@@ -149,6 +149,15 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [addingNote, setAddingNote] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
 
+  const resolvePipelineId = useCallback(
+    async (pipelineName: string) => {
+      if (!pipelineName) return null;
+      const { data: pipelineRow } = await supabase.from("pipelines").select("id").eq("name", pipelineName).maybeSingle();
+      return pipelineRow?.id ?? null;
+    },
+    [supabase]
+  );
+
   const byStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
   const stageValue = (stage: Stage) => byStage(stage).reduce((s, l) => s + l.premium, 0);
 
@@ -194,7 +203,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     }
 
     const selectCols =
-      "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, is_draft, call_center_id";
+      "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, pipeline_id, is_draft, call_center_id";
 
     const isTransferPipeline = pipeline === "Transfer Portal";
     const canViewAllCenters = role ? LEAD_ALL_LEADS_ROLES.has(role) : false;
@@ -223,7 +232,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     };
 
     if (isTransferPipeline) {
-      let q: any = supabase.from("leads").select(selectCols).eq("pipeline", "Transfer Portal").eq("is_draft", false).order("created_at", { ascending: false });
+      const transferPipelineId = await resolvePipelineId("Transfer Portal");
+      if (!transferPipelineId) {
+        setLeads([]);
+        return;
+      }
+      let q: any = supabase.from("leads").select(selectCols).eq("pipeline_id", transferPipelineId).eq("is_draft", false).order("created_at", { ascending: false });
       if (!canViewAllCenters) {
         if (callCenterId) q = q.eq("call_center_id", callCenterId);
         else if (userId) q = q.eq("submitted_by", userId);
@@ -245,7 +259,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       return;
     }
 
-    let q: any = supabase.from("leads").select(selectCols).eq("pipeline", pipeline).eq("is_draft", false).order("created_at", { ascending: false });
+    const selectedPipelineId = await resolvePipelineId(pipeline);
+    if (!selectedPipelineId) {
+      setLeads([]);
+      return;
+    }
+    let q: any = supabase.from("leads").select(selectCols).eq("pipeline_id", selectedPipelineId).eq("is_draft", false).order("created_at", { ascending: false });
     if (!canViewAllCenters) {
       if (callCenterId) q = q.eq("call_center_id", callCenterId);
       else if (userId) q = q.eq("submitted_by", userId);
@@ -259,7 +278,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
     const mapped: Lead[] = (data as Record<string, unknown>[]).map((row) => mapRow(row));
     setLeads(mapped);
-  }, [pipeline, stages, supabase]);
+  }, [pipeline, stages, supabase, resolvePipelineId]);
 
   useEffect(() => {
     void loadLeadsForPipeline();
@@ -363,7 +382,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   }, [quickEditLead?.rowUuid, supabase]);
 
   useEffect(() => {
-    const pipelineName = quickEditRow?.pipeline != null ? String(quickEditRow.pipeline) : "";
+    const pipelineIdRaw = quickEditRow?.pipeline_id;
+    const pipelineId = pipelineIdRaw == null || pipelineIdRaw === "" ? null : Number(pipelineIdRaw);
+    const pipelineName = pipelineId == null ? "" : pipelines.find((p) => p === pipeline) ?? pipeline;
     if (!pipelineName) {
       setQuickEditStages([]);
       return;
@@ -392,7 +413,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     return () => {
       cancelled = true;
     };
-  }, [quickEditRow?.pipeline, supabase, stages]);
+  }, [quickEditRow?.pipeline_id, supabase, stages, pipeline, pipelines]);
 
   const patchQuickEdit = (key: string, value: unknown) => {
     setQuickEditRow((prev) => (prev ? { ...prev, [key]: value } : null));
@@ -563,9 +584,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       return Number.isFinite(n) ? n : null;
     };
 
-    const pipelineName = strVal("pipeline") || "";
+    const pipelineName = strVal("pipeline_name") || pipeline || "";
     const stageName = strVal("stage") || "";
     const stageId = pipelineName && stageName ? await resolveStageId(pipelineName, stageName) : null;
+    const pipelineId = pipelineName ? await resolvePipelineId(pipelineName) : null;
 
     let tagsVal: string[] | null = null;
     const tagsRaw = quickEditRow.tags;
@@ -616,12 +638,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       account_number: strVal("account_number"),
       future_draft_date: strVal("future_draft_date"),
       additional_information: strVal("additional_information"),
-      pipeline: strVal("pipeline") || "Transfer Portal",
       stage: strVal("stage") || "Transfer API",
       lead_source: strVal("lead_source"),
       submission_date: strVal("submission_date"),
     };
 
+    if (pipelineId != null) payload.pipeline_id = pipelineId;
     if (stageId != null) payload.stage_id = stageId;
     else if (quickEditRow.stage_id != null && quickEditRow.stage_id !== "") payload.stage_id = quickEditRow.stage_id;
     if (tagsVal) payload.tags = tagsVal;
@@ -1338,7 +1360,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                        </div>
                        <div>
                          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Pipeline</label>
-                         <select value={String(quickEditRow.pipeline ?? pipeline)} onChange={(e) => patchQuickEdit("pipeline", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
+                        <select value={String(quickEditRow.pipeline_name ?? pipeline)} onChange={(e) => patchQuickEdit("pipeline_name", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
                             {pipelines.map((p) => (
                               <option key={p} value={p}>{p}</option>
                             ))}
@@ -1406,7 +1428,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {(() => {
                         const primary = new Set([
-                          "first_name", "last_name", "phone", "pipeline", "stage", "lead_source", "product_type",
+                          "first_name", "last_name", "phone", "stage", "lead_source", "product_type",
                           "lead_value", "monthly_premium", "street1", "street2", "city", "state", "zip_code", "lead_unique_id",
                           "additional_information",
                         ]);

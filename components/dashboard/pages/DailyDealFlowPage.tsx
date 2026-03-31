@@ -263,8 +263,8 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
               onSuccess={() => { setToast({ message: "Entry created successfully", type: "success" }); void fetchData(currentPage); }}
             />
           )}
-          <Button variant="ghost" icon={<IconDownload size={14} />} onClick={handleExport}>Export</Button>
-          <Button variant="ghost" icon={<IconRefresh size={14} />} onClick={() => void fetchData(1, true)} state={refreshing ? "loading" : "enabled"}>Refresh</Button>
+          <Button variant="ghost" onClick={handleExport}><IconDownload size={14} />Export</Button>
+          <Button variant="ghost" onClick={() => void fetchData(1, true)} disabled={refreshing}><IconRefresh size={14} />Refresh</Button>
         </div>
       </div>
 

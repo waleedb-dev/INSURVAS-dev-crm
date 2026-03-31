@@ -30,7 +30,7 @@ type IntakeLead = {
   type: string;
   source: string;
   centerName: string;
-  pipeline: string;
+  pipelineName: string;
   stage: string;
   createdBy: string;
   createdAt: string;
@@ -403,6 +403,7 @@ export default function CallCenterLeadIntakePage({
   const [showCreateLead, setShowCreateLead] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [defaultTransferPipelineId, setDefaultTransferPipelineId] = useState<number | null>(null);
   const [defaultTransferStageId, setDefaultTransferStageId] = useState<number | null>(null);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [pendingCreatePayload, setPendingCreatePayload] = useState<TransferLeadFormData | null>(null);
@@ -466,8 +467,8 @@ export default function CallCenterLeadIntakePage({
 
     const baseQuery = supabase
       .from("leads")
-      .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline, stage, stage_id, call_center_id, created_at, is_draft, call_centers(name), users!submitted_by(full_name)")
-      .eq("pipeline", "Transfer Portal")
+      .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline_id, stage, stage_id, call_center_id, created_at, is_draft, pipelines(name), call_centers(name), users!submitted_by(full_name)")
+      .eq("pipelines.name", "Transfer Portal")
       .eq("stage", "Transfer API")
       .order("created_at", { ascending: false });
 
@@ -498,6 +499,7 @@ export default function CallCenterLeadIntakePage({
 
     const mapped: IntakeLead[] = (data || []).map((lead: Record<string, unknown>) => {
       const callCenterObj = lead.call_centers as { name?: unknown } | null | undefined;
+      const pipelineObj = lead.pipelines as { name?: unknown } | null | undefined;
       const userObj = lead.users as { full_name?: unknown } | null | undefined;
       const submissionIdRaw = lead.submission_id;
 
@@ -511,7 +513,7 @@ export default function CallCenterLeadIntakePage({
         type: typeof lead.product_type === "string" && lead.product_type.trim() !== "" ? lead.product_type : "Transfer",
         source: typeof lead.lead_source === "string" && lead.lead_source.trim() !== "" ? lead.lead_source : "Unknown",
         centerName: typeof callCenterObj?.name === "string" && callCenterObj.name.trim() !== "" ? callCenterObj.name : "Unassigned",
-        pipeline: typeof lead.pipeline === "string" && lead.pipeline.trim() !== "" ? lead.pipeline : "Transfer Portal",
+        pipelineName: typeof pipelineObj?.name === "string" && pipelineObj.name.trim() !== "" ? pipelineObj.name : "Transfer Portal",
         stage: typeof lead.stage === "string" && lead.stage.trim() !== "" ? lead.stage : "Transfer API",
         createdBy: typeof userObj?.full_name === "string" && userObj.full_name.trim() !== "" ? userObj.full_name.trim() : "Unknown",
         createdAt: lead.created_at ? new Date(String(lead.created_at)).toLocaleString() : "Just now",
@@ -591,6 +593,7 @@ export default function CallCenterLeadIntakePage({
         .maybeSingle();
 
       if (error || !data?.id) return;
+      setDefaultTransferPipelineId(data.id);
 
       const { data: stageData, error: stageError } = await supabase
         .from("pipeline_stages")
@@ -609,7 +612,7 @@ export default function CallCenterLeadIntakePage({
 
   const sources = useMemo(() => Array.from(new Set(leads.map((lead) => lead.source))), [leads]);
   const centerOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.centerName))), [leads]);
-  const pipelineOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.pipeline))), [leads]);
+  const pipelineOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.pipelineName))), [leads]);
   const stageOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.stage))), [leads]);
   const createdByOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.createdBy))), [leads]);
   const productTypeOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.type))), [leads]);
@@ -720,7 +723,7 @@ export default function CallCenterLeadIntakePage({
         if (filterDateTo && day && day > filterDateTo) matchDate = false;
       }
       const matchCenter = filterCenter === "All" || lead.centerName === filterCenter;
-      const matchPipeline = filterPipeline === "All" || lead.pipeline === filterPipeline;
+      const matchPipeline = filterPipeline === "All" || lead.pipelineName === filterPipeline;
       const matchStage = filterStage === "All" || lead.stage === filterStage;
       const matchCreatedBy = filterCreatedBy === "All" || lead.createdBy === filterCreatedBy;
       const matchType = filterProductType === "All" || lead.type === filterProductType;
@@ -790,7 +793,7 @@ export default function CallCenterLeadIntakePage({
   // Stats (match filtered table)
   const totalPremium = filtered.reduce((s, l) => s + l.premium, 0);
   const avgPremium = filtered.length ? totalPremium / filtered.length : 0;
-  const uniquePipelines = new Set(filtered.map((l) => l.pipeline)).size;
+  const uniquePipelines = new Set(filtered.map((l) => l.pipelineName)).size;
 
   const promptDuplicateIfAny = async (payload: TransferLeadFormData): Promise<boolean> => {
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
@@ -968,8 +971,8 @@ export default function CallCenterLeadIntakePage({
           future_draft_date: finalPayload.futureDraftDate,
           additional_information: existingAdditional || null,
           tags: asDuplicate ? ["duplicate"] : [],
-          pipeline: finalPayload.pipeline || "Transfer Portal",
           stage: finalPayload.stage || "Transfer API",
+          pipeline_id: defaultTransferPipelineId,
           stage_id: defaultTransferStageId,
           is_draft: false,
           call_center_id: userProfile?.call_center_id || null,
@@ -1079,8 +1082,8 @@ export default function CallCenterLeadIntakePage({
         future_draft_date: pendingCreatePayload.futureDraftDate,
         additional_information: existingAdditional || null,
         tags: ["duplicate"],
-        pipeline: pendingCreatePayload.pipeline || "Transfer Portal",
         stage: pendingCreatePayload.stage || "Transfer API",
+        pipeline_id: defaultTransferPipelineId,
         stage_id: defaultTransferStageId,
         is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
@@ -1185,8 +1188,8 @@ export default function CallCenterLeadIntakePage({
         account_number: pendingCreatePayload.accountNumber,
         future_draft_date: pendingCreatePayload.futureDraftDate,
         additional_information: pendingCreatePayload.additionalInformation || null,
-        pipeline: pendingCreatePayload.pipeline || "Transfer Portal",
         stage: pendingCreatePayload.stage || "Transfer API",
+        pipeline_id: defaultTransferPipelineId,
         stage_id: defaultTransferStageId,
         is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
@@ -1266,8 +1269,8 @@ export default function CallCenterLeadIntakePage({
       account_number: payload.accountNumber || null,
       future_draft_date: payload.futureDraftDate || null,
       additional_information: payload.additionalInformation || null,
-      pipeline: payload.pipeline || "Transfer Portal",
       stage: payload.stage || "Transfer API",
+      pipeline_id: defaultTransferPipelineId,
       stage_id: defaultTransferStageId,
       is_draft: true,
       call_center_id: userProfile?.call_center_id || null,
@@ -1288,7 +1291,7 @@ export default function CallCenterLeadIntakePage({
   const openLeadInForm = async (rowId: string) => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline, stage, is_draft")
+      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline_id, stage, is_draft, pipelines(name)")
       .eq("id", rowId)
       .maybeSingle();
 
@@ -1335,7 +1338,7 @@ export default function CallCenterLeadIntakePage({
       accountNumber: data.account_number || "",
       futureDraftDate: data.future_draft_date || "",
       additionalInformation: data.additional_information || "",
-      pipeline: data.pipeline || "Transfer Portal",
+      pipeline: (data.pipelines as { name?: string | null } | null)?.name || "Transfer Portal",
       stage: data.stage || "Transfer API",
       isDraft: data.is_draft ?? false,
     };
@@ -1421,8 +1424,8 @@ export default function CallCenterLeadIntakePage({
         account_number: payload.accountNumber,
         future_draft_date: payload.futureDraftDate,
         additional_information: payload.additionalInformation || null,
-        pipeline: payload.pipeline || "Transfer Portal",
         stage: payload.stage || "Transfer API",
+        pipeline_id: defaultTransferPipelineId,
         stage_id: defaultTransferStageId,
         is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
@@ -1521,8 +1524,8 @@ export default function CallCenterLeadIntakePage({
         account_number: payload.accountNumber || null,
         future_draft_date: payload.futureDraftDate || null,
         additional_information: payload.additionalInformation || null,
-        pipeline: payload.pipeline || "Transfer Portal",
         stage: payload.stage || "Transfer API",
+        pipeline_id: defaultTransferPipelineId,
         stage_id: defaultTransferStageId,
         is_draft: true,
         call_center_id: userProfile?.call_center_id || null,
@@ -2244,7 +2247,7 @@ export default function CallCenterLeadIntakePage({
                       </span>
                     </TableCell>
                     <TableCell style={{ padding: "12px 16px" }}>
-                      <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.pipeline}</div>
+                      <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.pipelineName}</div>
                       <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.stage}</div>
                     </TableCell>
                     <TableCell style={{ padding: "12px 16px" }}>

@@ -48,6 +48,7 @@ interface LeadViewProps {
 }
 
 type TabType = "Overview" | "Call updates" | "Notes" | "Policy & coverage";
+type PipelineOption = { id: number; name: string; stages: string[] };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -240,7 +241,7 @@ export default function LeadViewComponent({
 }: LeadViewProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [activeTab, setActiveTab] = useState<TabType>("Overview");
-  const [pipelines, setPipelines] = useState<{ name: string; stages: string[] }[]>([]);
+  const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
 
   const [formData, setFormData] = useState<Lead>({
     name: leadName || "",
@@ -301,6 +302,7 @@ export default function LeadViewComponent({
     if (sError || !stagesData) return;
 
     const built = pipelinesData.map((p) => ({
+      id: Number(p.id),
       name: p.name,
       stages: stagesData.filter((s) => s.pipeline_id === p.id).map((s) => s.name),
     }));
@@ -353,10 +355,20 @@ export default function LeadViewComponent({
     };
   }, [isCreation, previewMode, leadId, leadRowUuid, resolveLeadUuid, supabase]);
 
-  const pipelineNameForStages =
-    isEditing && editDraft
-      ? String(editDraft.pipeline ?? "")
-      : String(leadRow?.pipeline ?? formData.pipeline);
+  const pipelineNameForStages = (() => {
+    if (isEditing && editDraft) {
+      if (editDraft.pipeline_id != null && editDraft.pipeline_id !== "") {
+        const byId = pipelines.find((p) => p.id === Number(editDraft.pipeline_id));
+        if (byId) return byId.name;
+      }
+      return String(editDraft.pipeline ?? "");
+    }
+    if (leadRow?.pipeline_id != null && leadRow.pipeline_id !== "") {
+      const byId = pipelines.find((p) => p.id === Number(leadRow.pipeline_id));
+      if (byId) return byId.name;
+    }
+    return String(leadRow?.pipeline ?? formData.pipeline);
+  })();
   const currentPipeline =
     pipelines.find((p) => p.name === pipelineNameForStages) ||
     pipelines.find((p) => p.name === String(leadRow?.pipeline ?? formData.pipeline)) ||
@@ -416,6 +428,7 @@ export default function LeadViewComponent({
     const pipelineName = str("pipeline") || "Transfer Portal";
     const stageName = str("stage") || "Transfer API";
     const stageId = await resolveStageId(pipelineName, stageName);
+    const pipelineId = pipelines.find((p) => p.name === pipelineName)?.id ?? null;
 
     let tagsVal: string[] | null = null;
     const tr = editDraft.tags;
@@ -440,9 +453,9 @@ export default function LeadViewComponent({
       carrier: str("carrier"),
       lead_source: str("lead_source"),
       submission_date: str("submission_date"),
-      pipeline: pipelineName,
       stage: stageName,
     };
+    if (pipelineId != null) payload.pipeline_id = pipelineId;
     if (stageId != null) payload.stage_id = stageId;
     if (tagsVal) payload.tags = tagsVal;
 
@@ -821,7 +834,10 @@ export default function LeadViewComponent({
                       } as const;
                       const fieldStyle = ro ? roStyle : inputStyle;
 
-                      const pipelineName = String(d?.pipeline ?? "");
+                      const pipelineName =
+                        d?.pipeline_id != null && d?.pipeline_id !== ""
+                          ? pipelines.find((p) => p.id === Number(d.pipeline_id))?.name || String(d?.pipeline ?? "")
+                          : String(d?.pipeline ?? "");
                       const stagesForPipeline =
                         pipelines.find((p) => p.name === pipelineName)?.stages ||
                         currentPipeline?.stages ||
@@ -946,12 +962,13 @@ export default function LeadViewComponent({
                               <div>
                                 <label style={labelStyle}>Pipeline</label>
                                 <select
-                                  value={String(d?.pipeline ?? "")}
+                                  value={pipelineName}
                                   disabled={ro}
                                   onChange={(e) => {
                                     const pName = e.target.value;
                                     const p = pipelines.find((pl) => pl.name === pName);
                                     patchDraft("pipeline", pName);
+                                    patchDraft("pipeline_id", p?.id ?? null);
                                     if (p?.stages?.length) patchDraft("stage", p.stages[0]);
                                   }}
                                   style={(ro ? roStyle : inputStyle) as any}

@@ -279,42 +279,42 @@ export default function ComponentsPage() {
                     >
                         {/* Primary */}
                         {[
-                            <Button icon={<IconPlus size={16} />} state="enabled">Add Project</Button>,
-                            <Button icon={<IconPlus size={16} />} state="hover">Add Project</Button>,
-                            <Button icon={<IconPlus size={16} />} state="pressed">Add Project</Button>,
-                            <Button icon={<IconPlus size={16} />} state="disabled">Add Project</Button>,
+                            <Button><IconPlus size={16} />Add Project</Button>,
+                            <Button><IconPlus size={16} />Add Project</Button>,
+                            <Button><IconPlus size={16} />Add Project</Button>,
+                            <Button disabled><IconPlus size={16} />Add Project</Button>,
                         ]}
 
                         {/* Secondary */}
                         {[
-                            <Button variant="secondary" state="enabled">Save Task</Button>,
-                            <Button variant="secondary" state="hover">Save Task</Button>,
-                            <Button variant="secondary" state="pressed">Save Task</Button>,
-                            <Button variant="secondary" state="disabled">Save Task</Button>,
+                            <Button variant="secondary">Save Task</Button>,
+                            <Button variant="secondary">Save Task</Button>,
+                            <Button variant="secondary">Save Task</Button>,
+                            <Button variant="secondary" disabled>Save Task</Button>,
                         ]}
 
                         {/* Icon */}
                         {[
-                            <Button variant="icon" size="sm" state="enabled"><IconPlayerPlay size={16} /></Button>,
-                            <Button variant="icon" size="sm" state="hover"><IconPlayerPlay size={16} /></Button>,
-                            <Button variant="icon" size="sm" state="pressed"><IconPlayerPlay size={16} /></Button>,
-                            <Button variant="icon" size="sm" state="disabled"><IconPlayerPlay size={16} /></Button>,
+                            <Button size="icon-sm"><IconPlayerPlay size={16} /></Button>,
+                            <Button size="icon-sm"><IconPlayerPlay size={16} /></Button>,
+                            <Button size="icon-sm"><IconPlayerPlay size={16} /></Button>,
+                            <Button size="icon-sm" disabled><IconPlayerPlay size={16} /></Button>,
                         ]}
 
                         {/* Link */}
                         {[
-                            <Button variant="link" icon={<IconChevronRight size={14} />} iconPosition="right" state="enabled">View all</Button>,
-                            <Button variant="link" icon={<IconChevronRight size={14} />} iconPosition="right" state="hover">View all</Button>,
-                            <Button variant="link" icon={<IconChevronRight size={14} />} iconPosition="right" state="pressed">View all</Button>,
-                            <Button variant="link" icon={<IconChevronRight size={14} />} iconPosition="right" state="disabled">View all</Button>,
+                            <Button variant="link">View all <IconChevronRight size={14} /></Button>,
+                            <Button variant="link">View all <IconChevronRight size={14} /></Button>,
+                            <Button variant="link">View all <IconChevronRight size={14} /></Button>,
+                            <Button variant="link" disabled>View all <IconChevronRight size={14} /></Button>,
                         ]}
 
                         {/* Ghost icon */}
                         {[
-                            <Button variant="ghost" size="sm" state="enabled"><IconLayoutKanban size={16} /></Button>,
-                            <Button variant="ghost" size="sm" state="hover"><IconLayoutKanban size={16} /></Button>,
-                            <Button variant="ghost" size="sm" state="pressed"><IconLayoutKanban size={16} /></Button>,
-                            <Button variant="ghost" size="sm" state="disabled"><IconLayoutKanban size={16} /></Button>,
+                            <Button variant="ghost" size="icon-sm"><IconLayoutKanban size={16} /></Button>,
+                            <Button variant="ghost" size="icon-sm"><IconLayoutKanban size={16} /></Button>,
+                            <Button variant="ghost" size="icon-sm"><IconLayoutKanban size={16} /></Button>,
+                            <Button variant="ghost" size="icon-sm" disabled><IconLayoutKanban size={16} /></Button>,
                         ]}
                     </StateColumns>
                 </Section>
