@@ -26,11 +26,11 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
   const [totalRecords, setTotalRecords] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [hasWritePermissions, setHasWritePermissions] = useState(false);
   const [callCenterId, setCallCenterId] = useState<string | null>(null);
   const [callCenterName, setCallCenterName] = useState<string | null>(null);
   const [leadVendorOptions, setLeadVendorOptions] = useState<string[]>([]);
   const [bufferAgentOptions, setBufferAgentOptions] = useState<string[]>([]);
+  const hasWritePermissions = canProcessActions;
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState("");
