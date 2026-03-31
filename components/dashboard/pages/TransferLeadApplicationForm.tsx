@@ -21,6 +21,7 @@ export type TransferLeadFormData = {
   state: string;
   zipCode: string;
   phone: string;
+  language: string;
   birthState: string;
   dateOfBirth: string;
   age: string;
@@ -104,6 +105,7 @@ const REQUIRED_FORM_KEYS: Array<keyof TransferLeadFormData> = [
   "state",
   "zipCode",
   "phone",
+  "language",
   "birthState",
   "dateOfBirth",
   "age",
@@ -170,6 +172,7 @@ function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFo
     state: "",
     zipCode: "",
     phone: "",
+    language: "English",
     birthState: "",
     dateOfBirth: "",
     age: "",
@@ -876,6 +879,13 @@ export default function TransferLeadApplicationForm({
                   Run phone check first to unlock the full application form.
                 </div>
               )}
+            </Field>
+            <Field label="Language *">
+              <select value={formData.language} onChange={set("language")} style={fieldStyleWithError("language")}>
+                <option value="">Select language</option>
+                <option value="English">English</option>
+                <option value="Spanish">Spanish</option>
+              </select>
             </Field>
           </div>
         </Section>
