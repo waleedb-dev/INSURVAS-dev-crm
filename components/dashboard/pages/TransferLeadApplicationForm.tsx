@@ -377,11 +377,23 @@ export default function TransferLeadApplicationForm({
 
     setPhoneDupChecking(true);
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const currentUserId = session?.user?.id || null;
+      if (!currentUserId) {
+        setPhoneDupMatch(null);
+        setPhoneDupRuleMessage("");
+        setPhoneDupIsAddable(true);
+        return { match: null, isAddable: true };
+      }
+
       const rawDigits = normalizePhoneDigits(formData.phone);
       const variants = Array.from(new Set([formData.phone.trim(), rawDigits, canonicalDigits, formatUsPhone(canonicalDigits)].filter(Boolean)));
       const { data: existing, error: existingError } = await supabase
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, stage, created_at")
+        .eq("submitted_by", currentUserId)
         .in("phone", variants)
         .order("created_at", { ascending: false });
 
@@ -530,10 +542,24 @@ export default function TransferLeadApplicationForm({
     setSsnCheckMessage("Checking SSN against existing leads...");
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const currentUserId = session?.user?.id || null;
+      if (!currentUserId) {
+        setSsnCheckState("idle");
+        setSsnCheckMessage("");
+        setSsnDupMatch(null);
+        setSsnDupIsAddable(true);
+        setShowSsnDupDetails(false);
+        return { blocked: false, warning: false };
+      }
+
       const variants = Array.from(new Set([rawSsn.trim(), ssnDigits, formatSsn(ssnDigits)].filter(Boolean)));
       const { data, error } = await supabase
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, stage, social, created_at")
+        .eq("submitted_by", currentUserId)
         .in("social", variants)
         .order("created_at", { ascending: false });
 

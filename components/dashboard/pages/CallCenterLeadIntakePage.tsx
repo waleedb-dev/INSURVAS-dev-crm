@@ -785,6 +785,11 @@ export default function CallCenterLeadIntakePage({
   const promptDuplicateIfAny = async (payload: TransferLeadFormData): Promise<boolean> => {
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
     const ssnDigits = normalizeSsnDigits(payload.social || "");
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const currentUserId = session?.user?.id || null;
+    if (!currentUserId) return false;
 
     const loadDuplicateRulesByGhlStage = async () => {
       const { data: rulesData, error: rulesError } = await supabase
@@ -812,6 +817,7 @@ export default function CallCenterLeadIntakePage({
       const { data: existing, error: existingError } = await supabase
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, social, stage, created_at")
+        .eq("submitted_by", currentUserId)
         .in("phone", variants)
         .order("created_at", { ascending: false });
       if (existingError) return null;
@@ -830,6 +836,7 @@ export default function CallCenterLeadIntakePage({
       const { data: existing, error: existingError } = await supabase
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, social, stage, created_at")
+        .eq("submitted_by", currentUserId)
         .in("social", variants)
         .order("created_at", { ascending: false });
       if (existingError) return null;
@@ -2301,7 +2308,12 @@ export default function CallCenterLeadIntakePage({
                                   { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
                                   { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
                                 ]
-                              : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
+                              : isCallCenterTransferRole && lead.isDraft
+                                ? [
+                                    { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
+                                    { label: "Update Lead", onClick: () => void openLeadInForm(lead.rowId) },
+                                  ]
+                                : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
                           }
                         />
                       </div>
