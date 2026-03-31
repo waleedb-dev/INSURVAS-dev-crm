@@ -6,10 +6,7 @@ import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Toast } from "@/components/ui";
 import { useCarrierProductDropdowns } from "@/lib/useCarrierProductDropdowns";
-
-const bufferAgentOptions = ["Justine", "Maria", "Muhammad Ahmed", "Catarina", "Nicole Mejia", "Aubrey Nichols", "N/A"];
-const agentOptions = ["Lydia", "Muhammad Ahmed", "Zack", "Tatumn", "Benjamin", "Brandon Blake Flinchum", "Isaac", "N/A"];
-const licensedAccountOptions = ["Claudia", "Lydia", "Isaac", "Brandon Blake Flinchum", "Abdul", "Trinity", "Benjamin", "Tatumn", "Noah"];
+import { fetchClaimAgents, syncVerifiedFieldsToLead, type AgentOption } from "./transferLeadParity";
 
 const reasonMap: Record<string, string[]> = {
   DQ: [
@@ -163,6 +160,11 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
   const [carrierAttempted1, setCarrierAttempted1] = useState("");
   const [carrierAttempted2, setCarrierAttempted2] = useState("");
   const [carrierAttempted3, setCarrierAttempted3] = useState("");
+  const [claimAgentsLoading, setClaimAgentsLoading] = useState(true);
+  const [claimAgents, setClaimAgents] = useState<{
+    bufferAgents: AgentOption[];
+    licensedAgents: AgentOption[];
+  }>({ bufferAgents: [], licensedAgents: [] });
   const [transferPipelineStages, setTransferPipelineStages] = useState<string[]>([]);
   const [transferStagesLoading, setTransferStagesLoading] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -179,6 +181,28 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
     },
   });
   const carrierOptions = carriers.map((c) => c.name);
+  const bufferAgentOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [...claimAgents.bufferAgents.map((row) => row.name), bufferAgent]
+            .map((name) => name.trim())
+            .filter(Boolean),
+        ),
+      ),
+    [claimAgents.bufferAgents, bufferAgent],
+  );
+  const licensedAgentOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [...claimAgents.licensedAgents.map((row) => row.name), agentWhoTookCall, licensedAgentAccount]
+            .map((name) => name.trim())
+            .filter(Boolean),
+        ),
+      ),
+    [claimAgents.licensedAgents, agentWhoTookCall, licensedAgentAccount],
+  );
 
   const statusOptions = useMemo(() => transferPipelineStages, [transferPipelineStages]);
   const reasons = reasonMap[status] || [];
@@ -212,6 +236,30 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
     !!callSource &&
     applicationSubmitted !== null &&
     (applicationSubmitted === true ? submittedMissingFields.length === 0 : notSubmittedMissingFields.length === 0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadClaimAgents = async () => {
+      setClaimAgentsLoading(true);
+      try {
+        const loaded = await fetchClaimAgents(supabase);
+        if (cancelled) return;
+        setClaimAgents({
+          bufferAgents: loaded.bufferAgents,
+          licensedAgents: loaded.licensedAgents,
+        });
+      } catch {
+        if (cancelled) return;
+        setClaimAgents({ bufferAgents: [], licensedAgents: [] });
+      } finally {
+        if (!cancelled) setClaimAgentsLoading(false);
+      }
+    };
+    void loadClaimAgents();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -504,6 +552,15 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
         console.warn("Lead update after call result failed:", leadUpdateError.message);
       }
 
+      try {
+        await syncVerifiedFieldsToLead(supabase, leadRowId, submissionId);
+      } catch (syncError) {
+        console.warn(
+          "Verified fields sync to lead failed:",
+          syncError instanceof Error ? syncError.message : String(syncError),
+        );
+      }
+
       const { error: logError } = await supabase.from("call_update_logs").insert({
         submission_id: submissionId,
         lead_id: leadRowId,
@@ -689,8 +746,14 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                     Buffer Agent
                   </label>
-                  <select value={bufferAgent} onChange={(e) => setBufferAgent(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}>
-                    <option value="">Select buffer agent</option>
+                  <select value={bufferAgent} onChange={(e) => setBufferAgent(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }} disabled={claimAgentsLoading}>
+                    <option value="">
+                      {claimAgentsLoading
+                        ? "Loading buffer agents..."
+                        : bufferAgentOptions.length > 0
+                          ? "Select buffer agent"
+                          : "No buffer agents found"}
+                    </option>
                     {bufferAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                 </div>
@@ -699,9 +762,15 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                     Agent who took the call
                   </label>
-                  <select value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}>
-                    <option value="">Select agent</option>
-                    {agentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                  <select value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }} disabled={claimAgentsLoading}>
+                    <option value="">
+                      {claimAgentsLoading
+                        ? "Loading licensed agents..."
+                        : licensedAgentOptions.length > 0
+                          ? "Select licensed agent"
+                          : "No licensed agents found"}
+                    </option>
+                    {licensedAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                   {!agentWhoTookCall && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Agent who took the call is required</p>}
                 </div>
@@ -717,9 +786,15 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                   Licensed Agent Account *
                 </label>
-                <select value={licensedAgentAccount} onChange={(e) => setLicensedAgentAccount(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!licensedAgentAccount ? "#fca5a5" : T.border}` }}>
-                  <option value="">Select licensed account</option>
-                  {licensedAccountOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                <select value={licensedAgentAccount} onChange={(e) => setLicensedAgentAccount(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!licensedAgentAccount ? "#fca5a5" : T.border}` }} disabled={claimAgentsLoading}>
+                  <option value="">
+                    {claimAgentsLoading
+                      ? "Loading licensed accounts..."
+                      : licensedAgentOptions.length > 0
+                        ? "Select licensed account"
+                        : "No licensed agents found"}
+                  </option>
+                  {licensedAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
                 {!licensedAgentAccount && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Licensed Agent Account is required</p>}
               </div>
@@ -827,9 +902,15 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                   Agent Who Took Call *
                 </label>
-                <select value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!agentWhoTookCall ? "#fca5a5" : T.border}` }}>
-                  <option value="">Select</option>
-                  {agentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                <select value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!agentWhoTookCall ? "#fca5a5" : T.border}` }} disabled={claimAgentsLoading}>
+                  <option value="">
+                    {claimAgentsLoading
+                      ? "Loading licensed agents..."
+                      : licensedAgentOptions.length > 0
+                        ? "Select licensed agent"
+                        : "No licensed agents found"}
+                  </option>
+                  {licensedAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
                 {!agentWhoTookCall && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Agent who took the call is required</p>}
               </div>

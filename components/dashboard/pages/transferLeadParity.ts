@@ -57,6 +57,60 @@ type VerificationSessionRow = {
   status: string;
 };
 
+type LeadSyncMapper = (value: string) => Record<string, unknown>;
+
+const VERIFIED_FIELD_TO_LEAD_MAPPER: Record<string, LeadSyncMapper> = {
+  customer_full_name: (value) => {
+    const clean = value.trim();
+    if (!clean) return {};
+    const parts = clean.split(/\s+/);
+    const first = parts.shift() || "";
+    const last = parts.join(" ");
+    return {
+      first_name: first || null,
+      last_name: last || null,
+    };
+  },
+  date_of_birth: (value) => ({ date_of_birth: value.trim() || null }),
+  birth_state: (value) => ({ birth_state: value.trim() || null }),
+  age: (value) => ({ age: value.trim() || null }),
+  social_security: (value) => ({ social: value.trim() || null }),
+  driver_license: (value) => ({ driver_license_number: value.trim() || null }),
+  street_address: (value) => ({ street1: value.trim() || null }),
+  city: (value) => ({ city: value.trim() || null }),
+  state: (value) => ({ state: value.trim() || null }),
+  zip_code: (value) => ({ zip_code: value.trim() || null }),
+  phone_number: (value) => ({ phone: value.trim() || null }),
+  height: (value) => ({ height: value.trim() || null }),
+  weight: (value) => ({ weight: value.trim() || null }),
+  doctors_name: (value) => ({ doctor_name: value.trim() || null }),
+  tobacco_use: (value) => ({ tobacco_use: value.trim() || null }),
+  health_conditions: (value) => ({ health_conditions: value.trim() || null }),
+  medications: (value) => ({ medications: value.trim() || null }),
+  existing_coverage: (value) => ({ existing_coverage_last_2_years: value.trim() || null }),
+  previous_applications: (value) => ({ previous_applications_2_years: value.trim() || null }),
+  carrier: (value) => ({ carrier: value.trim() || null }),
+  product_type: (value) => ({ product_type: value.trim() || null }),
+  insurance_application_details: (value) => ({ product_type: value.trim() || null }),
+  draft_date: (value) => ({ draft_date: value.trim() || null }),
+  future_draft_date: (value) => ({ future_draft_date: value.trim() || null }),
+  beneficiary_information: (value) => ({ beneficiary_information: value.trim() || null }),
+  institution_name: (value) => ({ institution_name: value.trim() || null }),
+  beneficiary_routing: (value) => ({ routing_number: value.trim() || null }),
+  beneficiary_account: (value) => ({ account_number: value.trim() || null }),
+  account_type: (value) => ({ bank_account_type: value.trim() || null }),
+  additional_notes: (value) => ({ additional_information: value.trim() || null }),
+  lead_vendor: (value) => ({ lead_source: value.trim() || null }),
+  coverage_amount: (value) => {
+    const parsed = Number(String(value).replace(/\$/g, "").replace(/,/g, "").trim());
+    return Number.isFinite(parsed) ? { coverage_amount: parsed } : {};
+  },
+  monthly_premium: (value) => {
+    const parsed = Number(String(value).replace(/\$/g, "").replace(/,/g, "").trim());
+    return Number.isFinite(parsed) ? { monthly_premium: parsed } : {};
+  },
+};
+
 export async function ensureSubmissionId(
   supabase: SupabaseClient,
   leadRowId: string,
@@ -152,9 +206,9 @@ export async function fetchClaimAgents(supabase: SupabaseClient): Promise<{
     .map(toOption)
     .sort(byName);
 
-  /** Buffer to Licensed — role unlicensed sales, and not marked licensed on profile */
+  /** Buffer to Licensed — strictly sales_agent_unlicensed role */
   const bufferAgents = normalized
-    .filter((row) => row.roleKey === "sales_agent_unlicensed" && !row.isLicensedProfile)
+    .filter((row) => row.roleKey === "sales_agent_unlicensed")
     .map(toOption)
     .sort(byName);
   const retentionAgents = normalized
@@ -443,4 +497,53 @@ export async function fetchLatestSessionForSubmission(
 
   if (error) throw new Error(error.message || "Failed to load verification session.");
   return (data as VerificationSessionRow | null) || null;
+}
+
+export async function syncVerifiedFieldsToLead(
+  supabase: SupabaseClient,
+  leadRowId: string,
+  submissionId: string,
+): Promise<void> {
+  const session = await fetchLatestSessionForSubmission(supabase, submissionId);
+  if (!session?.id) return;
+
+  const { data, error } = await supabase
+    .from("verification_items")
+    .select("field_name, verified_value, original_value, is_verified")
+    .eq("session_id", session.id)
+    .eq("is_verified", true);
+
+  if (error) {
+    throw new Error(error.message || "Failed to load verified fields.");
+  }
+
+  const items = (data || []) as Array<{
+    field_name: string | null;
+    verified_value: string | null;
+    original_value: string | null;
+    is_verified: boolean | null;
+  }>;
+
+  const leadPatch: Record<string, unknown> = {};
+  for (const item of items) {
+    const fieldName = String(item.field_name || "").trim();
+    if (!fieldName) continue;
+    const mapper = VERIFIED_FIELD_TO_LEAD_MAPPER[fieldName];
+    if (!mapper) continue;
+    const value = String(item.verified_value ?? item.original_value ?? "").trim();
+    if (!value) continue;
+    Object.assign(leadPatch, mapper(value));
+  }
+
+  if (Object.keys(leadPatch).length === 0) return;
+  leadPatch.updated_at = new Date().toISOString();
+
+  const { error: leadError } = await supabase
+    .from("leads")
+    .update(leadPatch)
+    .eq("id", leadRowId);
+
+  if (leadError) {
+    throw new Error(leadError.message || "Failed to sync verified fields to lead.");
+  }
 }
