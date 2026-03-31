@@ -5,6 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+const NOTIFY_ELIGIBLE_AGENTS_ENDPOINT =
+  Deno.env.get("NOTIFY_ELIGIBLE_AGENTS_URL") ||
+  "https://gqhcjqxcvhgwsqfqgekh.supabase.co/functions/v1/notify-eligible-agents";
+const NOTIFY_ELIGIBLE_AGENTS_BEARER_TOKEN =
+  Deno.env.get("NOTIFY_ELIGIBLE_AGENTS_ANON_KEY") ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxaGNqcXhjdmhnd3NxZnFnZWtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIzNjAyNjEsImV4cCI6MjA2NzkzNjI2MX0.s4nuUN7hw_XCltM-XY3jC9o0og3froDRq_i80UCQ-rA";
 
 const isDST = (date: Date) => {
   const year = date.getFullYear();
@@ -125,7 +131,7 @@ serve(async (req) => {
     const todayDate = getTodayDateEST();
     const { data: leadData } = await supabase
       .from("leads")
-      .select("first_name, last_name, phone, email, lead_source")
+      .select("first_name, last_name, phone, email, lead_source, state")
       .eq("submission_id", submission_id)
       .maybeSingle();
 
@@ -276,6 +282,32 @@ serve(async (req) => {
         });
       } catch (slackError) {
         console.error("Slack notification error:", slackError);
+      }
+    }
+
+    // Keep draft-edit flow aligned with first-time create flow:
+    // notify eligible agents when we have carrier/state/vendor context.
+    if (application_submitted === true && carrier && leadData?.state && resolvedLeadVendor) {
+      try {
+        const notifyResponse = await fetch(NOTIFY_ELIGIBLE_AGENTS_ENDPOINT, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${NOTIFY_ELIGIBLE_AGENTS_BEARER_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            carrier,
+            state: leadData.state,
+            lead_vendor: resolvedLeadVendor,
+            language: "English",
+          }),
+        });
+        if (!notifyResponse.ok) {
+          const responseText = await notifyResponse.text();
+          console.error("Notify eligible agents error:", responseText || `HTTP ${notifyResponse.status}`);
+        }
+      } catch (notifyEligibleError) {
+        console.error("Notify eligible agents error:", notifyEligibleError);
       }
     }
 

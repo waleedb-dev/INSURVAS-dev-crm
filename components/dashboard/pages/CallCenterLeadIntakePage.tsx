@@ -87,12 +87,6 @@ const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
 const FE_SLACK_NOTIFICATION_EDGE_FUNCTION = "fe-slack-notification" as const;
 const FE_GHL_CREATE_CONTACT_EDGE_FUNCTION = "fe-ghl-create-contact" as const;
 const TEST_BPO_CHANNEL = "#test-bpo" as const;
-const NOTIFY_ELIGIBLE_AGENTS_ENDPOINT =
-  process.env.NEXT_PUBLIC_NOTIFY_ELIGIBLE_AGENTS_URL ||
-  "https://gqhcjqxcvhgwsqfqgekh.supabase.co/functions/v1/notify-eligible-agents";
-const NOTIFY_ELIGIBLE_AGENTS_BEARER_TOKEN =
-  process.env.NEXT_PUBLIC_NOTIFY_ELIGIBLE_AGENTS_ANON_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxaGNqcXhjdmhnd3NxZnFnZWtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIzNjAyNjEsImV4cCI6MjA2NzkzNjI2MX0.s4nuUN7hw_XCltM-XY3jC9o0og3froDRq_i80UCQ-rA";
 
 type SsnDuplicateRule = {
   stage_name: string;
@@ -276,7 +270,7 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
     const centerSlackChannel = TEST_BPO_CHANNEL;
 
     if (centerSlackChannel) {
-      const agentPortalUrl = `https://agents-portal-zeta.vercel.app/call-result-update?submissionId=${encodeURIComponent(submissionId || leadId)}&center=${encodeURIComponent(centerName)}`;
+      const agentPortalUrl = `https://crm-agent-portal.vercel.app/dashboard/sales_agent_licensed/transfer-leads/${encodeURIComponent(leadId)}`;
       const centerMessage = `New Application Submission:
 
 Call Center Name: ${centerName}
@@ -320,23 +314,16 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
 
     if (payload.carrier && payload.state && centerName) {
       try {
-        const notifyResponse = await fetch(NOTIFY_ELIGIBLE_AGENTS_ENDPOINT, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${NOTIFY_ELIGIBLE_AGENTS_BEARER_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+        const { error: notifyError } = await supabase.functions.invoke("notify-eligible-agents", {
+          body: {
             carrier: payload.carrier,
             state: payload.state,
             lead_vendor: centerName,
             language: "English",
-          }),
+          },
         });
-
-        if (!notifyResponse.ok) {
-          const errorText = await notifyResponse.text();
-          console.warn("notify-eligible-agents:", errorText || `HTTP ${notifyResponse.status}`);
+        if (notifyError) {
+          console.warn("notify-eligible-agents:", notifyError.message);
         }
       } catch (notifyError) {
         console.warn(
