@@ -98,6 +98,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const router = useRouter();
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role;
+  // `canUpdateActions` is already permission-mapped by parent (and excludes call_center_admin).
+  const canEditLeadPipeline = canUpdateActions;
 
   const goToLead = useCallback(
     (leadUuid: string) => {
@@ -148,6 +150,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [newNoteText, setNewNoteText] = useState("");
   const [addingNote, setAddingNote] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [licensedOwnerOptions, setLicensedOwnerOptions] = useState<Array<{ id: string; name: string }>>([]);
 
   const resolvePipelineId = useCallback(
     async (pipelineName: string) => {
@@ -203,7 +206,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     }
 
     const selectCols =
-      "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, pipeline_id, is_draft, call_center_id";
+      "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, pipeline_id, is_draft, call_center_id, licensed_agent_account";
 
     const isTransferPipeline = pipeline === "Transfer Portal";
     const canViewAllCenters = role ? LEAD_ALL_LEADS_ROLES.has(role) : false;
@@ -224,7 +227,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         type: String(row.product_type || (isTransferPipeline ? "Transfer" : "")),
         premium: premiumValue,
         source: String(row.lead_source || (isTransferPipeline ? "Transfer Portal" : "")),
-        agent: isTransferPipeline ? "BPO" : "SS",
+        agent: String(row.licensed_agent_account || (isTransferPipeline ? "BPO" : "SS")),
         agentColor: "#638b4b",
         daysInStage: 0,
         stage: stageName,
@@ -474,6 +477,35 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     });
   }, [quickEditLead, supabase]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name, is_licensed, roles!inner(key)")
+        .in("status", ["active", "invited"]);
+      if (cancelled || error || !data) return;
+      const options = (data as Array<{ id: string; full_name: string | null; is_licensed?: boolean | null; roles: { key: string } | { key: string }[] | null }>)
+        .map((row) => {
+          const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
+          return {
+            id: row.id,
+            name: row.full_name?.trim() || "Unknown User",
+            roleKey: role?.key || "",
+            isLicensed: row.is_licensed === true,
+          };
+        })
+        .filter((row) => row.roleKey === "sales_agent_licensed")
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((row) => ({ id: row.id, name: row.name }));
+      if (!cancelled) setLicensedOwnerOptions(options);
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
   const addLeadNote = async () => {
     if (!quickEditLead?.rowUuid || !newNoteText.trim()) return;
     const {
@@ -524,7 +556,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
   const handleKanbanDrop = useCallback(
     async (targetStage: Stage) => {
-      if (!dragRowUuid || !canUpdateActions) {
+      if (!dragRowUuid || !canEditLeadPipeline) {
         setDragRowUuid(null);
         setDragOver(null);
         return;
@@ -547,7 +579,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         setLeads((p) => p.map((l) => (l.rowUuid === droppedUuid ? prevLead : l)));
       }
     },
-    [dragRowUuid, canUpdateActions, leads, pipeline, resolveStageId, supabase]
+    [dragRowUuid, canEditLeadPipeline, leads, pipeline, resolveStageId, supabase]
   );
 
   const closeQuickEdit = () => {
@@ -561,7 +593,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   };
 
   const openQuickEdit = (lead: Lead) => {
-    if (!canUpdateActions) return;
+    if (!canEditLeadPipeline) return;
     setQuickEditLead(lead);
   };
 
@@ -630,6 +662,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       lead_value: numOrNull("lead_value"),
       carrier: strVal("carrier"),
       product_type: strVal("product_type"),
+      licensed_agent_account: strVal("licensed_agent_account"),
       draft_date: strVal("draft_date"),
       beneficiary_information: strVal("beneficiary_information"),
       bank_account_type: strVal("bank_account_type"),
@@ -743,13 +776,13 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               <div
                 key={stage}
                 onDragOver={(e) => {
-                  if (!canUpdateActions || isCollapsed) return;
+                  if (!canEditLeadPipeline || isCollapsed) return;
                   e.preventDefault();
                   setDragOver(stage);
                 }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={() => {
-                  if (!canUpdateActions || isCollapsed) return;
+                  if (!canEditLeadPipeline || isCollapsed) return;
                   void handleKanbanDrop(stage);
                 }}
                 className="kanban-column-wrapper"
@@ -789,14 +822,14 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                         <div
                           key={lead.rowUuid}
                           onClick={() => goToLead(lead.rowUuid)}
-                          draggable={canUpdateActions}
-                          onDragStart={() => { if (canUpdateActions) setDragRowUuid(lead.rowUuid); }}
+                          draggable={canEditLeadPipeline}
+                          onDragStart={() => { if (canEditLeadPipeline) setDragRowUuid(lead.rowUuid); }}
                           onDragEnd={() => { setDragRowUuid(null); setDragOver(null); }}
                           style={{
                             backgroundColor: "#fff", borderRadius: 8, padding: "16px",
                             boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: `1px solid ${T.border}`,
                             borderLeft: `3px solid ${cfg.color}`,
-                            cursor: canUpdateActions ? "grab" : "default",
+                            cursor: canEditLeadPipeline ? "grab" : "default",
                             opacity: dragRowUuid === lead.rowUuid ? 0.5 : 1,
                             transition: "all 0.15s",
                             position: "relative"
@@ -817,7 +850,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                                   e.stopPropagation();
                                   openQuickEdit(lead);
                                 }}
-                                disabled={!canUpdateActions}
+                                disabled={!canEditLeadPipeline}
                                 style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center" }}
                               >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1075,7 +1108,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
              </button>
           </div>
-          {canUpdateActions && (
+          {canEditLeadPipeline && (
             <button
               onClick={() => setShowAddLead(true)}
               style={{
@@ -1239,7 +1272,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       onToggle={setActiveMenu}
                       items={[
                         { label: "View Details", onClick: () => goToLead(lead.rowUuid) },
-                        ...(canUpdateActions ? [{ label: "Quick Edit", onClick: () => openQuickEdit(lead) }] : []),
+                        ...(canEditLeadPipeline ? [{ label: "Quick Edit", onClick: () => openQuickEdit(lead) }] : []),
                       ]}
                     />
                   </div>
@@ -1274,9 +1307,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                   &quot;
                 </h2>
                 <p style={{ margin: 0, fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
-                  {canUpdateActions
+                  {canEditLeadPipeline
                     ? "Loaded from database — edit below, then Update."
-                    : "Read-only view — you do not have permission to edit this lead."}
+                    : "Read-only view — only Sales Admin can edit in Lead Pipeline."}
                 </p>
               </div>
               <button type="button" onClick={closeQuickEdit} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }}>
@@ -1324,152 +1357,115 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 ) : quickEditRow ? (
                   activeQuickEditTab === "Opportunity Details" ? (
                   <div style={{ maxWidth: 900 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-                       <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark, display: "flex", alignItems: "center", gap: 8 }}>
-                         Contact details <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                       </h3>
-                       <label style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                          <input type="checkbox" checked={hideEmptyQuickFields} onChange={(e) => setHideEmptyQuickFields(e.target.checked)} style={{ width: 16, height: 16 }} /> Hide empty fields (extra columns)
-                       </label>
+                    <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Contact details</h3>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 28 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Primary Contact Name</label>
+                        <input
+                          value={`${String(quickEditRow.first_name ?? "").trim()} ${String(quickEditRow.last_name ?? "").trim()}`.trim()}
+                          onChange={(e) => {
+                            const parts = e.target.value.trim().split(/\s+/);
+                            const first = parts.shift() || "";
+                            const last = parts.join(" ");
+                            patchQuickEdit("first_name", first);
+                            patchQuickEdit("last_name", last);
+                          }}
+                          style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Primary Phone</label>
+                        <input value={String(quickEditRow.phone ?? "")} onChange={(e) => patchQuickEdit("phone", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                      </div>
+                      <div style={{ gridColumn: "span 2" }}>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Additional Contacts (Max: 10)</label>
+                        <input disabled value="Add additional contacts" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, background: T.pageBg, color: T.textMuted }} />
+                      </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>First name <span style={{ color: T.danger }}>*</span></label>
-                         <input value={String(quickEditRow.first_name ?? "")} onChange={(e) => patchQuickEdit("first_name", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
-                       </div>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Last name <span style={{ color: T.danger }}>*</span></label>
-                         <input value={String(quickEditRow.last_name ?? "")} onChange={(e) => patchQuickEdit("last_name", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
-                       </div>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Primary Email</label>
-                         <input disabled placeholder="No email column on leads" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600, background: T.pageBg, color: T.textMuted }} />
-                       </div>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Primary Phone</label>
-                         <input value={String(quickEditRow.phone ?? "")} onChange={(e) => patchQuickEdit("phone", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
-                       </div>
-                    </div>
-
-                    <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Opportunity</h3>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
-                       <div style={{ gridColumn: "span 2" }}>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Display title (read-only)</label>
-                         <input readOnly value={`${String(quickEditRow.first_name ?? "").trim()} ${String(quickEditRow.last_name ?? "").trim()}`.trim() + (quickEditRow.phone ? ` — ${formatPhoneDisplay(String(quickEditRow.phone))}` : "")} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600, background: T.pageBg, color: T.textDark }} />
-                       </div>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Pipeline</label>
+                    <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Opportunity Details</h3>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                      <div style={{ gridColumn: "span 2" }}>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity Name</label>
+                        <input readOnly value={`${String(quickEditRow.first_name ?? "").trim()} ${String(quickEditRow.last_name ?? "").trim()}`.trim() + (quickEditRow.phone ? ` - ${formatPhoneDisplay(String(quickEditRow.phone))}` : "")} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600, background: T.pageBg }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Pipeline</label>
                         <select value={String(quickEditRow.pipeline_name ?? pipeline)} onChange={(e) => patchQuickEdit("pipeline_name", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                            {pipelines.map((p) => (
-                              <option key={p} value={p}>{p}</option>
-                            ))}
-                         </select>
-                       </div>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Stage</label>
-                           <select value={String(quickEditRow.stage ?? "")} onChange={(e) => patchQuickEdit("stage", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                             {(quickEditStages.length ? quickEditStages : stages).map((s) => (
-                               <option key={s} value={s}>{s}</option>
-                             ))}
-                           </select>
-                       </div>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Lead source</label>
-                         <input value={String(quickEditRow.lead_source ?? "")} onChange={(e) => patchQuickEdit("lead_source", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
-                       </div>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Product type</label>
-                         <input value={String(quickEditRow.product_type ?? "")} onChange={(e) => patchQuickEdit("product_type", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
-                       </div>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity value</label>
-                         <div style={{ position: "relative" }}>
-                            <span style={{ position: "absolute", left: 14, top: 12, fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
-                            <input type="number" value={quickEditRow.lead_value != null && quickEditRow.lead_value !== "" ? String(quickEditRow.lead_value) : ""} onChange={(e) => patchQuickEdit("lead_value", e.target.value === "" ? null : Number(e.target.value))} style={{ width: "100%", padding: "12px 12px 12px 28px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
-                         </div>
-                       </div>
-                       <div>
-                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Monthly premium</label>
-                         <input type="number" value={quickEditRow.monthly_premium != null && quickEditRow.monthly_premium !== "" ? String(quickEditRow.monthly_premium) : ""} onChange={(e) => patchQuickEdit("monthly_premium", e.target.value === "" ? null : Number(e.target.value))} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
-                       </div>
-                    </div>
-
-                    <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Address & identifiers</h3>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
-                      <div style={{ gridColumn: "span 2" }}>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Street 1</label>
-                        <input value={String(quickEditRow.street1 ?? "")} onChange={(e) => patchQuickEdit("street1", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
-                      </div>
-                      <div style={{ gridColumn: "span 2" }}>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Street 2</label>
-                        <input value={String(quickEditRow.street2 ?? "")} onChange={(e) => patchQuickEdit("street2", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                          {pipelines.map((p) => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
                       </div>
                       <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>City</label>
-                        <input value={String(quickEditRow.city ?? "")} onChange={(e) => patchQuickEdit("city", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Stage</label>
+                        <select value={String(quickEditRow.stage ?? "")} onChange={(e) => patchQuickEdit("stage", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
+                          {(quickEditStages.length ? quickEditStages : stages).map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
                       </div>
                       <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>State</label>
-                        <input value={String(quickEditRow.state ?? "")} onChange={(e) => patchQuickEdit("state", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Status</label>
+                        <input readOnly value="Open" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, background: T.pageBg, fontSize: 14, fontWeight: 600 }} />
                       </div>
                       <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>ZIP</label>
-                        <input value={String(quickEditRow.zip_code ?? "")} onChange={(e) => patchQuickEdit("zip_code", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity Value</label>
+                        <div style={{ position: "relative" }}>
+                          <span style={{ position: "absolute", left: 14, top: 12, fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                          <input type="number" value={quickEditRow.lead_value != null && quickEditRow.lead_value !== "" ? String(quickEditRow.lead_value) : ""} onChange={(e) => patchQuickEdit("lead_value", e.target.value === "" ? null : Number(e.target.value))} style={{ width: "100%", padding: "12px 12px 12px 28px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                        </div>
                       </div>
                       <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Lead unique ID</label>
-                        <input readOnly value={String(quickEditRow.lead_unique_id ?? "")} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600, background: T.pageBg }} />
-                      </div>
-                    </div>
-
-                    <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 800, color: T.textDark }}>All other columns</h3>
-                    <p style={{ margin: "0 0 12px", fontSize: 12, color: T.textMuted }}>Remaining fields on this row (read-only: id, timestamps, submitted_by, call_center_id).</p>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {(() => {
-                        const primary = new Set([
-                          "first_name", "last_name", "phone", "stage", "lead_source", "product_type",
-                          "lead_value", "monthly_premium", "street1", "street2", "city", "state", "zip_code", "lead_unique_id",
-                          "additional_information",
-                        ]);
-                        return Object.keys(quickEditRow)
-                          .sort()
-                          .filter((key) => !primary.has(key))
-                          .filter((key) => {
-                            if (!hideEmptyQuickFields) return true;
-                            const v = quickEditRow[key];
-                            if (v == null || v === "") return false;
-                            if (Array.isArray(v) && v.length === 0) return false;
-                            return true;
-                          })
-                          .map((key) => {
-                            const readOnly = ["id", "created_at", "updated_at", "submitted_by", "call_center_id"].includes(key);
-                            const v = quickEditRow[key];
-                            const display =
-                              v != null && typeof v === "object" && !Array.isArray(v)
-                                ? JSON.stringify(v)
-                                : Array.isArray(v)
-                                  ? v.join(", ")
-                                  : v == null
-                                    ? ""
-                                    : String(v);
-                            const isLong = display.length > 80 || /information|conditions|medications|beneficiary/i.test(key);
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Owner (Licensed Agent)</label>
+                        <select
+                          value={String(quickEditRow.licensed_agent_account ?? "")}
+                          onChange={(e) => patchQuickEdit("licensed_agent_account", e.target.value)}
+                          style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}
+                        >
+                          <option value="">Unassigned</option>
+                          {(() => {
+                            const current = String(quickEditRow.licensed_agent_account ?? "").trim();
+                            if (!current) return null;
+                            const exists = licensedOwnerOptions.some((u) => u.name === current);
+                            if (exists) return null;
                             return (
-                              <div key={key} style={{ display: "grid", gridTemplateColumns: "minmax(140px,200px) 1fr", gap: 8, alignItems: "start" }}>
-                                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, paddingTop: 10 }}>{key.replace(/_/g, " ")}</label>
-                                {readOnly ? (
-                                  <input readOnly value={display} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, background: T.pageBg, color: T.textMid }} />
-                                ) : isLong ? (
-                                  <textarea value={display} onChange={(e) => patchQuickEdit(key, e.target.value)} rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontFamily: T.font, resize: "vertical" }} />
-                                ) : key === "tags" ? (
-                                  <input value={display} onChange={(e) => patchQuickEdit("tags", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} placeholder="comma-separated" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13 }} />
-                                ) : (
-                                  <input value={display} onChange={(e) => patchQuickEdit(key, e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13 }} />
-                                )}
-                              </div>
+                              <option value={current}>{current}</option>
                             );
-                          });
-                      })()}
+                          })()}
+                          {licensedOwnerOptions.map((u) => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Followers</label>
+                        <input disabled value="Add Followers" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, background: T.pageBg, fontSize: 14, color: T.textMuted }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Business Name</label>
+                        <input value={String(quickEditRow.business_name ?? "")} onChange={(e) => patchQuickEdit("business_name", e.target.value)} placeholder="Enter Business Name" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity Source</label>
+                        <input value={String(quickEditRow.lead_source ?? "")} onChange={(e) => patchQuickEdit("lead_source", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Tags</label>
+                        <input value={Array.isArray(quickEditRow.tags) ? quickEditRow.tags.join(", ") : String(quickEditRow.tags ?? "")} onChange={(e) => patchQuickEdit("tags", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} placeholder="comma-separated tags" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Carrier_op</label>
+                        <input value={String(quickEditRow.carrier ?? "")} onChange={(e) => patchQuickEdit("carrier", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>First Draft Date</label>
+                        <input type="date" value={String(quickEditRow.draft_date ?? "")} onChange={(e) => patchQuickEdit("draft_date", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Monthly Premium</label>
+                        <input type="number" value={quickEditRow.monthly_premium != null && quickEditRow.monthly_premium !== "" ? String(quickEditRow.monthly_premium) : ""} onChange={(e) => patchQuickEdit("monthly_premium", e.target.value === "" ? null : Number(e.target.value))} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -1495,7 +1491,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                         value={newNoteText}
                         onChange={(e) => setNewNoteText(e.target.value)}
                         placeholder="Type a note and click Add note — saves immediately."
-                        disabled={!canUpdateActions || addingNote}
+                        disabled={!canEditLeadPipeline || addingNote}
                         rows={4}
                         style={{
                           width: "100%",
@@ -1511,7 +1507,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       />
                       <button
                         type="button"
-                        disabled={!canUpdateActions || addingNote || !newNoteText.trim()}
+                        disabled={!canEditLeadPipeline || addingNote || !newNoteText.trim()}
                         onClick={() => void addLeadNote()}
                         style={{
                           background: T.blue,
@@ -1521,8 +1517,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                           padding: "10px 20px",
                           fontSize: 13,
                           fontWeight: 700,
-                          cursor: canUpdateActions && !addingNote && newNoteText.trim() ? "pointer" : "not-allowed",
-                          opacity: canUpdateActions && !addingNote && newNoteText.trim() ? 1 : 0.55,
+                          cursor: canEditLeadPipeline && !addingNote && newNoteText.trim() ? "pointer" : "not-allowed",
+                          opacity: canEditLeadPipeline && !addingNote && newNoteText.trim() ? 1 : 0.55,
                         }}
                       >
                         {addingNote ? "Adding…" : "Add note"}
@@ -1554,7 +1550,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                                 {formatTs(note.created_at)}
                                 <span style={{ marginLeft: 10, color: T.textMid }}>{note.authorName ?? "User"}</span>
                               </div>
-                              {canUpdateActions && note.created_by && sessionUserId === note.created_by && (
+                              {canEditLeadPipeline && note.created_by && sessionUserId === note.created_by && (
                                 <button
                                   type="button"
                                   title="Delete your note"
@@ -1607,16 +1603,16 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                  <div>Updated: {quickEditRow ? formatTs(quickEditRow.updated_at) : "—"}</div>
               </div>
               <div style={{ display: "flex", gap: 12 }}>
-                <button type="button" disabled={quickEditSaving || !canUpdateActions} onClick={deleteQuickEdit} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "8px", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", color: T.danger, cursor: canUpdateActions ? "pointer" : "not-allowed", opacity: canUpdateActions ? 1 : 0.5 }}>
+                <button type="button" disabled={quickEditSaving || !canEditLeadPipeline} onClick={deleteQuickEdit} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "8px", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", color: T.danger, cursor: canEditLeadPipeline ? "pointer" : "not-allowed", opacity: canEditLeadPipeline ? 1 : 0.5 }}>
                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
                 </button>
                 <button type="button" onClick={closeQuickEdit} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "8px", padding: "0 24px", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
                 <button
                   type="button"
-                  disabled={quickEditSaving || quickEditLoading || !quickEditRow || !canUpdateActions}
+                  disabled={quickEditSaving || quickEditLoading || !quickEditRow || !canEditLeadPipeline}
                   title={
-                    !canUpdateActions
-                      ? "Missing permission: action.lead_pipeline.update. Ask an admin to grant pipeline update for your role."
+                    !canEditLeadPipeline
+                      ? "Only Sales Admin can edit leads in Lead Pipeline."
                       : quickEditLoading
                         ? "Loading lead…"
                         : !quickEditRow
@@ -1632,8 +1628,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     padding: "0 32px",
                     fontSize: 14,
                     fontWeight: 700,
-                    cursor: canUpdateActions && !quickEditSaving && !quickEditLoading && quickEditRow ? "pointer" : "not-allowed",
-                    opacity: canUpdateActions && !quickEditSaving && !quickEditLoading && quickEditRow ? 1 : 0.6,
+                    cursor: canEditLeadPipeline && !quickEditSaving && !quickEditLoading && quickEditRow ? "pointer" : "not-allowed",
+                    opacity: canEditLeadPipeline && !quickEditSaving && !quickEditLoading && quickEditRow ? 1 : 0.6,
                     boxShadow: "0 4px 12px rgba(37,99,235,0.2)",
                   }}
                 >
