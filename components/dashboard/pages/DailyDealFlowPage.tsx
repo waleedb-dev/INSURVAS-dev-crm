@@ -9,7 +9,6 @@ import type { DailyDealFlowRow } from "./daily-deal-flow/types";
 import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE, RETENTION_AGENT_OPTIONS, STATUS_OPTIONS } from "./daily-deal-flow/constants";
 import { dateObjectToESTString } from "./daily-deal-flow/helpers";
 import { DdfToolbar } from "./daily-deal-flow/DdfToolbar";
-import { DdfCreateEntryModal } from "./daily-deal-flow/DdfCreateEntryModal";
 import { DdfGroupedGrid } from "./daily-deal-flow/DdfGroupedGrid";
 
 type DailyDealFlowPageProps = {
@@ -253,16 +252,6 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: T.textDark }}>Daily Deal Flow</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {hasWritePermissions && (
-            <DdfCreateEntryModal
-              supabase={supabase}
-              leadVendorOptions={leadVendorOptions}
-              callCenterId={callCenterId}
-              requireCallCenterId={isCallCenterScoped}
-              onError={(message) => setToast({ message, type: "error" })}
-              onSuccess={() => { setToast({ message: "Entry created successfully", type: "success" }); void fetchData(currentPage); }}
-            />
-          )}
           <Button variant="ghost" onClick={handleExport}><IconDownload size={14} />Export</Button>
           <Button variant="ghost" onClick={() => void fetchData(1, true)} disabled={refreshing}><IconRefresh size={14} />Refresh</Button>
         </div>
