@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CRM Agent Portal",
-  description: "Sign in to your CRM Agent Portal.",
+  title: "Insurvas",
+  description: "Sign in to Insurvas.",
 };
 
 export default function RootLayout({

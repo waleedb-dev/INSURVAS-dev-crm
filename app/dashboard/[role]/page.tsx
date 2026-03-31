@@ -25,6 +25,7 @@ export default function RoleDashboardPage() {
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role;
   const sp = useSearchParams();
   const canViewTransferClaimReclaimVisit = permissionKeys.has("action.transfer_leads.claim_reclaim_visit");
+  const canEditLeadPipeline = permissionKeys.has("action.lead_pipeline.update") && currentRole !== "call_center_admin";
 
   const activePage: DashPage = useMemo(() => {
     const qp = sp.get("page") as DashPage | null;
@@ -58,7 +59,7 @@ export default function RoleDashboardPage() {
         />
       )}
       {activePage === "lead-pipeline" && (
-        <LeadPipelinePage canUpdateActions={permissionKeys.has("action.lead_pipeline.update")} />
+        <LeadPipelinePage canUpdateActions={canEditLeadPipeline} />
       )}
       {activePage === "call-center-lead-intake" && (
         <CallCenterLeadIntakePage

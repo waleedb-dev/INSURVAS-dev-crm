@@ -68,16 +68,16 @@ export default function SignInPage() {
           <div
             className="flex items-center justify-center flex-shrink-0"
             style={{
-              height: 100,
+              height: 150,
               backgroundColor: "transparent",
             }}
           >
             <Image
               src="/logo.png"
               alt="Logo"
-              width={200}
-              height={100}
-              className="object-contain w-full h-full"
+              width={300}
+              height={150}
+              className="object-contain w-full h-full max-w-[300px]"
               style={{
                 filter: "brightness(0) invert(1) drop-shadow(0 4px 10px rgba(0,0,0,0.18))",
               }}
@@ -120,6 +120,7 @@ export default function SignInPage() {
         <form
           onSubmit={handleSignIn}
           className="bg-white flex flex-col"
+          autoComplete="on"
           style={{
             width: "100%",
             maxWidth: 460,
@@ -132,18 +133,22 @@ export default function SignInPage() {
             className="font-bold text-center"
             style={{ fontSize: 22, color: "#1a1a2e", marginBottom: 32 }}
           >
-            Sign In to CRM Portal
+            Sign In to Insurvas
           </h2>
 
           <div style={{ marginBottom: 20 }}>
             <label
+              htmlFor="email"
               className="block font-semibold"
               style={{ fontSize: 13, color: "#6b7a5f", marginBottom: 8 }}
             >
               Email Address
             </label>
             <input
+              id="email"
+              name="email"
               type="email"
+              autoComplete="username email"
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -162,6 +167,7 @@ export default function SignInPage() {
 
           <div style={{ marginBottom: 20 }}>
             <label
+              htmlFor="password"
               className="block font-semibold"
               style={{ fontSize: 13, color: "#6b7a5f", marginBottom: 8 }}
             >
@@ -169,7 +175,10 @@ export default function SignInPage() {
             </label>
             <div className="relative">
               <input
+                id="password"
+                name="password"
                 type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
