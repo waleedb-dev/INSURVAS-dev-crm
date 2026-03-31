@@ -1,6 +1,17 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import { useMemo } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { T } from "@/lib/theme";
 
 export function FieldLabel({ label }: { label: string }) {
@@ -32,37 +43,138 @@ export function SelectInput({
   style?: CSSProperties;
   multiple?: boolean;
 }) {
+  const selectedLabel = useMemo(() => {
+    if (multiple) {
+      const selectedValues = Array.isArray(value) ? value : [];
+      if (selectedValues.length === 0) {
+        return options[0]?.label ?? "All";
+      }
+      if (selectedValues.length === 1) {
+        return (
+          options.find((option) => option.value === selectedValues[0])?.label ??
+          selectedValues[0]
+        );
+      }
+      const firstLabel =
+        options.find((option) => option.value === selectedValues[0])?.label ??
+        selectedValues[0];
+      return `${firstLabel} +${selectedValues.length - 1}`;
+    }
+
+    const selectedValue = Array.isArray(value) ? value[0] : value;
+    return (
+      options.find((option) => option.value === selectedValue)?.label ??
+      options[0]?.label ??
+      "Select"
+    );
+  }, [multiple, options, value]);
+
+  const triggerStyle: CSSProperties = {
+    width: "100%",
+    minHeight: 38,
+    border: "1px solid #c9d7bc",
+    borderRadius: 12,
+    fontSize: 13,
+    color: T.textDark,
+    padding: "9px 12px",
+    background: "#fcfdf9",
+    boxSizing: "border-box",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    textAlign: "left",
+    boxShadow: "0 1px 2px rgba(28,32,26,0.05)",
+    transition: "border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease",
+    ...style,
+  };
+
+  const contentStyle =
+    "w-(--anchor-width) min-w-[240px] rounded-2xl border border-[#d5e0cb] bg-[#fcfdf9] p-2 shadow-[0_18px_40px_rgba(28,32,26,0.14)]";
+  const itemBaseClass =
+    "min-h-0 rounded-xl px-3 py-2.5 text-[13px] font-medium text-[#233021] outline-none focus:bg-[#edf4e5] focus:text-[#233021] data-[highlighted]:bg-[#edf4e5] data-[highlighted]:text-[#233021]";
+
   return (
-    <select
-      multiple={multiple}
-      value={value as string | readonly string[]}
-      onChange={(e) => {
-        if (multiple) {
-          const list = Array.from(e.currentTarget.selectedOptions).map((o) => o.value);
-          onChange(list);
-          return;
-        }
-        onChange(e.currentTarget.value);
-      }}
-      style={{
-        width: "100%",
-        border: `1.5px solid ${T.border}`,
-        borderRadius: 8,
-        fontSize: 13,
-        color: T.textMid,
-        padding: multiple ? "8px" : "8px 10px",
-        background: T.cardBg,
-        minHeight: multiple ? 92 : 36,
-        boxSizing: "border-box",
-        ...style,
-      }}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <DropdownMenu>
+      <DropdownMenuTrigger style={triggerStyle}>
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: 1,
+            fontWeight: 600,
+          }}
+        >
+          {selectedLabel}
+        </span>
+        <span style={{ color: "#6b7a5f", fontSize: 11, flexShrink: 0 }}>
+          &#9662;
+        </span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={6} className={contentStyle}>
+        {multiple ? (
+          <DropdownMenuGroup>
+            <div className="max-h-72 overflow-y-auto">
+              <DropdownMenuCheckboxItem
+                checked={Array.isArray(value) && value.length === 0}
+                className={`${itemBaseClass} mb-1 bg-[#dfead2] font-semibold text-[#638b4b]`}
+                onCheckedChange={() => onChange([])}
+              >
+                {options[0]?.label ?? "All"}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator className="mx-1 my-2 bg-[#e3eadb]" />
+              {options.slice(1).map((option) => {
+                const checked = Array.isArray(value) && value.includes(option.value);
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={option.value}
+                    checked={checked}
+                    className={`${itemBaseClass} mb-1 ${checked ? "bg-[#edf4e5] font-semibold" : ""}`}
+                    onCheckedChange={(nextChecked) => {
+                      const currentValues = Array.isArray(value) ? value : [];
+                      if (nextChecked) {
+                        onChange([...currentValues, option.value]);
+                        return;
+                      }
+
+                      onChange(
+                        currentValues.filter((entry) => entry !== option.value),
+                      );
+                    }}
+                  >
+                    {option.label}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+            </div>
+          </DropdownMenuGroup>
+        ) : (
+          <DropdownMenuGroup>
+            <DropdownMenuRadioGroup
+              value={Array.isArray(value) ? value[0] : value}
+              onValueChange={(nextValue) => onChange(nextValue)}
+            >
+              <div>
+                {options.map((option) => (
+                  <DropdownMenuRadioItem
+                    key={option.value}
+                    value={option.value}
+                    className={`${itemBaseClass} mb-1 ${
+                      (Array.isArray(value) ? value[0] : value) === option.value
+                        ? "bg-[#edf4e5] font-semibold text-[#638b4b]"
+                        : ""
+                    }`}
+                  >
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </div>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -108,11 +220,33 @@ export function Modal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>{title}</h3>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 800,
+              color: T.textDark,
+            }}
+          >
+            {title}
+          </h3>
           <button
             onClick={onClose}
-            style={{ border: "none", background: "transparent", fontSize: 20, cursor: "pointer", color: T.textMuted }}
+            style={{
+              border: "none",
+              background: "transparent",
+              fontSize: 20,
+              cursor: "pointer",
+              color: T.textMuted,
+            }}
           >
             x
           </button>

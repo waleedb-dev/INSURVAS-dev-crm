@@ -370,7 +370,12 @@ export function DdfToolbar(props: Props) {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
                 <div>
                   <FieldLabel label="Retention Agent" />
-                  <MultiSelectDropdown value={props.retentionAgentFilter} onChange={props.onRetentionAgentFilterChange} options={props.retentionOptions} />
+                  <SelectInput
+                    value={props.retentionAgentFilter}
+                    onChange={(v) => props.onRetentionAgentFilterChange(Array.isArray(v) ? v : [])}
+                    options={mapOptions(props.retentionOptions)}
+                    multiple
+                  />
                 </div>
                 <div>
                   <FieldLabel label="Licensed Agent" />

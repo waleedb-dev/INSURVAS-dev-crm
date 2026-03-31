@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState, type CSSProperties } from "react";
 import { Button, Input, Pagination } from "@/components/ui";
 import { T } from "@/lib/theme";
+import { fetchCallRecording, formatDuration, formatTimestamp, searchAircallCalls } from "@/lib/aircall";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DailyDealFlowRow } from "./types";
 import { Modal, SelectInput } from "./ui-primitives";
@@ -97,6 +98,19 @@ export function DdfGroupedGrid({
   const [detailId, setDetailId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DailyDealFlowRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [detailTab, setDetailTab] = useState<"details" | "recordings">("details");
+  const [callsLoading, setCallsLoading] = useState(false);
+  const [loadingRecordingId, setLoadingRecordingId] = useState<number | null>(null);
+  const [playingRecording, setPlayingRecording] = useState<number | null>(null);
+  const [callRecordings, setCallRecordings] = useState<Array<{
+    id: number;
+    direction: string;
+    status: string;
+    duration: number;
+    started_at: number;
+    recording: string | null;
+    user: { name: string } | null;
+  }>>([]);
 
   const duplicateRows = useMemo(() => {
     const seen = new Map<string, number>();
@@ -161,7 +175,43 @@ export function DdfGroupedGrid({
   const beginEdit = (row: DailyDealFlowRow, detail = false) => {
     setEditingId(row.id);
     setDraft({ ...row });
-    if (detail) setDetailId(row.id);
+    if (detail) {
+      setDetailId(row.id);
+      setDetailTab("details");
+      setCallRecordings([]);
+      setCallsLoading(false);
+      setPlayingRecording(null);
+      setLoadingRecordingId(null);
+    }
+  };
+
+  const loadCallRecordings = async (phoneNumber: string | null | undefined) => {
+    const phone = String(phoneNumber || "");
+    if (!phone.trim()) {
+      onError("No phone number available for this lead.");
+      return;
+    }
+    setDetailTab("recordings");
+    setCallsLoading(true);
+    setCallRecordings([]);
+    try {
+      const calls = await searchAircallCalls(phone);
+      setCallRecordings(
+        calls.map((call) => ({
+          id: call.id,
+          direction: call.direction,
+          status: call.status,
+          duration: call.duration,
+          started_at: call.started_at,
+          recording: call.recording,
+          user: call.user,
+        })),
+      );
+    } catch {
+      onError("Failed to load call recordings.");
+    } finally {
+      setCallsLoading(false);
+    }
   };
 
   const saveRow = async (original: DailyDealFlowRow) => {
@@ -460,30 +510,104 @@ export function DdfGroupedGrid({
 
       <Modal open={Boolean(detailId) && Boolean(draft)} title={`Lead Details - ${draft?.insured_name || ""}`} onClose={() => setDetailId(null)}>
         {draft && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(180px, 1fr))", gap: 10 }}>
-            <Input label="Insured Name" value={draft.insured_name || ""} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} />
-            <Input label="Phone Number" value={draft.client_phone_number || ""} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} />
-            <Input label="Date" type="date" value={draft.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} />
-            <Input label="Draft Date" type="date" value={draft.draft_date || ""} onChange={(e) => patchDraft({ draft_date: e.currentTarget.value })} />
-            <Input label="Monthly Premium" type="number" value={String(draft.monthly_premium ?? "")} onChange={(e) => patchDraft({ monthly_premium: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
-            <Input label="Face Amount" type="number" value={String(draft.face_amount ?? "")} onChange={(e) => patchDraft({ face_amount: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
-            <div><label style={{ fontSize: 12, fontWeight: 700 }}>Lead Vendor</label><SelectInput value={draft.lead_vendor || ""} onChange={(v) => patchDraft({ lead_vendor: String(v) })} options={leadVendorOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-            <div><label style={{ fontSize: 12, fontWeight: 700 }}>Status</label><SelectInput value={draft.status || ""} onChange={(v) => patchDraft({ status: String(v) })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-            <div><label style={{ fontSize: 12, fontWeight: 700 }}>Call Result</label><SelectInput value={draft.call_result || ""} onChange={(v) => patchDraft({ call_result: String(v) })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-            <div><label style={{ fontSize: 12, fontWeight: 700 }}>Carrier</label><SelectInput value={draft.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v) })} options={CARRIER_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-            <div><label style={{ fontSize: 12, fontWeight: 700 }}>Product Type</label><SelectInput value={draft.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={PRODUCT_TYPE_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-            <div><label style={{ fontSize: 12, fontWeight: 700 }}>LA Callback</label><SelectInput value={draft.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ fontSize: 12, fontWeight: 700 }}>Notes</label>
-              <textarea value={draft.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ width: "100%", minHeight: 110, borderRadius: 8, border: `1px solid ${T.border}`, background: T.cardBg, color: T.textMid, padding: 10 }} />
+          <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <Button
+                variant={detailTab === "recordings" ? "primary" : "ghost"}
+                onClick={() => void loadCallRecordings(draft.client_phone_number)}
+              >
+                Call Records
+              </Button>
+              <Button variant={detailTab === "details" ? "primary" : "ghost"} onClick={() => setDetailTab("details")}>
+                Edit
+              </Button>
             </div>
-            <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Button variant="ghost" onClick={() => setDetailId(null)}>Close</Button>
-              <Button onClick={() => {
-                const source = rows.find((r) => r.id === detailId);
-                if (source) void saveRow(source);
-              }} state={saving ? "loading" : "enabled"}>Save Changes</Button>
-            </div>
+            {detailTab === "details" ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(180px, 1fr))", gap: 10 }}>
+                <Input label="Insured Name" value={draft.insured_name || ""} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} />
+                <Input label="Phone Number" value={draft.client_phone_number || ""} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} />
+                <Input label="Date" type="date" value={draft.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} />
+                <Input label="Draft Date" type="date" value={draft.draft_date || ""} onChange={(e) => patchDraft({ draft_date: e.currentTarget.value })} />
+                <Input label="Monthly Premium" type="number" value={String(draft.monthly_premium ?? "")} onChange={(e) => patchDraft({ monthly_premium: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
+                <Input label="Face Amount" type="number" value={String(draft.face_amount ?? "")} onChange={(e) => patchDraft({ face_amount: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
+                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Lead Vendor</label><SelectInput value={draft.lead_vendor || ""} onChange={(v) => patchDraft({ lead_vendor: String(v) })} options={leadVendorOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Status</label><SelectInput value={draft.status || ""} onChange={(v) => patchDraft({ status: String(v) })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Call Result</label><SelectInput value={draft.call_result || ""} onChange={(v) => patchDraft({ call_result: String(v) })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Carrier</label><SelectInput value={draft.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v) })} options={CARRIER_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                <div><label style={{ fontSize: 12, fontWeight: 700 }}>Product Type</label><SelectInput value={draft.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={PRODUCT_TYPE_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                <div><label style={{ fontSize: 12, fontWeight: 700 }}>LA Callback</label><SelectInput value={draft.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={{ fontSize: 12, fontWeight: 700 }}>Notes</label>
+                  <textarea value={draft.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ width: "100%", minHeight: 110, borderRadius: 8, border: `1px solid ${T.border}`, background: T.cardBg, color: T.textMid, padding: 10 }} />
+                </div>
+                <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <Button variant="ghost" onClick={() => setDetailId(null)}>Close</Button>
+                  <Button onClick={() => {
+                    const source = rows.find((r) => r.id === detailId);
+                    if (source) void saveRow(source);
+                  }} state={saving ? "loading" : "enabled"}>Save Changes</Button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: 10, background: T.pageBg }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Notes</div>
+                  <div style={{ fontSize: 13, color: T.textMid, whiteSpace: "pre-wrap" }}>{draft.notes || "No notes available for this lead."}</div>
+                </div>
+                {callsLoading ? (
+                  <div style={{ padding: "14px 8px", color: T.textMuted, fontWeight: 600 }}>Loading call recordings...</div>
+                ) : callRecordings.length === 0 ? (
+                  <div style={{ padding: "14px 8px", color: T.textMuted, fontWeight: 600 }}>No call recordings found for this phone number.</div>
+                ) : (
+                  <div style={{ display: "grid", gap: 8, maxHeight: 420, overflowY: "auto" }}>
+                    {callRecordings.map((call) => (
+                      <div key={call.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: `1px solid ${T.borderLight}`, borderRadius: 10, padding: 10, background: T.pageBg }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, borderRadius: 999, padding: "2px 8px", background: call.direction === "inbound" ? "#dcfce7" : "#dbeafe", color: call.direction === "inbound" ? "#166534" : "#1d4ed8", fontWeight: 800 }}>
+                              {call.direction === "inbound" ? "In" : "Out"}
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{formatDuration(call.duration)}</span>
+                            <span style={{ fontSize: 11, borderRadius: 999, padding: "2px 8px", background: "#f3f4f6", color: T.textMid, fontWeight: 700 }}>{call.status}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: T.textMuted }}>{formatTimestamp(call.started_at)} - {call.user?.name || "Unknown Agent"}</div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          state={loadingRecordingId === call.id ? "loading" : "enabled"}
+                          onClick={async () => {
+                            if (playingRecording === call.id) {
+                              setPlayingRecording(null);
+                              return;
+                            }
+                            let recordingUrl = call.recording;
+                            if (!recordingUrl) {
+                              setLoadingRecordingId(call.id);
+                              recordingUrl = await fetchCallRecording(call.id);
+                              setLoadingRecordingId(null);
+                              if (recordingUrl) {
+                                setCallRecordings((prev) => prev.map((c) => (c.id === call.id ? { ...c, recording: recordingUrl } : c)));
+                              }
+                            }
+                            if (!recordingUrl) return onError("This call does not have a recording available.");
+                            setPlayingRecording(call.id);
+                            const audio = new Audio(recordingUrl);
+                            void audio.play();
+                            audio.onended = () => setPlayingRecording(null);
+                          }}
+                        >
+                          {playingRecording === call.id ? "Pause" : "Play"}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Button variant="ghost" onClick={() => setDetailId(null)}>Close</Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Modal>
