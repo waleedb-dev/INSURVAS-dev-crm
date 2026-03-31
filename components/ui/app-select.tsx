@@ -9,11 +9,14 @@ type AppSelectProps = {
   onChange: (event: any) => void;
   children: ReactNode;
   style?: CSSProperties;
+  className?: string;
   disabled?: boolean;
   multiple?: boolean;
 };
 
-function isOptionElement(child: ReactNode): child is ReactElement {
+type OptionElement = ReactElement<{ value?: string | number; children?: ReactNode }>;
+
+function isOptionElement(child: ReactNode): child is OptionElement {
   return Boolean(child) && typeof child === "object" && "type" in (child as object) && (child as ReactElement).type === "option";
 }
 
@@ -27,7 +30,7 @@ function extractOptions(children: ReactNode): { value: string; label: string }[]
     });
 }
 
-export function AppSelect({ value, onChange, children, style, disabled, multiple = false }: AppSelectProps) {
+export function AppSelect({ value, onChange, children, style, className, disabled, multiple = false }: AppSelectProps) {
   const options = extractOptions(children);
 
   return (
@@ -40,6 +43,7 @@ export function AppSelect({ value, onChange, children, style, disabled, multiple
       }}
       options={options}
       style={style}
+      triggerClassName={className}
       disabled={disabled}
       multiple={multiple}
     />

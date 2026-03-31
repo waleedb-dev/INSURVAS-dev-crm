@@ -1132,7 +1132,7 @@ export default function IMOManagementPage() {
               <div style={{ marginBottom: 24 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>Upline Agent</label>
                 <AppSelect
-                  value={agentForm.uplineId || ""}
+                  value={String(agentForm.uplineId ?? "")}
                   onChange={e => setAgentForm({...agentForm, uplineId: e.target.value ? Number(e.target.value) : null})}
                   style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15 }}
                 >
