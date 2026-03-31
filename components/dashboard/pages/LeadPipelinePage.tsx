@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
 import { ActionMenu, Pagination, Avatar, Badge, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import LeadViewComponent from "./LeadViewComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
@@ -740,12 +741,15 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         .kanban-board::-webkit-scrollbar-thumb { background-color: #c8d4bb; border-radius: 10px; }
         
         .kanban-column-wrapper {
-          min-width: 300px;
-          width: 300px;
+          min-width: 320px;
+          width: 320px;
           flex-shrink: 0;
           display: flex;
           flex-direction: column;
-          background-color: transparent;
+          background-color: #fff;
+          border: 1px solid ${T.border};
+          border-radius: 12px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
           overflow: hidden;
           transition: width 0.2s ease;
           height: 100%;
@@ -787,8 +791,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 }}
                 className="kanban-column-wrapper"
                 style={{ 
-                  minWidth: isCollapsed ? 50 : 280,
-                  width: isCollapsed ? 50 : 280,
+                  minWidth: isCollapsed ? 50 : 320,
+                  width: isCollapsed ? 50 : 320,
                 }}
               >
                 {isCollapsed ? (
@@ -802,7 +806,16 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                   </div>
                 ) : (
                   <>
-                    <div style={{ backgroundColor: "#fff", padding: "12px 16px", border: `1px solid ${T.border}`, borderTop: `4px solid ${cfg.color}`, borderRadius: "8px 8px 0 0", flexShrink: 0 }}>
+                    <div
+                      style={{
+                        background: `linear-gradient(180deg, ${cfg.bg} 0%, #ffffff 88%)`,
+                        padding: "12px 16px",
+                        borderTop: `4px solid ${cfg.color}`,
+                        borderBottom: `1px solid ${T.borderLight}`,
+                        borderRadius: "12px 12px 0 0",
+                        flexShrink: 0,
+                      }}
+                    >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{stage}</span>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1012,31 +1025,31 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Stage</label>
-                <select value={drawerStage} onChange={(e) => setDrawerStage(e.target.value as Stage | "All")} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
+                <AppSelect value={drawerStage} onChange={(e: any) => setDrawerStage(e.target.value as Stage | "All")} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
                   <option value="All">All Stages</option>
                   {stages.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                </AppSelect>
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Type</label>
-                <select value={drawerType} onChange={(e) => setDrawerType(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
+                <AppSelect value={drawerType} onChange={(e: any) => setDrawerType(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
                   <option value="All">All Types</option>
                   {Object.keys(TYPE_COLORS).map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                </AppSelect>
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Owner</label>
-                <select value={drawerAgent} onChange={(e) => setDrawerAgent(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
+                <AppSelect value={drawerAgent} onChange={(e: any) => setDrawerAgent(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
                   <option value="All">All Owners</option>
                   {Array.from(new Set(leads.map((l) => l.agent))).map((a) => <option key={a} value={a}>{a}</option>)}
-                </select>
+                </AppSelect>
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Source</label>
-                <select value={drawerSource} onChange={(e) => setDrawerSource(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
+                <AppSelect value={drawerSource} onChange={(e: any) => setDrawerSource(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
                   <option value="All">All Sources</option>
                   {sourceOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                </AppSelect>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <div>
@@ -1075,7 +1088,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       {/* Pipeline & Filter Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0", borderBottom: `1px solid ${T.pageBg}`, flexShrink: 0, gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <select
+          <AppSelect
             value={pipeline}
             onChange={(e) => setPipeline(e.target.value)}
             style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: 10, fontSize: 13, fontWeight: 800, backgroundColor: "#fff", cursor: "pointer", outline: "none" }}
@@ -1085,7 +1098,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 {name}
               </option>
             ))}
-          </select>
+          </AppSelect>
           <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 10px", borderRadius: 20 }}>{leads.length} opportunities</span>
           
           <div style={{ width: 1, height: 24, backgroundColor: T.border, margin: "0 4px" }} />
@@ -1137,18 +1150,18 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         searchPlaceholder="Search Opportunities..."
         filters={
           <>
-            <select value={filterStage} onChange={(e) => setFilterStage(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+            <AppSelect value={filterStage} onChange={(e: any) => setFilterStage(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
               <option value="All">All Stages</option>
               {stages.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+            </AppSelect>
+            <AppSelect value={filterType} onChange={(e: any) => setFilterType(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
               <option value="All">All Types</option>
               {Object.keys(TYPE_COLORS).map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <select value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+            </AppSelect>
+            <AppSelect value={filterAgent} onChange={(e: any) => setFilterAgent(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
               <option value="All">All Owners</option>
               {Array.from(new Set(leads.map(l => l.agent))).map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
+            </AppSelect>
           </>
         }
         activeFilters={
@@ -1187,6 +1200,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           <>
             <Table
               data={paginatedLeads}
+              viewportHeight={520}
               onRowClick={(lead) => goToLead(lead.rowUuid)}
               columns={[
               {
@@ -1384,19 +1398,19 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Pipeline</label>
-                        <select value={String(quickEditRow.pipeline_name ?? pipeline)} onChange={(e) => patchQuickEdit("pipeline_name", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
+                        <AppSelect value={String(quickEditRow.pipeline_name ?? pipeline)} onChange={(e: any) => patchQuickEdit("pipeline_name", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
                           {pipelines.map((p) => (
                             <option key={p} value={p}>{p}</option>
                           ))}
-                        </select>
+                        </AppSelect>
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Stage</label>
-                        <select value={String(quickEditRow.stage ?? "")} onChange={(e) => patchQuickEdit("stage", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
+                        <AppSelect value={String(quickEditRow.stage ?? "")} onChange={(e: any) => patchQuickEdit("stage", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
                           {(quickEditStages.length ? quickEditStages : stages).map((s) => (
                             <option key={s} value={s}>{s}</option>
                           ))}
-                        </select>
+                        </AppSelect>
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity Value</label>
@@ -1407,7 +1421,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Owner (Licensed Agent)</label>
-                        <select
+                        <AppSelect
                           value={String(quickEditRow.licensed_agent_account ?? "")}
                           onChange={(e) => patchQuickEdit("licensed_agent_account", e.target.value)}
                           style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}
@@ -1425,7 +1439,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                           {licensedOwnerOptions.map((u) => (
                             <option key={u.id} value={u.name}>{u.name}</option>
                           ))}
-                        </select>
+                        </AppSelect>
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Business Name</label>

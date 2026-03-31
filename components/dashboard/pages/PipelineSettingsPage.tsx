@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { T } from "@/lib/theme";
 import { Avatar, Badge, Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Stage {
@@ -457,11 +458,11 @@ export default function PipelineManagementPage() {
         onSearchChange={setSearch}
         searchPlaceholder="Search Pipelines"
         filters={
-          <select value={filterStages} onChange={(e) => setFilterStages(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+          <AppSelect value={filterStages} onChange={(e: any) => setFilterStages(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
             <option value="All">All Pipelines</option>
             <option value="With Stages">With Stages</option>
             <option value="Empty">Empty</option>
-          </select>
+          </AppSelect>
         }
         activeFilters={
           (search.trim() !== "" || filterStages !== "All") && (

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
 import { Pagination, Table, DataGrid, FilterChip, Toast, EmptyState } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import UserEditorComponent from "./UserEditorComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useMemo } from "react";
@@ -196,10 +197,10 @@ export default function UsersAccessPage(){
         searchPlaceholder="Search by name, phone, or ID..."
         filters={
           <>
-            <select value={rf} onChange={(e) => setRf(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+            <AppSelect value={rf} onChange={(e: any) => setRf(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
               <option value="All">All Roles</option>
               {dbRoles.length > 0 ? dbRoles.map(r => <option key={r.id} value={r.name}>{r.name}</option>) : ["Admin", "Manager", "Agent", "Read-Only"].map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
+            </AppSelect>
           </>
         }
         activeFilters={

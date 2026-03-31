@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { Button, Input, Pagination, Table, DataGrid, EmptyState } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Carrier {
@@ -1006,7 +1007,7 @@ export default function CarrierManagementPage() {
               </div>
 
               <div style={{ display: "flex", gap: 10, marginBottom: 14, alignItems: "flex-start" }}>
-                <select
+                <AppSelect
                   value={newInfoGroupType}
                   onChange={(e) => setNewInfoGroupType(e.target.value as CarrierInfo['groupType'])}
                   style={{ 
@@ -1025,7 +1026,7 @@ export default function CarrierManagementPage() {
                   {GROUP_TYPES.map(type => (
                     <option key={type} value={type}>{type}</option>
                   ))}
-                </select>
+                </AppSelect>
                 <textarea
                   value={newInfoDescription}
                   onChange={(e) => setNewInfoDescription(e.target.value)}
@@ -1107,7 +1108,7 @@ export default function CarrierManagementPage() {
                         <div style={{ flex: 1 }}>
                           {isEditing ? (
                             <>
-                              <select
+                              <AppSelect
                                 value={editingInfoGroupType}
                                 onChange={(e) => setEditingInfoGroupType(e.target.value as CarrierInfo['groupType'])}
                                 style={{ 
@@ -1125,7 +1126,7 @@ export default function CarrierManagementPage() {
                                 {GROUP_TYPES.map(type => (
                                   <option key={type} value={type}>{type}</option>
                                 ))}
-                              </select>
+                              </AppSelect>
                               <textarea
                                 value={editingInfoDescription}
                                 onChange={(e) => setEditingInfoDescription(e.target.value)}

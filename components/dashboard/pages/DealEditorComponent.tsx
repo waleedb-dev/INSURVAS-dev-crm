@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { T } from "@/lib/theme";
+import { AppSelect } from "@/components/ui/app-select";
 
 type DealStatus = "Approved" | "Under Review" | "Declined" | "Pending Docs" | "Submitted";
 type PolicyType = "Auto" | "Home" | "Life" | "Health" | "Commercial";
@@ -182,20 +183,20 @@ export default function DealEditorComponent({
 
             <div>
               <label style={labelStyle}>Policy Type</label>
-              <select value={policyType} onChange={(e) => setPolicyType(e.target.value as PolicyType)} style={inputStyle} onFocus={e => e.currentTarget.style.borderColor = T.blue} onBlur={e => e.currentTarget.style.borderColor = T.border}>
+              <AppSelect value={policyType} onChange={(e: any) => setPolicyType(e.target.value as PolicyType)} style={inputStyle} onFocus={e => e.currentTarget.style.borderColor = T.blue} onBlur={e => e.currentTarget.style.borderColor = T.border}>
                 {(["Auto", "Home", "Life", "Health", "Commercial"] as PolicyType[]).map((type) => (
                   <option key={type} value={type}>{type}</option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
 
             <div>
               <label style={labelStyle}>Assigned Agent</label>
-              <select value={agent} onChange={(e) => setAgent(e.target.value)} style={inputStyle} onFocus={e => e.currentTarget.style.borderColor = T.blue} onBlur={e => e.currentTarget.style.borderColor = T.border}>
+              <AppSelect value={agent} onChange={(e: any) => setAgent(e.target.value)} style={inputStyle} onFocus={e => e.currentTarget.style.borderColor = T.blue} onBlur={e => e.currentTarget.style.borderColor = T.border}>
                 {agents.map((name) => (
                   <option key={name} value={name}>{name}</option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
 
             <div>

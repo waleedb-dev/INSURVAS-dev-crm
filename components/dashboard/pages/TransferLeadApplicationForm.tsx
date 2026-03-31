@@ -7,6 +7,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import { useCarrierProductDropdowns, type CarrierProductRow } from "@/lib/useCarrierProductDropdowns";
 import { Toast, type ToastType } from "@/components/ui/Toast";
+import { AppSelect } from "@/components/ui/app-select";
 
 export type TransferLeadFormData = {
   leadUniqueId: string;
@@ -881,11 +882,11 @@ export default function TransferLeadApplicationForm({
               )}
             </Field>
             <Field label="Language *">
-              <select value={formData.language} onChange={set("language")} style={fieldStyleWithError("language")}>
+              <AppSelect value={formData.language} onChange={(e: any) => set("language")(e)} style={fieldStyleWithError("language")}>
                 <option value="">Select language</option>
                 <option value="English">English</option>
                 <option value="Spanish">Spanish</option>
-              </select>
+              </AppSelect>
             </Field>
           </div>
         </Section>
@@ -1080,19 +1081,19 @@ export default function TransferLeadApplicationForm({
                   <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
                 </Field>
                 <Field label="State *">
-                  <select value={formData.state} onChange={set("state")} style={fieldStyleWithError("state")}>
+                  <AppSelect value={formData.state} onChange={(e: any) => set("state")(e)} style={fieldStyleWithError("state")}>
                     <option value="">Please Select</option>
                     {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </AppSelect>
                 </Field>
                 <Field label="Zip Code *">
                   <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
                 </Field>
                 <Field label="Birth State *">
-                  <select value={formData.birthState} onChange={set("birthState")} style={fieldStyleWithError("birthState")}>
+                  <AppSelect value={formData.birthState} onChange={(e: any) => set("birthState")(e)} style={fieldStyleWithError("birthState")}>
                     <option value="">Please Select</option>
                     {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </AppSelect>
                 </Field>
               </div>
             </Section>
@@ -1168,9 +1169,9 @@ export default function TransferLeadApplicationForm({
                   </div>
                 </Field>
                 <Field label="Carrier *">
-                  <select
+                  <AppSelect
                     value={formData.carrier}
-                    onChange={(e) => {
+                    onChange={(e: any) => {
                       const nextCarrier = e.target.value;
                       setFormData((prev) => ({ ...prev, carrier: nextCarrier, productType: "" }));
                     }}
@@ -1178,18 +1179,18 @@ export default function TransferLeadApplicationForm({
                   >
                     <option value="">Please Select</option>
                     {carriers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                  </select>
+                  </AppSelect>
                 </Field>
                 <Field label="Product Type *">
-                  <select
+                  <AppSelect
                     value={formData.productType}
-                    onChange={set("productType")}
+                    onChange={(e: any) => set("productType")(e)}
                     style={fieldStyleWithError("productType")}
                     disabled={!formData.carrier.trim() || policyCarrierProductsLoading}
                   >
                     <option value="">Please Select</option>
                     {productsForCarrier.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
-                  </select>
+                  </AppSelect>
                 </Field>
                 <Field label="Draft Date *">
                   <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyleWithError("draftDate")} />
@@ -1209,11 +1210,11 @@ export default function TransferLeadApplicationForm({
             }>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <Field label="Bank Account Type">
-                  <select value={formData.bankAccountType} onChange={set("bankAccountType")} style={fieldStyle}>
+                  <AppSelect value={formData.bankAccountType} onChange={(e: any) => set("bankAccountType")(e)} style={fieldStyle}>
                     <option value="">Please Select</option>
                     <option value="Checking">Checking</option>
                     <option value="Savings">Savings</option>
-                  </select>
+                  </AppSelect>
                 </Field>
                 <Field label="Institution Name *">
                   <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyleWithError("institutionName")} />
@@ -1402,9 +1403,9 @@ export default function TransferLeadApplicationForm({
               <div><label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Weight:</label><input value={underwritingData.weight} onChange={(e) => setUnderwritingData({ ...underwritingData, weight: e.target.value })} placeholder="e.g., 180 lbs" style={{ ...fieldStyle, fontSize: 24, height: 48 }} /></div>
               <div>
                 <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Carrier:</label>
-                <select
+                <AppSelect
                   value={underwritingData.carrier}
-                  onChange={(e) => {
+                  onChange={(e: any) => {
                     const v = e.target.value;
                     setUnderwritingData((prev) => ({ ...prev, carrier: v, productLevel: "" }));
                   }}
@@ -1425,13 +1426,13 @@ export default function TransferLeadApplicationForm({
                       {c.name}
                     </option>
                   ))}
-                </select>
+                </AppSelect>
               </div>
               <div>
                 <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level:</label>
-                <select
+                <AppSelect
                   value={underwritingData.productLevel}
-                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
+                  onChange={(e: any) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
                   disabled={!underwritingData.carrier.trim() || uwCarrierProductsLoading}
                   style={{
                     ...fieldStyle,
@@ -1457,7 +1458,7 @@ export default function TransferLeadApplicationForm({
                       {p.name}
                     </option>
                   ))}
-                </select>
+                </AppSelect>
               </div>
               <div><label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Coverage Amount:</label><input value={underwritingData.coverageAmount} onChange={(e) => setUnderwritingData({ ...underwritingData, coverageAmount: e.target.value })} placeholder="e.g., $10,000" style={{ ...fieldStyle, fontSize: 24, height: 48 }} /></div>
               <div><label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Monthly Premium:</label><input value={underwritingData.monthlyPremium} onChange={(e) => setUnderwritingData({ ...underwritingData, monthlyPremium: e.target.value })} placeholder="e.g., $50.00" style={{ ...fieldStyle, fontSize: 24, height: 48 }} /></div>
@@ -1728,7 +1729,7 @@ function Field({ label, children, full = false }: { label: string; children: Rea
 
 function YesNo({ value, onChange, hasError }: { value: string; onChange: (value: string) => void; hasError?: boolean }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} style={{
+    <AppSelect value={value} onChange={(e: any) => onChange(e.target.value)} style={{
       width: "100%",
       padding: "11px 14px",
       borderRadius: 8,
@@ -1743,7 +1744,7 @@ function YesNo({ value, onChange, hasError }: { value: string; onChange: (value:
       <option value="">Please Select</option>
       <option value="Yes">Yes</option>
       <option value="No">No</option>
-    </select>
+    </AppSelect>
   );
 }
 

@@ -7,6 +7,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import { titleizeKey } from "@/lib/agent/assigned-lead-details.logic";
 import { Toast, type ToastType } from "@/components/ui/Toast";
+import { AppSelect } from "@/components/ui/app-select";
 import { useCarrierProductDropdowns, type CarrierProductRow } from "@/lib/useCarrierProductDropdowns";
 
 type VerificationPanelProps = {
@@ -540,7 +541,7 @@ export function VerificationPanel({
                   return (
                     <div key={key} className="space-y-2">
                       <label className="text-xl font-bold text-slate-900">Carrier:</label>
-                      <select
+                      <AppSelect
                         value={underwritingData.carrier}
                         onChange={(e) => {
                           const v = e.target.value;
@@ -554,7 +555,7 @@ export function VerificationPanel({
                             {c.name}
                           </option>
                         ))}
-                      </select>
+                      </AppSelect>
                     </div>
                   );
                 }
@@ -562,7 +563,7 @@ export function VerificationPanel({
                   return (
                     <div key={key} className="space-y-2">
                       <label className="text-xl font-bold text-slate-900">Product Level:</label>
-                      <select
+                      <AppSelect
                         value={underwritingData.productLevel}
                         onChange={(e) =>
                           setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))
@@ -582,7 +583,7 @@ export function VerificationPanel({
                             {p.name}
                           </option>
                         ))}
-                      </select>
+                      </AppSelect>
                     </div>
                   );
                 }

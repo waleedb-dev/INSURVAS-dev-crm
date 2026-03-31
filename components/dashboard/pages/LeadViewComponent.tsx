@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { EmptyState } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 
 interface Lead {
   name: string;
@@ -961,7 +962,7 @@ export default function LeadViewComponent({
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                               <div>
                                 <label style={labelStyle}>Pipeline</label>
-                                <select
+                                <AppSelect
                                   value={pipelineName}
                                   disabled={ro}
                                   onChange={(e) => {
@@ -978,11 +979,11 @@ export default function LeadViewComponent({
                                       {p.name}
                                     </option>
                                   ))}
-                                </select>
+                                </AppSelect>
                               </div>
                               <div>
                                 <label style={labelStyle}>Stage</label>
-                                <select
+                                <AppSelect
                                   value={String(d?.stage ?? "")}
                                   disabled={ro}
                                   onChange={(e) => patchDraft("stage", e.target.value)}
@@ -993,7 +994,7 @@ export default function LeadViewComponent({
                                       {s}
                                     </option>
                                   ))}
-                                </select>
+                                </AppSelect>
                               </div>
                               <div>
                                 <label style={labelStyle}>Lead value</label>
@@ -1081,7 +1082,7 @@ export default function LeadViewComponent({
                         <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Policy / product</p>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Product type</label>
-                          <select
+                          <AppSelect
                             value={formData.type}
                             onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                             style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700 }}
@@ -1091,7 +1092,7 @@ export default function LeadViewComponent({
                             <option value="Life">Life Insurance</option>
                             <option value="Health">Health Insurance</option>
                             <option value="Commercial">Commercial Insurance</option>
-                          </select>
+                          </AppSelect>
                         </div>
                       </div>
                       <div style={{ backgroundColor: T.pageBg, border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
@@ -1099,7 +1100,7 @@ export default function LeadViewComponent({
                         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Pipeline</label>
-                            <select
+                            <AppSelect
                               value={formData.pipeline}
                               onChange={(e) => {
                                 const pName = e.target.value;
@@ -1113,11 +1114,11 @@ export default function LeadViewComponent({
                                   {p.name}
                                 </option>
                               ))}
-                            </select>
+                            </AppSelect>
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Stage</label>
-                            <select
+                            <AppSelect
                               value={formData.stage}
                               onChange={(e) => setFormData({ ...formData, stage: e.target.value })}
                               style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700, outline: "none" }}
@@ -1127,7 +1128,7 @@ export default function LeadViewComponent({
                                   {s}
                                 </option>
                               ))}
-                            </select>
+                            </AppSelect>
                           </div>
                         </div>
                       </div>

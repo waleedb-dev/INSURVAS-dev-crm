@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { Pagination, Table, DataGrid, EmptyState } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 // Types
@@ -1057,14 +1058,14 @@ export default function IMOManagementPage() {
 
               <div style={{ marginBottom: 24 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>User Account</label>
-                <select
+                <AppSelect
                   value={agentForm.userId}
                   onChange={e => setAgentForm({...agentForm, userId: e.target.value})}
                   style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15 }}
                 >
                   <option value="">No User Account</option>
                   {users.map(u => <option key={u.id} value={u.id}>{u.email} {u.fullName ? `(${u.fullName})` : ''}</option>)}
-                </select>
+                </AppSelect>
               </div>
 
               <div style={{ marginBottom: 24 }}>
@@ -1102,7 +1103,7 @@ export default function IMOManagementPage() {
 
               <div style={{ marginBottom: 24 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>Language</label>
-                <select
+                <AppSelect
                   value={agentForm.language}
                   onChange={e => setAgentForm({...agentForm, language: e.target.value})}
                   style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15 }}
@@ -1122,7 +1123,7 @@ export default function IMOManagementPage() {
                   <option value="Vietnamese">Vietnamese</option>
                   <option value="Russian">Russian</option>
                   <option value="Polish">Polish</option>
-                </select>
+                </AppSelect>
                 <p style={{ fontSize: 12, color: T.textMuted, marginTop: 6 }}>
                   Select the agent's primary language for communication
                 </p>
@@ -1130,7 +1131,7 @@ export default function IMOManagementPage() {
 
               <div style={{ marginBottom: 24 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>Upline Agent</label>
-                <select
+                <AppSelect
                   value={agentForm.uplineId || ""}
                   onChange={e => setAgentForm({...agentForm, uplineId: e.target.value ? Number(e.target.value) : null})}
                   style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15 }}
@@ -1141,7 +1142,7 @@ export default function IMOManagementPage() {
                     .map(a => (
                       <option key={a.id} value={a.id}>{a.fullName} ({a.email})</option>
                     ))}
-                </select>
+                </AppSelect>
                 <p style={{ fontSize: 12, color: T.textMuted, marginTop: 6 }}>
                   Select the agent's upline for compliance routing
                 </p>

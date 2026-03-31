@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { Pagination, Table, DataGrid, EmptyState } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface IMO {
@@ -702,7 +703,7 @@ export default function AgentHierarchyManagementPage() {
 
               <div style={{ marginBottom: 24 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8, textTransform: "uppercase" }}>IMO</label>
-                <select
+                <AppSelect
                   value={formData.imoId}
                   onChange={e => setFormData({...formData, imoId: e.target.value, agencyId: ""})}
                   style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15, outline: "none", color: T.textDark, fontWeight: 600, backgroundColor: "#fff", cursor: "pointer" }}
@@ -711,12 +712,12 @@ export default function AgentHierarchyManagementPage() {
                   {imos.map(imo => (
                     <option key={imo.id} value={imo.id}>{imo.name}</option>
                   ))}
-                </select>
+                </AppSelect>
               </div>
 
               <div style={{ marginBottom: 24 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8, textTransform: "uppercase" }}>Agency</label>
-                <select
+                <AppSelect
                   value={formData.agencyId}
                   onChange={e => setFormData({...formData, agencyId: e.target.value})}
                   disabled={!formData.imoId}
@@ -726,12 +727,12 @@ export default function AgentHierarchyManagementPage() {
                   {filteredAgencies.map(agency => (
                     <option key={agency.id} value={agency.id}>{agency.name}</option>
                   ))}
-                </select>
+                </AppSelect>
               </div>
 
               <div style={{ marginBottom: 24 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8, textTransform: "uppercase" }}>User Account</label>
-                <select
+                <AppSelect
                   value={formData.userId}
                   onChange={e => setFormData({...formData, userId: e.target.value})}
                   style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15, outline: "none", color: T.textDark, fontWeight: 600, backgroundColor: "#fff", cursor: "pointer" }}
@@ -742,7 +743,7 @@ export default function AgentHierarchyManagementPage() {
                       {user.email} {user.fullName ? `(${user.fullName})` : ''}
                     </option>
                   ))}
-                </select>
+                </AppSelect>
               </div>
 
               <div style={{ marginBottom: 24 }}>

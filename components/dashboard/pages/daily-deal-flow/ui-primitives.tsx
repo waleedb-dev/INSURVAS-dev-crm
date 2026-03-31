@@ -107,7 +107,10 @@ export function SelectInput({
       </DropdownMenuTrigger>
       
       <DropdownMenuContent
-        className={`${matchTriggerWidth ? "w-(--anchor-width)" : "w-auto"} max-h-[320px] overflow-y-auto overscroll-contain !p-0 !rounded-[10px] !border-[#a7c194] bg-[var(--cardBg,#ffffff)] shadow-[0_14px_24px_rgba(49,80,33,0.16)] overflow-hidden ${menuClassName ?? ""}`}
+        side="bottom"
+        align="start"
+        sideOffset={6}
+        className={`${matchTriggerWidth ? "w-(--anchor-width)" : "w-auto"} max-h-[420px] overflow-y-auto overscroll-contain !p-0 !rounded-[10px] !border-[#a7c194] bg-[var(--cardBg,#ffffff)] shadow-[0_14px_24px_rgba(49,80,33,0.16)] overflow-hidden ${menuClassName ?? ""}`}
         style={{
           minWidth: menuMinWidth ?? 220,
           width: menuWidth ?? (matchTriggerWidth ? "var(--anchor-width)" : undefined),

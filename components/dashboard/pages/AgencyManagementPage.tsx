@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { Pagination, Table, DataGrid, EmptyState } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface IMO {
@@ -196,16 +197,16 @@ export default function AgencyManagementPage() {
 
           <div style={{ marginBottom: 24 }}>
             <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8, textTransform: "uppercase" }}>IMO *</label>
-            <select
+            <AppSelect
               value={selectedImoId}
-              onChange={e => setSelectedImoId(e.target.value)}
+              onChange={(e: any) => setSelectedImoId(e.target.value)}
               style={{ width: "100%", padding: "12px 16px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 15, outline: "none", color: T.textDark, fontWeight: 600, backgroundColor: "#fff", cursor: "pointer" }}
             >
               <option value="">Select IMO...</option>
               {imos.map(imo => (
                 <option key={imo.id} value={imo.id}>{imo.name}</option>
               ))}
-            </select>
+            </AppSelect>
             {imos.length === 0 && (
               <div style={{ fontSize: 12, color: "#3b5229", marginTop: 8 }}>
                 No IMOs found. Please create an IMO first.

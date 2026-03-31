@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Pagination } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 
 interface Role { id: string; name: string; key: string; }
 interface BpoCenter { id: string; name: string; }
@@ -336,17 +337,17 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                   <h3 style={{ margin: "40px 0 32px", fontSize: 18, fontWeight: 800 }}>Role & Organization</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                     <div><label style={labelStyle}>Access Role <span style={{ color: T.danger }}>*</span></label>
-                      <select value={selectedRoleId} onChange={e => setSelectedRoleId(e.target.value)} style={inputStyle as any}>
+                      <AppSelect value={selectedRoleId} onChange={(e: any) => setSelectedRoleId(e.target.value)} style={inputStyle as any}>
                         <option value="">Select a role...</option>
                         {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                      </select>
+                      </AppSelect>
                     </div>
                     {isCallCenterRole && (
                       <div style={{ animation: "fadeInDown 0.2s" }}><label style={labelStyle}>BPO Centre <span style={{ color: T.danger }}>*</span></label>
-                        <select value={selectedCenterId} onChange={e => setSelectedCenterId(e.target.value)} style={inputStyle as any}>
+                        <AppSelect value={selectedCenterId} onChange={(e: any) => setSelectedCenterId(e.target.value)} style={inputStyle as any}>
                           <option value="">Select a centre...</option>
                           {centers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
+                        </AppSelect>
                       </div>
                     )}
                   </div>

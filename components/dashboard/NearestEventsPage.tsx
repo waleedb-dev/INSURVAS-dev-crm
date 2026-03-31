@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { T } from "@/lib/theme";
+import { AppSelect } from "@/components/ui/app-select";
 
 const C = {
   bg: T.pageBg, white: T.cardBg, blue: T.blue,
@@ -201,18 +202,16 @@ function AddEventModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ev: Ev
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
           <Field label="Duration">
             <div style={{ position: "relative" }}>
-              <select value={duration} onChange={(e) => setDuration(e.target.value)} style={{ ...inputStyle, paddingRight: 32, appearance: "none", cursor: "pointer" }}>
+              <AppSelect value={duration} onChange={(e: any) => setDuration(e.target.value)} style={{ ...inputStyle, paddingRight: 32, appearance: "none", cursor: "pointer" }}>
                 {["30m","1h","1h 30m","2h","3h","4h","All day"].map((d) => <option key={d}>{d}</option>)}
-              </select>
-              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7a5f", fontSize: 11 }}>▾</span>
+              </AppSelect>
             </div>
           </Field>
           <Field label="Type">
             <div style={{ position: "relative" }}>
-              <select value={type} onChange={(e) => setType(e.target.value as EventType)} style={{ ...inputStyle, paddingRight: 32, appearance: "none", cursor: "pointer" }}>
+              <AppSelect value={type} onChange={(e: any) => setType(e.target.value as EventType)} style={{ ...inputStyle, paddingRight: 32, appearance: "none", cursor: "pointer" }}>
                 {TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7a5f", fontSize: 11 }}>▾</span>
+              </AppSelect>
             </div>
           </Field>
         </div>

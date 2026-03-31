@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { T } from "@/lib/theme";
+import { AppSelect } from "@/components/ui/app-select";
 import type {
   AgentOption,
   ClaimSelections,
@@ -129,7 +130,7 @@ export default function TransferLeadClaimModal({
             <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
               Buffer Agent
             </label>
-            <select
+            <AppSelect
               value={selection.bufferAgentId || ""}
               onChange={(e) => onChange({ ...selection, bufferAgentId: e.target.value || null })}
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
@@ -140,7 +141,7 @@ export default function TransferLeadClaimModal({
                   {agent.name}
                 </option>
               ))}
-            </select>
+            </AppSelect>
           </div>
         )}
 
@@ -149,7 +150,7 @@ export default function TransferLeadClaimModal({
             <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
               Licensed Agent
             </label>
-            <select
+            <AppSelect
               value={selection.licensedAgentId || ""}
               onChange={(e) => onChange({ ...selection, licensedAgentId: e.target.value || null })}
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
@@ -160,7 +161,7 @@ export default function TransferLeadClaimModal({
                   {agent.name}
                 </option>
               ))}
-            </select>
+            </AppSelect>
           </div>
         )}
 
@@ -170,7 +171,7 @@ export default function TransferLeadClaimModal({
               <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                 Retention Agent
               </label>
-              <select
+              <AppSelect
                 value={selection.retentionAgentId || ""}
                 onChange={(e) => onChange({ ...selection, retentionAgentId: e.target.value || null })}
                 style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
@@ -181,13 +182,13 @@ export default function TransferLeadClaimModal({
                     {agent.name}
                   </option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                 Retention Type
               </label>
-              <select
+              <AppSelect
                 value={selection.retentionType}
                 onChange={(e) => setRetentionType((e.target.value || "") as RetentionType | "")}
                 style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
@@ -196,7 +197,7 @@ export default function TransferLeadClaimModal({
                 <option value="new_sale">New Sale</option>
                 <option value="fixed_payment">Fixed Failed Payment</option>
                 <option value="carrier_requirements">Carrier Requirements</option>
-              </select>
+              </AppSelect>
             </div>
 
             {selection.retentionType === "new_sale" && (

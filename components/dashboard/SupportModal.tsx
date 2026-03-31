@@ -1,6 +1,11 @@
 "use client";
 
+import { useState } from "react";
+import { AppSelect } from "@/components/ui/app-select";
+
 export default function SupportModal({ onClose }: { onClose: () => void }) {
+  const [subject, setSubject] = useState("Technical difficulties");
+
   return (
     <div
       onClick={onClose}
@@ -37,13 +42,12 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
         <div style={{ marginBottom: 20 }}>
           <label style={{ fontSize: 13, fontWeight: 700, color: "#6b7a5f", display: "block", marginBottom: 8 }}>Request Subject</label>
           <div style={{ position: "relative" }}>
-            <select style={{ width: "100%", padding: "13px 40px 13px 16px", border: "1.5px solid #c8d4bb", borderRadius: 12, fontSize: 14, color: "#2e3429", backgroundColor: "#fff", appearance: "none", cursor: "pointer", fontFamily: "inherit" }}>
+            <AppSelect value={subject} onChange={(e: any) => setSubject(e.target.value)} style={{ width: "100%", padding: "13px 40px 13px 16px", border: "1.5px solid #c8d4bb", borderRadius: 12, fontSize: 14, color: "#2e3429", backgroundColor: "#fff", appearance: "none", cursor: "pointer", fontFamily: "inherit" }}>
               <option>Technical difficulties</option>
               <option>Billing enquiry</option>
               <option>Feature request</option>
               <option>Other</option>
-            </select>
-            <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7a5f" }}>▾</span>
+            </AppSelect>
           </div>
         </div>
 

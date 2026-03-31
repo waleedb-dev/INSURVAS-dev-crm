@@ -16,6 +16,7 @@ interface TableProps<T> {
   data: T[];
   onRowClick?: (item: T) => void;
   stickyHeader?: boolean;
+  viewportHeight?: number | string;
   rowStyle?: React.CSSProperties;
   headerStyle?: React.CSSProperties;
   containerStyle?: React.CSSProperties;
@@ -27,14 +28,29 @@ export function Table<T extends { id: string | number }>({
   data,
   onRowClick,
   stickyHeader = true,
+  viewportHeight,
   rowStyle,
   headerStyle,
   containerStyle,
   hoverEffect = true,
 }: TableProps<T>) {
   return (
-    <div style={{ width: "100%", overflow: "visible", ...containerStyle }}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+    <div
+      style={{
+        width: "100%",
+        overflowX: "auto",
+        overflowY: viewportHeight ? "auto" : "visible",
+        height: viewportHeight,
+        ...containerStyle,
+      }}
+    >
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          height: viewportHeight ? "100%" : undefined,
+        }}
+      >
         <thead style={stickyHeader ? { position: "sticky", top: 0, zIndex: 10, backgroundColor: "#fff" } : {}}>
           <tr style={{ borderBottom: `1px solid ${T.border}`, backgroundColor: T.pageBg, ...headerStyle }}>
             {columns.map((col) => (

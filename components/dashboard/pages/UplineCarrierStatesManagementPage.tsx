@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { Pagination, Table, DataGrid, EmptyState } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Carrier {
@@ -175,9 +176,9 @@ export default function UplineCarrierStatesManagementPage() {
             <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>
               Carrier *
             </label>
-            <select
+            <AppSelect
               value={selectedCarrierId}
-              onChange={e => setSelectedCarrierId(e.target.value)}
+              onChange={(e: any) => setSelectedCarrierId(e.target.value)}
               style={{ 
                 width: "100%", 
                 padding: "12px 16px", 
@@ -191,16 +192,16 @@ export default function UplineCarrierStatesManagementPage() {
               {carriers.map(carrier => (
                 <option key={carrier.id} value={carrier.id}>{carrier.name}</option>
               ))}
-            </select>
+            </AppSelect>
           </div>
           
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>
               State *
             </label>
-            <select
+            <AppSelect
               value={selectedStateCode}
-              onChange={e => setSelectedStateCode(e.target.value)}
+              onChange={(e: any) => setSelectedStateCode(e.target.value)}
               style={{ 
                 width: "100%", 
                 padding: "12px 16px", 
@@ -214,7 +215,7 @@ export default function UplineCarrierStatesManagementPage() {
               {states.map(state => (
                 <option key={state.code} value={state.code}>{state.code} - {state.name}</option>
               ))}
-            </select>
+            </AppSelect>
           </div>
         </div>
         

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Toast } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import { useCarrierProductDropdowns } from "@/lib/useCarrierProductDropdowns";
 import { fetchClaimAgents, syncVerifiedFieldsToLead, type AgentOption } from "./transferLeadParity";
 
@@ -737,7 +738,7 @@ export default function TransferLeadCallFixForm({
           <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
             Call Source *
           </label>
-          <select
+          <AppSelect
             value={callSource}
             onChange={(e) => setCallSource(e.target.value)}
             style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!callSource ? "#fca5a5" : T.border}` }}
@@ -745,7 +746,7 @@ export default function TransferLeadCallFixForm({
             <option value="">Select call source (required)</option>
             <option value="BPO Transfer">BPO Transfer</option>
             <option value="Agent Callback">Agent Callback</option>
-          </select>
+          </AppSelect>
           {!callSource && (
             <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Call source is required</p>
           )}
@@ -760,7 +761,7 @@ export default function TransferLeadCallFixForm({
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                     Buffer Agent
                   </label>
-                  <select value={bufferAgent} onChange={(e) => setBufferAgent(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }} disabled={claimAgentsLoading}>
+                  <AppSelect value={bufferAgent} onChange={(e) => setBufferAgent(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }} disabled={claimAgentsLoading}>
                     <option value="">
                       {claimAgentsLoading
                         ? "Loading buffer agents..."
@@ -769,14 +770,14 @@ export default function TransferLeadCallFixForm({
                           : "No buffer agents found"}
                     </option>
                     {bufferAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
+                  </AppSelect>
                 </div>
 
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                     Agent who took the call
                   </label>
-                  <select value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }} disabled={claimAgentsLoading}>
+                  <AppSelect value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }} disabled={claimAgentsLoading}>
                     <option value="">
                       {claimAgentsLoading
                         ? "Loading licensed agents..."
@@ -785,7 +786,7 @@ export default function TransferLeadCallFixForm({
                           : "No licensed agents found"}
                     </option>
                     {licensedAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
+                  </AppSelect>
                   {!agentWhoTookCall && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Agent who took the call is required</p>}
                 </div>
               </div>
@@ -800,7 +801,7 @@ export default function TransferLeadCallFixForm({
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                   Licensed Agent Account *
                 </label>
-                <select value={licensedAgentAccount} onChange={(e) => setLicensedAgentAccount(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!licensedAgentAccount ? "#fca5a5" : T.border}` }} disabled={claimAgentsLoading}>
+                <AppSelect value={licensedAgentAccount} onChange={(e) => setLicensedAgentAccount(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!licensedAgentAccount ? "#fca5a5" : T.border}` }} disabled={claimAgentsLoading}>
                   <option value="">
                     {claimAgentsLoading
                       ? "Loading licensed accounts..."
@@ -809,7 +810,7 @@ export default function TransferLeadCallFixForm({
                         : "No licensed agents found"}
                   </option>
                   {licensedAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
+                </AppSelect>
                 {!licensedAgentAccount && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Licensed Agent Account is required</p>}
               </div>
 
@@ -817,10 +818,10 @@ export default function TransferLeadCallFixForm({
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                   Carrier Name *
                 </label>
-                <select value={carrier} onChange={(e) => setCarrier(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!carrier ? "#fca5a5" : T.border}` }}>
+                <AppSelect value={carrier} onChange={(e) => setCarrier(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!carrier ? "#fca5a5" : T.border}` }}>
                   <option value="">Select carrier</option>
                   {carrierOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
+                </AppSelect>
                 {!carrier && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Carrier is required</p>}
               </div>
 
@@ -828,7 +829,7 @@ export default function TransferLeadCallFixForm({
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                   Product Type *
                 </label>
-                <select
+                <AppSelect
                   value={productType}
                   onChange={(e) => setProductType(e.target.value)}
                   disabled={!carrier.trim() || loadingProducts}
@@ -854,7 +855,7 @@ export default function TransferLeadCallFixForm({
                       {option.name}
                     </option>
                   ))}
-                </select>
+                </AppSelect>
                 {!productType && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Product Type is required</p>}
               </div>
 
@@ -916,7 +917,7 @@ export default function TransferLeadCallFixForm({
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                   Agent Who Took Call *
                 </label>
-                <select value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!agentWhoTookCall ? "#fca5a5" : T.border}` }} disabled={claimAgentsLoading}>
+                <AppSelect value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!agentWhoTookCall ? "#fca5a5" : T.border}` }} disabled={claimAgentsLoading}>
                   <option value="">
                     {claimAgentsLoading
                       ? "Loading licensed agents..."
@@ -925,7 +926,7 @@ export default function TransferLeadCallFixForm({
                         : "No licensed agents found"}
                   </option>
                   {licensedAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
+                </AppSelect>
                 {!agentWhoTookCall && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Agent who took the call is required</p>}
               </div>
 
@@ -933,7 +934,7 @@ export default function TransferLeadCallFixForm({
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                   Status / Stage *
                 </label>
-                <select
+                <AppSelect
                   value={status}
                   onChange={(e) => {
                     setStatus(e.target.value);
@@ -949,7 +950,7 @@ export default function TransferLeadCallFixForm({
                         : "No transfer stages configured"}
                   </option>
                   {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
+                </AppSelect>
                 {!status && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Status/Stage is required</p>}
               </div>
             </div>
@@ -959,14 +960,14 @@ export default function TransferLeadCallFixForm({
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                   Reason
                 </label>
-                <select
+                <AppSelect
                   value={statusReason}
                   onChange={(e) => handleStatusReasonChange(e.target.value)}
                   style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
                 >
                   <option value="">Select reason</option>
                   {reasons.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
+                </AppSelect>
                 {!statusReason && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Reason is required</p>}
               </div>
             )}
@@ -992,29 +993,29 @@ export default function TransferLeadCallFixForm({
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                     Carrier Attempted #1 *
                   </label>
-                  <select value={carrierAttempted1} onChange={(e) => setCarrierAttempted1(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!carrierAttempted1 ? "#fca5a5" : T.border}` }}>
+                  <AppSelect value={carrierAttempted1} onChange={(e) => setCarrierAttempted1(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!carrierAttempted1 ? "#fca5a5" : T.border}` }}>
                     <option value="">Select</option>
                     {carrierOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
+                  </AppSelect>
                   {!carrierAttempted1 && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Carrier Attempted #1 is required</p>}
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                     Carrier Attempted #2
                   </label>
-                  <select value={carrierAttempted2} onChange={(e) => setCarrierAttempted2(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}>
+                  <AppSelect value={carrierAttempted2} onChange={(e) => setCarrierAttempted2(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}>
                     <option value="">Select</option>
                     {carrierOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
+                  </AppSelect>
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
                     Carrier Attempted #3
                   </label>
-                  <select value={carrierAttempted3} onChange={(e) => setCarrierAttempted3(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}>
+                  <AppSelect value={carrierAttempted3} onChange={(e) => setCarrierAttempted3(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}>
                     <option value="">Select</option>
                     {carrierOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
+                  </AppSelect>
                 </div>
               </div>
             )}

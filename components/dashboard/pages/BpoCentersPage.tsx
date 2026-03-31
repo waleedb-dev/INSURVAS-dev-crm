@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { T } from "@/lib/theme";
 import { Button, Dropdown, Input, Pagination, Table, DataGrid, FilterChip, EmptyState, Toast } from "@/components/ui";
+import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface UserLink {
@@ -820,7 +821,7 @@ export default function BpoCentersPage() {
                           </div>
                           <div>
                             <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>TIER</label>
-                            <select
+                            <AppSelect
                               value={thresholdData.tier}
                               onChange={e => setThresholdData({ ...thresholdData, tier: e.target.value as 'A' | 'B' | 'C' })}
                               style={{ 
@@ -837,7 +838,7 @@ export default function BpoCentersPage() {
                               <option value="A">Tier A (Elite)</option>
                               <option value="B">Tier B (Premium)</option>
                               <option value="C">Tier C (Standard)</option>
-                            </select>
+                            </AppSelect>
                           </div>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1164,11 +1165,11 @@ export default function BpoCentersPage() {
         onSearchChange={(s) => setSearch(s)}
         searchPlaceholder="Search Centres"
         filters={
-          <select value={filterAdmin} onChange={(e) => setFilterAdmin(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
+          <AppSelect value={filterAdmin} onChange={(e: any) => setFilterAdmin(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
             <option value="All">All Admins</option>
             <option value="Assigned">Assigned</option>
             <option value="Unassigned">Unassigned</option>
-          </select>
+          </AppSelect>
         }
         activeFilters={
           (search.trim() !== "" || filterAdmin !== "All") && (

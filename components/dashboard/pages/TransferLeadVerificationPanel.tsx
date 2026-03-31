@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { T } from "@/lib/theme";
+import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import {
@@ -1052,7 +1053,7 @@ export default function TransferLeadVerificationPanel({
                   return (
                     <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
                       <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Carrier</label>
-                      <select
+                      <AppSelect
                         value={underwritingData.carrier}
                         onChange={(e) => {
                           const v = e.target.value;
@@ -1066,7 +1067,7 @@ export default function TransferLeadVerificationPanel({
                             {c.name}
                           </option>
                         ))}
-                      </select>
+                      </AppSelect>
                     </div>
                   );
                 }
@@ -1074,7 +1075,7 @@ export default function TransferLeadVerificationPanel({
                   return (
                     <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
                       <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level</label>
-                      <select
+                      <AppSelect
                         value={underwritingData.productLevel}
                         onChange={(e) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
                         disabled={!underwritingData.carrier.trim() || uwProductsLoading}
@@ -1092,7 +1093,7 @@ export default function TransferLeadVerificationPanel({
                             {p.name}
                           </option>
                         ))}
-                      </select>
+                      </AppSelect>
                     </div>
                   );
                 }
