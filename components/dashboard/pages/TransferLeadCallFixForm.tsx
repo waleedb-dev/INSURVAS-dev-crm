@@ -14,19 +14,82 @@ const licensedAccountOptions = ["Claudia", "Lydia", "Isaac", "Brandon Blake Flin
 const reasonMap: Record<string, string[]> = {
   DQ: [
     "Multiple Chargebacks",
-    "Not Cognitively Functional",
+    "Not Cognatively Functional",
     "Transferred Many Times Without Success",
     "TCPA",
     "Decline All Available Carriers",
     "Already a DQ in our System",
     "Other",
   ],
-  "Chargeback DQ": ["Chargeback DQ", "Multiple Chargebacks", "Other"],
+  "Chargeback DQ": [
+    "Chargeback DQ",
+    "Multiple Chargebacks",
+    "Not Cognatively Functional",
+    "Transferred Many Times Without Success",
+    "TCPA",
+    "Decline All Available Carriers",
+    "Already a DQ in our System",
+    "Other",
+  ],
   "Needs callback": ["Banking information invalid", "Existing Policy - Draft hasn't passed", "Other"],
   "Not Interested": ["Existing coverage - Not Looking for More", "Other"],
-  "Future Submission Date": ["Draft Date Too Far Away", "Birthday is before draft date", "Other"],
-  "Updated Banking/draft date": ["Updated Banking and draft date", "Updated draft with same banking information"],
+  "Future Submission Date": [
+    "Future Submission Date - Draft Date Too Far Away",
+    "Future Submission Date - Birthday is before draft date",
+    "Other",
+  ],
+  "Updated Banking/draft date": ["Updated Banking and draft date", "Updated draft w/ same banking information"],
   "Fulfilled carrier requirements": ["Fulfilled carrier requirements"],
+};
+
+const formatDateUs = (dateText: string): string => {
+  if (!dateText) return "[Please select a date]";
+  const [year, month, day] = dateText.split("-");
+  if (!year || !month || !day) return "[Please select a date]";
+  return `${month}/${day}/${year}`;
+};
+
+const getNoteText = (status: string, reason: string, clientName: string = "[Client Name]", newDraftDate?: string) => {
+  const statusReasonMapping: { [status: string]: { [reason: string]: string } } = {
+    DQ: {
+      "Multiple Chargebacks": `${clientName} has been DQ'd. They have caused multiple chargebacks in our agency, so we cannot submit another application for them`,
+      "Not Cognatively Functional": `${clientName} has been DQ'd. They are not mentally able to make financial decisions. We cannot submit an application for them`,
+      "Transferred Many Times Without Success": `We have spoken with ${clientName} more than 5 times and have not been able to successfully submit an application. We should move on from this caller`,
+      TCPA: `${clientName} IS A TCPA LITIGATOR. PLEASE REMOVE FROM YOUR SYSTEM IMMEDIATELY`,
+      "Decline All Available Carriers": `${clientName} was denied through all carriers they are elligible to apply for`,
+      "Already a DQ in our System": `${clientName} is already a DQ in our system. We will not accept this caller again.`,
+      Other: "Custom message if none of the above fit",
+    },
+    "Chargeback DQ": {
+      "Chargeback DQ": `${clientName} has caused multiple chargebacks. We will not accept this caller into our agency`,
+      "Multiple Chargebacks": `${clientName} has been DQ'd. They have caused multiple chargebacks in our agency, so we cannot submit another application for them`,
+      "Not Cognatively Functional": `${clientName} has been DQ'd. They are not mentally able to make financial decisions. We cannot submit an application for them`,
+      "Transferred Many Times Without Success": `We have spoken with ${clientName} more than 5 times and have not been able to successfully submit an application. We should move on from this caller`,
+      TCPA: `${clientName} IS A TCPA LITIGATOR. PLEASE REMOVE FROM YOUR SYSTEM IMMEDIATELY`,
+      "Decline All Available Carriers": `${clientName} was denied through all carriers they are elligible to apply for`,
+      "Already a DQ in our System": `${clientName} is already a DQ in our system. We will not accept this caller again.`,
+      Other: "Custom message if none of the above fit",
+    },
+    "Needs callback": {
+      "Banking information invalid": `The banking information for ${clientName} could not be validated. We need to call them back and verify a new form of payment`,
+      "Existing Policy - Draft hasn't passed": `${clientName} has an existing policy with an initial draft date that hasn't passed. We can call them [a week after entered draft date] to see if they want additional coverage`,
+      Other: "Custom message if none of the above fit",
+    },
+    "Not Interested": {
+      "Existing coverage - Not Looking for More": `${clientName} has exsiting coverage and cannot afford additional coverage`,
+      Other: "Custom message if none of the above fit",
+    },
+    "Future Submission Date": {
+      "Future Submission Date - Draft Date Too Far Away": `The application for ${clientName} has been filled out and signed, but we cannot submit until [Submission date] because the draft date is too far out`,
+      "Future Submission Date - Birthday is before draft date": `${clientName}'s birthday is before their initial draft, so we need to call them on [the day after client DOB] to requote and submit application`,
+      Other: "Custom message if none of the above fit",
+    },
+    "Updated Banking/draft date": {
+      "Updated Banking and draft date": `New Draft date ${formatDateUs(newDraftDate || "")}`,
+      "Updated draft w/ same banking information": `New Draft date ${formatDateUs(newDraftDate || "")}`,
+    },
+  };
+  return statusReasonMapping[status]?.[reason] || "";
 };
 
 type Props = {
@@ -118,14 +181,13 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
   const carrierOptions = carriers.map((c) => c.name);
 
   const statusOptions = useMemo(() => transferPipelineStages, [transferPipelineStages]);
-
   const reasons = reasonMap[status] || [];
   const showSubmittedFields = applicationSubmitted === true;
   const showNotSubmittedFields = applicationSubmitted === false;
   const showStatusReasonDropdown =
     applicationSubmitted === false &&
     ["DQ", "Chargeback DQ", "Needs callback", "Not Interested", "Future Submission Date", "Updated Banking/draft date", "Fulfilled carrier requirements"].includes(status);
-  const requiresDraftDate = status === "Updated Banking/draft date";
+  const requiresDraftDate = status === "Updated Banking/draft date" && !!statusReason;
   const showCarrierAttemptedFields = applicationSubmitted === false && status === "GI - Currently DQ";
   const statusReasonRequired = showStatusReasonDropdown && reasons.length > 0;
   const submittedMissingFields = [
@@ -243,6 +305,59 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
       cancelled = true;
     };
   }, [submissionId, supabase]);
+
+  useEffect(() => {
+    if (status === "Chargeback DQ") {
+      setStatusReason("Chargeback DQ");
+      setNotes(getNoteText(status, "Chargeback DQ", leadName || "[Client Name]"));
+      return;
+    }
+    if (status === "GI - Currently DQ") {
+      setCarrierAttempted1("");
+      setCarrierAttempted2("");
+      setCarrierAttempted3("");
+      setStatusReason("");
+      setNotes("");
+      return;
+    }
+    if (status === "Fulfilled carrier requirements") {
+      setStatusReason("");
+      setNotes("");
+      return;
+    }
+    setStatusReason("");
+    setNotes("");
+  }, [status, leadName]);
+
+  useEffect(() => {
+    if (status === "GI - Currently DQ" && carrierAttempted1) {
+      const carriers = [carrierAttempted1];
+      if (carrierAttempted2) carriers.push(carrierAttempted2);
+      if (carrierAttempted3) carriers.push(carrierAttempted3);
+      const carrierText = carriers.join(", ");
+      setNotes(`${leadName || "[Client Name]"} has been declined through ${carrierText} and only qualifies for a GI policy. They are currently DQ'd`);
+    }
+  }, [status, carrierAttempted1, carrierAttempted2, carrierAttempted3, leadName]);
+
+  useEffect(() => {
+    if (status === "Updated Banking/draft date" && statusReason) {
+      setNotes(getNoteText(status, statusReason, leadName || "[Client Name]", newDraftDate));
+    }
+  }, [status, statusReason, newDraftDate, leadName]);
+
+  const handleStatusReasonChange = (reason: string) => {
+    setStatusReason(reason);
+    if (!reason) return;
+    if (reason === "Other") {
+      setNotes("");
+      return;
+    }
+    if (status === "Fulfilled carrier requirements") {
+      setNotes("");
+      return;
+    }
+    setNotes(getNoteText(status, reason, leadName || "[Client Name]", newDraftDate));
+  };
 
   const invokeOptionalFunction = async (functionName: string, body: Record<string, unknown>) => {
     const { error } = await supabase.functions.invoke(functionName, { body });
@@ -727,7 +842,6 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
                   value={status}
                   onChange={(e) => {
                     setStatus(e.target.value);
-                    setStatusReason("");
                   }}
                   disabled={transferStagesLoading}
                   style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!status ? "#fca5a5" : T.border}` }}
@@ -752,7 +866,7 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
                 </label>
                 <select
                   value={statusReason}
-                  onChange={(e) => setStatusReason(e.target.value)}
+                  onChange={(e) => handleStatusReasonChange(e.target.value)}
                   style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
                 >
                   <option value="">Select reason</option>
@@ -828,8 +942,24 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
               resize: "vertical",
               fontFamily: T.font,
             }}
-            placeholder="Add details for callback, banking fixes, carrier requirements, or disposition notes."
+            placeholder={
+              showStatusReasonDropdown && statusReason && statusReason !== "Other"
+                ? "Note has been auto-populated. You can edit if needed."
+                : showStatusReasonDropdown && statusReason === "Other"
+                  ? "Please enter a custom message."
+                  : "Why the call got dropped or application was not submitted? Please provide the reason (required)"
+            }
           />
+          {applicationSubmitted === false && showStatusReasonDropdown && statusReason && statusReason !== "Other" && (
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+              Note has been auto-populated based on selected reason. You can edit if needed.
+            </p>
+          )}
+          {applicationSubmitted === false && showStatusReasonDropdown && statusReason === "Other" && (
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+              Please enter a custom message for this reason.
+            </p>
+          )}
           {applicationSubmitted === false && !notes.trim() && (
             <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Notes are required</p>
           )}
