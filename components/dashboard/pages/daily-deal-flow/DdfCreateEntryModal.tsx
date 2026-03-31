@@ -133,7 +133,7 @@ export function DdfCreateEntryModal({
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} state={saving ? "loading" : "enabled"}>Create Entry</Button>
+          <Button onClick={handleSubmit} disabled={saving}>Create Entry</Button>
         </div>
       </Modal>
     </>

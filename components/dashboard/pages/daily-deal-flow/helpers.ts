@@ -62,7 +62,7 @@ export function getBadgeStyle(kind: "vendor" | "status" | "result" | "agent" | "
     "not submitted": { backgroundColor: T.priorityHigh, color: "#fff" },
   };
 
-  let colors = { backgroundColor: T.memberSlate, color: "#fff" };
+  let colors: { backgroundColor: string; color: string } = { backgroundColor: T.memberSlate, color: "#fff" };
   if (kind === "status" || kind === "result") {
     colors = map[v] || colors;
   } else if (kind === "vendor") {

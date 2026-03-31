@@ -339,7 +339,7 @@ export function DdfGroupedGrid({
                     variant="ghost"
                     type="button"
                     onClick={() => saveRow(row)}
-                    state={saving ? "loading" : "enabled"}
+                    disabled={saving}
                     aria-label="Save row"
                     title="Save"
                     style={actionIconBtn}
@@ -539,13 +539,13 @@ export function DdfGroupedGrid({
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <Button
-                variant={detailTab === "recordings" ? "primary" : "ghost"}
+                variant={detailTab === "recordings" ? "default" : "ghost"}
                 onClick={() => void loadCallRecordings(draft.client_phone_number)}
               >
                 Call Records
               </Button>
               <Button
-                variant={detailEditing ? "primary" : "ghost"}
+                variant={detailEditing ? "default" : "ghost"}
                 onClick={() => {
                   setDetailTab("details");
                   setDetailEditing(true);
@@ -642,7 +642,7 @@ export function DdfGroupedGrid({
                     <Button onClick={() => {
                       const source = rows.find((r) => r.id === detailId);
                       if (source) void saveRow(source);
-                    }} state={saving ? "loading" : "enabled"}>Save Changes</Button>
+                    }} disabled={saving}>Save Changes</Button>
                   )}
                 </div>
               </div>
@@ -673,7 +673,7 @@ export function DdfGroupedGrid({
                         <Button
                           size="sm"
                           variant="ghost"
-                          state={loadingRecordingId === call.id ? "loading" : "enabled"}
+                          disabled={loadingRecordingId === call.id}
                           onClick={async () => {
                             if (playingRecording === call.id) {
                               setPlayingRecording(null);
