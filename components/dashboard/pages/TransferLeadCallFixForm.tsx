@@ -92,6 +92,7 @@ const getNoteText = (status: string, reason: string, clientName: string = "[Clie
 type Props = {
   leadRowId: string;
   submissionId: string;
+  verificationSessionId?: string | null;
   leadName: string;
   leadPhone?: string;
   leadVendor?: string;
@@ -135,7 +136,14 @@ const getMissingColumnFromError = (error: unknown): string | null => {
   return match?.[1] || null;
 };
 
-export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadName, leadPhone, leadVendor }: Props) {
+export default function TransferLeadCallFixForm({
+  leadRowId,
+  submissionId,
+  verificationSessionId,
+  leadName,
+  leadPhone,
+  leadVendor,
+}: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
   const params = useParams<{ role?: string }>();
@@ -554,13 +562,12 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
         console.warn("Lead update after call result failed:", leadUpdateError.message);
       }
 
+      let verifiedSyncWarning: string | null = null;
       try {
-        await syncVerifiedFieldsToLead(supabase, leadRowId, submissionId);
+        await syncVerifiedFieldsToLead(supabase, leadRowId, submissionId, verificationSessionId);
       } catch (syncError) {
-        console.warn(
-          "Verified fields sync to lead failed:",
-          syncError instanceof Error ? syncError.message : String(syncError),
-        );
+        verifiedSyncWarning = syncError instanceof Error ? syncError.message : String(syncError);
+        console.warn("Verified fields sync to lead failed:", verifiedSyncWarning);
       }
 
       const { error: logError } = await supabase.from("call_update_logs").insert({
@@ -634,7 +641,12 @@ export default function TransferLeadCallFixForm({ leadRowId, submissionId, leadN
         });
       }
 
-      setToast({ message: "Call result update saved.", type: "success" });
+      setToast({
+        message: verifiedSyncWarning
+          ? `Call result saved, but verified fields were not synced to lead: ${verifiedSyncWarning}`
+          : "Call result update saved.",
+        type: verifiedSyncWarning ? "error" : "success",
+      });
       setTimeout(() => {
         router.back();
       }, 700);

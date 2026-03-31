@@ -307,6 +307,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           <TransferLeadCallFixForm
             leadRowId={lead.rowId}
             submissionId={lead.submissionId || lead.rowId}
+            verificationSessionId={sessionId}
             leadName={lead.leadName}
             leadPhone={lead.phone}
             leadVendor={lead.source}

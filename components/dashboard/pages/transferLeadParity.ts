@@ -503,8 +503,11 @@ export async function syncVerifiedFieldsToLead(
   supabase: SupabaseClient,
   leadRowId: string,
   submissionId: string,
+  sessionIdOverride?: string | null,
 ): Promise<void> {
-  const session = await fetchLatestSessionForSubmission(supabase, submissionId);
+  const session = sessionIdOverride?.trim()
+    ? { id: sessionIdOverride.trim() }
+    : await fetchLatestSessionForSubmission(supabase, submissionId);
   if (!session?.id) return;
 
   const { data, error } = await supabase
@@ -538,12 +541,17 @@ export async function syncVerifiedFieldsToLead(
   if (Object.keys(leadPatch).length === 0) return;
   leadPatch.updated_at = new Date().toISOString();
 
-  const { error: leadError } = await supabase
+  const { data: updatedLead, error: leadError } = await supabase
     .from("leads")
     .update(leadPatch)
-    .eq("id", leadRowId);
+    .eq("id", leadRowId)
+    .select("id")
+    .maybeSingle();
 
   if (leadError) {
     throw new Error(leadError.message || "Failed to sync verified fields to lead.");
+  }
+  if (!updatedLead?.id) {
+    throw new Error("Verified fields sync did not update the lead row (possible RLS or row visibility issue).");
   }
 }
