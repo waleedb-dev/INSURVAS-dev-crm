@@ -39,6 +39,15 @@ export function SelectInput({
   onChange,
   options,
   style,
+  triggerWidth,
+  triggerClassName,
+  triggerTextClassName,
+  matchTriggerWidth = true,
+  menuWidth,
+  menuMinWidth,
+  menuClassName,
+  menuStyle,
+  showItemSeparators = true,
   multiple = false,
   disabled = false,
 }: {
@@ -46,6 +55,15 @@ export function SelectInput({
   onChange: (value: string | string[]) => void;
   options: { value: string; label: string }[];
   style?: CSSProperties;
+  triggerWidth?: CSSProperties["width"];
+  triggerClassName?: string;
+  triggerTextClassName?: string;
+  matchTriggerWidth?: boolean;
+  menuWidth?: CSSProperties["width"];
+  menuMinWidth?: CSSProperties["minWidth"];
+  menuClassName?: string;
+  menuStyle?: CSSProperties;
+  showItemSeparators?: boolean;
   multiple?: boolean;
   disabled?: boolean;
 }) {
@@ -79,44 +97,60 @@ export function SelectInput({
     <DropdownMenu>
       <DropdownMenuTrigger
         disabled={disabled}
-        className="flex items-center justify-between w-full h-[38px] px-3 text-[13px] border font-[600] rounded-[8px] shadow-sm bg-[var(--cardBg,#ffffff)] border-[var(--border,#c8d4bb)] text-[var(--textDark,#1c201a)] hover:bg-[var(--pageBg,#f4f7f1)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
-        style={style}
+        className={`flex items-center justify-between w-full h-[40px] px-3 text-[13px] border font-[600] rounded-[8px] border-[#a6bf95] bg-[linear-gradient(180deg,#ffffff_0%,#f8fcf5_100%)] text-[var(--textDark,#1c201a)] shadow-[0_6px_16px_rgba(92,126,71,0.12)] hover:border-[#7ea366] hover:bg-[linear-gradient(180deg,#ffffff_0%,#f2f9ed_100%)] data-[state=open]:border-[#628a4a] data-[state=open]:ring-2 data-[state=open]:ring-[#8eb574]/30 disabled:cursor-not-allowed disabled:opacity-50 transition-all ${triggerClassName ?? ""}`}
+        style={{ width: triggerWidth, ...style }}
       >
-        <span className="truncate">{selectedLabel}</span>
+        <span className={`truncate w-full text-center ${triggerTextClassName ?? ""}`}>{selectedLabel}</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-2 shrink-0 text-[var(--textMuted,#7b8a6a)]">
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
       </DropdownMenuTrigger>
       
-      <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-[220px] max-h-[300px] overflow-y-auto !p-0 !rounded-xl !border-[var(--border,#c8d4bb)] bg-[var(--cardBg,#ffffff)] shadow-lg overflow-hidden">
+      <DropdownMenuContent
+        className={`${matchTriggerWidth ? "w-(--anchor-width)" : "w-auto"} max-h-[320px] overflow-y-auto overscroll-contain !p-0 !rounded-[10px] !border-[#a7c194] bg-[var(--cardBg,#ffffff)] shadow-[0_14px_24px_rgba(49,80,33,0.16)] overflow-hidden ${menuClassName ?? ""}`}
+        style={{
+          minWidth: menuMinWidth ?? 220,
+          width: menuWidth ?? (matchTriggerWidth ? "var(--anchor-width)" : undefined),
+          scrollbarWidth: "thin",
+          scrollbarColor: "#84a76c #edf4e6",
+          ...menuStyle,
+        }}
+      >
         {multiple ? (
           <DropdownMenuGroup>
             <DropdownMenuCheckboxItem
               checked={Array.isArray(value) && value.length === 0}
               onCheckedChange={() => onChange([])}
-              className="!rounded-none !py-2.5 !pl-4 !pr-10 text-[13.5px] !font-medium text-[var(--textDark,#1c201a)] focus:!bg-[var(--blue,#638b4b)] focus:!text-white !cursor-pointer transition-colors"
+              className="!rounded-none !py-2.5 !pl-4 !pr-10 text-[13.5px] !font-medium text-[var(--textDark,#1c201a)] !justify-center !text-center focus:!bg-[var(--blue,#638b4b)] focus:!text-white !cursor-pointer transition-colors"
             >
               {options[0]?.label ?? "All"}
             </DropdownMenuCheckboxItem>
-            <DropdownMenuSeparator className="!m-0 bg-[var(--borderLight,#ddecd4)]" />
+            {showItemSeparators && options.length > 1 && (
+              <DropdownMenuSeparator className="!m-0 bg-[#dfe9d6]" />
+            )}
             {options.slice(1).map((option) => {
               const checked = Array.isArray(value) && value.includes(option.value);
+              const isLast = options[options.length - 1]?.value === option.value;
               return (
-                <DropdownMenuCheckboxItem
-                  key={option.value}
-                  checked={checked}
-                  onCheckedChange={(nextChecked) => {
-                    const currentValues = Array.isArray(value) ? value : [];
-                    if (nextChecked) {
-                      onChange([...currentValues, option.value]);
-                    } else {
-                      onChange(currentValues.filter((entry) => entry !== option.value));
-                    }
-                  }}
-                  className="!rounded-none !py-2.5 !pl-4 !pr-10 text-[13.5px] !font-medium text-[var(--textDark,#1c201a)] focus:!bg-[var(--blue,#638b4b)] focus:!text-white !cursor-pointer transition-colors"
-                >
-                  {option.label}
-                </DropdownMenuCheckboxItem>
+                <div key={option.value}>
+                  <DropdownMenuCheckboxItem
+                    checked={checked}
+                    onCheckedChange={(nextChecked) => {
+                      const currentValues = Array.isArray(value) ? value : [];
+                      if (nextChecked) {
+                        onChange([...currentValues, option.value]);
+                      } else {
+                        onChange(currentValues.filter((entry) => entry !== option.value));
+                      }
+                    }}
+                    className="!rounded-none !py-2.5 !pl-4 !pr-10 text-[13.5px] !font-medium text-[var(--textDark,#1c201a)] !justify-center !text-center focus:!bg-[var(--blue,#638b4b)] focus:!text-white !cursor-pointer transition-colors"
+                  >
+                    {option.label}
+                  </DropdownMenuCheckboxItem>
+                  {showItemSeparators && !isLast && (
+                    <DropdownMenuSeparator className="!m-0 bg-[#dfe9d6]" />
+                  )}
+                </div>
               );
             })}
           </DropdownMenuGroup>
@@ -126,14 +160,18 @@ export function SelectInput({
               value={Array.isArray(value) ? value[0] : (value as string)}
               onValueChange={(nextValue) => onChange(nextValue)}
             >
-              {options.map((option) => (
-                <DropdownMenuRadioItem 
-                  key={option.value} 
-                  value={option.value}
-                  className="!rounded-none !py-2.5 !pl-4 !pr-10 text-[13.5px] !font-medium text-[var(--textDark,#1c201a)] focus:!bg-[var(--blue,#638b4b)] focus:!text-white !cursor-pointer transition-colors"
-                >
-                  {option.label}
-                </DropdownMenuRadioItem>
+              {options.map((option, index) => (
+                <div key={option.value}>
+                  <DropdownMenuRadioItem
+                    value={option.value}
+                    className="!rounded-none !py-2.5 !pl-4 !pr-10 text-[13.5px] !font-medium text-[var(--textDark,#1c201a)] !justify-center !text-center focus:!bg-[var(--blue,#638b4b)] focus:!text-white !cursor-pointer transition-colors"
+                  >
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                  {showItemSeparators && index < options.length - 1 && (
+                    <DropdownMenuSeparator className="!m-0 bg-[#dfe9d6]" />
+                  )}
+                </div>
               ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>

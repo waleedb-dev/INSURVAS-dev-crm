@@ -1378,18 +1378,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Primary Phone</label>
                         <input value={String(quickEditRow.phone ?? "")} onChange={(e) => patchQuickEdit("phone", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
                       </div>
-                      <div style={{ gridColumn: "span 2" }}>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Additional Contacts (Max: 10)</label>
-                        <input disabled value="Add additional contacts" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, background: T.pageBg, color: T.textMuted }} />
-                      </div>
                     </div>
 
                     <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Opportunity Details</h3>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                      <div style={{ gridColumn: "span 2" }}>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity Name</label>
-                        <input readOnly value={`${String(quickEditRow.first_name ?? "").trim()} ${String(quickEditRow.last_name ?? "").trim()}`.trim() + (quickEditRow.phone ? ` - ${formatPhoneDisplay(String(quickEditRow.phone))}` : "")} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600, background: T.pageBg }} />
-                      </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Pipeline</label>
                         <select value={String(quickEditRow.pipeline_name ?? pipeline)} onChange={(e) => patchQuickEdit("pipeline_name", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
@@ -1405,10 +1397,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                             <option key={s} value={s}>{s}</option>
                           ))}
                         </select>
-                      </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Status</label>
-                        <input readOnly value="Open" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, background: T.pageBg, fontSize: 14, fontWeight: 600 }} />
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity Value</label>
@@ -1438,10 +1426,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                             <option key={u.id} value={u.name}>{u.name}</option>
                           ))}
                         </select>
-                      </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Followers</label>
-                        <input disabled value="Add Followers" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, background: T.pageBg, fontSize: 14, color: T.textMuted }} />
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Business Name</label>
@@ -1597,12 +1581,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "16px 32px", borderTop: `1.5px solid ${T.borderLight}`, backgroundColor: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-              <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 500 }}>
-                 <div style={{ marginBottom: 4 }}>Row id: <span style={{ color: T.textDark, fontWeight: 700 }}>{quickEditLead.rowUuid}</span></div>
-                 <div style={{ marginBottom: 4 }}>Created: {quickEditRow ? formatTs(quickEditRow.created_at) : "—"}</div>
-                 <div>Updated: {quickEditRow ? formatTs(quickEditRow.updated_at) : "—"}</div>
-              </div>
+            <div style={{ padding: "16px 32px", borderTop: `1.5px solid ${T.borderLight}`, backgroundColor: "#fff", display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", gap: 12 }}>
                 <button type="button" disabled={quickEditSaving || !canEditLeadPipeline} onClick={deleteQuickEdit} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "8px", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", color: T.danger, cursor: canEditLeadPipeline ? "pointer" : "not-allowed", opacity: canEditLeadPipeline ? 1 : 0.5 }}>
                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
