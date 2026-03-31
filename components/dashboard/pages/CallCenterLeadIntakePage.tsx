@@ -10,7 +10,6 @@ import TransferLeadApplicationForm, { type TransferLeadFormData } from "./Transf
 import LeadViewComponent from "./LeadViewComponent";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import { useParams, useRouter } from "next/navigation";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import {
@@ -904,27 +903,8 @@ export default function CallCenterLeadIntakePage({
     const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
     const generatedSubmissionId = buildSubmissionId(callCenterName);
 
-    const phoneDigits = normalizePhoneDigits(payload.phone || "");
     const hasDuplicate = await promptDuplicateIfAny(payload);
     if (hasDuplicate) return;
-
-    // 2) DNC check (submit-time) — same parsing as Transfer Lead / lib/dncCheck (incl. dnc-test tcpa_litigator lists)
-    try {
-      if (phoneDigits.length === 10) {
-        const { status, message } = await runBlacklistDncPhoneCheck(supabase, phoneDigits);
-        if (status === "tcpa") {
-          setToast({
-            message: message || "WARNING: This number is blacklisted/TCPA flagged. Lead creation is blocked.",
-            type: "error",
-          });
-          return;
-        }
-      }
-    } catch (e) {
-      // Non-blocking: allow submit but inform user
-      const message = e instanceof Error ? e.message : "Unable to check DNC status.";
-      setToast({ message, type: "error" });
-    }
 
     const insertLead = async (finalPayload: TransferLeadFormData, asDuplicate: boolean) => {
       const existingAdditional = (finalPayload.additionalInformation || "").trim();
