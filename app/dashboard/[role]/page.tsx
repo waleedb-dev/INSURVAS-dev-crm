@@ -24,7 +24,9 @@ export default function RoleDashboardPage() {
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role;
   const sp = useSearchParams();
-  const canViewTransferClaimReclaimVisit = permissionKeys.has("action.transfer_leads.claim_reclaim_visit");
+  const canViewTransferClaimReclaimVisit =
+    permissionKeys.has("action.transfer_leads.claim_reclaim_visit") &&
+    currentRole !== "call_center_admin";
   const canEditLeadPipeline = permissionKeys.has("action.lead_pipeline.update") && currentRole !== "call_center_admin";
 
   const activePage: DashPage = useMemo(() => {
