@@ -1091,7 +1091,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           <AppSelect
             value={pipeline}
             onChange={(e) => setPipeline(e.target.value)}
-            style={{ padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: 10, fontSize: 13, fontWeight: 800, backgroundColor: "#fff", cursor: "pointer", outline: "none" }}
+            style={{ width: 260, padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: 10, fontSize: 13, fontWeight: 800, backgroundColor: "#fff", cursor: "pointer", outline: "none" }}
           >
             {pipelines.map((name) => (
               <option key={name} value={name}>
