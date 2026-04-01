@@ -1846,16 +1846,20 @@ export default function CallCenterLeadIntakePage({
       </div>
 
       {/* Filter toolbar */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 16 }}>
         {/* Top Bar */}
         <div
           style={{
             width: "100%",
             background: T.cardBg,
             border: `1px solid ${T.border}`,
-            borderRadius: 12,
+            borderBottom:
+              filterPanelExpanded || transferLeadsHasActiveFilters ? "none" : `1px solid ${T.border}`,
+            borderRadius:
+              filterPanelExpanded || transferLeadsHasActiveFilters ? "12px 12px 0 0" : 12,
             padding: "10px 16px",
-            boxShadow: T.shadowSm,
+            boxShadow:
+              filterPanelExpanded || transferLeadsHasActiveFilters ? "none" : T.shadowSm,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -1974,7 +1978,7 @@ export default function CallCenterLeadIntakePage({
               width: "100%",
               background: T.cardBg,
               border: `1px solid ${T.border}`,
-              borderRadius: 12,
+              borderRadius: "0 0 12px 12px",
               padding: "16px 20px",
               boxShadow: T.shadowSm,
               display: "flex",
