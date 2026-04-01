@@ -10,3 +10,4 @@ export { DataGrid, FilterChip } from "./DataGrid";
 export { Toast } from "./Toast";
 export { ActionMenu } from "./ActionMenu";
 export { EmptyState } from "./EmptyState";
+export { AnimatedContent } from "./AnimatedContent";

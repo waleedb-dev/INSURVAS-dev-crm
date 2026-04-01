@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, DataGrid, FilterChip, Input, Pagination, Table, Toast, EmptyState } from "@/components/ui";
+import { ActionMenu, AnimatedContent, DataGrid, FilterChip, Input, Pagination, Table, Toast, EmptyState } from "@/components/ui";
 import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
@@ -52,6 +52,17 @@ type DuplicateLeadMatch = {
 };
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
+
+const transferLeadReveal = {
+  distance: 90,
+  direction: "vertical" as const,
+  duration: 1.2,
+  ease: "power3.out",
+  initialOpacity: 0,
+  animateOpacity: true,
+  scale: 1,
+  threshold: 0.12,
+};
 
 const TL_DATE_INPUT_STYLE: CSSProperties = {
   width: "100%",
@@ -1731,49 +1742,41 @@ export default function CallCenterLeadIntakePage({
   return (
     <div onClick={() => setActiveMenu(null)}>
       {/* Header */}
-      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Transfer Leads</h1>
+      <AnimatedContent {...transferLeadReveal} delay={0} style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          <div>
+            <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Transfer Leads</h1>
+          </div>
+          <button
+            onClick={() => setShowCreateLead(true)}
+            disabled={!canCreateLeads}
+            title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
+            style={{
+              backgroundColor: canCreateLeads ? T.blue : T.border,
+              color: "#fff",
+              border: "none",
+              borderRadius: T.radiusMd,
+              padding: "10px 22px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: canCreateLeads ? "pointer" : "not-allowed",
+              fontFamily: T.font,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}44` : "none",
+              transition: "all 0.15s",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            Add New Lead
+          </button>
         </div>
-        <button
-          onClick={() => setShowCreateLead(true)}
-          disabled={!canCreateLeads}
-          title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
-          style={{
-            backgroundColor: canCreateLeads ? T.blue : T.border,
-            color: "#fff",
-            border: "none",
-            borderRadius: T.radiusMd,
-            padding: "10px 22px",
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: canCreateLeads ? "pointer" : "not-allowed",
-            fontFamily: T.font,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}44` : "none",
-            transition: "all 0.15s",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          Add New Lead
-        </button>
-      </div>
+      </AnimatedContent>
 
-      {/* Stats Row - Shadcn Vibes */}
-      <style>{`
-        @keyframes stat-card-in {
-          from { opacity: 0; transform: translateY(8px) scale(0.99); }
-          to   { opacity: 1; transform: translateY(0)   scale(1);    }
-        }
-        @keyframes filter-panel-in {
-          from { opacity: 0; transform: translateY(-8px); transform-origin: top; }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+      {/* Stats Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
           { label: "TOTAL LEADS", value: filtered.length.toString(), color: T.memberTeal, icon: (
@@ -1789,45 +1792,46 @@ export default function CallCenterLeadIntakePage({
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
             ) },
         ].map(({ label, value, color, icon }, i) => (
-          <Card key={label} style={{ 
-            borderRadius: 12, 
-            border: `1px solid ${T.border}`, 
-            borderBottom: `4px solid ${color}`, 
-            background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`, 
-            boxShadow: "0 4px 12px rgba(0,0,0,0.03)", 
-            padding: "20px 24px", 
-            display: "flex", 
-            flexDirection: "row", 
-            justifyContent: "space-between",
-            animation: "stat-card-in 0.3s cubic-bezier(0.16,1,0.3,1) both", 
-            animationDelay: `${i * 50}ms` 
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
-              <div style={{ fontSize: 32, fontWeight: 800, color: color, lineHeight: 1 }}>
-                {value}
-              </div>
-            </div>
-            <div style={{ 
-              color: color, 
-              backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
-              width: 54,
-              height: 54,
-              borderRadius: 14,
+          <AnimatedContent key={label} {...transferLeadReveal} delay={i * 0.08}>
+            <Card style={{ 
+              borderRadius: 12, 
+              border: `1px solid ${T.border}`, 
+              borderBottom: `4px solid ${color}`, 
+              background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`, 
+              boxShadow: "0 4px 12px rgba(0,0,0,0.03)", 
+              padding: "20px 24px", 
               display: "flex", 
-              alignItems: "center", 
-              justifyContent: "center",
-              flexShrink: 0
+              flexDirection: "row", 
+              justifyContent: "space-between",
             }}>
-              {icon}
-            </div>
-          </Card>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
+                <div style={{ fontSize: 32, fontWeight: 800, color: color, lineHeight: 1 }}>
+                  {value}
+                </div>
+              </div>
+              <div style={{ 
+                color: color, 
+                backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
+                width: 54,
+                height: 54,
+                borderRadius: 14,
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                flexShrink: 0
+              }}>
+                {icon}
+              </div>
+            </Card>
+          </AnimatedContent>
         ))}
       </div>
 
       {/* Filter toolbar */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
         {/* Top Bar */}
+        <AnimatedContent {...transferLeadReveal} delay={0.35} style={{ width: "100%" }}>
         <div
           style={{
             background: T.cardBg,
@@ -1945,8 +1949,10 @@ export default function CallCenterLeadIntakePage({
             </button>
           </div>
         </div>
+        </AnimatedContent>
 
         {(filterPanelExpanded || transferLeadsHasActiveFilters) && (
+          <AnimatedContent {...transferLeadReveal} delay={0.05} style={{ width: "100%" }}>
           <div
             style={{
               background: T.cardBg,
@@ -1957,7 +1963,6 @@ export default function CallCenterLeadIntakePage({
               display: "flex",
               flexDirection: "column",
               gap: 16,
-              animation: "filter-panel-in 0.2s cubic-bezier(0.16,1,0.3,1) both",
             }}
           >
             {filterPanelExpanded && (
@@ -2153,9 +2158,11 @@ export default function CallCenterLeadIntakePage({
               </div>
             )}
           </div>
+          </AnimatedContent>
         )}
       </div>
 
+      <AnimatedContent {...transferLeadReveal} delay={0.42} style={{ width: "100%" }}>
       <DataGrid
         search={search}
         onSearchChange={setSearch}
@@ -2375,6 +2382,7 @@ export default function CallCenterLeadIntakePage({
           <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
         )}
       </DataGrid>
+      </AnimatedContent>
 
       {pendingDeleteLead && (
         <div
