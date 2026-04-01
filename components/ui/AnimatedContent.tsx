@@ -79,6 +79,7 @@ export function AnimatedContent({
       scale,
       opacity: animateOpacity ? initialOpacity : 1,
       visibility: "visible",
+      force3D: true,
     });
 
     const tl = gsap.timeline({
@@ -106,6 +107,7 @@ export function AnimatedContent({
       opacity: 1,
       duration,
       ease,
+      force3D: true,
     });
 
     const stVars: ScrollTrigger.Vars = {

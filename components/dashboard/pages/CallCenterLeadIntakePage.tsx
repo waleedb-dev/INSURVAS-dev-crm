@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, AnimatedContent, DataGrid, FilterChip, Input, Pagination, Table, Toast, EmptyState } from "@/components/ui";
+import { ActionMenu, DataGrid, FilterChip, Input, Pagination, Table, Toast, EmptyState } from "@/components/ui";
 import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
@@ -52,17 +52,6 @@ type DuplicateLeadMatch = {
 };
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
-
-const transferLeadReveal = {
-  distance: 90,
-  direction: "vertical" as const,
-  duration: 1.2,
-  ease: "power3.out",
-  initialOpacity: 0,
-  animateOpacity: true,
-  scale: 1,
-  threshold: 0.12,
-};
 
 const TL_DATE_INPUT_STYLE: CSSProperties = {
   width: "100%",
@@ -829,7 +818,8 @@ export default function CallCenterLeadIntakePage({
           alignItems: "center",
           gap: 8,
           boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}44` : "none",
-          transition: "all 0.15s",
+          transition:
+            "background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -845,7 +835,7 @@ export default function CallCenterLeadIntakePage({
   const totalPremium = filtered.reduce((s, l) => s + l.premium, 0);
   const avgPremium = filtered.length ? totalPremium / filtered.length : 0;
   const uniquePipelines = new Set(filtered.map((l) => l.pipelineName)).size;
-  const draftLeadsCount = filtered.filter((l) => l.isDraft).length;
+  const draftCount = filtered.reduce((n, l) => n + (l.isDraft ? 1 : 0), 0);
 
   const promptDuplicateIfAny = async (payload: TransferLeadFormData): Promise<boolean> => {
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
@@ -1772,24 +1762,34 @@ export default function CallCenterLeadIntakePage({
 
   return (
     <div onClick={() => setActiveMenu(null)}>
-      {/* Stats Row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+      {/* Stats Row — 5 compact KPIs (wide vs tall ratio similar to reference dashboards) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
         {[
           { label: "TOTAL LEADS", value: filtered.length.toString(), color: T.memberTeal, icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             ) },
           { label: "TOTAL PREMIUM", value: `$${totalPremium.toLocaleString()}`, color: T.memberTeal, icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
             ) },
           { label: "AVG PREMIUM", value: `$${avgPremium.toFixed(0)}`, color: T.memberTeal, icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
             ) },
           { label: "ACTIVE PIPELINES", value: uniquePipelines.toString(), color: T.memberTeal, icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            ) },
+          { label: "DRAFT LEADS", value: draftCount.toString(), color: T.memberTeal, icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
             ) },
         ].map(({ label, value, color, icon }, i) => (
-          <AnimatedContent key={label} {...transferLeadReveal} delay={i * 0.08}>
             <Card
+              key={label}
               onMouseEnter={() => setHoveredStatIdx(i)}
               onMouseLeave={() => setHoveredStatIdx(null)}
               style={{
@@ -1803,17 +1803,20 @@ export default function CallCenterLeadIntakePage({
                     : "0 4px 12px rgba(0,0,0,0.03)",
                 transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
                 transition:
-                  "transform 0.28s cubic-bezier(0.33, 1, 0.68, 1), box-shadow 0.28s cubic-bezier(0.33, 1, 0.68, 1)",
-                padding: "20px 24px",
+                  "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                padding: "12px 14px",
+                minHeight: 88,
                 display: "flex",
                 flexDirection: "row",
                 justifyContent: "space-between",
+                alignItems: "center",
+                gap: 10,
                 cursor: "default",
               }}
             >
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
-                <div style={{ fontSize: 32, fontWeight: 800, color: color, lineHeight: 1 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+                <div style={{ fontSize: 22, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
                   {value}
                 </div>
               </div>
@@ -1824,30 +1827,30 @@ export default function CallCenterLeadIntakePage({
                     hoveredStatIdx === i
                       ? `color-mix(in srgb, ${color} 24%, transparent)`
                       : `color-mix(in srgb, ${color} 15%, transparent)`,
-                  width: 54,
-                  height: 54,
-                  borderRadius: 14,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
-                  transition: "background-color 0.28s ease, transform 0.28s cubic-bezier(0.33, 1, 0.68, 1)",
+                  transition:
+                    "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
                   transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
                 }}
               >
                 {icon}
               </div>
             </Card>
-          </AnimatedContent>
         ))}
       </div>
 
       {/* Filter toolbar */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
         {/* Top Bar */}
-        <AnimatedContent {...transferLeadReveal} delay={0.35} style={{ width: "100%" }}>
         <div
           style={{
+            width: "100%",
             background: T.cardBg,
             border: `1px solid ${T.border}`,
             borderRadius: 12,
@@ -1892,7 +1895,7 @@ export default function CallCenterLeadIntakePage({
                   background: T.pageBg,
                   outline: "none",
                   fontFamily: T.font,
-                  transition: "border-color 0.2s, box-shadow 0.2s",
+                  transition: "border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = T.blue;
@@ -1936,7 +1939,8 @@ export default function CallCenterLeadIntakePage({
                 fontWeight: 600,
                 fontFamily: T.font,
                 cursor: "pointer",
-                transition: "all 0.2s",
+                transition:
+                  "border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1963,12 +1967,11 @@ export default function CallCenterLeadIntakePage({
             </button>
           </div>
         </div>
-        </AnimatedContent>
 
         {(filterPanelExpanded || transferLeadsHasActiveFilters) && (
-          <AnimatedContent {...transferLeadReveal} delay={0.05} style={{ width: "100%" }}>
           <div
             style={{
+              width: "100%",
               background: T.cardBg,
               border: `1px solid ${T.border}`,
               borderRadius: 12,
@@ -2172,11 +2175,9 @@ export default function CallCenterLeadIntakePage({
               </div>
             )}
           </div>
-          </AnimatedContent>
         )}
       </div>
 
-      <AnimatedContent {...transferLeadReveal} delay={0.42} style={{ width: "100%" }}>
       <DataGrid
         search={search}
         onSearchChange={setSearch}
@@ -2228,7 +2229,7 @@ export default function CallCenterLeadIntakePage({
                     key={lead.id}
                     onClick={() => void openLeadFromGrid(lead)}
                     style={{ cursor: "pointer", borderBottom: `1px solid ${T.asideChrome}` }}
-                    className="hover:bg-muted/30 transition-colors"
+                    className="hover:bg-muted/30 transition-[background-color] duration-200 ease-out"
                   >
                     <TableCell style={{ padding: "12px 16px" }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: T.textDark, textDecoration: "underline" }}>
@@ -2318,7 +2319,6 @@ export default function CallCenterLeadIntakePage({
                               fontWeight: 700,
                               padding: "6px 12px",
                               cursor: "pointer",
-                              transition: "all 160ms ease",
                             }}
                           >
                             View Lead
@@ -2339,7 +2339,6 @@ export default function CallCenterLeadIntakePage({
                                 fontWeight: 700,
                                 padding: "6px 12px",
                                 cursor: "pointer",
-                                transition: "all 160ms ease",
                               }}
                             >
                               Claim Call
@@ -2357,7 +2356,6 @@ export default function CallCenterLeadIntakePage({
                                 fontWeight: 700,
                                 padding: "6px 12px",
                                 cursor: "pointer",
-                                transition: "all 160ms ease",
                               }}
                             >
                               Claim Retention
@@ -2395,7 +2393,6 @@ export default function CallCenterLeadIntakePage({
           <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
         )}
       </DataGrid>
-      </AnimatedContent>
 
       {pendingDeleteLead && (
         <div
@@ -2478,6 +2475,14 @@ export default function CallCenterLeadIntakePage({
         }}
       />
       <style jsx>{`
+        .lead-action-btn {
+          transition:
+            background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+            border-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+            color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+            transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+        }
         .lead-action-btn:hover {
           background: #3b5229;
           border-color: #3b5229;
