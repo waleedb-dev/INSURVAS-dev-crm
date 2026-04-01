@@ -207,8 +207,8 @@ export default function DashboardLayout({
           <div style={{ padding: "0 16px", marginBottom: 24 }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 8,
-              background: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              background: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(255, 255, 255, 0.07)",
               borderRadius: 8,
               padding: "8px 12px",
               cursor: "text",
@@ -232,7 +232,7 @@ export default function DashboardLayout({
         )}
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: `0 ${collapsed ? 8 : 12}px`, overflowY: "auto", transition: "padding 0.22s" }}>
+        <nav style={{ padding: `0 ${collapsed ? 8 : 12}px`, overflowY: "auto", transition: "padding 0.22s" }}>
           {NAV_ITEMS.filter((item) => visiblePageSet.has(item.id)).map(({ id, label, Icon }) => {
             const isActive = id === activeNav;
             return (
@@ -248,7 +248,7 @@ export default function DashboardLayout({
                   width: "100%",
                   padding: collapsed ? "10px 0" : "10px 14px",
                   borderRadius: 8, border: "none", cursor: "pointer",
-                  backgroundColor: isActive ? "rgba(255, 255, 255, 0.1)" : (hoveredNav === id ? "rgba(255, 255, 255, 0.05)" : "transparent"),
+                  backgroundColor: isActive ? "rgba(255, 255, 255, 0.06)" : (hoveredNav === id ? "rgba(255, 255, 255, 0.025)" : "transparent"),
                   color: isActive ? "#fff" : (hoveredNav === id ? "#fff" : "#a1a1aa"),
                   fontSize: 14, fontWeight: isActive ? 600 : 500,
                   marginBottom: 2, fontFamily: T.font,
@@ -266,160 +266,6 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        {/* Sidebar footer: notifications, appearance, account (matches reference dashboards) */}
-        <div style={{ padding: `10px ${collapsed ? 8 : 12}px 0`, borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: "auto", paddingTop: 14, flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-          <div ref={notifRef} style={{ position: "relative", width: "100%" }}>
-            <button
-              id="sidebar-notification-btn"
-              type="button"
-              onClick={() => { setShowNotif((v) => !v); setShowUser(false); }}
-              title="Notifications"
-              style={{
-                display: "flex", alignItems: "center",
-                gap: collapsed ? 0 : 12,
-                justifyContent: collapsed ? "center" : "flex-start",
-                width: "100%",
-                padding: collapsed ? "10px 0" : "10px 14px",
-                border: "none", borderRadius: 8, cursor: "pointer",
-                background: showNotif ? "rgba(255,255,255,0.08)" : "transparent",
-                color: "#a1a1aa", fontFamily: T.font, fontSize: 14, fontWeight: 500,
-                transition: "background-color 0.15s, color 0.15s",
-              }}
-              onMouseEnter={(e) => { if (!showNotif) (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; (e.currentTarget as HTMLElement).style.color = "#fff"; }}
-              onMouseLeave={(e) => { if (!showNotif) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLElement).style.color = "#a1a1aa"; }}
-            >
-              <span style={{ position: "relative", display: "flex", flexShrink: 0 }}>
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M10 2C10 2 6 4 6 9V13L4 15H16L14 13V9C14 4 10 2 10 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                  <path d="M8.5 15.5C8.5 16.33 9.17 17 10 17C10.83 17 11.5 16.33 11.5 15.5" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-                {unread > 0 && (
-                  <span style={{ position: "absolute", top: -2, right: -2, width: 7, height: 7, borderRadius: "50%", backgroundColor: T.danger, border: `2px solid ${T.asideChrome}` }} />
-                )}
-              </span>
-              {!collapsed && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Notifications</span>}
-            </button>
-            {showNotif && (
-              <div style={{ position: "absolute", left: "100%", marginLeft: 10, bottom: 0, width: 310, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 250, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
-                <div style={{ padding: "13px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.borderLight}` }}>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>Notifications</span>
-                  {unread > 0 && <button type="button" onClick={markAllRead} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.blue, fontFamily: T.font }}>Mark all read</button>}
-                </div>
-                {notifs.map((n) => (
-                  <div key={n.id} onClick={() => setNotifs((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x))} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 16px", backgroundColor: n.read ? T.cardBg : T.blueFaint, cursor: "pointer", borderBottom: `1px solid ${T.borderLight}`, transition: "background-color 0.15s" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = n.read ? T.cardBg : T.blueFaint; }}
-                  >
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: n.read ? "transparent" : T.blue, flexShrink: 0, marginTop: 5 }} />
-                    <div>
-                      <p style={{ margin: 0, fontSize: 12, color: T.textMid, fontWeight: 600, lineHeight: 1.5 }}>{n.text}</p>
-                      <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 2 }}>{n.time}</p>
-                    </div>
-                  </div>
-                ))}
-                <div style={{ padding: "10px 16px", textAlign: "center" }}>
-                  <button type="button" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.blue, fontFamily: T.font }}>View all notifications</button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsDark(!isDark)}
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            style={{
-              display: "flex", alignItems: "center",
-              gap: collapsed ? 0 : 12,
-              justifyContent: collapsed ? "center" : "flex-start",
-              width: "100%",
-              padding: collapsed ? "10px 0" : "10px 14px",
-              border: "none", borderRadius: 8, cursor: "pointer", background: "none",
-              color: "#a1a1aa", fontFamily: T.font, fontSize: 14, fontWeight: 500,
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#fff"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#a1a1aa"; }}
-          >
-            <span style={{ display: "flex", flexShrink: 0 }}>
-              {isDark ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="5" />
-                  <line x1="12" y1="1" x2="12" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="23" />
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                  <line x1="1" y1="12" x2="3" y2="12" />
-                  <line x1="21" y1="12" x2="23" y2="12" />
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-              )}
-            </span>
-            {!collapsed && <span>Appearance</span>}
-          </button>
-
-          <div ref={userRef} style={{ position: "relative", width: "100%" }}>
-            <button
-              type="button"
-              id="sidebar-user-menu-btn"
-              onClick={() => { setShowUser((v) => !v); setShowNotif(false); }}
-              title={userDisplayName}
-              style={{
-                display: "flex", alignItems: "center",
-                gap: collapsed ? 0 : 10,
-                justifyContent: collapsed ? "center" : "flex-start",
-                width: "100%",
-                padding: collapsed ? "10px 0" : "10px 14px",
-                border: "none", borderRadius: 8, cursor: "pointer",
-                background: showUser ? "rgba(255,255,255,0.08)" : "transparent",
-                color: "#fff", fontFamily: T.font, transition: "background-color 0.15s",
-              }}
-              onMouseEnter={(e) => { if (!showUser) (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
-              onMouseLeave={(e) => { if (!showUser) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-            >
-              <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: T.blue, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{userInitials}</div>
-              {!collapsed && (
-                <>
-                  <span style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0, textAlign: "left", color: "#fff" }}>{userDisplayName}</span>
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, transition: "transform 0.18s", transform: showUser ? "rotate(180deg)" : "rotate(0)" }}>
-                    <path d="M3 4.5L6 7.5L9 4.5" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </>
-              )}
-            </button>
-            {showUser && (
-              <div style={{ position: "absolute", left: "100%", marginLeft: 10, bottom: 0, width: 220, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 250, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
-                <div style={{ padding: "13px 16px", borderBottom: `1px solid ${T.borderLight}` }}>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.textDark }}>{userDisplayName}</p>
-                  <p style={{ margin: "4px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 600, wordBreak: "break-all" }}>{userEmail}</p>
-                </div>
-                {["My Profile", "Account Settings", "Notifications"].map((label) => (
-                  <button key={label} type="button" style={{ width: "100%", display: "block", padding: "10px 16px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                  >{label}</button>
-                ))}
-                <button type="button" onClick={() => { onSupportClick(); setShowUser(false); }} style={{ width: "100%", display: "block", padding: "10px 16px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                >Help &amp; Support</button>
-                <div style={{ borderTop: `1px solid ${T.borderLight}` }}>
-                  <button type="button" id="sidebar-logout-btn" onClick={() => { setShowUser(false); onSignOut(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 700, color: T.danger, textAlign: "left", transition: "background-color 0.15s" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#f2f8ee"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                  >
-                    <LogoutIcon />Sign out
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       </aside>
 
       {/* ── Main area ──────────────────────────────────────────────────────── */}
@@ -452,7 +298,156 @@ export default function DashboardLayout({
             paddingRight: 16,
           }}>{headerTitle}</h1>
 
-          <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 12, minHeight: 44 }}>
+          <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 10, minHeight: 44 }}>
+            <div ref={notifRef} style={{ position: "relative" }}>
+              <button
+                id="header-notification-btn"
+                type="button"
+                onClick={() => { setShowNotif((v) => !v); setShowUser(false); }}
+                title="Notifications"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  border: `1px solid ${T.border}`,
+                  background: showNotif ? T.cardBg : T.pageBg,
+                  color: T.textMid,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                <span style={{ position: "relative", display: "flex" }}>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 2C10 2 6 4 6 9V13L4 15H16L14 13V9C14 4 10 2 10 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                    <path d="M8.5 15.5C8.5 16.33 9.17 17 10 17C10.83 17 11.5 16.33 11.5 15.5" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                  {unread > 0 && (
+                    <span style={{ position: "absolute", top: -2, right: -2, width: 7, height: 7, borderRadius: "50%", backgroundColor: T.danger, border: `2px solid ${T.cardBg}` }} />
+                  )}
+                </span>
+              </button>
+              {showNotif && (
+                <div style={{ position: "absolute", right: 0, top: "calc(100% + 10px)", width: 310, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 250, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
+                  <div style={{ padding: "13px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.borderLight}` }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>Notifications</span>
+                    {unread > 0 && <button type="button" onClick={markAllRead} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.blue, fontFamily: T.font }}>Mark all read</button>}
+                  </div>
+                  {notifs.map((n) => (
+                    <div key={n.id} onClick={() => setNotifs((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x))} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 16px", backgroundColor: n.read ? T.cardBg : T.blueFaint, cursor: "pointer", borderBottom: `1px solid ${T.borderLight}`, transition: "background-color 0.15s" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = n.read ? T.cardBg : T.blueFaint; }}
+                    >
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: n.read ? "transparent" : T.blue, flexShrink: 0, marginTop: 5 }} />
+                      <div>
+                        <p style={{ margin: 0, fontSize: 12, color: T.textMid, fontWeight: 600, lineHeight: 1.5 }}>{n.text}</p>
+                        <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 2 }}>{n.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ padding: "10px 16px", textAlign: "center" }}>
+                    <button type="button" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.blue, fontFamily: T.font }}>View all notifications</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsDark(!isDark)}
+              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              style={{
+                height: 40,
+                padding: "0 12px",
+                borderRadius: 12,
+                border: `1px solid ${T.border}`,
+                background: T.pageBg,
+                color: T.textMid,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                cursor: "pointer",
+                fontFamily: T.font,
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
+              {isDark ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+              Appearance
+            </button>
+
+            <div ref={userRef} style={{ position: "relative" }}>
+              <button
+                type="button"
+                id="header-user-menu-btn"
+                onClick={() => { setShowUser((v) => !v); setShowNotif(false); }}
+                title={userDisplayName}
+                style={{
+                  height: 40,
+                  padding: "0 12px 0 8px",
+                  borderRadius: 12,
+                  border: `1px solid ${T.border}`,
+                  background: showUser ? T.cardBg : T.pageBg,
+                  color: T.textDark,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 10,
+                  cursor: "pointer",
+                  fontFamily: T.font,
+                }}
+              >
+                <div style={{ width: 26, height: 26, borderRadius: "50%", backgroundColor: T.blue, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{userInitials}</div>
+                <span style={{ fontSize: 13, fontWeight: 700, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userDisplayName}</span>
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, transition: "transform 0.18s", transform: showUser ? "rotate(180deg)" : "rotate(0)" }}>
+                  <path d="M3 4.5L6 7.5L9 4.5" stroke={T.textMuted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              {showUser && (
+                <div style={{ position: "absolute", right: 0, top: "calc(100% + 10px)", width: 220, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 250, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
+                  <div style={{ padding: "13px 16px", borderBottom: `1px solid ${T.borderLight}` }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.textDark }}>{userDisplayName}</p>
+                    <p style={{ margin: "4px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 600, wordBreak: "break-all" }}>{userEmail}</p>
+                  </div>
+                  {["My Profile", "Account Settings", "Notifications"].map((label) => (
+                    <button key={label} type="button" style={{ width: "100%", display: "block", padding: "10px 16px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                    >{label}</button>
+                  ))}
+                  <button type="button" onClick={() => { onSupportClick(); setShowUser(false); }} style={{ width: "100%", display: "block", padding: "10px 16px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                  >Help &amp; Support</button>
+                  <div style={{ borderTop: `1px solid ${T.borderLight}` }}>
+                    <button type="button" id="header-logout-btn" onClick={() => { setShowUser(false); onSignOut(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 700, color: T.danger, textAlign: "left", transition: "background-color 0.15s" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#f2f8ee"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                    >
+                      <LogoutIcon />Sign out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {pageHeaderActions}
           </div>
         </header>
