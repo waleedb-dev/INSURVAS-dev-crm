@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
+import { T } from "@/lib/theme";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -55,12 +56,13 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: "#f2f8ee" }}>
+    <div className="min-h-screen flex" style={{ backgroundColor: T.pageBg }}>
       <div
         className="hidden md:flex flex-col relative overflow-hidden items-center justify-center text-center"
         style={{
           width: "50%",
-          backgroundColor: "#638b4b",
+          backgroundColor: T.asideChrome,
+          borderRight: "1px solid rgba(255,255,255,0.1)",
           padding: "48px 56px",
         }}
       >
@@ -115,7 +117,7 @@ export default function SignInPage() {
 
       <div
         className="flex-1 flex items-center justify-center px-4"
-        style={{ backgroundColor: "#f2f8ee" }}
+        style={{ backgroundColor: T.pageBg }}
       >
         <form
           onSubmit={handleSignIn}
