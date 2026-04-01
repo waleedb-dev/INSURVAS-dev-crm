@@ -39,6 +39,145 @@ type IntakeLead = {
   isDraft?: boolean;
 };
 
+type TransferKanbanColumnId =
+  | "new-lead-in"
+  | "new-transfer-enqueue"
+  | "pending-disposition"
+  | "submitted"
+  | "not-submitted";
+
+const TRANSFER_KANBAN_COLUMNS: Array<{
+  id: TransferKanbanColumnId;
+  label: string;
+  accent: string;
+  bg: string;
+}> = [
+  { id: "new-lead-in", label: "New Lead In", accent: "#4f46e5", bg: "#eef2ff" },
+  { id: "new-transfer-enqueue", label: "New Transfer Enqueue", accent: "#0f766e", bg: "#ecfeff" },
+  { id: "pending-disposition", label: "Pending Disposition", accent: "#b45309", bg: "#fffbeb" },
+  { id: "submitted", label: "Submitted", accent: "#166534", bg: "#f0fdf4" },
+  { id: "not-submitted", label: "Not Submitted", accent: "#b91c1c", bg: "#fef2f2" },
+];
+
+function renderTransferKanbanBoard() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <style>{`
+        .transfer-kanban-board {
+          display: flex;
+          gap: 16px;
+          overflow-x: auto;
+          padding: 4px 2px 10px;
+          scrollbar-width: thin;
+          scrollbar-color: ${T.border} transparent;
+        }
+        .transfer-kanban-board::-webkit-scrollbar { height: 7px; }
+        .transfer-kanban-board::-webkit-scrollbar-track { background: transparent; }
+        .transfer-kanban-board::-webkit-scrollbar-thumb { background: #c8d4bb; border-radius: 999px; }
+      `}</style>
+
+      <div className="transfer-kanban-board">
+        {TRANSFER_KANBAN_COLUMNS.map((column) => (
+          <div
+            key={column.id}
+            style={{
+              minWidth: 316,
+              width: 316,
+              flexShrink: 0,
+              background: T.cardBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: 14,
+              boxShadow: "0 2px 12px rgba(15, 23, 42, 0.05)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                background: `linear-gradient(180deg, ${column.bg} 0%, #ffffff 88%)`,
+                borderTop: `4px solid ${column.accent}`,
+                borderBottom: `1px solid ${T.borderLight}`,
+                padding: "14px 16px 12px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{column.label}</span>
+                <span
+                  style={{
+                    minWidth: 28,
+                    height: 28,
+                    borderRadius: 999,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#fff",
+                    border: `1px solid ${T.borderLight}`,
+                    color: column.accent,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    padding: "0 8px",
+                  }}
+                >
+                  0
+                </span>
+              </div>
+              <div style={{ marginTop: 6, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                No leads yet
+              </div>
+            </div>
+
+            <div
+              style={{
+                minHeight: 460,
+                padding: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.98) 100%)",
+              }}
+            >
+              <div
+                style={{
+                  width: "100%",
+                  border: `1px dashed ${T.border}`,
+                  borderRadius: 12,
+                  padding: "22px 16px",
+                  textAlign: "center",
+                  background: "#fff",
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    margin: "0 auto 12px",
+                    borderRadius: 12,
+                    background: column.bg,
+                    color: column.accent,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>No cards in this stage</div>
+                <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, color: T.textMuted }}>
+                  Kanban layout is enabled, but cards are intentionally hidden for now.
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 type DuplicateLeadMatch = {
   id: string;
   lead_unique_id: string | null;
@@ -400,6 +539,7 @@ export default function CallCenterLeadIntakePage({
   const [filterMaxPremium, setFilterMaxPremium] = useState("");
   /** Detailed filters (dates, dropdowns, premium) — search + chips stay usable when false */
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -1913,8 +2053,50 @@ export default function CallCenterLeadIntakePage({
             </div>
           </div>
 
-          {/* Right: Total count + Filters button */}
+          {/* Right: View switch + total count + Filters button */}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: 4,
+                borderRadius: 10,
+                border: `1px solid ${T.border}`,
+                background: T.pageBg,
+                gap: 4,
+              }}
+            >
+              {([
+                { id: "table", label: "Table" },
+                { id: "kanban", label: "Kanban" },
+              ] as const).map((option) => {
+                const active = viewMode === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setViewMode(option.id)}
+                    style={{
+                      height: 30,
+                      padding: "0 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: active ? T.cardBg : "transparent",
+                      color: active ? T.textDark : T.textMuted,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fontFamily: T.font,
+                      cursor: "pointer",
+                      boxShadow: active ? "0 1px 3px rgba(15, 23, 42, 0.08)" : "none",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <span style={{
               fontSize: 13,
               color: T.textMuted,
@@ -2182,221 +2364,227 @@ export default function CallCenterLeadIntakePage({
         )}
       </div>
 
-      <DataGrid
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search leads by name, phone, source, or ID..."
-        noHeader
-        pagination={
-          <Pagination
-            page={page}
-            totalItems={filtered.length}
-            itemsPerPage={itemsPerPage}
-            itemLabel="leads"
-            onPageChange={setPage}
-          />
-        }
-      >
-        <div
-          style={{
-            borderRadius: "12px 12px 0 0",
-            border: `1.5px solid ${T.border}`,
-            borderBottom: "none",
-            overflow: "hidden",
-            backgroundColor: T.cardBg,
-          }}
+      {viewMode === "table" ? (
+        <DataGrid
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search leads by name, phone, source, or ID..."
+          noHeader
+          pagination={
+            <Pagination
+              page={page}
+              totalItems={filtered.length}
+              itemsPerPage={itemsPerPage}
+              itemLabel="leads"
+              onPageChange={setPage}
+            />
+          }
         >
-          <ShadcnTable>
-            <TableHeader style={{ backgroundColor: T.asideChrome }}>
-              <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
-                {[
-                  "LEAD ID", "CLIENT", "CONTACT", "CENTRE", "PREMIUM", "CREATED BY", "ACTIONS"
-                ].map(header => (
-                  <TableHead key={header} style={{ 
-                    color: "white", 
-                    fontWeight: 800, 
-                    fontSize: 11, 
-                    letterSpacing: "0.5px",
-                    padding: "16px",
-                    whiteSpace: "nowrap",
-                    textAlign: header === "ACTIONS" ? "center" : "left"
-                  }}>
-                    {header}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginated.map((lead) => {
-                return (
-                  <TableRow 
-                    key={lead.id}
-                    onClick={() => void openLeadFromGrid(lead)}
-                    style={{ cursor: "pointer", borderBottom: `1px solid ${T.asideChrome}` }}
-                    className="hover:bg-muted/30 transition-[background-color] duration-200 ease-out"
-                  >
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: T.textDark, textDecoration: "underline" }}>
-                        {lead.id}
-                      </span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
-                          backgroundColor: T.asideChrome,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#fff",
-                          fontSize: 11,
-                          fontWeight: 800,
-                          flexShrink: 0,
-                        }}>
-                          {getInitials(lead.name)}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
-                          {lead.isDraft ? (
-                            <span
-                              style={{
-                                backgroundColor: "#fff7ed",
-                                color: "#c2410c",
-                                border: "1px solid #fdba74",
-                                borderRadius: 999,
-                                padding: "2px 8px",
-                                fontSize: 10,
-                                fontWeight: 800,
-                                letterSpacing: "0.2px",
-                                textTransform: "uppercase",
-                              }}
-                            >
-                              Draft
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.phone}</div>
-                      <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.source}</div>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
-                        {lead.centerName}
-                      </span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>
-                        ${lead.premium.toLocaleString()}
-                      </span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
-                        {lead.createdBy}
-                      </span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
-                      >
-                        {!isCallCenterTransferRole && (
-                          <button
-                            className="lead-action-btn"
-                            type="button"
-                            onClick={() => {
-                              if (lead.isDraft) {
-                                void openLeadFromGrid(lead);
-                                return;
-                              }
-                              router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
-                            }}
-                            style={{
-                              border: `1.5px solid ${T.border}`,
-                              borderRadius: 8,
-                              background: T.cardBg,
-                              color: T.textDark,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              padding: "6px 12px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            View Lead
-                          </button>
-                        )}
-                        {canViewTransferClaimReclaimVisit && (
-                          <>
-                            <button
-                              className="lead-action-btn"
-                              type="button"
-                              onClick={() => void openClaimModalForLead(lead)}
-                              style={{
-                                border: `1.5px solid ${T.border}`,
-                                borderRadius: 8,
-                                background: T.cardBg,
-                                color: T.textDark,
-                                fontSize: 12,
-                                fontWeight: 700,
-                                padding: "6px 12px",
-                                cursor: "pointer",
-                              }}
-                            >
-                              Claim Call
-                            </button>
-                            <button
-                              className="lead-action-btn"
-                              type="button"
-                              onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
-                              style={{
-                                border: `1.5px solid ${T.border}`,
-                                borderRadius: 8,
-                                background: T.cardBg,
-                                color: T.textDark,
-                                fontSize: 12,
-                                fontWeight: 700,
-                                padding: "6px 12px",
-                                cursor: "pointer",
-                              }}
-                            >
-                              Claim Retention
-                            </button>
-                          </>
-                        )}
-                        <ActionMenu
-                          id={lead.id}
-                          activeId={activeMenu}
-                          onToggle={setActiveMenu}
-                          items={
-                            canEditTransferLeads
-                              ? [
-                                  { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                  { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
-                                  { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
-                                ]
-                              : isCallCenterTransferRole && lead.isDraft
-                                ? [
-                                    { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                    { label: "Update Lead", onClick: () => void openLeadInForm(lead.rowId) },
-                                  ]
-                                : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
-                          }
-                        />
-                      </div>
-                    </TableCell>
+          <>
+            <div
+              style={{
+                borderRadius: "12px 12px 0 0",
+                border: `1.5px solid ${T.border}`,
+                borderBottom: "none",
+                overflow: "hidden",
+                backgroundColor: T.cardBg,
+              }}
+            >
+              <ShadcnTable>
+                <TableHeader style={{ backgroundColor: T.asideChrome }}>
+                  <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                    {[
+                      "LEAD ID", "CLIENT", "CONTACT", "CENTRE", "PREMIUM", "CREATED BY", "ACTIONS"
+                    ].map(header => (
+                      <TableHead key={header} style={{ 
+                        color: "white", 
+                        fontWeight: 800, 
+                        fontSize: 11, 
+                        letterSpacing: "0.5px",
+                        padding: "16px",
+                        whiteSpace: "nowrap",
+                        textAlign: header === "ACTIONS" ? "center" : "left"
+                      }}>
+                        {header}
+                      </TableHead>
+                    ))}
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </ShadcnTable>
-        </div>
-        {filtered.length === 0 && (
-          <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
-        )}
-      </DataGrid>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map((lead) => {
+                    return (
+                      <TableRow 
+                        key={lead.id}
+                        onClick={() => void openLeadFromGrid(lead)}
+                        style={{ cursor: "pointer", borderBottom: `1px solid ${T.asideChrome}` }}
+                        className="hover:bg-muted/30 transition-[background-color] duration-200 ease-out"
+                      >
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: T.textDark, textDecoration: "underline" }}>
+                            {lead.id}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              backgroundColor: T.asideChrome,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "#fff",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              flexShrink: 0,
+                            }}>
+                              {getInitials(lead.name)}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
+                              {lead.isDraft ? (
+                                <span
+                                  style={{
+                                    backgroundColor: "#fff7ed",
+                                    color: "#c2410c",
+                                    border: "1px solid #fdba74",
+                                    borderRadius: 999,
+                                    padding: "2px 8px",
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    letterSpacing: "0.2px",
+                                    textTransform: "uppercase",
+                                  }}
+                                >
+                                  Draft
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.phone}</div>
+                          <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.source}</div>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
+                            {lead.centerName}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>
+                            ${lead.premium.toLocaleString()}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
+                            {lead.createdBy}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
+                          >
+                            {!isCallCenterTransferRole && (
+                              <button
+                                className="lead-action-btn"
+                                type="button"
+                                onClick={() => {
+                                  if (lead.isDraft) {
+                                    void openLeadFromGrid(lead);
+                                    return;
+                                  }
+                                  router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
+                                }}
+                                style={{
+                                  border: `1.5px solid ${T.border}`,
+                                  borderRadius: 8,
+                                  background: T.cardBg,
+                                  color: T.textDark,
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  padding: "6px 12px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                View Lead
+                              </button>
+                            )}
+                            {canViewTransferClaimReclaimVisit && (
+                              <>
+                                <button
+                                  className="lead-action-btn"
+                                  type="button"
+                                  onClick={() => void openClaimModalForLead(lead)}
+                                  style={{
+                                    border: `1.5px solid ${T.border}`,
+                                    borderRadius: 8,
+                                    background: T.cardBg,
+                                    color: T.textDark,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    padding: "6px 12px",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Claim Call
+                                </button>
+                                <button
+                                  className="lead-action-btn"
+                                  type="button"
+                                  onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
+                                  style={{
+                                    border: `1.5px solid ${T.border}`,
+                                    borderRadius: 8,
+                                    background: T.cardBg,
+                                    color: T.textDark,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    padding: "6px 12px",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Claim Retention
+                                </button>
+                              </>
+                            )}
+                            <ActionMenu
+                              id={lead.id}
+                              activeId={activeMenu}
+                              onToggle={setActiveMenu}
+                              items={
+                                canEditTransferLeads
+                                  ? [
+                                      { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
+                                      { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
+                                      { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
+                                    ]
+                                  : isCallCenterTransferRole && lead.isDraft
+                                    ? [
+                                        { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
+                                        { label: "Update Lead", onClick: () => void openLeadInForm(lead.rowId) },
+                                      ]
+                                    : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
+                              }
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </ShadcnTable>
+            </div>
+            {filtered.length === 0 && (
+              <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
+            )}
+          </>
+        </DataGrid>
+      ) : (
+        renderTransferKanbanBoard()
+      )}
 
       {pendingDeleteLead && (
         <div
