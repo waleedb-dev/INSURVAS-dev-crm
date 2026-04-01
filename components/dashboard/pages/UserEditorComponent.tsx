@@ -4,6 +4,11 @@ import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Pagination } from "@/components/ui";
 import { AppSelect } from "@/components/ui/app-select";
+import {
+  isUnlicensedSalesSubtype,
+  UNLICENSED_SALES_SUBTYPE_LABELS,
+  type UnlicensedSalesSubtype,
+} from "@/lib/auth/unlicensedSalesSubtype";
 
 interface Role { id: string; name: string; key: string; }
 interface BpoCenter { id: string; name: string; }
@@ -17,6 +22,7 @@ interface UserEditorProps {
     role: string;
     roleId?: string;
     phone?: string;
+    unlicensedSalesSubtype?: string | null;
   };
   onClose: () => void;
   onSubmit: (data: any) => void;
@@ -48,19 +54,24 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string>(user?.roleId ?? "");
   const [selectedCenterId, setSelectedCenterId] = useState<string>("");
+  const [unlicensedSalesSubtype, setUnlicensedSalesSubtype] = useState<"" | UnlicensedSalesSubtype>(() => {
+    const s = user?.unlicensedSalesSubtype;
+    return s && isUnlicensedSalesSubtype(s) ? s : "";
+  });
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set());
   const [rolePermissionIds, setRolePermissionIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Permissions pagination
+  // Permissions pagination (12 = 6 rows × 2 columns in the grid)
   const [permissionsPage, setPermissionsPage] = useState(1);
-  const permissionsPerPage = 10;
+  const permissionsPerPage = 12;
 
   const tabs: TabType[] = ["User Info", "Roles & Permissions"];
 
   const currentRole = roles.find(r => r.id === selectedRoleId);
   const isCallCenterRole = currentRole?.key === "call_center_admin" || currentRole?.key === "call_center_agent";
+  const isUnlicensedSalesRole = currentRole?.key === "sales_agent_unlicensed";
 
   const selectedPermissionCount = useMemo(() => {
     if (permissions.length === 0 || selectedPermissions.size === 0) return 0;
@@ -101,11 +112,15 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
       if (user?.id) {
         const { data: userRow } = await supabase
           .from("users")
-          .select("call_center_id")
+          .select("call_center_id, unlicensed_sales_subtype")
           .eq("id", user.id)
           .maybeSingle();
         if (userRow?.call_center_id) {
           setSelectedCenterId(String(userRow.call_center_id));
+        }
+        const st = userRow?.unlicensed_sales_subtype;
+        if (st && isUnlicensedSalesSubtype(st)) {
+          setUnlicensedSalesSubtype(st);
         }
       }
     }
@@ -156,6 +171,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
     if (!emailRegex.test(email)) return false;
     // If call center role, center must be selected
     if (isCallCenterRole && !selectedCenterId) return false;
+    if (isUnlicensedSalesRole && !unlicensedSalesSubtype) return false;
     return true;
   };
 
@@ -197,6 +213,8 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
             phone,
             role_id: selectedRoleId,
             call_center_id: isCallCenterRole ? selectedCenterId : null,
+            unlicensed_sales_subtype:
+              isUnlicensedSalesRole && unlicensedSalesSubtype ? unlicensedSalesSubtype : null,
             permissions: Array.from(selectedPermissions),
           },
           headers: {
@@ -232,6 +250,8 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           phone,
           role_id: selectedRoleId,
           call_center_id: isCallCenterRole ? selectedCenterId : null,
+          unlicensed_sales_subtype:
+            isUnlicensedSalesRole && unlicensedSalesSubtype ? unlicensedSalesSubtype : null,
           permissions: Array.from(selectedPermissions),
         };
 
@@ -251,7 +271,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
         }
 
         onSubmit({
-          id: result.user.id,
+          id: result.user.id as string,
           firstName,
           lastName,
           email,
@@ -337,7 +357,17 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                   <h3 style={{ margin: "40px 0 32px", fontSize: 18, fontWeight: 800 }}>Role & Organization</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                     <div><label style={labelStyle}>Access Role <span style={{ color: T.danger }}>*</span></label>
-                      <AppSelect value={selectedRoleId} onChange={(e: any) => setSelectedRoleId(e.target.value)} style={inputStyle as any}>
+                      <AppSelect
+                        value={selectedRoleId}
+                        onChange={(e: any) => {
+                          const v = e.target.value;
+                          setSelectedRoleId(v);
+                          const rk = roles.find((r) => r.id === v)?.key;
+                          if (rk !== "sales_agent_unlicensed") setUnlicensedSalesSubtype("");
+                          if (rk !== "call_center_admin" && rk !== "call_center_agent") setSelectedCenterId("");
+                        }}
+                        style={inputStyle as any}
+                      >
                         <option value="">Select a role...</option>
                         {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                       </AppSelect>
@@ -347,6 +377,26 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                         <AppSelect value={selectedCenterId} onChange={(e: any) => setSelectedCenterId(e.target.value)} style={inputStyle as any}>
                           <option value="">Select a centre...</option>
                           {centers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </AppSelect>
+                      </div>
+                    )}
+                    {isUnlicensedSalesRole && (
+                      <div style={{ animation: "fadeInDown 0.2s" }}>
+                        <label style={labelStyle}>Type <span style={{ color: T.danger }}>*</span></label>
+                        <AppSelect
+                          value={unlicensedSalesSubtype}
+                          onChange={(e: any) => {
+                            const v = String(e.target.value);
+                            setUnlicensedSalesSubtype(v === "" ? "" : (v as UnlicensedSalesSubtype));
+                          }}
+                          style={inputStyle as any}
+                        >
+                          <option value="">Select buffer or retention…</option>
+                          {(Object.keys(UNLICENSED_SALES_SUBTYPE_LABELS) as UnlicensedSalesSubtype[]).map((k) => (
+                            <option key={k} value={k}>
+                              {UNLICENSED_SALES_SUBTYPE_LABELS[k]}
+                            </option>
+                          ))}
                         </AppSelect>
                       </div>
                     )}
@@ -379,7 +429,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                   </div>
 
                   {permissions.length > permissionsPerPage && (
-                    <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
+                    <div style={{ marginTop: 20, width: "100%" }}>
                       <Pagination
                         page={permissionsPage}
                         totalItems={permissions.length}
@@ -407,7 +457,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                   <button 
                     onClick={handleFinalSubmit}
                     disabled={!isUserInfoValid() || isLoading}
-                    title={!isUserInfoValid() ? "Please fill in all required fields (Given Name, Family Name, Email, Access Role)" + (isCallCenterRole ? ", and BPO Center" : "") : undefined}
+                    title={!isUserInfoValid() ? "Please fill in all required fields (Given Name, Family Name, Email, Access Role)" + (isCallCenterRole ? ", and BPO Centre" : "") + (isUnlicensedSalesRole ? ", and Type" : "") : undefined}
                     style={{ 
                       backgroundColor: (isUserInfoValid() && !isLoading) ? T.blue : T.border, 
                       color: "#fff", 
@@ -432,7 +482,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                   <button 
                     onClick={handleNext}
                     disabled={!isUserInfoValid() || isLoading}
-                    title={!isUserInfoValid() ? "Please fill in all required fields (Given Name, Family Name, Email, Access Role)" + (isCallCenterRole ? ", and BPO Center" : "") : undefined}
+                    title={!isUserInfoValid() ? "Please fill in all required fields (Given Name, Family Name, Email, Access Role)" + (isCallCenterRole ? ", and BPO Centre" : "") + (isUnlicensedSalesRole ? ", and Type" : "") : undefined}
                     style={{ 
                       backgroundColor: (isUserInfoValid() && !isLoading) ? T.blue : T.border, 
                       color: "#fff", 

@@ -1,6 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isUnlicensedSalesSubtype, type UnlicensedSalesSubtype } from "@/lib/auth/unlicensedSalesSubtype";
 
 export type ClaimWorkflowType = "buffer" | "licensed" | "retention";
 export type RetentionType = "new_sale" | "fixed_payment" | "carrier_requirements";
@@ -152,7 +153,7 @@ export async function fetchClaimAgents(supabase: SupabaseClient): Promise<{
 }> {
   const { data, error } = await supabase
     .from("users")
-    .select("id, full_name, is_licensed, role_id, roles!inner(key)")
+    .select("id, full_name, is_licensed, unlicensed_sales_subtype, role_id, roles!inner(key)")
     .in("status", ["active", "invited"]);
 
   if (error) {
@@ -163,21 +164,24 @@ export async function fetchClaimAgents(supabase: SupabaseClient): Promise<{
     id: string;
     full_name: string | null;
     is_licensed?: boolean | null;
+    unlicensed_sales_subtype?: string | null;
     role_id: string | null;
     roles: { key: string } | { key: string }[] | null;
   }>;
 
-  type Norm = AgentOption & { isLicensedProfile: boolean };
+  type Norm = AgentOption & { isLicensedProfile: boolean; unlicensedSubtype: UnlicensedSalesSubtype | null };
 
   const normalized: Norm[] = rows
     .map((row) => {
       const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
       const key = role?.key || "";
+      const st = row.unlicensed_sales_subtype;
       return {
         id: row.id,
         roleKey: key,
         name: row.full_name?.trim() || "Unknown User",
         isLicensedProfile: row.is_licensed === true,
+        unlicensedSubtype: isUnlicensedSalesSubtype(st) ? st : null,
       };
     })
     .filter((row) => row.roleKey.length > 0);
@@ -206,13 +210,22 @@ export async function fetchClaimAgents(supabase: SupabaseClient): Promise<{
     .map(toOption)
     .sort(byName);
 
-  /** Buffer to Licensed — strictly sales_agent_unlicensed role */
+  /** Buffer to Licensed — unlicensed sales users designated as buffer (unset subtype treated as buffer for legacy rows) */
   const bufferAgents = normalized
-    .filter((row) => row.roleKey === "sales_agent_unlicensed")
+    .filter(
+      (row) =>
+        row.roleKey === "sales_agent_unlicensed" &&
+        (row.unlicensedSubtype === null || row.unlicensedSubtype === "buffer_agent"),
+    )
     .map(toOption)
     .sort(byName);
+
+  /** Retention workflow — managers/licensed, plus unlicensed users designated as retention */
   const retentionAgents = normalized
-    .filter((row) => row.roleKey === "sales_manager" || LICENSED_CLAIM_ROLE_KEYS.has(row.roleKey))
+    .filter((row) => {
+      if (row.roleKey === "sales_manager" || LICENSED_CLAIM_ROLE_KEYS.has(row.roleKey)) return true;
+      return row.roleKey === "sales_agent_unlicensed" && row.unlicensedSubtype === "retention_agent";
+    })
     .map(toOption)
     .sort(byName);
 

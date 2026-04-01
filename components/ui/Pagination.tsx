@@ -32,17 +32,19 @@ export function Pagination({
         padding: "16px 20px",
         borderTop: `1px solid ${T.border}`,
         display: "flex",
-        justifyContent: "space-between",
+        justifyContent: hideSummary ? "center" : "space-between",
         alignItems: "center",
         backgroundColor: T.rowBg,
+        width: "100%",
+        boxSizing: "border-box",
       }}
     >
-      {hideSummary ? <span /> : (
+      {!hideSummary && (
         <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
           Showing {start} - {end} of {totalItems} {itemLabel}
         </span>
       )}
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
         <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 700 }}>
           Page {safePage} of {totalPages}
         </span>

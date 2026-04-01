@@ -7,7 +7,22 @@ import UserEditorComponent from "./UserEditorComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useMemo } from "react";
 
-interface User { id:string; name:string; email:string; role:string; roleId?:string; roleKey?:string; status:"Active"|"Inactive"|"Suspended"; color:string; lastActive:string; policies:number; phone?:string; extension?:string; }
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  roleId?: string;
+  roleKey?: string;
+  status: "Active" | "Inactive" | "Suspended";
+  color: string;
+  lastActive: string;
+  policies: number;
+  phone?: string;
+  extension?: string;
+  /** `public.users.unlicensed_sales_subtype` when role is Sales Agent (Unlicensed) */
+  unlicensedSalesSubtype?: string | null;
+}
 const ROLE_CFG:Record<string,{bg:string;color:string}>={
   "system_admin":{bg:"#fdf4ff",color:"#9333ea"},
   "sales_manager":{bg:T.blueLight,color:T.blue},
@@ -26,6 +41,7 @@ const fetchUsers = async (supabaseClient: any) => {
       full_name, 
       email,
       phone,
+      unlicensed_sales_subtype,
       role:roles(name, key),
       role_id,
       status,
@@ -42,6 +58,7 @@ const fetchUsers = async (supabaseClient: any) => {
       role: u.role?.name || "Agent",
       roleId: u.role_id,
       roleKey: u.role?.key,
+      unlicensedSalesSubtype: u.unlicensed_sales_subtype ?? null,
       status: u.status === "active" ? "Active" : u.status === "inactive" ? "Inactive" : "Suspended",
       color: T.blue,
       lastActive: u.created_at ? new Date(u.created_at).toLocaleDateString() : "Just now",
@@ -262,7 +279,35 @@ export default function UsersAccessPage(){
              {
               header: "User Type",
               key: "role",
-              render: (u) => <span style={{ backgroundColor: ROLE_CFG[u.role]?.bg || T.rowBg, color: ROLE_CFG[u.role]?.color || T.textMuted, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 800 }}>{u.role.toUpperCase()}</span>
+              render: (u) => {
+                const roleLabel =
+                  u.roleKey === "sales_agent_unlicensed"
+                    ? (() => {
+                        const sub = u.unlicensedSalesSubtype;
+                        const inner =
+                          sub === "buffer_agent"
+                            ? "Buffer agent"
+                            : sub === "retention_agent"
+                              ? "Retention agent"
+                              : "Unlicensed";
+                        return `SALES AGENT (${inner})`;
+                      })()
+                    : u.role.toUpperCase();
+                return (
+                  <span
+                    style={{
+                      backgroundColor: ROLE_CFG[u.role]?.bg || T.rowBg,
+                      color: ROLE_CFG[u.role]?.color || T.textMuted,
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      fontSize: 10,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {roleLabel}
+                  </span>
+                );
+              },
             },
             {
               header: "Actions",
