@@ -381,7 +381,7 @@ export default function CallCenterLeadIntakePage({
 }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
-  const { permissionKeys, currentRole } = useDashboardContext();
+  const { permissionKeys, currentRole, setPageHeaderActions } = useDashboardContext();
   const canEditTransferLeads = permissionKeys.has("action.transfer_leads.edit");
   /** Overwrite the matched row: editors always; intake creators only for SSN match (duplicate resolution). */
   const canOverwriteDuplicateMatch = (match: DuplicateLeadMatch | null) =>
@@ -435,7 +435,7 @@ export default function CallCenterLeadIntakePage({
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
   const [claimSelection, setClaimSelection] = useState<ClaimSelections>(DEFAULT_CLAIM_SELECTION);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
-  const itemsPerPage = 10;
+  const itemsPerPage = 7;
 
   useEffect(() => {
     let cancelled = false;
@@ -804,10 +804,48 @@ export default function CallCenterLeadIntakePage({
     if (filtered.length === 0 && page !== 1) setPage(1);
   }, [filtered.length, page, totalPages]);
 
+  useEffect(() => {
+    if (showCreateLead || editingLead || viewingLead) {
+      setPageHeaderActions(null);
+      return undefined;
+    }
+    setPageHeaderActions(
+      <button
+        type="button"
+        onClick={() => setShowCreateLead(true)}
+        disabled={!canCreateLeads}
+        title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
+        style={{
+          backgroundColor: canCreateLeads ? T.blue : T.border,
+          color: "#fff",
+          border: "none",
+          borderRadius: T.radiusMd,
+          padding: "10px 22px",
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: canCreateLeads ? "pointer" : "not-allowed",
+          fontFamily: T.font,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}44` : "none",
+          transition: "all 0.15s",
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        Add New Lead
+      </button>,
+    );
+    return () => setPageHeaderActions(null);
+  }, [showCreateLead, editingLead, viewingLead, canCreateLeads, setPageHeaderActions]);
+
   // Stats (match filtered table)
   const totalPremium = filtered.reduce((s, l) => s + l.premium, 0);
   const avgPremium = filtered.length ? totalPremium / filtered.length : 0;
   const uniquePipelines = new Set(filtered.map((l) => l.pipelineName)).size;
+  const draftLeadsCount = filtered.filter((l) => l.isDraft).length;
 
   const promptDuplicateIfAny = async (payload: TransferLeadFormData): Promise<boolean> => {
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
@@ -1734,41 +1772,6 @@ export default function CallCenterLeadIntakePage({
 
   return (
     <div onClick={() => setActiveMenu(null)}>
-      {/* Header */}
-      <AnimatedContent {...transferLeadReveal} delay={0} style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Transfer Leads</h1>
-          </div>
-          <button
-            onClick={() => setShowCreateLead(true)}
-            disabled={!canCreateLeads}
-            title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
-            style={{
-              backgroundColor: canCreateLeads ? T.blue : T.border,
-              color: "#fff",
-              border: "none",
-              borderRadius: T.radiusMd,
-              padding: "10px 22px",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: canCreateLeads ? "pointer" : "not-allowed",
-              fontFamily: T.font,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}44` : "none",
-              transition: "all 0.15s",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            Add New Lead
-          </button>
-        </div>
-      </AnimatedContent>
-
       {/* Stats Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
