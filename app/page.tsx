@@ -214,8 +214,14 @@ export default function SignInPage() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={() => setRememberMe((state) => !state)}
+                style={{
+                  width: 18,
+                  height: 18,
+                  cursor: "pointer",
+                  accentColor: T.asideChrome,
+                }}
               />
-              <span style={{ fontSize: 13, color: "#6b7a5f", fontWeight: 600 }}>
+              <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
                 Remember me
               </span>
             </label>
@@ -245,13 +251,13 @@ export default function SignInPage() {
             style={{
               width: "100%",
               padding: "14px",
-              backgroundColor: isSubmitting ? "#6b7a5f" : "#638b4b",
+              backgroundColor: isSubmitting ? T.textMuted : T.asideChrome,
               color: "white",
               borderRadius: 12,
               fontSize: 15,
               border: "none",
               cursor: isSubmitting ? "not-allowed" : "pointer",
-              boxShadow: "0 4px 14px rgba(99,139,75,0.35)",
+              boxShadow: "0 4px 14px rgba(28, 32, 26, 0.35)",
               marginBottom: 16,
             }}
           >
