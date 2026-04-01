@@ -945,42 +945,9 @@ export default function CallCenterLeadIntakePage({
   }, [filtered.length, page, totalPages]);
 
   useEffect(() => {
-    if (showCreateLead || editingLead || viewingLead) {
-      setPageHeaderActions(null);
-      return undefined;
-    }
-    setPageHeaderActions(
-      <button
-        type="button"
-        onClick={() => setShowCreateLead(true)}
-        disabled={!canCreateLeads}
-        title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
-        style={{
-          backgroundColor: canCreateLeads ? T.blue : T.border,
-          color: "#fff",
-          border: "none",
-          borderRadius: T.radiusMd,
-          padding: "10px 22px",
-          fontSize: 13,
-          fontWeight: 700,
-          cursor: canCreateLeads ? "pointer" : "not-allowed",
-          fontFamily: T.font,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}44` : "none",
-          transition:
-            "background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
-        }}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-        Add New Lead
-      </button>,
-    );
+    setPageHeaderActions(null);
     return () => setPageHeaderActions(null);
-  }, [showCreateLead, editingLead, viewingLead, canCreateLeads, setPageHeaderActions]);
+  }, [setPageHeaderActions]);
 
   // Stats (match filtered table)
   const totalPremium = filtered.reduce((s, l) => s + l.premium, 0);
@@ -2064,7 +2031,7 @@ export default function CallCenterLeadIntakePage({
             </div>
           </div>
 
-          {/* Right: View switch + total count + Filters button */}
+          {/* Right: View switch + filters + add button */}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div
               style={{
@@ -2107,15 +2074,6 @@ export default function CallCenterLeadIntakePage({
                 );
               })}
             </div>
-
-            <span style={{
-              fontSize: 13,
-              color: T.textMuted,
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-            }}>
-              {filtered.length} total
-            </span>
 
             <button
               type="button"
@@ -2161,6 +2119,36 @@ export default function CallCenterLeadIntakePage({
                   {transferLeadDetailedFilterCount}
                 </span>
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowCreateLead(true)}
+              disabled={!canCreateLeads}
+              title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                height: 34,
+                padding: "0 16px",
+                borderRadius: 8,
+                border: "none",
+                background: canCreateLeads ? T.blue : T.border,
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: T.font,
+                cursor: canCreateLeads ? "pointer" : "not-allowed",
+                boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}33` : "none",
+                transition:
+                  "background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              Add New Lead
             </button>
           </div>
         </div>
