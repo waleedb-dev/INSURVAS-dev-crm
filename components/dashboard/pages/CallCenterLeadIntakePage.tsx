@@ -61,13 +61,23 @@ const TRANSFER_KANBAN_COLUMNS: Array<{
 
 function renderTransferKanbanBoard() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div
+      style={{
+        background: T.cardBg,
+        borderRadius: 28,
+        padding: "22px 8px 10px",
+        boxShadow: T.shadowSm,
+        border: `1px solid ${T.borderLight}`,
+      }}
+    >
       <style>{`
         .transfer-kanban-board {
           display: flex;
           gap: 16px;
           overflow-x: auto;
-          padding: 4px 2px 10px;
+          overflow-y: hidden;
+          padding: 0 0 12px;
+          align-items: stretch;
           scrollbar-width: thin;
           scrollbar-color: ${T.border} transparent;
         }
@@ -84,11 +94,12 @@ function renderTransferKanbanBoard() {
               minWidth: 316,
               width: 316,
               flexShrink: 0,
-              background: T.cardBg,
+              background: "#fff",
               border: `1px solid ${T.border}`,
               borderRadius: 14,
               boxShadow: "0 2px 12px rgba(15, 23, 42, 0.05)",
               overflow: "hidden",
+              minHeight: 720,
             }}
           >
             <div
@@ -127,12 +138,12 @@ function renderTransferKanbanBoard() {
 
             <div
               style={{
-                minHeight: 460,
+                minHeight: 640,
                 padding: 14,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.98) 100%)",
+                background: "#fff",
               }}
             >
               <div
