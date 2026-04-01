@@ -25,13 +25,6 @@ type LeadNoteRow = {
   authorName?: string;
 };
 
-type CallUpdateLogRow = {
-  id: string;
-  event_type: string;
-  event_details: unknown;
-  created_at: string;
-};
-
 interface LeadViewProps {
   leadId?: string;
   /** When known, use this UUID for DB fetch/update (avoids lookup by lead_unique_id). */
@@ -272,7 +265,6 @@ export default function LeadViewComponent({
 
   const [callResultsRows, setCallResultsRows] = useState<LeadRow[]>([]);
   const [callUpdatesLoading, setCallUpdatesLoading] = useState(false);
-  const [callUpdateLogRows, setCallUpdateLogRows] = useState<CallUpdateLogRow[]>([]);
 
   const [policyRow, setPolicyRow] = useState<PolicyRow | null>(null);
   const [policyLoading, setPolicyLoading] = useState(false);
@@ -543,24 +535,15 @@ export default function LeadViewComponent({
   const loadCallUpdates = useCallback(async () => {
     if (!rowUuid) return;
     setCallUpdatesLoading(true);
-    const [crRes, logRes] = await Promise.all([
-      supabase.from("call_results").select("*").eq("lead_id", rowUuid).order("updated_at", { ascending: false }),
-      supabase
-        .from("call_update_logs")
-        .select("id, event_type, event_details, created_at")
-        .eq("lead_id", rowUuid)
-        .order("created_at", { ascending: false })
-        .limit(80),
-    ]);
+    const crRes = await supabase
+      .from("call_results")
+      .select("*")
+      .eq("lead_id", rowUuid)
+      .order("updated_at", { ascending: false });
     if (!crRes.error && crRes.data) {
       setCallResultsRows(crRes.data as LeadRow[]);
     } else {
       setCallResultsRows([]);
-    }
-    if (!logRes.error && logRes.data) {
-      setCallUpdateLogRows(logRes.data as CallUpdateLogRow[]);
-    } else {
-      setCallUpdateLogRows([]);
     }
     setCallUpdatesLoading(false);
   }, [rowUuid, supabase]);
@@ -1149,10 +1132,10 @@ export default function LeadViewComponent({
                   <p style={{ color: T.textMuted, fontWeight: 600 }}>Loading call data…</p>
                 ) : (
                   <>
-                    {callResultsRows.length === 0 && callUpdateLogRows.length === 0 ? (
+                    {callResultsRows.length === 0 ? (
                       <EmptyState
                         title="No call updates yet"
-                        description="Call results and update events appear here after a call is logged from Transfer Leads or related flows."
+                        description="Call results appear here after a call is logged from Transfer Leads or related flows."
                         compact
                       />
                     ) : (
@@ -1192,46 +1175,6 @@ export default function LeadViewComponent({
                             </div>
                           </div>
                         ))}
-
-                        {callUpdateLogRows.length > 0 && (
-                          <div>
-                            <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Event log</p>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                              {callUpdateLogRows.map((log) => (
-                                <div
-                                  key={log.id}
-                                  style={{
-                                    border: `1px solid ${T.borderLight}`,
-                                    borderRadius: 12,
-                                    padding: 12,
-                                    background: "#fff",
-                                    fontSize: 13,
-                                  }}
-                                >
-                                  <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 700, marginBottom: 6 }}>
-                                    {formatTs(log.created_at)} · {log.event_type}
-                                  </div>
-                                  <pre
-                                    style={{
-                                      margin: 0,
-                                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                                      fontSize: 12,
-                                      whiteSpace: "pre-wrap",
-                                      wordBreak: "break-word",
-                                      color: T.textMid,
-                                    }}
-                                  >
-                                    {log.event_details == null
-                                      ? "—"
-                                      : typeof log.event_details === "string"
-                                        ? log.event_details
-                                        : JSON.stringify(log.event_details, null, 2)}
-                                  </pre>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                   </>
