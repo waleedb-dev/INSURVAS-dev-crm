@@ -131,7 +131,9 @@ export default function DashboardLayout({
         display: "flex", flexDirection: "column",
         position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 100,
         borderRight: "1px solid rgba(255,255,255,0.1)",
-        transition: "width 0.22s cubic-bezier(.4,0,.2,1)", overflow: "hidden",
+        transition: "width 0.22s cubic-bezier(.4,0,.2,1)",
+        /* visible so account / notification panels (position absolute; left: 100%) are not clipped */
+        overflow: "visible",
         paddingTop: 24, paddingBottom: 20,
       }}>
 
