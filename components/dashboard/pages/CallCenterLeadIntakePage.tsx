@@ -434,6 +434,7 @@ export default function CallCenterLeadIntakePage({
     retentionAgents: { id: string; name: string; roleKey: string }[];
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
   const [claimSelection, setClaimSelection] = useState<ClaimSelections>(DEFAULT_CLAIM_SELECTION);
+  const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -1785,34 +1786,52 @@ export default function CallCenterLeadIntakePage({
             ) },
         ].map(({ label, value, color, icon }, i) => (
           <AnimatedContent key={label} {...transferLeadReveal} delay={i * 0.08}>
-            <Card style={{ 
-              borderRadius: 12, 
-              border: `1px solid ${T.border}`, 
-              borderBottom: `4px solid ${color}`, 
-              background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`, 
-              boxShadow: "0 4px 12px rgba(0,0,0,0.03)", 
-              padding: "20px 24px", 
-              display: "flex", 
-              flexDirection: "row", 
-              justifyContent: "space-between",
-            }}>
+            <Card
+              onMouseEnter={() => setHoveredStatIdx(i)}
+              onMouseLeave={() => setHoveredStatIdx(null)}
+              style={{
+                borderRadius: 12,
+                border: `1px solid ${T.border}`,
+                borderBottom: `4px solid ${color}`,
+                background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+                boxShadow:
+                  hoveredStatIdx === i
+                    ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+                    : "0 4px 12px rgba(0,0,0,0.03)",
+                transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
+                transition:
+                  "transform 0.28s cubic-bezier(0.33, 1, 0.68, 1), box-shadow 0.28s cubic-bezier(0.33, 1, 0.68, 1)",
+                padding: "20px 24px",
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                cursor: "default",
+              }}
+            >
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
                 <div style={{ fontSize: 32, fontWeight: 800, color: color, lineHeight: 1 }}>
                   {value}
                 </div>
               </div>
-              <div style={{ 
-                color: color, 
-                backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
-                width: 54,
-                height: 54,
-                borderRadius: 14,
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                flexShrink: 0
-              }}>
+              <div
+                style={{
+                  color,
+                  backgroundColor:
+                    hoveredStatIdx === i
+                      ? `color-mix(in srgb, ${color} 24%, transparent)`
+                      : `color-mix(in srgb, ${color} 15%, transparent)`,
+                  width: 54,
+                  height: 54,
+                  borderRadius: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  transition: "background-color 0.28s ease, transform 0.28s cubic-bezier(0.33, 1, 0.68, 1)",
+                  transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                }}
+              >
                 {icon}
               </div>
             </Card>
