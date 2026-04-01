@@ -1,8 +1,12 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { POLICY_SCHEMA_SECTIONS, policyDisplayValue, type PolicyRow } from "@/lib/policy-schema";
+import { buildDraftFromPolicyRow, payloadFromDraft } from "@/lib/policy-form-utils";
 import { EmptyState } from "@/components/ui";
 import { AppSelect } from "@/components/ui/app-select";
+import ConvertClientPolicyModal from "./ConvertClientPolicyModal";
+import PolicyFormFields from "./PolicyFormFields";
 
 interface Lead {
   name: string;
@@ -71,125 +75,6 @@ function fmtBool(value: unknown) {
   if (value === false) return "No";
   return "—";
 }
-
-/** Single policy row from `public.policies` (keyed by schema column names). */
-type PolicyRow = Record<string, unknown>;
-
-type PolicyFieldSpec = {
-  key: string;
-  label: string;
-  /** Match `public.policies` column semantics */
-  wide?: boolean;
-  multiline?: boolean;
-  kind?: "text" | "ts" | "num" | "bool";
-};
-
-function policyDisplayValue(row: PolicyRow | null, key: string, kind: PolicyFieldSpec["kind"] = "text"): string {
-  if (!row) return "";
-  const v = row[key];
-  if (v == null || v === "") return "";
-  if (kind === "bool") return fmtBool(v);
-  if (kind === "ts") return formatTs(v);
-  if (kind === "num") {
-    if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
-    const n = Number(v);
-    return Number.isFinite(n) ? String(n) : String(v);
-  }
-  return String(v);
-}
-
-/** Read-only layout aligned to `public.policies` columns (see Supabase schema). */
-const POLICY_SCHEMA_SECTIONS: { title: string; fields: PolicyFieldSpec[] }[] = [
-  {
-    title: "Policy",
-    fields: [
-      { key: "deal_name", label: "deal_name" },
-      { key: "policy_type", label: "policy_type" },
-      { key: "carrier", label: "carrier" },
-      { key: "carrier_status", label: "carrier_status" },
-      { key: "policy_number", label: "policy_number" },
-      { key: "policy_status", label: "policy_status" },
-      { key: "status", label: "status" },
-      { key: "deal_value", label: "deal_value", kind: "num" },
-      { key: "cc_value", label: "cc_value", kind: "num" },
-      { key: "is_active", label: "is_active", kind: "bool" },
-      { key: "group_title", label: "group_title" },
-      { key: "group_color", label: "group_color" },
-    ],
-  },
-  {
-    title: "People & placement",
-    fields: [
-      { key: "sales_agent", label: "sales_agent" },
-      { key: "call_center", label: "call_center" },
-      { key: "phone_number", label: "phone_number" },
-    ],
-  },
-  {
-    title: "Dates",
-    fields: [
-      { key: "effective_date", label: "effective_date", kind: "ts" },
-      { key: "deal_creation_date", label: "deal_creation_date", kind: "ts" },
-      { key: "lead_creation_date", label: "lead_creation_date", kind: "ts" },
-      { key: "last_updated", label: "last_updated", kind: "ts" },
-    ],
-  },
-  {
-    title: "Commission & writing",
-    fields: [
-      { key: "writing_no", label: "writing_no" },
-      { key: "commission_type", label: "commission_type" },
-      { key: "cc_pmt_ws", label: "cc_pmt_ws" },
-      { key: "cc_cb_ws", label: "cc_cb_ws" },
-    ],
-  },
-  {
-    title: "CRM",
-    fields: [
-      { key: "ghl_name", label: "ghl_name" },
-      { key: "ghl_stage", label: "ghl_stage" },
-      { key: "monday_item_id", label: "monday_item_id" },
-    ],
-  },
-  {
-    title: "Notes",
-    fields: [
-      { key: "notes", label: "notes", wide: true, multiline: true },
-      { key: "tasks", label: "tasks", wide: true, multiline: true },
-    ],
-  },
-  {
-    title: "Disposition",
-    fields: [
-      { key: "disposition", label: "disposition" },
-      { key: "disposition_date", label: "disposition_date", kind: "ts" },
-      { key: "disposition_agent_id", label: "disposition_agent_id" },
-      { key: "disposition_agent_name", label: "disposition_agent_name" },
-      { key: "disposition_notes", label: "disposition_notes", wide: true, multiline: true },
-      { key: "callback_datetime", label: "callback_datetime", kind: "ts" },
-      { key: "disposition_count", label: "disposition_count", kind: "num" },
-    ],
-  },
-  {
-    title: "Lock",
-    fields: [
-      { key: "lock_status", label: "lock_status" },
-      { key: "locked_at", label: "locked_at", kind: "ts" },
-      { key: "locked_by", label: "locked_by" },
-      { key: "locked_by_name", label: "locked_by_name" },
-      { key: "lock_reason", label: "lock_reason", wide: true, multiline: true },
-    ],
-  },
-  {
-    title: "Record",
-    fields: [
-      { key: "id", label: "id" },
-      { key: "lead_id", label: "lead_id" },
-      { key: "created_at", label: "created_at", kind: "ts" },
-      { key: "updated_at", label: "updated_at", kind: "ts" },
-    ],
-  },
-];
 
 const CALL_RESULT_FIELD_ORDER: { key: string; label: string; format?: (v: unknown) => string }[] = [
   { key: "submission_id", label: "Submission ID" },
@@ -268,6 +153,14 @@ export default function LeadViewComponent({
 
   const [policyRow, setPolicyRow] = useState<PolicyRow | null>(null);
   const [policyLoading, setPolicyLoading] = useState(false);
+  const [policyDraft, setPolicyDraft] = useState<Record<string, string>>({});
+  const [policySaving, setPolicySaving] = useState(false);
+  const [policySaveError, setPolicySaveError] = useState<string | null>(null);
+  const [policyCallCenterNames, setPolicyCallCenterNames] = useState<string[]>([]);
+  const [policyCarrierNames, setPolicyCarrierNames] = useState<string[]>([]);
+  const [policyStageNames, setPolicyStageNames] = useState<string[]>([]);
+  const [policyLookupReady, setPolicyLookupReady] = useState(false);
+  const [convertClientModalOpen, setConvertClientModalOpen] = useState(false);
 
   const resolveLeadUuid = useCallback(
     async (id: string | undefined): Promise<string | null> => {
@@ -532,6 +425,88 @@ export default function LeadViewComponent({
     void loadPolicyForLead();
   }, [loadPolicyForLead]);
 
+  const policySyncKey =
+    policyRow && canEditLead && !previewMode ? `${String(policyRow.id)}-${String(policyRow.updated_at ?? "")}` : "";
+
+  useLayoutEffect(() => {
+    if (!policyRow || !canEditLead || previewMode) {
+      setPolicyDraft({});
+      return;
+    }
+    setPolicyDraft(buildDraftFromPolicyRow(policyRow));
+  }, [policySyncKey, canEditLead, previewMode]);
+
+  useEffect(() => {
+    if (activeTab !== "Policy & coverage" || !policyRow || !canEditLead || previewMode) {
+      setPolicyLookupReady(false);
+      return;
+    }
+    let cancelled = false;
+
+    (async () => {
+      setPolicyLookupReady(false);
+      const pipelineId = leadRow?.pipeline_id;
+      const stageQuery =
+        pipelineId != null && String(pipelineId).trim() !== ""
+          ? supabase.from("pipeline_stages").select("name").eq("pipeline_id", pipelineId).order("position")
+          : Promise.resolve({ data: [] as { name: string | null }[] });
+
+      const [ccRes, carRes, stRes] = await Promise.all([
+        supabase.from("call_centers").select("id, name").order("name"),
+        supabase.from("carriers").select("id, name").order("name"),
+        stageQuery,
+      ]);
+      if (cancelled) return;
+
+      const stageSorted = (stRes.data ?? [])
+        .map((r: { name?: string | null }) => String(r.name ?? "").trim())
+        .filter(Boolean);
+      setPolicyStageNames(stageSorted);
+
+      const ccSorted = (ccRes.data ?? [])
+        .map((r: { name?: string | null }) => String(r.name ?? "").trim())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+      const carSorted = (carRes.data ?? [])
+        .map((r: { name?: string | null }) => String(r.name ?? "").trim())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+
+      setPolicyCallCenterNames(ccSorted);
+      setPolicyCarrierNames(carSorted);
+
+      if (!cancelled) setPolicyLookupReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, policyRow, leadRow, supabase, canEditLead, previewMode]);
+
+  const savePolicyFromTab = useCallback(async () => {
+    if (!policyRow?.id || !canEditLead || previewMode) return;
+    setPolicySaving(true);
+    setPolicySaveError(null);
+    try {
+      const payload = payloadFromDraft(policyDraft, true);
+      const { error } = await supabase.from("policies").update(payload).eq("id", policyRow.id as string);
+      if (error) throw error;
+      await loadPolicyForLead();
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "Could not save policy.";
+      setPolicySaveError(msg);
+    } finally {
+      setPolicySaving(false);
+    }
+  }, [policyRow, canEditLead, previewMode, policyDraft, supabase, loadPolicyForLead]);
+
+  const resetPolicyDraft = useCallback(() => {
+    if (!policyRow) return;
+    setPolicyDraft(buildDraftFromPolicyRow(policyRow));
+    setPolicySaveError(null);
+  }, [policyRow]);
+
   const loadCallUpdates = useCallback(async () => {
     if (!rowUuid) return;
     setCallUpdatesLoading(true);
@@ -683,6 +658,26 @@ export default function LeadViewComponent({
     marginBottom: 8,
   } as const;
 
+  const convertToClientDisabled =
+    !canEditLead ||
+    !leadRow ||
+    !rowUuid ||
+    previewMode ||
+    policyLoading ||
+    policyRow != null;
+
+  const convertToClientTitle = !canEditLead
+    ? "You do not have permission."
+    : previewMode
+      ? "Not available in preview."
+      : !rowUuid
+        ? "Lead must finish loading."
+        : policyLoading
+          ? "Loading policy…"
+          : policyRow
+            ? "Already converted — a policy is linked. See Policy & coverage."
+            : undefined;
+
   return (
     <div style={{ animation: "fadeIn 0.3s ease-out", color: T.textDark }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
@@ -766,7 +761,24 @@ export default function LeadViewComponent({
               >
                 Edit Lead
               </button>
-              <button type="button" style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>
+              <button
+                type="button"
+                onClick={() => setConvertClientModalOpen(true)}
+                disabled={convertToClientDisabled}
+                title={convertToClientTitle}
+                style={{
+                  backgroundColor: convertToClientDisabled ? T.border : T.blue,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: T.radiusMd,
+                  padding: "10px 24px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: convertToClientDisabled ? "not-allowed" : "pointer",
+                  boxShadow: `0 4px 12px ${T.blue}44`,
+                  opacity: convertToClientDisabled ? 0.65 : 1,
+                }}
+              >
                 Convert to Client
               </button>
             </>
@@ -1254,21 +1266,99 @@ export default function LeadViewComponent({
             {activeTab === "Policy & coverage" && !isCreation && (
               <div>
                 <h3 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800 }}>Policy & coverage</h3>
-                <p style={{ margin: "0 0 16px", fontSize: 12, color: T.textMuted, lineHeight: 1.5 }}>
-                  Newest <code style={{ fontSize: 11 }}>public.policies</code> row for this lead. Field labels match column names.
-                </p>
                 {policyLoading ? (
                   <p style={{ color: T.textMuted, fontSize: 14, margin: 0 }}>Loading policy…</p>
+                ) : !policyRow ? (
+                  <div style={{ maxWidth: 480, margin: "0 auto" }}>
+                    <EmptyState
+                      title="No policy linked"
+                      description="Create one with Convert to Client in the header."
+                      emoji="📋"
+                      compact
+                    />
+                  </div>
                 ) : (
-                  (() => {
-                    const roStyle = { ...inputStyle, backgroundColor: T.pageBg, color: T.textMid } as const;
-                    return (
-                      <div style={{ maxWidth: 960 }}>
-                        {!policyRow ? (
-                          <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 20 }}>
-                            No policy row linked to this lead — fields below show the schema layout.
-                          </p>
+                  <>
+                    <p style={{ margin: "0 0 16px", fontSize: 12, color: T.textMuted, lineHeight: 1.5 }}>
+                      Newest <code style={{ fontSize: 11 }}>public.policies</code> row for this lead. Field labels match column names.
+                    </p>
+                    {policyRow && canEditLead && !previewMode ? (
+                      <>
+                        {policySaveError ? (
+                          <div
+                            style={{
+                              marginBottom: 14,
+                              padding: "10px 12px",
+                              borderRadius: 10,
+                              background: "#fef2f2",
+                              border: `1px solid ${T.border}`,
+                              fontSize: 13,
+                              color: "#991b1b",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {policySaveError}
+                          </div>
                         ) : null}
+                        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+                          <button
+                            type="button"
+                            onClick={() => void savePolicyFromTab()}
+                            disabled={policySaving || !policyLookupReady}
+                            style={{
+                              border: "none",
+                              background: policySaving || !policyLookupReady ? T.border : T.blue,
+                              color: "#fff",
+                              borderRadius: 10,
+                              padding: "10px 20px",
+                              fontWeight: 700,
+                              fontSize: 13,
+                              cursor: policySaving || !policyLookupReady ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {policySaving ? "Saving…" : "Save policy"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => resetPolicyDraft()}
+                            disabled={policySaving}
+                            style={{
+                              border: `1.5px solid ${T.border}`,
+                              background: "#fff",
+                              color: T.textDark,
+                              borderRadius: 10,
+                              padding: "10px 18px",
+                              fontWeight: 700,
+                              fontSize: 13,
+                              cursor: policySaving ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            Reset
+                          </button>
+                        </div>
+                        <div style={{ maxWidth: 960 }}>
+                          <PolicyFormFields
+                            draft={policyDraft}
+                            onChange={(key, value) => setPolicyDraft((prev) => ({ ...prev, [key]: value }))}
+                            callCenterNames={policyCallCenterNames}
+                            carrierNames={policyCarrierNames}
+                            stageNames={policyStageNames}
+                            lookupReady={policyLookupReady}
+                            sectionTitleStyle={{
+                              fontSize: 12,
+                              fontWeight: 800,
+                              color: T.textMuted,
+                              textTransform: "uppercase",
+                              letterSpacing: 0.5,
+                              margin: "0 0 14px",
+                            }}
+                            gridGap={20}
+                            sectionMarginBottom={28}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ maxWidth: 960 }}>
                         {POLICY_SCHEMA_SECTIONS.map((section) => (
                           <div key={section.title} style={{ marginBottom: 28 }}>
                             <h4
@@ -1292,26 +1382,33 @@ export default function LeadViewComponent({
                             >
                               {section.fields.map((field) => {
                                 const val = policyDisplayValue(policyRow, field.key, field.kind);
+                                const displayVal = val.trim() === "" ? "—" : val;
                                 const colStyle = field.wide ? { gridColumn: "1 / -1" as const } : undefined;
                                 return (
                                   <div key={field.key} style={colStyle}>
-                                    <label style={labelStyle}>{field.label}</label>
-                                    {field.multiline ? (
-                                      <textarea
-                                        readOnly
-                                        value={val}
-                                        rows={field.key === "notes" || field.key === "tasks" ? 4 : 3}
-                                        style={{
-                                          ...roStyle,
-                                          width: "100%",
-                                          resize: "vertical",
-                                          fontFamily: T.font,
-                                          minHeight: 80,
-                                        }}
-                                      />
-                                    ) : (
-                                      <input readOnly value={val} style={roStyle} />
-                                    )}
+                                    <div style={labelStyle}>{field.label}</div>
+                                    <div
+                                      role="group"
+                                      aria-label={field.label}
+                                      style={{
+                                        margin: 0,
+                                        padding: "10px 12px",
+                                        borderRadius: 10,
+                                        backgroundColor: T.pageBg,
+                                        border: `1px solid ${T.borderLight}`,
+                                        fontSize: 14,
+                                        color: displayVal === "—" ? T.textMuted : T.textDark,
+                                        fontWeight: 600,
+                                        whiteSpace: field.multiline ? "pre-wrap" : "normal",
+                                        lineHeight: 1.45,
+                                        minHeight: field.multiline ? 80 : 42,
+                                        boxSizing: "border-box",
+                                        userSelect: "text",
+                                        cursor: "default",
+                                      }}
+                                    >
+                                      {displayVal}
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -1319,14 +1416,25 @@ export default function LeadViewComponent({
                           </div>
                         ))}
                       </div>
-                    );
-                  })()
+                    )}
+                  </>
                 )}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {!isCreation && !previewMode && (
+        <ConvertClientPolicyModal
+          open={convertClientModalOpen}
+          onClose={() => setConvertClientModalOpen(false)}
+          leadId={rowUuid}
+          policyRow={policyRow}
+          leadRow={leadRow}
+          onSaved={() => void loadPolicyForLead()}
+        />
+      )}
 
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
