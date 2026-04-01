@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -13,6 +14,7 @@ export default function SignInPage() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [isSubmitHovered, setIsSubmitHovered] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -197,10 +199,11 @@ export default function SignInPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((state) => !state)}
-                className="absolute right-4 top-1/2 -translate-y-1/2"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center transition-colors hover:text-[#48533f]"
                 style={{ color: "#6b7a5f" }}
               >
-                {showPassword ? "Hide" : "Show"}
+                {showPassword ? <IconEyeOff size={22} stroke={2} /> : <IconEye size={22} stroke={2} />}
               </button>
             </div>
           </div>
@@ -247,11 +250,17 @@ export default function SignInPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex items-center justify-center gap-2 font-bold"
+            onMouseEnter={() => setIsSubmitHovered(true)}
+            onMouseLeave={() => setIsSubmitHovered(false)}
+            className="flex items-center justify-center gap-2 font-bold transition-colors"
             style={{
               width: "100%",
               padding: "14px",
-              backgroundColor: isSubmitting ? T.textMuted : T.asideChrome,
+              backgroundColor: isSubmitting
+                ? T.textMuted
+                : isSubmitHovered
+                  ? "#2b3126"
+                  : T.asideChrome,
               color: "white",
               borderRadius: 12,
               fontSize: 15,
