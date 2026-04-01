@@ -710,6 +710,7 @@ export default function CallCenterLeadIntakePage({
 
   const filtered = useMemo(() => {
     const query = search.toLowerCase().trim();
+    const numericQuery = query.replace(/\D/g, "");
     const minPrem = filterMinPremium.trim() ? Number(filterMinPremium) : null;
     const maxPrem = filterMaxPremium.trim() ? Number(filterMaxPremium) : null;
     const minOk = minPrem == null || !Number.isNaN(minPrem);
@@ -720,7 +721,7 @@ export default function CallCenterLeadIntakePage({
       const matchSearch =
         !query ||
         lead.name.toLowerCase().includes(query) ||
-        lead.phone.replace(/\D/g, "").includes(query.replace(/\D/g, "")) ||
+        (numericQuery !== "" && lead.phone.replace(/\D/g, "").includes(numericQuery)) ||
         lead.id.toLowerCase().includes(query) ||
         (lead.submissionId && String(lead.submissionId).toLowerCase().includes(query));
       const day = transferLeadDayKey(lead.createdAtIso);
@@ -2183,7 +2184,7 @@ export default function CallCenterLeadIntakePage({
             <TableHeader style={{ backgroundColor: T.blue }}>
               <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
                 {[
-                  "LEAD ID", "CLIENT", "CONTACT", "CENTRE", "PIPELINE", "PREMIUM", "CREATED", "CREATED BY", "ACTIONS"
+                  "LEAD ID", "CLIENT", "CONTACT", "CENTRE", "PREMIUM", "CREATED BY", "ACTIONS"
                 ].map(header => (
                   <TableHead key={header} style={{ 
                     color: "white", 
@@ -2263,16 +2264,9 @@ export default function CallCenterLeadIntakePage({
                       </span>
                     </TableCell>
                     <TableCell style={{ padding: "12px 16px" }}>
-                      <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.pipelineName}</div>
-                      <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.stage}</div>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
                       <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>
                         ${lead.premium.toLocaleString()}
                       </span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 12, color: T.textMid, fontWeight: 600 }}>{lead.createdAt}</span>
                     </TableCell>
                     <TableCell style={{ padding: "12px 16px" }}>
                       <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700 }}>
