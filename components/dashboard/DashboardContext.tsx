@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import type { DashPage } from "@/components/dashboard/DashboardLayout";
 import type { RoleKey } from "@/lib/auth/roles";
 import type { PermissionKey } from "@/lib/auth/permissions";
@@ -14,6 +14,12 @@ export type DashboardContextValue = {
   userInitials: string;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  /** Optional override for the sticky top bar title; when null, layout uses the default label for `activePage`. */
+  pageHeaderTitle: ReactNode | null;
+  /** Primary actions rendered in the top bar (e.g. “Add New Lead”). Clear on unmount. */
+  pageHeaderActions: ReactNode | null;
+  setPageHeaderTitle: (node: ReactNode | null) => void;
+  setPageHeaderActions: (node: ReactNode | null) => void;
 };
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);

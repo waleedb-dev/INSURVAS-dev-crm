@@ -39,6 +39,156 @@ type IntakeLead = {
   isDraft?: boolean;
 };
 
+type TransferKanbanColumnId =
+  | "new-lead-in"
+  | "new-transfer-enqueue"
+  | "pending-disposition"
+  | "submitted"
+  | "not-submitted";
+
+const TRANSFER_KANBAN_COLUMNS: Array<{
+  id: TransferKanbanColumnId;
+  label: string;
+  accent: string;
+  bg: string;
+}> = [
+  { id: "new-lead-in", label: "New Lead In", accent: "#4f46e5", bg: "#eef2ff" },
+  { id: "new-transfer-enqueue", label: "New Transfer Enqueue", accent: "#0f766e", bg: "#ecfeff" },
+  { id: "pending-disposition", label: "Pending Disposition", accent: "#b45309", bg: "#fffbeb" },
+  { id: "submitted", label: "Submitted", accent: "#166534", bg: "#f0fdf4" },
+  { id: "not-submitted", label: "Not Submitted", accent: "#b91c1c", bg: "#fef2f2" },
+];
+
+function renderTransferKanbanBoard() {
+  return (
+    <div
+      style={{
+        background: T.cardBg,
+        borderRadius: 28,
+        padding: "22px 8px 10px",
+        boxShadow: T.shadowSm,
+        border: `1px solid ${T.borderLight}`,
+      }}
+    >
+      <style>{`
+        .transfer-kanban-board {
+          display: flex;
+          gap: 16px;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding: 0 0 12px;
+          align-items: stretch;
+          scrollbar-width: thin;
+          scrollbar-color: ${T.border} transparent;
+        }
+        .transfer-kanban-board::-webkit-scrollbar { height: 7px; }
+        .transfer-kanban-board::-webkit-scrollbar-track { background: transparent; }
+        .transfer-kanban-board::-webkit-scrollbar-thumb { background: #c8d4bb; border-radius: 999px; }
+      `}</style>
+
+      <div className="transfer-kanban-board">
+        {TRANSFER_KANBAN_COLUMNS.map((column) => (
+          <div
+            key={column.id}
+            style={{
+              minWidth: 316,
+              width: 316,
+              flexShrink: 0,
+              background: "#fff",
+              border: `1px solid ${T.border}`,
+              borderRadius: 14,
+              boxShadow: "0 2px 12px rgba(15, 23, 42, 0.05)",
+              overflow: "hidden",
+              minHeight: 720,
+            }}
+          >
+            <div
+              style={{
+                background: `linear-gradient(180deg, ${column.bg} 0%, #ffffff 88%)`,
+                borderTop: `4px solid ${column.accent}`,
+                borderBottom: `1px solid ${T.borderLight}`,
+                padding: "14px 16px 12px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{column.label}</span>
+                <span
+                  style={{
+                    minWidth: 28,
+                    height: 28,
+                    borderRadius: 999,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#fff",
+                    border: `1px solid ${T.borderLight}`,
+                    color: column.accent,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    padding: "0 8px",
+                  }}
+                >
+                  0
+                </span>
+              </div>
+              <div style={{ marginTop: 6, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                No leads yet
+              </div>
+            </div>
+
+            <div
+              style={{
+                minHeight: 640,
+                padding: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#fff",
+              }}
+            >
+              <div
+                style={{
+                  width: "100%",
+                  border: `1px dashed ${T.border}`,
+                  borderRadius: 12,
+                  padding: "22px 16px",
+                  textAlign: "center",
+                  background: "#fff",
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    margin: "0 auto 12px",
+                    borderRadius: 12,
+                    background: column.bg,
+                    color: column.accent,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>No cards in this stage</div>
+                <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, color: T.textMuted }}>
+                  Kanban layout is enabled, but cards are intentionally hidden for now.
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 type DuplicateLeadMatch = {
   id: string;
   lead_unique_id: string | null;
@@ -119,14 +269,6 @@ const DEFAULT_CLAIM_SELECTION: ClaimSelections = {
   quoteCoverage: "",
   quoteMonthlyPremium: "",
 };
-
-// Generate a consistent avatar color from a string
-function stringToColor(str: string) {
-  const colors = [T.blue, "#94c278", "#4e6e3a", "#bbd9a9", "#74a557", "#74a557", "#3b5229", "#6b7a5f"];
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
-}
 
 function getInitials(name: string) {
   return name
@@ -378,7 +520,7 @@ export default function CallCenterLeadIntakePage({
 }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
-  const { permissionKeys, currentRole } = useDashboardContext();
+  const { permissionKeys, currentRole, setPageHeaderActions } = useDashboardContext();
   const canEditTransferLeads = permissionKeys.has("action.transfer_leads.edit");
   /** Overwrite the matched row: editors always; intake creators only for SSN match (duplicate resolution). */
   const canOverwriteDuplicateMatch = (match: DuplicateLeadMatch | null) =>
@@ -408,6 +550,7 @@ export default function CallCenterLeadIntakePage({
   const [filterMaxPremium, setFilterMaxPremium] = useState("");
   /** Detailed filters (dates, dropdowns, premium) — search + chips stay usable when false */
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -431,7 +574,8 @@ export default function CallCenterLeadIntakePage({
     retentionAgents: { id: string; name: string; roleKey: string }[];
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
   const [claimSelection, setClaimSelection] = useState<ClaimSelections>(DEFAULT_CLAIM_SELECTION);
-  const itemsPerPage = 10;
+  const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
+  const itemsPerPage = 7;
 
   useEffect(() => {
     let cancelled = false;
@@ -800,10 +944,16 @@ export default function CallCenterLeadIntakePage({
     if (filtered.length === 0 && page !== 1) setPage(1);
   }, [filtered.length, page, totalPages]);
 
+  useEffect(() => {
+    setPageHeaderActions(null);
+    return () => setPageHeaderActions(null);
+  }, [setPageHeaderActions]);
+
   // Stats (match filtered table)
   const totalPremium = filtered.reduce((s, l) => s + l.premium, 0);
   const avgPremium = filtered.length ? totalPremium / filtered.length : 0;
   const uniquePipelines = new Set(filtered.map((l) => l.pipelineName)).size;
+  const draftCount = filtered.reduce((n, l) => n + (l.isDraft ? 1 : 0), 0);
 
   const promptDuplicateIfAny = async (payload: TransferLeadFormData): Promise<boolean> => {
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
@@ -1730,111 +1880,104 @@ export default function CallCenterLeadIntakePage({
 
   return (
     <div onClick={() => setActiveMenu(null)}>
-      {/* Header */}
-      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: T.textDark, margin: 0 }}>Transfer Leads</h1>
-        </div>
-        <button
-          onClick={() => setShowCreateLead(true)}
-          disabled={!canCreateLeads}
-          title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
-          style={{
-            backgroundColor: canCreateLeads ? T.blue : T.border,
-            color: "#fff",
-            border: "none",
-            borderRadius: T.radiusMd,
-            padding: "10px 22px",
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: canCreateLeads ? "pointer" : "not-allowed",
-            fontFamily: T.font,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}44` : "none",
-            transition: "all 0.15s",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          Add New Lead
-        </button>
-      </div>
-
-      {/* Stats Row - Shadcn Vibes */}
-      <style>{`
-        @keyframes stat-card-in {
-          from { opacity: 0; transform: translateY(8px) scale(0.99); }
-          to   { opacity: 1; transform: translateY(0)   scale(1);    }
-        }
-        @keyframes filter-panel-in {
-          from { opacity: 0; transform: translateY(-8px); transform-origin: top; }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+      {/* Stats Row — 5 compact KPIs (wide vs tall ratio similar to reference dashboards) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
         {[
           { label: "TOTAL LEADS", value: filtered.length.toString(), color: T.memberTeal, icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             ) },
           { label: "TOTAL PREMIUM", value: `$${totalPremium.toLocaleString()}`, color: T.memberTeal, icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
             ) },
           { label: "AVG PREMIUM", value: `$${avgPremium.toFixed(0)}`, color: T.memberTeal, icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
             ) },
           { label: "ACTIVE PIPELINES", value: uniquePipelines.toString(), color: T.memberTeal, icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            ) },
+          { label: "DRAFT LEADS", value: draftCount.toString(), color: T.memberTeal, icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
             ) },
         ].map(({ label, value, color, icon }, i) => (
-          <Card key={label} style={{ 
-            borderRadius: 12, 
-            border: `1px solid ${T.border}`, 
-            borderBottom: `4px solid ${color}`, 
-            background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`, 
-            boxShadow: "0 4px 12px rgba(0,0,0,0.03)", 
-            padding: "20px 24px", 
-            display: "flex", 
-            flexDirection: "row", 
-            justifyContent: "space-between",
-            animation: "stat-card-in 0.3s cubic-bezier(0.16,1,0.3,1) both", 
-            animationDelay: `${i * 50}ms` 
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
-              <div style={{ fontSize: 32, fontWeight: 800, color: color, lineHeight: 1 }}>
-                {value}
+            <Card
+              key={label}
+              onMouseEnter={() => setHoveredStatIdx(i)}
+              onMouseLeave={() => setHoveredStatIdx(null)}
+              style={{
+                borderRadius: 12,
+                border: `1px solid ${T.border}`,
+                borderBottom: `4px solid ${color}`,
+                background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+                boxShadow:
+                  hoveredStatIdx === i
+                    ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+                    : "0 4px 12px rgba(0,0,0,0.03)",
+                transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
+                transition:
+                  "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                padding: "12px 14px",
+                minHeight: 88,
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 10,
+                cursor: "default",
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+                <div style={{ fontSize: 22, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
+                  {value}
+                </div>
               </div>
-            </div>
-            <div style={{ 
-              color: color, 
-              backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
-              width: 54,
-              height: 54,
-              borderRadius: 14,
-              display: "flex", 
-              alignItems: "center", 
-              justifyContent: "center",
-              flexShrink: 0
-            }}>
-              {icon}
-            </div>
-          </Card>
+              <div
+                style={{
+                  color,
+                  backgroundColor:
+                    hoveredStatIdx === i
+                      ? `color-mix(in srgb, ${color} 24%, transparent)`
+                      : `color-mix(in srgb, ${color} 15%, transparent)`,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  transition:
+                    "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                  transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                }}
+              >
+                {icon}
+              </div>
+            </Card>
         ))}
       </div>
 
       {/* Filter toolbar */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 16 }}>
         {/* Top Bar */}
         <div
           style={{
+            width: "100%",
             background: T.cardBg,
             border: `1px solid ${T.border}`,
-            borderRadius: 12,
+            borderBottom:
+              filterPanelExpanded || transferLeadsHasActiveFilters ? "none" : `1px solid ${T.border}`,
+            borderRadius:
+              filterPanelExpanded || transferLeadsHasActiveFilters ? "12px 12px 0 0" : 12,
             padding: "10px 16px",
-            boxShadow: T.shadowSm,
+            boxShadow:
+              filterPanelExpanded || transferLeadsHasActiveFilters ? "none" : T.shadowSm,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -1874,7 +2017,7 @@ export default function CallCenterLeadIntakePage({
                   background: T.pageBg,
                   outline: "none",
                   fontFamily: T.font,
-                  transition: "border-color 0.2s, box-shadow 0.2s",
+                  transition: "border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = T.blue;
@@ -1888,16 +2031,49 @@ export default function CallCenterLeadIntakePage({
             </div>
           </div>
 
-          {/* Right: Total count + Filters button */}
+          {/* Right: View switch + filters + add button */}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{
-              fontSize: 13,
-              color: T.textMuted,
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-            }}>
-              {filtered.length} total
-            </span>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: 4,
+                borderRadius: 10,
+                border: `1px solid ${T.border}`,
+                background: T.pageBg,
+                gap: 4,
+              }}
+            >
+              {([
+                { id: "table", label: "Table" },
+                { id: "kanban", label: "Kanban" },
+              ] as const).map((option) => {
+                const active = viewMode === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setViewMode(option.id)}
+                    style={{
+                      height: 30,
+                      padding: "0 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: active ? T.cardBg : "transparent",
+                      color: active ? T.textDark : T.textMuted,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fontFamily: T.font,
+                      cursor: "pointer",
+                      boxShadow: active ? "0 1px 3px rgba(15, 23, 42, 0.08)" : "none",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
 
             <button
               type="button"
@@ -1918,7 +2094,8 @@ export default function CallCenterLeadIntakePage({
                 fontWeight: 600,
                 fontFamily: T.font,
                 cursor: "pointer",
-                transition: "all 0.2s",
+                transition:
+                  "border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1943,21 +2120,51 @@ export default function CallCenterLeadIntakePage({
                 </span>
               )}
             </button>
+
+            <button
+              type="button"
+              onClick={() => setShowCreateLead(true)}
+              disabled={!canCreateLeads}
+              title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                height: 34,
+                padding: "0 16px",
+                borderRadius: 8,
+                border: "none",
+                background: canCreateLeads ? T.blue : T.border,
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: T.font,
+                cursor: canCreateLeads ? "pointer" : "not-allowed",
+                boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}33` : "none",
+                transition:
+                  "background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              Add New Lead
+            </button>
           </div>
         </div>
 
         {(filterPanelExpanded || transferLeadsHasActiveFilters) && (
           <div
             style={{
+              width: "100%",
               background: T.cardBg,
               border: `1px solid ${T.border}`,
-              borderRadius: 12,
+              borderRadius: "0 0 12px 12px",
               padding: "16px 20px",
               boxShadow: T.shadowSm,
               display: "flex",
               flexDirection: "column",
               gap: 16,
-              animation: "filter-panel-in 0.2s cubic-bezier(0.16,1,0.3,1) both",
             }}
           >
             {filterPanelExpanded && (
@@ -2156,225 +2363,227 @@ export default function CallCenterLeadIntakePage({
         )}
       </div>
 
-      <DataGrid
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search leads by name, phone, source, or ID..."
-        noHeader
-        pagination={
-          <Pagination
-            page={page}
-            totalItems={filtered.length}
-            itemsPerPage={itemsPerPage}
-            itemLabel="leads"
-            onPageChange={setPage}
-          />
-        }
-      >
-        <div
-          style={{
-            borderRadius: "12px 12px 0 0",
-            border: `1.5px solid ${T.border}`,
-            borderBottom: "none",
-            overflow: "hidden",
-            backgroundColor: T.cardBg,
-          }}
+      {viewMode === "table" ? (
+        <DataGrid
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search leads by name, phone, source, or ID..."
+          noHeader
+          pagination={
+            <Pagination
+              page={page}
+              totalItems={filtered.length}
+              itemsPerPage={itemsPerPage}
+              itemLabel="leads"
+              onPageChange={setPage}
+            />
+          }
         >
-          <ShadcnTable>
-            <TableHeader style={{ backgroundColor: T.blue }}>
-              <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
-                {[
-                  "LEAD ID", "CLIENT", "CONTACT", "CENTRE", "PREMIUM", "CREATED BY", "ACTIONS"
-                ].map(header => (
-                  <TableHead key={header} style={{ 
-                    color: "white", 
-                    fontWeight: 800, 
-                    fontSize: 11, 
-                    letterSpacing: "0.5px",
-                    padding: "16px",
-                    whiteSpace: "nowrap",
-                    textAlign: header === "ACTIONS" ? "center" : "left"
-                  }}>
-                    {header}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginated.map((lead) => {
-                const avatarColor = stringToColor(lead.name);
-                return (
-                  <TableRow 
-                    key={lead.id}
-                    onClick={() => void openLeadFromGrid(lead)}
-                    style={{ cursor: "pointer", borderBottom: `1px solid ${T.borderLight}` }}
-                    className="hover:bg-muted/30 transition-colors"
-                  >
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: T.blue, textDecoration: "underline" }}>
-                        {lead.id}
-                      </span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
-                          backgroundColor: avatarColor,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#fff",
-                          fontSize: 11,
-                          fontWeight: 800,
-                          flexShrink: 0,
-                        }}>
-                          {getInitials(lead.name)}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
-                          {lead.isDraft ? (
-                            <span
-                              style={{
-                                backgroundColor: "#fff7ed",
-                                color: "#c2410c",
-                                border: "1px solid #fdba74",
-                                borderRadius: 999,
-                                padding: "2px 8px",
-                                fontSize: 10,
-                                fontWeight: 800,
-                                letterSpacing: "0.2px",
-                                textTransform: "uppercase",
-                              }}
-                            >
-                              Draft
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.phone}</div>
-                      <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.source}</div>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700 }}>
-                        {lead.centerName}
-                      </span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>
-                        ${lead.premium.toLocaleString()}
-                      </span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700 }}>
-                        {lead.createdBy}
-                      </span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
-                      >
-                        {!isCallCenterTransferRole && (
-                          <button
-                            className="lead-action-btn"
-                            type="button"
-                            onClick={() => {
-                              if (lead.isDraft) {
-                                void openLeadFromGrid(lead);
-                                return;
-                              }
-                              router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
-                            }}
-                            style={{
-                              border: `1.5px solid ${T.border}`,
-                              borderRadius: 8,
-                              background: T.cardBg,
-                              color: T.textDark,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              padding: "6px 12px",
-                              cursor: "pointer",
-                              transition: "all 160ms ease",
-                            }}
-                          >
-                            View Lead
-                          </button>
-                        )}
-                        {canViewTransferClaimReclaimVisit && (
-                          <>
-                            <button
-                              className="lead-action-btn"
-                              type="button"
-                              onClick={() => void openClaimModalForLead(lead)}
-                              style={{
-                                border: `1.5px solid ${T.border}`,
-                                borderRadius: 8,
-                                background: T.cardBg,
-                                color: T.textDark,
-                                fontSize: 12,
-                                fontWeight: 700,
-                                padding: "6px 12px",
-                                cursor: "pointer",
-                                transition: "all 160ms ease",
-                              }}
-                            >
-                              Claim Call
-                            </button>
-                            <button
-                              className="lead-action-btn"
-                              type="button"
-                              onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
-                              style={{
-                                border: `1.5px solid ${T.border}`,
-                                borderRadius: 8,
-                                background: T.cardBg,
-                                color: T.textDark,
-                                fontSize: 12,
-                                fontWeight: 700,
-                                padding: "6px 12px",
-                                cursor: "pointer",
-                                transition: "all 160ms ease",
-                              }}
-                            >
-                              Claim Retention
-                            </button>
-                          </>
-                        )}
-                        <ActionMenu
-                          id={lead.id}
-                          activeId={activeMenu}
-                          onToggle={setActiveMenu}
-                          items={
-                            canEditTransferLeads
-                              ? [
-                                  { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                  { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
-                                  { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
-                                ]
-                              : isCallCenterTransferRole && lead.isDraft
-                                ? [
-                                    { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                    { label: "Update Lead", onClick: () => void openLeadInForm(lead.rowId) },
-                                  ]
-                                : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
-                          }
-                        />
-                      </div>
-                    </TableCell>
+          <>
+            <div
+              style={{
+                borderRadius: "12px 12px 0 0",
+                border: `1.5px solid ${T.border}`,
+                borderBottom: "none",
+                overflow: "hidden",
+                backgroundColor: T.cardBg,
+              }}
+            >
+              <ShadcnTable>
+                <TableHeader style={{ backgroundColor: T.asideChrome }}>
+                  <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                    {[
+                      "LEAD ID", "CLIENT", "CONTACT", "CENTRE", "PREMIUM", "CREATED BY", "ACTIONS"
+                    ].map(header => (
+                      <TableHead key={header} style={{ 
+                        color: "white", 
+                        fontWeight: 800, 
+                        fontSize: 11, 
+                        letterSpacing: "0.5px",
+                        padding: "16px",
+                        whiteSpace: "nowrap",
+                        textAlign: header === "ACTIONS" ? "center" : "left"
+                      }}>
+                        {header}
+                      </TableHead>
+                    ))}
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </ShadcnTable>
-        </div>
-        {filtered.length === 0 && (
-          <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
-        )}
-      </DataGrid>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map((lead) => {
+                    return (
+                      <TableRow 
+                        key={lead.id}
+                        onClick={() => void openLeadFromGrid(lead)}
+                        style={{ cursor: "pointer", borderBottom: `1px solid ${T.asideChrome}` }}
+                        className="hover:bg-muted/30 transition-[background-color] duration-200 ease-out"
+                      >
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: T.textDark, textDecoration: "underline" }}>
+                            {lead.id}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              backgroundColor: T.asideChrome,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "#fff",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              flexShrink: 0,
+                            }}>
+                              {getInitials(lead.name)}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
+                              {lead.isDraft ? (
+                                <span
+                                  style={{
+                                    backgroundColor: "#fff7ed",
+                                    color: "#c2410c",
+                                    border: "1px solid #fdba74",
+                                    borderRadius: 999,
+                                    padding: "2px 8px",
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    letterSpacing: "0.2px",
+                                    textTransform: "uppercase",
+                                  }}
+                                >
+                                  Draft
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.phone}</div>
+                          <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.source}</div>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
+                            {lead.centerName}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>
+                            ${lead.premium.toLocaleString()}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
+                            {lead.createdBy}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
+                          >
+                            {!isCallCenterTransferRole && (
+                              <button
+                                className="lead-action-btn"
+                                type="button"
+                                onClick={() => {
+                                  if (lead.isDraft) {
+                                    void openLeadFromGrid(lead);
+                                    return;
+                                  }
+                                  router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
+                                }}
+                                style={{
+                                  border: `1.5px solid ${T.border}`,
+                                  borderRadius: 8,
+                                  background: T.cardBg,
+                                  color: T.textDark,
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  padding: "6px 12px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                View Lead
+                              </button>
+                            )}
+                            {canViewTransferClaimReclaimVisit && (
+                              <>
+                                <button
+                                  className="lead-action-btn"
+                                  type="button"
+                                  onClick={() => void openClaimModalForLead(lead)}
+                                  style={{
+                                    border: `1.5px solid ${T.border}`,
+                                    borderRadius: 8,
+                                    background: T.cardBg,
+                                    color: T.textDark,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    padding: "6px 12px",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Claim Call
+                                </button>
+                                <button
+                                  className="lead-action-btn"
+                                  type="button"
+                                  onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
+                                  style={{
+                                    border: `1.5px solid ${T.border}`,
+                                    borderRadius: 8,
+                                    background: T.cardBg,
+                                    color: T.textDark,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    padding: "6px 12px",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Claim Retention
+                                </button>
+                              </>
+                            )}
+                            <ActionMenu
+                              id={lead.id}
+                              activeId={activeMenu}
+                              onToggle={setActiveMenu}
+                              items={
+                                canEditTransferLeads
+                                  ? [
+                                      { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
+                                      { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
+                                      { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
+                                    ]
+                                  : isCallCenterTransferRole && lead.isDraft
+                                    ? [
+                                        { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
+                                        { label: "Update Lead", onClick: () => void openLeadInForm(lead.rowId) },
+                                      ]
+                                    : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
+                              }
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </ShadcnTable>
+            </div>
+            {filtered.length === 0 && (
+              <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
+            )}
+          </>
+        </DataGrid>
+      ) : (
+        renderTransferKanbanBoard()
+      )}
 
       {pendingDeleteLead && (
         <div
@@ -2457,6 +2666,14 @@ export default function CallCenterLeadIntakePage({
         }}
       />
       <style jsx>{`
+        .lead-action-btn {
+          transition:
+            background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+            border-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+            color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+            transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+        }
         .lead-action-btn:hover {
           background: #3b5229;
           border-color: #3b5229;

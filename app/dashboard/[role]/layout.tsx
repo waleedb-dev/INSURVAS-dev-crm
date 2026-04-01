@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import DashboardLayout, { type DashPage } from "@/components/dashboard/DashboardLayout";
 import SupportModal from "@/components/dashboard/SupportModal";
@@ -50,8 +50,13 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
   const [userDisplayName, setUserDisplayName] = useState("User");
   const [userEmail, setUserEmail] = useState("");
   const [userInitials, setUserInitials] = useState("U");
+  const [pageHeaderTitle, setPageHeaderTitle] = useState<ReactNode | null>(null);
+  const [pageHeaderActions, setPageHeaderActions] = useState<ReactNode | null>(null);
 
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role;
+
+  const stableSetPageHeaderTitle = useCallback((n: ReactNode | null) => setPageHeaderTitle(n), []);
+  const stableSetPageHeaderActions = useCallback((n: ReactNode | null) => setPageHeaderActions(n), []);
 
   useEffect(() => {
     const bootstrapDashboard = async () => {
@@ -168,6 +173,10 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
         userInitials,
         searchQuery,
         setSearchQuery,
+        pageHeaderTitle,
+        pageHeaderActions,
+        setPageHeaderTitle: stableSetPageHeaderTitle,
+        setPageHeaderActions: stableSetPageHeaderActions,
       }}
     >
       <DashboardLayout
