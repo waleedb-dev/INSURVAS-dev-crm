@@ -7,6 +7,8 @@ interface DataGridProps {
   search: string;
   onSearchChange: (val: string) => void;
   searchPlaceholder?: string;
+  /** Always-visible actions in the toolbar row (e.g. primary buttons). Not hidden behind the Filters toggle. */
+  headerActions?: ReactNode;
   filters?: ReactNode;
   activeFilters?: ReactNode;
   children: ReactNode;
@@ -20,6 +22,7 @@ export function DataGrid({
   search,
   onSearchChange,
   searchPlaceholder = "Search...",
+  headerActions,
   filters,
   activeFilters,
   children,
@@ -113,52 +116,55 @@ export function DataGrid({
               </button>
             )}
           </div>
-          
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={() => setFiltersExpanded((prev) => !prev)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                height: 40,
-                padding: "0 14px",
-                borderRadius: 8,
-                border: filtersExpanded ? `1.5px solid ${T.blue}` : `1px solid ${T.border}`,
-                background: filtersExpanded ? T.blueLight : T.rowBg,
-                color: filtersExpanded ? T.blue : T.textDark,
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: T.font,
-                cursor: "pointer",
-                transition: "all 0.2s",
-                flexShrink: 0,
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-              </svg>
-              Filters
-              {activeFilterCount > 0 && (
-                <span style={{
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            {headerActions}
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={() => setFiltersExpanded((prev) => !prev)}
+                style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  minWidth: 18,
-                  height: 18,
-                  padding: "0 5px",
-                  borderRadius: 999,
-                  background: T.blue,
-                  color: "#fff",
-                  fontSize: 11,
-                  fontWeight: 800,
-                }}>
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          )}
+                  gap: 6,
+                  height: 40,
+                  padding: "0 14px",
+                  borderRadius: 8,
+                  border: filtersExpanded ? `1.5px solid ${T.blue}` : `1px solid ${T.border}`,
+                  background: filtersExpanded ? T.blueLight : T.rowBg,
+                  color: filtersExpanded ? T.blue : T.textDark,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                </svg>
+                Filters
+                {activeFilterCount > 0 && (
+                  <span style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: 18,
+                    height: 18,
+                    padding: "0 5px",
+                    borderRadius: 999,
+                    background: T.blue,
+                    color: "#fff",
+                    fontSize: 11,
+                    fontWeight: 800,
+                  }}>
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {showFilterPanel && (

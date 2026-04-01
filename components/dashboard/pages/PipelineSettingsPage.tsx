@@ -35,6 +35,14 @@ export default function PipelineManagementPage() {
   const [search, setSearch] = useState("");
   const [filterStages, setFilterStages] = useState<"All" | "Empty" | "With Stages">("All");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [stageSearch, setStageSearch] = useState("");
+
+  const filteredStagesForEdit = useMemo(() => {
+    if (!selectedPipeline) return [];
+    const q = stageSearch.trim().toLowerCase();
+    if (!q) return selectedPipeline.stages;
+    return selectedPipeline.stages.filter((s) => s.name.toLowerCase().includes(q));
+  }, [selectedPipeline, stageSearch]);
 
   useEffect(() => {
     fetchPipelines();
@@ -105,6 +113,7 @@ export default function PipelineManagementPage() {
          }))
        });
        setDeleteError(null);
+       setStageSearch("");
        setView("edit");
     }
     setLoading(false);
@@ -309,7 +318,7 @@ export default function PipelineManagementPage() {
         {/* Detail Header */}
         <div style={{ marginBottom: 24 }}>
           <button 
-            onClick={() => { setView("list"); setDeleteError(null); }} 
+            onClick={() => { setView("list"); setDeleteError(null); setStageSearch(""); }} 
             style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", color: T.textMuted, fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -350,15 +359,31 @@ export default function PipelineManagementPage() {
         </div>
 
       <DataGrid
-        search=""
-        onSearchChange={() => {}}
+        search={stageSearch}
+        onSearchChange={setStageSearch}
         searchPlaceholder="Search Stages"
-        filters={
-          <button onClick={handleAddStage} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>+ Add Stage</button>
+        headerActions={
+          <button
+            type="button"
+            onClick={() => void handleAddStage()}
+            style={{
+              backgroundColor: T.blue,
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "10px 20px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: `0 4px 12px ${T.blue}44`,
+            }}
+          >
+            + Add Stage
+          </button>
         }
       >
         <Table
-          data={selectedPipeline.stages}
+          data={filteredStagesForEdit}
           columns={[
             {
               header: "",
