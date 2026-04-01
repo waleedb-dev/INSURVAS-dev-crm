@@ -131,14 +131,6 @@ const DEFAULT_CLAIM_SELECTION: ClaimSelections = {
   quoteMonthlyPremium: "",
 };
 
-// Generate a consistent avatar color from a string
-function stringToColor(str: string) {
-  const colors = [T.blue, "#94c278", "#4e6e3a", "#bbd9a9", "#74a557", "#74a557", "#3b5229", "#6b7a5f"];
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
-}
-
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -2188,7 +2180,7 @@ export default function CallCenterLeadIntakePage({
           }}
         >
           <ShadcnTable>
-            <TableHeader style={{ backgroundColor: T.blue }}>
+            <TableHeader style={{ backgroundColor: T.asideChrome }}>
               <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
                 {[
                   "LEAD ID", "CLIENT", "CONTACT", "CENTRE", "PREMIUM", "CREATED BY", "ACTIONS"
@@ -2209,16 +2201,15 @@ export default function CallCenterLeadIntakePage({
             </TableHeader>
             <TableBody>
               {paginated.map((lead) => {
-                const avatarColor = stringToColor(lead.name);
                 return (
                   <TableRow 
                     key={lead.id}
                     onClick={() => void openLeadFromGrid(lead)}
-                    style={{ cursor: "pointer", borderBottom: `1px solid ${T.borderLight}` }}
+                    style={{ cursor: "pointer", borderBottom: `1px solid ${T.asideChrome}` }}
                     className="hover:bg-muted/30 transition-colors"
                   >
                     <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: T.blue, textDecoration: "underline" }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: T.textDark, textDecoration: "underline" }}>
                         {lead.id}
                       </span>
                     </TableCell>
@@ -2228,7 +2219,7 @@ export default function CallCenterLeadIntakePage({
                           width: 32,
                           height: 32,
                           borderRadius: "50%",
-                          backgroundColor: avatarColor,
+                          backgroundColor: T.asideChrome,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -2266,7 +2257,7 @@ export default function CallCenterLeadIntakePage({
                       <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.source}</div>
                     </TableCell>
                     <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700 }}>
+                      <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
                         {lead.centerName}
                       </span>
                     </TableCell>
@@ -2276,7 +2267,7 @@ export default function CallCenterLeadIntakePage({
                       </span>
                     </TableCell>
                     <TableCell style={{ padding: "12px 16px" }}>
-                      <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700 }}>
+                      <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
                         {lead.createdBy}
                       </span>
                     </TableCell>

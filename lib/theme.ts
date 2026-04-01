@@ -6,6 +6,8 @@
 export const T = {
   // ── Backgrounds ──────────────────────────────────────────────────────────
   pageBg:      "var(--pageBg, #f2f8ee)",   // green-50
+  /** Left nav column — fixed dark chrome (same fill as table headers that match nav). */
+  asideChrome: "#1c201a",
   sidebarBg:   "var(--sidebarBg, #e8efdf)",   // slightly darker green than pageBg
   cardBg:      "var(--cardBg, #ffffff)",
   rowBg:       "var(--rowBg, #f2f8ee)",   // green-50

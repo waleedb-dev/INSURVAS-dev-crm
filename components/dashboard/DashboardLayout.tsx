@@ -108,7 +108,7 @@ export default function DashboardLayout({
       {/* ── Sidebar ────────────────────────────────────────────────────────── */}
       <aside style={{
         width: sidebarW, flexShrink: 0,
-        backgroundColor: "#1c201a", // Deep dark green (fixed dark background)
+        backgroundColor: T.asideChrome,
         display: "flex", flexDirection: "column",
         position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 100,
         borderRight: "1px solid rgba(255,255,255,0.1)",
