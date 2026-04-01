@@ -2369,6 +2369,7 @@ export default function CallCenterLeadIntakePage({
           onSearchChange={setSearch}
           searchPlaceholder="Search leads by name, phone, source, or ID..."
           noHeader
+          style={{ borderRadius: 12 }}
           pagination={
             <Pagination
               page={page}
@@ -2382,7 +2383,7 @@ export default function CallCenterLeadIntakePage({
           <>
             <div
               style={{
-                borderRadius: "12px 12px 0 0",
+                borderRadius: "10px 10px 0 0",
                 border: `1.5px solid ${T.border}`,
                 borderBottom: "none",
                 overflow: "hidden",
