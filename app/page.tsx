@@ -15,10 +15,67 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitHovered, setIsSubmitHovered] = useState(false);
+  const [activeField, setActiveField] = useState<"email" | "password" | null>(null);
+  const [hoveredField, setHoveredField] = useState<"email" | "password" | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const getFieldStyles = ({
+    isActive,
+    isHovered,
+    isFilled,
+    hasError,
+  }: {
+    isActive: boolean;
+    isHovered: boolean;
+    isFilled: boolean;
+    hasError: boolean;
+  }) => {
+    if (hasError) {
+      return {
+        border: "1.5px solid #e11d48",
+        backgroundColor: "#fff7f8",
+        boxShadow: isActive ? "0 0 0 4px rgba(225, 29, 72, 0.12)" : "none",
+        color: "#2e3429",
+      };
+    }
+
+    if (isActive) {
+      return {
+        border: "1.5px solid #6f7f62",
+        backgroundColor: "#fcfdf9",
+        boxShadow: "0 0 0 4px rgba(111, 127, 98, 0.16)",
+        color: "#1f251c",
+      };
+    }
+
+    if (isHovered) {
+      return {
+        border: "1.5px solid #a9b999",
+        backgroundColor: "#fdfefb",
+        boxShadow: "none",
+        color: "#253022",
+      };
+    }
+
+    if (isFilled) {
+      return {
+        border: "1.5px solid #b8c8a9",
+        backgroundColor: "#ffffff",
+        boxShadow: "none",
+        color: "#253022",
+      };
+    }
+
+    return {
+      border: "1.5px solid #c8d4bb",
+      backgroundColor: "#ffffff",
+      boxShadow: "none",
+      color: "#2e3429",
+    };
+  };
 
   const handleSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -128,23 +185,28 @@ export default function SignInPage() {
           style={{
             width: "100%",
             maxWidth: 460,
-            padding: "48px 40px",
+            padding: "40px 36px",
             borderRadius: 20,
             boxShadow: "0 4px 40px rgba(0,0,0,0.07)",
           }}
         >
           <h2
             className="font-bold text-center"
-            style={{ fontSize: 22, color: "#1a1a2e", marginBottom: 32 }}
+            style={{ fontSize: 22, color: "#1a1a2e", marginBottom: 24 }}
           >
             Sign In to Insurvas
           </h2>
 
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 16 }}>
             <label
               htmlFor="email"
               className="block font-semibold"
-              style={{ fontSize: 13, color: "#6b7a5f", marginBottom: 8 }}
+              style={{
+                fontSize: 13,
+                color: activeField === "email" ? "#536149" : "#6b7a5f",
+                marginBottom: 6,
+                transition: "color 0.2s ease",
+              }}
             >
               Email Address
             </label>
@@ -155,25 +217,43 @@ export default function SignInPage() {
               autoComplete="username email"
               required
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                if (errorMessage) setErrorMessage(null);
+              }}
+              onFocus={() => setActiveField("email")}
+              onBlur={() => setActiveField((current) => (current === "email" ? null : current))}
+              onMouseEnter={() => setHoveredField("email")}
+              onMouseLeave={() => setHoveredField((current) => (current === "email" ? null : current))}
               placeholder="youremail@gmail.com"
               style={{
                 width: "100%",
                 padding: "13px 16px",
-                border: "1.5px solid #c8d4bb",
                 borderRadius: 12,
                 fontSize: 14,
-                color: "#2e3429",
                 fontFamily: "inherit",
+                transition: "all 0.2s ease",
+                outline: "none",
+                ...getFieldStyles({
+                  isActive: activeField === "email",
+                  isHovered: hoveredField === "email",
+                  isFilled: email.trim().length > 0,
+                  hasError: Boolean(errorMessage),
+                }),
               }}
             />
           </div>
 
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 18 }}>
             <label
               htmlFor="password"
               className="block font-semibold"
-              style={{ fontSize: 13, color: "#6b7a5f", marginBottom: 8 }}
+              style={{
+                fontSize: 13,
+                color: activeField === "password" ? "#536149" : "#6b7a5f",
+                marginBottom: 6,
+                transition: "color 0.2s ease",
+              }}
             >
               Password
             </label>
@@ -185,15 +265,28 @@ export default function SignInPage() {
                 autoComplete="current-password"
                 required
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                onFocus={() => setActiveField("password")}
+                onBlur={() => setActiveField((current) => (current === "password" ? null : current))}
+                onMouseEnter={() => setHoveredField("password")}
+                onMouseLeave={() => setHoveredField((current) => (current === "password" ? null : current))}
                 style={{
                   width: "100%",
                   padding: "13px 48px 13px 16px",
-                  border: "1.5px solid #c8d4bb",
                   borderRadius: 12,
                   fontSize: 14,
-                  color: "#2e3429",
                   fontFamily: "inherit",
+                  transition: "all 0.2s ease",
+                  outline: "none",
+                  ...getFieldStyles({
+                    isActive: activeField === "password",
+                    isHovered: hoveredField === "password",
+                    isFilled: password.trim().length > 0,
+                    hasError: Boolean(errorMessage),
+                  }),
                 }}
               />
               <button
@@ -201,7 +294,9 @@ export default function SignInPage() {
                 onClick={() => setShowPassword((state) => !state)}
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center transition-colors hover:text-[#48533f]"
-                style={{ color: "#6b7a5f" }}
+                style={{
+                  color: activeField === "password" ? "#536149" : "#6b7a5f",
+                }}
               >
                 {showPassword ? <IconEyeOff size={22} stroke={2} /> : <IconEye size={22} stroke={2} />}
               </button>
@@ -210,7 +305,7 @@ export default function SignInPage() {
 
           <div
             className="flex items-center justify-between"
-            style={{ marginBottom: 24 }}
+            style={{ marginBottom: 20 }}
           >
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
@@ -267,7 +362,6 @@ export default function SignInPage() {
               border: "none",
               cursor: isSubmitting ? "not-allowed" : "pointer",
               boxShadow: "0 4px 14px rgba(28, 32, 26, 0.35)",
-              marginBottom: 16,
             }}
           >
             {isSubmitting ? "Signing in..." : "Sign In"}
