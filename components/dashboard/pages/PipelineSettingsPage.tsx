@@ -1187,39 +1187,29 @@ export default function PipelineManagementPage() {
                     <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, whiteSpace: "nowrap" }}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
                       >
-                        <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                          <button 
-                            onClick={() => handleOpenPipeline(pipeline)}
-                            style={{ background: "none", border: "none", color: "#233217", cursor: "pointer", padding: 6, borderRadius: 6 }}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                          </button>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, opacity: 0, transition: "opacity 0.15s", position: "absolute", top: 32, whiteSpace: "nowrap", pointerEvents: "none" }}>View</span>
-                        </div>
-                        <style>{`
-                          div:hover > div > span { opacity: 1 !important; }
-                          div:hover > button { background-color: #f0f4ef !important; }
-                        `}</style>
-                        <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                          <button 
-                            onClick={() => openEditModal(pipeline)}
-                            style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 6, borderRadius: 6 }}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                          </button>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, opacity: 0, transition: "opacity 0.15s", position: "absolute", top: 32, whiteSpace: "nowrap", pointerEvents: "none" }}>Edit</span>
-                        </div>
-                        <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                          <button 
-                            onClick={() => openDeleteModal(pipeline)}
-                            style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 6, borderRadius: 6 }}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                          </button>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: "#dc2626", opacity: 0, transition: "opacity 0.15s", position: "absolute", top: 32, whiteSpace: "nowrap", pointerEvents: "none" }}>Delete</span>
-                        </div>
+                        <button 
+                          onClick={() => handleOpenPipeline(pipeline)}
+                          style={{ background: "none", border: "none", color: "#233217", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                          title="View Pipeline"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                        <button 
+                          onClick={() => openEditModal(pipeline)}
+                          style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 6, borderRadius: 6 }}
+                          title="Edit Pipeline"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button 
+                          onClick={() => openDeleteModal(pipeline)}
+                          style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                          title="Delete Pipeline"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                        </button>
                       </div>
                     </TableCell>
                   </TableRow>
