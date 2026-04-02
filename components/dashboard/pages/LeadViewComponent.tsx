@@ -890,14 +890,14 @@ const sampleLead = {
   } as const;
 
   const convertToClientDisabled =
-    !canEditLead ||
+    !effectiveCanEditLead ||
     !leadRow ||
     !rowUuid ||
     previewMode ||
     policyLoading ||
     policyRow != null;
 
-  const convertToClientTitle = !canEditLead
+  const convertToClientTitle = !effectiveCanEditLead
     ? "You do not have permission."
     : previewMode
       ? "Not available in preview."
@@ -968,15 +968,28 @@ const sampleLead = {
                 disabled={!effectiveCanEditLead || !leadRow}
                 title={!effectiveCanEditLead ? "You do not have permission to edit this lead." : undefined}
                 style={{
-                  backgroundColor: "#fff",
-                  border: `1.5px solid ${T.border}`,
+                  border: `1px solid ${T.border}`,
                   borderRadius: T.radiusMd,
-                  padding: "10px 20px",
+                  background: T.cardBg,
+                  color: "#233217",
                   fontSize: 13,
                   fontWeight: 700,
+                  padding: "10px 20px",
                   cursor: effectiveCanEditLead && leadRow ? "pointer" : "not-allowed",
-                  color: T.textDark,
                   opacity: effectiveCanEditLead && leadRow ? 1 : 0.55,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onMouseEnter={(e) => {
+                  if (effectiveCanEditLead && leadRow) {
+                    e.currentTarget.style.backgroundColor = "#233217";
+                    e.currentTarget.style.color = "#fff";
+                    e.currentTarget.style.borderColor = "#233217";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = T.cardBg;
+                  e.currentTarget.style.color = "#233217";
+                  e.currentTarget.style.borderColor = T.border;
                 }}
               >
                 Edit Lead
@@ -987,16 +1000,28 @@ const sampleLead = {
                 disabled={convertToClientDisabled}
                 title={convertToClientTitle}
                 style={{
-                  backgroundColor: convertToClientDisabled ? T.border : T.blue,
-                  color: "#fff",
-                  border: "none",
+                  border: `1px solid ${convertToClientDisabled ? T.border : "#233217"}`,
                   borderRadius: T.radiusMd,
-                  padding: "10px 24px",
+                  background: convertToClientDisabled ? T.cardBg : "#233217",
+                  color: convertToClientDisabled ? "#233217" : "#fff",
                   fontSize: 13,
                   fontWeight: 700,
+                  padding: "10px 24px",
                   cursor: convertToClientDisabled ? "not-allowed" : "pointer",
-                  boxShadow: `0 4px 12px ${T.blue}44`,
                   opacity: convertToClientDisabled ? 0.65 : 1,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onMouseEnter={(e) => {
+                  if (!convertToClientDisabled) {
+                    e.currentTarget.style.backgroundColor = "#1a260f";
+                    e.currentTarget.style.borderColor = "#1a260f";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!convertToClientDisabled) {
+                    e.currentTarget.style.backgroundColor = "#233217";
+                    e.currentTarget.style.borderColor = "#233217";
+                  }
                 }}
               >
                 Convert to Client
@@ -1581,6 +1606,110 @@ function InfoField({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
+function CollapsibleSection({
+  icon,
+  title,
+  subtitle,
+  children,
+  defaultExpanded = true,
+}: {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  defaultExpanded?: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (contentRef.current) {
+      setContentHeight(contentRef.current.scrollHeight);
+    }
+  }, [children]);
+
+  return (
+    <div style={{
+      backgroundColor: "#fff",
+      borderRadius: 16,
+      border: `1.5px solid ${T.border}`,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+      overflow: "hidden",
+    }}>
+      {/* Header - Clickable to toggle */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{
+          width: "100%",
+          padding: "20px 24px",
+          border: "none",
+          background: "none",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          textAlign: "left",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10,
+            backgroundColor: "#EEF5EE",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 20,
+          }}>
+            {icon}
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: T.textDark }}>{title}</p>
+            {subtitle && <p style={{ margin: "2px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 500 }}>{subtitle}</p>}
+          </div>
+        </div>
+        {/* Chevron Icon */}
+        <div style={{
+          width: 32,
+          height: 32,
+          borderRadius: 8,
+          backgroundColor: "#EEF5EE",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "transform 0.25s ease",
+          transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+        }}>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#4e6e3a"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Collapsible Content */}
+      <div
+        style={{
+          maxHeight: isExpanded ? contentHeight : 0,
+          overflow: "hidden",
+          transition: "max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+      >
+        <div ref={contentRef} style={{ padding: "0 24px 24px" }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
   // Helper to format currency
   const formatCurrency = (val: number | undefined) => {
@@ -1610,15 +1739,11 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
       gap: 20,
     }}>
       {/* Section 1: Personal & Contact Information */}
-      <div style={{
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        border: `1.5px solid ${T.border}`,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-        padding: "24px",
-      }}>
-        <SectionHeader icon="👤" title="Personal & Contact Information" subtitle="Identity, demographics, and location details" />
-
+      <CollapsibleSection
+        icon="👤"
+        title="Personal & Contact Information"
+        subtitle="Identity, demographics, and location details"
+      >
         {/* Identity Row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
           <InfoField label="Full Name" value={`${lead.first_name || ""} ${lead.last_name || ""}`.trim()} />
@@ -1648,18 +1773,14 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
           <InfoField label="State" value={lead.state} />
           <InfoField label="ZIP Code" value={lead.zip_code} />
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* Section 2: Health & Underwriting Data */}
-      <div style={{
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        border: `1.5px solid ${T.border}`,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-        padding: "24px",
-      }}>
-        <SectionHeader icon="🏥" title="Health & Underwriting Data" subtitle="Risk assessment and medical history" />
-
+      <CollapsibleSection
+        icon="🏥"
+        title="Health & Underwriting Data"
+        subtitle="Risk assessment and medical history"
+      >
         {/* Physical Metrics */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
           <InfoField label="Height" value={lead.height} />
@@ -1679,18 +1800,14 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
           <InfoField label="Existing Coverage (Last 2 Years)" value={lead.existing_coverage_last_2_years} />
           <InfoField label="Previous Applications (Last 2 Years)" value={lead.previous_applications_2_years} />
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* Section 3: Policy & Coverage Details */}
-      <div style={{
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        border: `1.5px solid ${T.border}`,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-        padding: "24px",
-      }}>
-        <SectionHeader icon="🛡️" title="Policy & Coverage Details" subtitle="Insurance product and financial information" />
-
+      <CollapsibleSection
+        icon="🛡️"
+        title="Policy & Coverage Details"
+        subtitle="Insurance product and financial information"
+      >
         {/* Product Info */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
           <InfoField label="Carrier" value={lead.carrier} />
@@ -1716,18 +1833,14 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20 }}>
           <InfoField label="Additional Information" value={lead.additional_information} />
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* Section 4: Financial & System Metadata */}
-      <div style={{
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        border: `1.5px solid ${T.border}`,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-        padding: "24px",
-      }}>
-        <SectionHeader icon="⚙️" title="Financial & System Metadata" subtitle="Banking details and CRM workflow data" />
-
+      <CollapsibleSection
+        icon="⚙️"
+        title="Financial & System Metadata"
+        subtitle="Banking details and CRM workflow data"
+      >
         {/* Banking */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
           <InfoField label="Account Type" value={lead.bank_account_type} />
@@ -1776,13 +1889,7 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
           <InfoField label="Submission Date" value={formatDate(lead.submission_date)} />
           <InfoField label="Submitted By" value={lead.submitted_by} />
         </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginTop: 16 }}>
-          <InfoField label="Call Center ID" value={lead.call_center_id} />
-          <InfoField label="Licensed Agent" value={lead.licensed_agent_account} />
-          <InfoField label="Lead Source" value={lead.lead_source} />
-        </div>
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }
