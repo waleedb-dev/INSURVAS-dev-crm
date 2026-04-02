@@ -1621,18 +1621,18 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
 
         {/* Identity Row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
-          <InfoField label="First Name" value={lead.first_name} />
-          <InfoField label="Last Name" value={lead.last_name} />
+          <InfoField label="Full Name" value={`${lead.first_name || ""} ${lead.last_name || ""}`.trim()} />
           <InfoField label="SSN" value={lead.social} />
           <InfoField label="Driver's License" value={lead.driver_license_number} />
+          <InfoField label="Date of Birth" value={formatDate(lead.date_of_birth)} />
         </div>
 
         {/* Demographics Row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
-          <InfoField label="Date of Birth" value={formatDate(lead.date_of_birth)} />
           <InfoField label="Age" value={lead.age} />
           <InfoField label="Birth State" value={lead.birth_state} />
           <InfoField label="Preferred Language" value={lead.language} />
+          <div /> {/* Empty cell to maintain grid alignment */}
         </div>
 
         {/* Contact Row */}
