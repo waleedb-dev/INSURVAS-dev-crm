@@ -2,9 +2,18 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { T } from "@/lib/theme";
-import { Avatar, Badge, Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
-import { AppSelect } from "@/components/ui/app-select";
+import { Badge, Pagination, Table, DataGrid, FilterChip } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Search, Filter, Plus } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Stage {
   id: string;
@@ -21,6 +30,149 @@ interface Pipeline {
   stages: Stage[];
 }
 
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select..."
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 38,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value && value !== "All" ? T.textDark : T.textMuted,
+          fontSize: 13,
+          fontWeight: 500,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value && value !== "All"
+            ? options.find(o => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; label?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          border: `3px solid ${T.border}`,
+          borderTopColor: "#233217",
+          animation: "spin 0.8s linear infinite",
+        }}
+      />
+      {label && (
+        <span style={{ fontSize: 14, fontWeight: 500, color: T.textMuted }}>{label}</span>
+      )}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <Card
+      style={{
+        borderRadius: 16,
+        border: `1px solid ${T.border}`,
+        borderBottom: "4px solid #DCEBDC",
+        background: T.cardBg,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+        padding: "20px 24px",
+        minHeight: 100,
+        display: "flex",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 16,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
+        <div style={{ width: 80, height: 10, borderRadius: 4, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+        <div style={{ width: 60, height: 26, borderRadius: 6, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+      </div>
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)",
+          backgroundSize: "200% 100%",
+          animation: "shimmer 1.5s infinite",
+        }}
+      />
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+    </Card>
+  );
+}
+
+function mapSelectOptions(values: string[], allLabel: string) {
+  const sorted = [...new Set(values)].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  return [{ value: "All", label: allLabel }, ...sorted.map((v) => ({ value: v, label: v }))];
+}
+
 export default function PipelineManagementPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [view, setView] = useState<"list" | "edit">("list");
@@ -33,9 +185,10 @@ export default function PipelineManagementPage() {
   const [isEditingPipelineName, setIsEditingPipelineName] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState("");
   const [search, setSearch] = useState("");
-  const [filterStages, setFilterStages] = useState<"All" | "Empty" | "With Stages">("All");
+  const [filterStages, setFilterStages] = useState("All");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [stageSearch, setStageSearch] = useState("");
+  const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
 
   const filteredStagesForEdit = useMemo(() => {
     if (!selectedPipeline) return [];
@@ -43,6 +196,12 @@ export default function PipelineManagementPage() {
     if (!q) return selectedPipeline.stages;
     return selectedPipeline.stages.filter((s) => s.name.toLowerCase().includes(q));
   }, [selectedPipeline, stageSearch]);
+
+  const stageFilterOptions = [
+    { value: "All", label: "All pipelines" },
+    { value: "With Stages", label: "With stages" },
+    { value: "Empty", label: "Empty" },
+  ];
 
   useEffect(() => {
     fetchPipelines();
@@ -100,9 +259,9 @@ export default function PipelineManagementPage() {
       .eq("pipeline_id", p.id)
       .order("position");
 
-    if (error) {
+     if (error) {
        console.error("Error fetching stages:", error);
-    } else {
+     } else {
        setSelectedPipeline({
          ...p,
          stages: stagesData.map((s: any) => ({
@@ -164,8 +323,6 @@ export default function PipelineManagementPage() {
     const stageName = selectedPipeline.stages.find(s => s.id === id)?.name || "This stage";
 
     try {
-      // Check if there are any leads using this stage
-      // Note: stage_id in leads table references pipeline_stages(id)
       const { data: leadsData, error: leadsError } = await supabase
         .from("leads")
         .select("id, first_name, last_name")
@@ -179,16 +336,13 @@ export default function PipelineManagementPage() {
           details: leadsError.details,
           hint: leadsError.hint
         });
-        // FAIL CLOSED: If we can't check leads, don't allow deletion
         setDeleteError(`Cannot delete "${stageName}". Unable to verify if leads are assigned to this stage. Please try again or contact support.`);
         return;
       } else if (leadsData && leadsData.length > 0) {
-        // FAIL CLOSED: If there are leads using this stage, show error
         setDeleteError(`Cannot delete "${stageName}". This stage has leads assigned to it. Please move all leads to another stage first.`);
         return;
       }
 
-      // No leads found, proceed with deletion
       const { error } = await supabase
         .from("pipeline_stages")
         .delete()
@@ -205,7 +359,6 @@ export default function PipelineManagementPage() {
       }
     } catch (err) {
       console.error("Unexpected error in handleDeleteStage:", err);
-      // FAIL CLOSED: If error occurs, don't delete
       setDeleteError(`Cannot delete "${stageName}". An unexpected error occurred. Please try again.`);
     }
   }
@@ -236,7 +389,6 @@ export default function PipelineManagementPage() {
   async function handleUpdatePipelineName() {
     if (!selectedPipeline || !tempPipelineName) return;
     
-    // Optimistic update
     setSelectedPipeline({ ...selectedPipeline, name: tempPipelineName });
     setIsEditingPipelineName(false);
 
@@ -250,10 +402,18 @@ export default function PipelineManagementPage() {
     }
   }
 
+  const filteredPipelines = pipelines.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const matchesStages = filterStages === "All" ? true : filterStages === "With Stages" ? p.stagesCount > 0 : p.stagesCount === 0;
+    return matchesSearch && matchesStages;
+  });
+
+  const totalStages = pipelines.reduce((sum, p) => sum + p.stagesCount, 0);
+  const pipelinesWithStages = pipelines.filter(p => p.stagesCount > 0).length;
+
   if (view === "edit" && selectedPipeline) {
     return (
       <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }}>
-        {/* Error Popup */}
         {deleteError && (
           <div style={{
             position: "fixed",
@@ -315,7 +475,6 @@ export default function PipelineManagementPage() {
           </div>
         )}
 
-        {/* Detail Header */}
         <div style={{ marginBottom: 24 }}>
           <button 
             onClick={() => { setView("list"); setDeleteError(null); setStageSearch(""); }} 
@@ -353,211 +512,428 @@ export default function PipelineManagementPage() {
           </div>
         </div>
 
-        {/* Detail Tabs */}
         <div style={{ display: "flex", gap: 32, borderBottom: `1.5px solid ${T.border}`, marginBottom: 24 }}>
-          <button style={{ padding: "12px 4px", border: "none", borderBottom: `3px solid ${T.blue}`, background: "none", color: T.blue, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Stages</button>
+          <button style={{ padding: "12px 4px", border: "none", borderBottom: `3px solid #233217`, background: "none", color: "#233217", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Stages</button>
         </div>
 
-      <DataGrid
-        search={stageSearch}
-        onSearchChange={setStageSearch}
-        searchPlaceholder="Search Stages"
-        headerActions={
-          <button
-            type="button"
-            onClick={() => void handleAddStage()}
+        <DataGrid
+          search={stageSearch}
+          onSearchChange={setStageSearch}
+          searchPlaceholder="Search Stages"
+          noHeader
+          style={{ borderRadius: 16, border: `1px solid ${T.border}`, overflow: "hidden" }}
+          headerActions={
+            <button
+              type="button"
+              onClick={() => void handleAddStage()}
+              style={{
+                height: 38,
+                padding: "0 18px",
+                borderRadius: 10,
+                border: "none",
+                background: "#233217",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Plus size={16} />
+              Add Stage
+            </button>
+          }
+          pagination={
+            <div style={{
+              backgroundColor: T.cardBg,
+              borderTop: `1px solid ${T.border}`,
+              padding: "16px 20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
+                Showing {filteredStagesForEdit.length} stages
+              </span>
+            </div>
+          }
+        >
+          <div
             style={{
-              backgroundColor: T.blue,
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              padding: "10px 20px",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-              boxShadow: `0 4px 12px ${T.blue}44`,
+              borderRadius: "16px 16px 0 0",
+              border: `1px solid ${T.border}`,
+              borderBottom: "none",
+              overflow: "hidden",
+              backgroundColor: T.cardBg,
             }}
           >
-            + Add Stage
-          </button>
-        }
-      >
-        <Table
-          data={filteredStagesForEdit}
-          columns={[
-            {
-              header: "",
-              key: "drag",
-              width: 40,
-              render: () => (
-                <div style={{ cursor: "move" }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="3"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
-                </div>
-              )
-            },
-            {
-              header: "Stage Name",
-              key: "name",
-              render: (stage) => (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {editingStageId === stage.id ? (
-                    <input 
-                      autoFocus
-                      value={tempStageName}
-                      onChange={(e) => setTempStageName(e.target.value)}
-                      onBlur={() => handleUpdateStage(stage.id, { name: tempStageName })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleUpdateStage(stage.id, { name: tempStageName });
-                        if (e.key === 'Escape') setEditingStageId(null);
-                      }}
-                      style={{ border: `1.5px solid ${T.blue}`, borderRadius: 4, padding: "2px 6px", fontSize: 13, fontWeight: 700, color: T.textDark, outline: "none", width: "100%" }}
-                    />
-                  ) : (
-                    <span 
-                      onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); }}
-                      style={{ fontWeight: 700, color: T.textDark, cursor: "text", padding: "2px 6px", borderRadius: 4, transition: "background-color 0.2s" }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                    >
-                      {stage.name}
-                    </span>
-                  )}
-                </div>
-              )
-            },
-            {
-              header: "Show in Reports",
-              key: "showInReports",
-              render: (stage) => (
-                <div style={{ display: "flex", gap: 12 }}>
-                  <button 
-                    onClick={() => handleUpdateStage(stage.id, { showInReports: !stage.showInReports })}
-                    style={{ background: "none", border: "none", color: stage.showInReports ? T.blue : T.textMuted, cursor: "pointer" }}
+            <ShadcnTable>
+              <TableHeader style={{ backgroundColor: "#233217" }}>
+                <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                  {[
+                    { label: "Stage Name", align: "left" as const },
+                    { label: "Show in Reports", align: "left" as const },
+                    { label: "Actions", align: "center" as const },
+                  ].map(({ label, align }) => (
+                    <TableHead key={label} style={{ 
+                      color: "#ffffff", 
+                      fontWeight: 700, 
+                      fontSize: 12, 
+                      letterSpacing: "0.3px",
+                      padding: "16px 20px",
+                      whiteSpace: "nowrap",
+                      textAlign: align
+                    }}>
+                      {label}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredStagesForEdit.map((stage) => (
+                  <TableRow 
+                    key={stage.id}
+                    style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                    className="hover:bg-muted/30 transition-all duration-150"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-                  </button>
-                  <button style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
-                </div>
-              )
-            },
-            {
-              header: "Actions",
-              key: "actions",
-              align: "center",
-              width: 80,
-              render: (stage) => (
-                <button 
-                  onClick={() => handleDeleteStage(stage.id)}
-                  style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6, borderRadius: 6 }} 
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                </button>
-              )
-            }
-          ]}
-        />
-      </DataGrid>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      {editingStageId === stage.id ? (
+                        <input 
+                          autoFocus
+                          value={tempStageName}
+                          onChange={(e) => setTempStageName(e.target.value)}
+                          onBlur={() => handleUpdateStage(stage.id, { name: tempStageName })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleUpdateStage(stage.id, { name: tempStageName });
+                            if (e.key === 'Escape') setEditingStageId(null);
+                          }}
+                          style={{ border: `1.5px solid #233217`, borderRadius: 6, padding: "6px 10px", fontSize: 13, fontWeight: 500, color: T.textDark, outline: "none", width: "100%", maxWidth: 300 }}
+                        />
+                      ) : (
+                        <span 
+                          onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); }}
+                          style={{ fontWeight: 500, color: T.textDark, cursor: "text", padding: "4px 8px", borderRadius: 6, transition: "background-color 0.2s" }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                        >
+                          {stage.name}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      <button 
+                        onClick={() => handleUpdateStage(stage.id, { showInReports: !stage.showInReports })}
+                        style={{ background: "none", border: "none", color: stage.showInReports ? "#233217" : T.textMuted, cursor: "pointer", padding: 4 }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                      </button>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                      <button 
+                        onClick={() => handleDeleteStage(stage.id)}
+                        style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6, borderRadius: 6 }} 
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} 
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </ShadcnTable>
+          </div>
+        </DataGrid>
       </div>
     );
   }
 
-  const filteredPipelines = pipelines.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    const matchesStages = filterStages === "All" ? true : filterStages === "Empty" ? p.stagesCount === 0 : p.stagesCount > 0;
-    return matchesSearch && matchesStages;
-  });
-
   return (
     <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }} onClick={() => setActivePipelineMenu(null)}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
-        <div>
-          <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 8px" }}>Pipelines</h1>
-        </div>
-        <button onClick={handleCreatePipeline} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 12px ${T.blue}44` }}>+ Create Pipeline</button>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
+        ) : (
+          [
+            { label: "Total Pipelines", value: pipelines.length.toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              ) },
+            { label: "Total Stages", value: totalStages.toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              ) },
+            { label: "With Stages", value: pipelinesWithStages.toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              ) },
+            { label: "Empty Pipelines", value: (pipelines.length - pipelinesWithStages).toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              ) },
+          ].map(({ label, value, color, icon }, i) => (
+              <Card
+                key={label}
+                onMouseEnter={() => setHoveredStatIdx(i)}
+                onMouseLeave={() => setHoveredStatIdx(null)}
+                style={{
+                  borderRadius: 16,
+                  border: `1px solid ${T.border}`,
+                  borderBottom: `4px solid ${color}`,
+                  background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+                  boxShadow:
+                    hoveredStatIdx === i
+                      ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+                      : "0 4px 12px rgba(0,0,0,0.03)",
+                  transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
+                  transition:
+                    "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                  padding: "20px 24px",
+                  minHeight: 100,
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                  cursor: "default",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
+                    {value}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    color,
+                    backgroundColor:
+                      hoveredStatIdx === i
+                        ? `color-mix(in srgb, ${color} 24%, transparent)`
+                        : `color-mix(in srgb, ${color} 15%, transparent)`,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition:
+                      "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                    transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                  }}
+                >
+                  {icon}
+                </div>
+              </Card>
+          ))
+        )}
       </div>
 
-      <DataGrid
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search Pipelines"
-        filters={
-          <AppSelect value={filterStages} onChange={(e: any) => setFilterStages(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-            <option value="All">All Pipelines</option>
-            <option value="With Stages">With Stages</option>
-            <option value="Empty">Empty</option>
-          </AppSelect>
-        }
-        activeFilters={
-          (search.trim() !== "" || filterStages !== "All") && (
-            <>
-              {filterStages !== "All" && <FilterChip label={`Stages: ${filterStages}`} onClear={() => setFilterStages("All")} />}
-              <button
-                type="button"
-                onClick={() => { setSearch(""); setFilterStages("All"); }}
-                style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", marginLeft: "auto" }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.textDecoration = "underline")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.textDecoration = "none")}
-              >
-                Clear Filters
-              </button>
-            </>
-          )
-        }
-        pagination={
-          <Pagination page={1} totalItems={filteredPipelines.length} itemsPerPage={20} itemLabel="pipelines" onPageChange={() => {}} />
-        }
-      >
-        <Table
-          data={filteredPipelines}
-          onRowClick={(p) => handleOpenPipeline(p)}
-          columns={[
-            {
-              header: "Pipeline name",
-              key: "name",
-              render: (p) => <span style={{ fontWeight: 700, color: T.textDark }}>{p.name}</span>
-            },
-            {
-              header: "No. of Stages",
-              key: "stagesCount",
-              align: "center",
-              render: (p) => <span style={{ fontWeight: 700, color: T.textMid }}>{p.stagesCount}</span>
-            },
-            {
-              header: "Updated on",
-              key: "updatedAt",
-              render: (p) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{p.updatedAt}</span>
-            },
-            {
-              header: "Actions",
-              key: "actions",
-              align: "center",
-              render: (p) => (
-                <div style={{ position: "relative" }}>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setActivePipelineMenu(activePipelineMenu === p.id ? null : p.id); }} 
-                    style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 6, borderRadius: 6 }}
+      <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 14 }}>
+        <div
+          style={{
+            width: "100%",
+            background: T.cardBg,
+            border: `1px solid ${T.border}`,
+            borderBottom: `1px solid ${T.border}`,
+            borderRadius: "16px 16px 0 0",
+            padding: "14px 20px",
+            boxShadow: T.shadowSm,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 16,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <Search
+                size={16}
+                style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }}
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search pipelines..."
+                style={{
+                  height: 38,
+                  minWidth: 260,
+                  paddingLeft: 38,
+                  paddingRight: 14,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  background: T.pageBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+
+            <StyledSelect
+              value={filterStages}
+              onValueChange={setFilterStages}
+              options={stageFilterOptions}
+              placeholder="Filter by stages"
+            />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              onClick={handleCreatePipeline}
+              style={{
+                height: 38,
+                padding: "0 18px",
+                borderRadius: 10,
+                border: "none",
+                background: "#233217",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Plus size={16} />
+              Create Pipeline
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div
+          style={{
+            borderRadius: 16,
+            border: `1px solid ${T.border}`,
+            backgroundColor: T.cardBg,
+            padding: "80px 40px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 20,
+          }}
+        >
+          <LoadingSpinner size={48} label="Loading pipelines..." />
+        </div>
+      ) : (
+        <DataGrid
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search pipelines..."
+          noHeader
+          style={{ borderRadius: 16, border: `1px solid ${T.border}`, overflow: "hidden" }}
+          pagination={
+            <div style={{
+              backgroundColor: T.cardBg,
+              borderTop: `1px solid ${T.border}`,
+              padding: "16px 20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
+                Showing {filteredPipelines.length} of {pipelines.length} pipelines
+              </span>
+            </div>
+          }
+        >
+          <div
+            style={{
+              borderRadius: "16px 16px 0 0",
+              border: `1px solid ${T.border}`,
+              borderBottom: "none",
+              overflow: "hidden",
+              backgroundColor: T.cardBg,
+            }}
+          >
+            <ShadcnTable>
+              <TableHeader style={{ backgroundColor: "#233217" }}>
+                <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                  {[
+                    { label: "Pipeline name", align: "left" as const },
+                    { label: "No. of Stages", align: "center" as const },
+                    { label: "Updated on", align: "left" as const },
+                    { label: "Actions", align: "center" as const },
+                  ].map(({ label, align }) => (
+                    <TableHead key={label} style={{ 
+                      color: "#ffffff", 
+                      fontWeight: 700, 
+                      fontSize: 12, 
+                      letterSpacing: "0.3px",
+                      padding: "16px 20px",
+                      whiteSpace: "nowrap",
+                      textAlign: align
+                    }}>
+                      {label}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredPipelines.map((pipeline) => (
+                  <TableRow 
+                    key={pipeline.id}
+                    onClick={() => handleOpenPipeline(pipeline)}
+                    style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                    className="hover:bg-muted/30 transition-all duration-150"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
-                  </button>
-                  {activePipelineMenu === p.id && (
-                    <div style={{ position: "absolute", top: "calc(100% - 4px)", right: 16, width: 140, backgroundColor: "#fff", borderRadius: T.radiusMd, boxShadow: T.shadowLg, border: `1.5px solid ${T.border}`, zIndex: 100, overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => { handleOpenPipeline(p); setActivePipelineMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Edit Pipeline</button>
-                      <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Delete</button>
-                    </div>
-                  )}
-                </div>
-              )
-            }
-          ]}
-        />
-      </DataGrid>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: T.textDark }}>{pipeline.name}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "14px 20px", textAlign: "center" }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: T.textMid }}>{pipeline.stagesCount}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      <span style={{ fontSize: 13, color: T.textMid, fontWeight: 400 }}>{pipeline.updatedAt}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
+                      >
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setActivePipelineMenu(activePipelineMenu === pipeline.id ? null : pipeline.id); }} 
+                          style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 6, borderRadius: 6 }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+                        </button>
+                        {activePipelineMenu === pipeline.id && (
+                          <div style={{ position: "absolute", top: "calc(100% - 4px)", right: 16, width: 140, backgroundColor: "#fff", borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", border: `1px solid ${T.border}`, zIndex: 100, overflow: "hidden" }}>
+                            <button onClick={() => { handleOpenPipeline(pipeline); setActivePipelineMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Edit Pipeline</button>
+                            <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: "#3b5229", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Delete</button>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </ShadcnTable>
+          </div>
+        </DataGrid>
+      )}
     </div>
   );
 }
 
-// Add CSS animation for the error popup
 const styles = `
 @keyframes slideIn {
   from {
