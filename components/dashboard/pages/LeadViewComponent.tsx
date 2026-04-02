@@ -5,10 +5,10 @@ import { LayoutDashboard, Phone, FileText, Shield } from "lucide-react";
 import { POLICY_SCHEMA_SECTIONS, policyDisplayValue, type PolicyRow } from "@/lib/policy-schema";
 import { buildDraftFromPolicyRow, payloadFromDraft } from "@/lib/policy-form-utils";
 import { EmptyState } from "@/components/ui";
-import { AppSelect } from "@/components/ui/app-select";
 import ConvertClientPolicyModal from "./ConvertClientPolicyModal";
 import PolicyFormFields from "./PolicyFormFields";
 import { getCurrentUserPermissionKeys, type PermissionKey } from "@/lib/auth/permissions";
+import { LeadCard, InfoField, InfoGrid, formatCurrency, formatBool, formatDate } from "./LeadCard";
 
 interface Lead {
   name: string;
@@ -235,7 +235,6 @@ export default function LeadViewComponent({
 
   const [formData, setFormData] = useState<Lead>({
     name: leadName || "",
-    email: leadName ? `${leadName.split(" ")[0].toLowerCase()}@example.com` : "",
     phone: "+1 (555) 000-0000",
     premium: 0,
     type: "Auto Insurance",
@@ -243,33 +242,6 @@ export default function LeadViewComponent({
     pipeline: defaultPipeline || "Sales Pipeline",
     stage: defaultStage || "New Lead",
   });
-
-  const PROJECTS = [
-    {
-      id: "PN0001265", name: "Medical App (iOS native)", created: "Sep 12, 2020",
-      priority: "Medium" as const, allTasks: 34, activeTasks: 13,
-      assignees: ["#638b4b","#74a557","#94c278","#4e6e3a"], extraAssignees: 2,
-      emoji: "💊", color: "#e8edf8", progress: 38,
-      description: "A fully native iOS medical application for patient management, appointment scheduling, and telemedicine consultations.",
-      tags: ["iOS","Healthcare","Mobile"],
-    },
-    {
-      id: "PN0001221", name: "Food Delivery Service", created: "Sep 10, 2020",
-      priority: "Medium" as const, allTasks: 50, activeTasks: 24,
-      assignees: ["#3b5229","#74a557","#bbd9a9"], extraAssignees: 0,
-      emoji: "🍔", color: "#f0fdf4", progress: 52,
-      description: "End-to-end food delivery platform with real-time order tracking, restaurant dashboard, and driver apps.",
-      tags: ["Web","Mobile","Logistics"],
-    },
-    {
-      id: "PN0001290", name: "Food Delivery Service", created: "May 28, 2020",
-      priority: "Low" as const, allTasks: 23, activeTasks: 20,
-      assignees: ["#638b4b","#94c278","#4e6e3a"], extraAssignees: 5,
-      emoji: "📦", color: "#fdf4ff", progress: 86,
-      description: "Cloud-based logistics platform.",
-      tags: ["Web","Logistics"],
-    },
-  ];
 
   const [rowUuid, setRowUuid] = useState<string | null>(leadRowUuid ?? null);
   const [leadRow, setLeadRow] = useState<LeadRow | null>(null);
@@ -282,9 +254,6 @@ export default function LeadViewComponent({
 
   const [leadNotes, setLeadNotes] = useState<LeadNoteRow[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
-  const [newNoteText, setNewNoteText] = useState("");
-  const [addingNote, setAddingNote] = useState(false);
-  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [userPermissionKeys, setUserPermissionKeys] = useState<Set<PermissionKey>>(new Set());
   const [permissionsLoading, setPermissionsLoading] = useState(true);
 
@@ -312,10 +281,6 @@ export default function LeadViewComponent({
     },
     [supabase]
   );
-
-  useEffect(() => {
-    void supabase.auth.getSession().then(({ data }) => setSessionUserId(data.session?.user?.id ?? null));
-  }, [supabase]);
 
   useEffect(() => {
     fetchPipelines();
@@ -705,25 +670,6 @@ export default function LeadViewComponent({
     void loadCallUpdates();
   }, [activeTab, rowUuid, isCreation, previewMode, loadCallUpdates]);
 
-  const addNote = async () => {
-    if (!rowUuid || !newNoteText.trim()) return;
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user?.id) return;
-    setAddingNote(true);
-    const { error } = await supabase.from("lead_notes").insert({
-      lead_id: rowUuid,
-      body: newNoteText.trim(),
-      created_by: session.user.id,
-    });
-    setAddingNote(false);
-    if (!error) {
-      setNewNoteText("");
-      await loadNotes();
-    }
-  };
-
   const deleteNote = async (noteId: string) => {
     if (!window.confirm("Delete this note?")) return;
     const { error } = await supabase.from("lead_notes").delete().eq("id", noteId);
@@ -998,10 +944,6 @@ export default function LeadViewComponent({
             <NotesTab
               leadNotes={leadNotes}
               notesLoading={notesLoading}
-              newNoteText={newNoteText}
-              setNewNoteText={setNewNoteText}
-              addingNote={addingNote}
-              addNote={addNote}
               deleteNote={deleteNote}
               isCreation={isCreation}
               previewMode={previewMode}
@@ -1065,51 +1007,53 @@ function CallUpdatesTab({
 }) {
   if (isCreation || previewMode) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>
-        Call updates are not available in {isCreation ? "creation" : "preview"} mode.
-      </div>
+      <LeadCard icon="📞" title="Call Updates" subtitle="Not available" collapsible={false}>
+        <div style={{ padding: 20, textAlign: "center", color: T.textMuted }}>
+          Call updates are not available in {isCreation ? "creation" : "preview"} mode.
+        </div>
+      </LeadCard>
     );
   }
 
   if (callUpdatesLoading) {
-    return <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading call updates…</div>;
+    return (
+      <LeadCard icon="📞" title="Call Updates" subtitle="Loading..." collapsible={false}>
+        <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading call updates…</div>
+      </LeadCard>
+    );
   }
 
   if (callResultsRows.length === 0) {
     return (
-      <EmptyState
-        title="No call updates"
-        description="Call activity will appear here when agents contact this lead."
-      />
+      <LeadCard icon="📞" title="Call Updates" subtitle="No activity yet" collapsible={false}>
+        <EmptyState
+          title="No call updates"
+          description="Call activity will appear here when agents contact this lead."
+        />
+      </LeadCard>
     );
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {callResultsRows.map((row, idx) => (
-        <div
+        <LeadCard
           key={idx}
-          style={{
-            backgroundColor: "#fff",
-            borderRadius: 16,
-            border: `1.5px solid ${T.border}`,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-            padding: "20px 24px",
-          }}
+          icon="📞"
+          title={`Call Update #${idx + 1}`}
+          subtitle={row.created_at ? formatDate(String(row.created_at)) : undefined}
+          defaultExpanded={idx === 0}
         >
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+          <InfoGrid columns={3} bordered={false}>
             {CALL_RESULT_FIELD_ORDER.map((field) => (
-              <div key={field.key}>
-                <p style={{ margin: "0 0 4px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
-                  {field.label}
-                </p>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: T.textDark }}>
-                  {field.format ? field.format(row[field.key]) : fmt(row[field.key])}
-                </p>
-              </div>
+              <InfoField
+                key={field.key}
+                label={field.label}
+                value={field.format ? field.format(row[field.key]) : fmt(row[field.key])}
+              />
             ))}
-          </div>
-        </div>
+          </InfoGrid>
+        </LeadCard>
       ))}
     </div>
   );
@@ -1118,10 +1062,6 @@ function CallUpdatesTab({
 function NotesTab({
   leadNotes,
   notesLoading,
-  newNoteText,
-  setNewNoteText,
-  addingNote,
-  addNote,
   deleteNote,
   isCreation,
   previewMode,
@@ -1129,10 +1069,6 @@ function NotesTab({
 }: {
   leadNotes: LeadNoteRow[];
   notesLoading: boolean;
-  newNoteText: string;
-  setNewNoteText: (text: string) => void;
-  addingNote: boolean;
-  addNote: () => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   isCreation: boolean | undefined;
   previewMode: boolean | undefined;
@@ -1140,103 +1076,48 @@ function NotesTab({
 }) {
   if (isCreation || previewMode) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>
-        Notes are not available in {isCreation ? "creation" : "preview"} mode.
-      </div>
+      <LeadCard icon="📝" title="Notes" subtitle="Not available" collapsible={false}>
+        <div style={{ padding: 20, textAlign: "center", color: T.textMuted }}>
+          Notes are not available in {isCreation ? "creation" : "preview"} mode.
+        </div>
+      </LeadCard>
     );
   }
 
   if (notesLoading) {
-    return <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading notes…</div>;
+    return (
+      <LeadCard icon="📝" title="Notes" subtitle="Loading..." collapsible={false}>
+        <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading notes…</div>
+      </LeadCard>
+    );
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Add Note Input */}
-      {canEditLead && (
-        <div
-          style={{
-            backgroundColor: "#fff",
-            borderRadius: 16,
-            border: `1.5px solid ${T.border}`,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-            padding: "20px 24px",
-          }}
-        >
-          <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: T.textDark }}>Add Note</p>
-          <textarea
-            value={newNoteText}
-            onChange={(e) => setNewNoteText(e.target.value)}
-            placeholder="Enter note..."
-            style={{
-              width: "100%",
-              padding: "12px 16px",
-              border: `1px solid ${T.border}`,
-              borderRadius: "8px",
-              fontSize: 14,
-              color: T.textDark,
-              fontFamily: T.font,
-              backgroundColor: "#fff",
-              outline: "none",
-              resize: "vertical",
-              minHeight: 80,
-              marginBottom: 12,
-            }}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={() => void addNote()}
-              disabled={addingNote || !newNoteText.trim()}
-              style={{
-                backgroundColor: T.blue,
-                color: "#fff",
-                border: "none",
-                borderRadius: T.radiusMd,
-                padding: "10px 24px",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: addingNote || !newNoteText.trim() ? "not-allowed" : "pointer",
-                opacity: addingNote || !newNoteText.trim() ? 0.6 : 1,
-              }}
-            >
-              {addingNote ? "Adding…" : "Add Note"}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Notes List */}
       {leadNotes.length === 0 ? (
-        <EmptyState
-          title="No notes"
-          description="Add notes to track important information about this lead."
-        />
+        <LeadCard icon="📝" title="Notes" subtitle="No notes yet" collapsible={false}>
+          <EmptyState
+            title="No notes"
+            description="No notes have been added yet."
+          />
+        </LeadCard>
       ) : (
         leadNotes.map((note) => (
-          <div
+          <LeadCard
             key={note.id}
-            style={{
-              backgroundColor: "#fff",
-              borderRadius: 16,
-              border: `1.5px solid ${T.border}`,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-              padding: "20px 24px",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-              <div>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.textDark }}>
-                  {note.authorName || "User"}
-                </p>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted }}>
-                  {formatTs(note.created_at)}
-                </p>
-              </div>
-              {canEditLead && (
+            icon="📝"
+            title={note.authorName || "User"}
+            subtitle={formatTs(note.created_at)}
+            defaultExpanded={true}
+            actions={
+              canEditLead ? (
                 <button
                   type="button"
-                  onClick={() => void deleteNote(note.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void deleteNote(note.id);
+                  }}
                   style={{
                     background: "none",
                     border: "none",
@@ -1249,10 +1130,11 @@ function NotesTab({
                 >
                   Delete
                 </button>
-              )}
-            </div>
+              ) : undefined
+            }
+          >
             <p style={{ margin: 0, fontSize: 14, color: T.textDark, whiteSpace: "pre-wrap" }}>{note.body}</p>
-          </div>
+          </LeadCard>
         ))
       )}
     </div>
@@ -1292,42 +1174,48 @@ function PolicyCoverageTab({
 }) {
   if (previewMode) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>
-        Policy & coverage is not available in preview mode.
-      </div>
+      <LeadCard icon="🛡️" title="Policy & Coverage" subtitle="Not available" collapsible={false}>
+        <div style={{ padding: 20, textAlign: "center", color: T.textMuted }}>
+          Policy & coverage is not available in preview mode.
+        </div>
+      </LeadCard>
     );
   }
 
   if (policyLoading) {
-    return <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading policy…</div>;
+    return (
+      <LeadCard icon="🛡️" title="Policy & Coverage" subtitle="Loading..." collapsible={false}>
+        <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading policy…</div>
+      </LeadCard>
+    );
   }
 
   if (!policyRow) {
     return (
-      <EmptyState
-        title="No policy linked"
-        description="This lead hasn't been converted to a client yet. Click 'Convert to Client' to create a policy."
-      />
+      <LeadCard icon="🛡️" title="Policy & Coverage" subtitle="No policy linked" collapsible={false}>
+        <EmptyState
+          title="No policy linked"
+          description="This lead hasn't been converted to a client yet. Click 'Convert to Client' to create a policy."
+        />
+      </LeadCard>
     );
   }
 
   return (
-    <div
-      style={{
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        border: `1.5px solid ${T.border}`,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-        padding: "24px",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>Policy Details</p>
-        {canEditLead && (
+    <LeadCard
+      icon="🛡️"
+      title="Policy Details"
+      subtitle="Edit policy information"
+      collapsible={false}
+      actions={
+        canEditLead ? (
           <div style={{ display: "flex", gap: 12 }}>
             <button
               type="button"
-              onClick={resetPolicyDraft}
+              onClick={(e) => {
+                e.stopPropagation();
+                resetPolicyDraft();
+              }}
               disabled={policySaving}
               style={{
                 backgroundColor: "#fff",
@@ -1344,7 +1232,10 @@ function PolicyCoverageTab({
             </button>
             <button
               type="button"
-              onClick={() => void savePolicyFromTab()}
+              onClick={(e) => {
+                e.stopPropagation();
+                void savePolicyFromTab();
+              }}
               disabled={policySaving || !policyLookupReady}
               style={{
                 backgroundColor: T.blue,
@@ -1361,9 +1252,9 @@ function PolicyCoverageTab({
               {policySaving ? "Saving…" : "Save Changes"}
             </button>
           </div>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       {policySaveError && (
         <div style={{ marginBottom: 16, padding: 12, backgroundColor: "#fef2f2", borderRadius: 8, color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>
           {policySaveError}
@@ -1378,81 +1269,10 @@ function PolicyCoverageTab({
         stageNames={policyStageNames}
         lookupReady={policyLookupReady}
       />
-    </div>
+    </LeadCard>
   );
 }
 
-
-function ProjectCard({ id, name, created, priority, allTasks, activeTasks, assignees, extraAssignees, emoji, color }: any) {
-  return (
-    <div style={{
-      backgroundColor: "#fff", borderRadius: 20, overflow: "hidden",
-      border: `1.5px solid ${T.border}`,
-      boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-      display: "grid", gridTemplateColumns: "1.2fr 1fr 0.8fr",
-      alignItems: "stretch"
-    }}>
-      {/* Detail Section */}
-      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", gap: 16 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{emoji}</div>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: T.textMuted }}>{id}</p>
-          <h4 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: T.textDark }}>{name}</h4>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-             <div style={{ display: "flex", alignItems: "center", gap: 4, color: T.textMuted }}>
-               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-               <span style={{ fontSize: 11, fontWeight: 600 }}>Created {created}</span>
-             </div>
-             <div style={{ display: "flex", alignItems: "center", gap: 3, color: priority === "Low" ? "#16a34a" : "#ca8a04" }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d={priority === "Low" ? "M12 19V5M19 12l-7 7-7-7" : "M12 5v14M5 12l7-7 7 7"}/></svg>
-                <span style={{ fontSize: 11, fontWeight: 800 }}>{priority}</span>
-             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Section */}
-      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Project Data</p>
-        <div style={{ display: "flex", gap: 24 }}>
-          <div>
-            <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>All tasks</p>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{allTasks}</p>
-          </div>
-          <div>
-            <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Active tasks</p>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{activeTasks}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Assignees Section */}
-      <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Assignees</p>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          {assignees.map((c: string, i: number) => (
-            <div key={i} style={{ 
-              width: 28, height: 28, borderRadius: "50%", backgroundColor: c, border: "2px solid #fff", 
-              marginLeft: i === 0 ? 0 : -8, zIndex: 10 - i,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#fff"
-            }}>
-              {["SS","RD","ET","LC"][i]}
-            </div>
-          ))}
-          {extraAssignees > 0 && (
-            <div style={{ 
-              width: 28, height: 28, borderRadius: "50%", backgroundColor: T.blueFaint, border: "2px solid #fff", 
-              marginLeft: -8, zIndex: 0, color: T.blue, fontSize: 10, fontWeight: 800,
-              display: "flex", alignItems: "center", justifyContent: "center"
-            }}>
-              +{extraAssignees}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface LeadSummaryCardProps {
   lead: {
@@ -1466,7 +1286,6 @@ interface LeadSummaryCardProps {
     birth_state?: string;
     language?: string;
     phone?: string;
-    email?: string;
     street1?: string;
     street2?: string;
     city?: string;
@@ -1536,145 +1355,8 @@ function SectionHeader({ icon, title, subtitle }: { icon: string; title: string;
   );
 }
 
-function InfoField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <p style={{ margin: "0 0 4px", fontSize: 12, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-        {label}
-      </p>
-      <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: T.textDark }}>
-        {value || "—"}
-      </p>
-    </div>
-  );
-}
-
-function CollapsibleSection({
-  icon,
-  title,
-  subtitle,
-  children,
-  defaultExpanded = true,
-}: {
-  icon: string;
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-  defaultExpanded?: boolean;
-}) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
-
-  useEffect(() => {
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.scrollHeight);
-    }
-  }, [children]);
-
-  return (
-    <div style={{
-      backgroundColor: "#fff",
-      borderRadius: 16,
-      border: `1.5px solid ${T.border}`,
-      boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-      overflow: "hidden",
-    }}>
-      {/* Header - Clickable to toggle */}
-      <button
-        type="button"
-        onClick={() => setIsExpanded(!isExpanded)}
-        style={{
-          width: "100%",
-          padding: "20px 24px",
-          border: "none",
-          background: "none",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          textAlign: "left",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 10,
-            backgroundColor: "#EEF5EE",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 20,
-          }}>
-            {icon}
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: T.textDark }}>{title}</p>
-            {subtitle && <p style={{ margin: "2px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 500 }}>{subtitle}</p>}
-          </div>
-        </div>
-        {/* Chevron Icon */}
-        <div style={{
-          width: 32,
-          height: 32,
-          borderRadius: 8,
-          backgroundColor: "#EEF5EE",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "transform 0.25s ease",
-          transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-        }}>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#4e6e3a"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </div>
-      </button>
-
-      {/* Collapsible Content */}
-      <div
-        style={{
-          maxHeight: isExpanded ? contentHeight : 0,
-          overflow: "hidden",
-          transition: "max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-        }}
-      >
-        <div ref={contentRef} style={{ padding: "0 24px 24px" }}>
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
-  // Helper to format currency
-  const formatCurrency = (val: number | undefined) => {
-    if (val == null) return "—";
-    return `$${Number(val).toLocaleString()}`;
-  };
-
-  // Helper to format boolean
-  const formatBool = (val: boolean | undefined) => {
-    if (val === true) return "Yes";
-    if (val === false) return "No";
-    return "—";
-  };
-
-  // Helper to format date
-  const formatDate = (val: string | undefined) => {
-    if (!val) return "—";
-    const d = new Date(val);
-    if (isNaN(d.getTime())) return val;
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  };
-
   return (
     <div style={{
       display: "flex",
@@ -1682,119 +1364,106 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
       gap: 20,
     }}>
       {/* Section 1: Personal & Contact Information */}
-      <CollapsibleSection
+      <LeadCard
         icon="👤"
         title="Personal & Contact Information"
         subtitle="Identity, demographics, and location details"
       >
-        {/* Identity Row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+        <InfoGrid columns={4}>
           <InfoField label="Full Name" value={`${lead.first_name || ""} ${lead.last_name || ""}`.trim()} />
           <InfoField label="SSN" value={lead.social} />
           <InfoField label="Driver's License" value={lead.driver_license_number} />
           <InfoField label="Phone" value={lead.phone} />
-        </div>
+        </InfoGrid>
 
-        {/* Demographics Row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+        <InfoGrid columns={4}>
           <InfoField label="Date of Birth" value={formatDate(lead.date_of_birth)} />
           <InfoField label="Age" value={lead.age} />
           <InfoField label="Birth State" value={lead.birth_state} />
           <InfoField label="Preferred Language" value={lead.language} />
-        </div>
+        </InfoGrid>
 
-        {/* Address Row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
+        <InfoGrid columns={4} bordered={false}>
           <InfoField label="Street Address" value={`${lead.street1 || ""} ${lead.street2 ? lead.street2 : ""}`.trim()} />
           <InfoField label="City" value={lead.city} />
           <InfoField label="State" value={lead.state} />
           <InfoField label="ZIP Code" value={lead.zip_code} />
-        </div>
-      </CollapsibleSection>
+        </InfoGrid>
+      </LeadCard>
 
       {/* Section 2: Health & Underwriting Data */}
-      <CollapsibleSection
+      <LeadCard
         icon="🏥"
         title="Health & Underwriting Data"
         subtitle="Risk assessment and medical history"
       >
-        {/* Physical Metrics */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+        <InfoGrid columns={4}>
           <InfoField label="Height" value={lead.height} />
           <InfoField label="Weight" value={lead.weight} />
           <InfoField label="Tobacco Use" value={formatBool(lead.tobacco_use)} />
           <InfoField label="Doctor Name" value={lead.doctor_name} />
-        </div>
+        </InfoGrid>
 
-        {/* Medical History */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+        <InfoGrid columns={2}>
           <InfoField label="Health Conditions" value={lead.health_conditions} />
           <InfoField label="Current Medications" value={lead.medications} />
-        </div>
+        </InfoGrid>
 
-        {/* History */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
+        <InfoGrid columns={2} bordered={false}>
           <InfoField label="Existing Coverage (Last 2 Years)" value={lead.existing_coverage_last_2_years} />
           <InfoField label="Previous Applications (Last 2 Years)" value={lead.previous_applications_2_years} />
-        </div>
-      </CollapsibleSection>
+        </InfoGrid>
+      </LeadCard>
 
       {/* Section 3: Policy & Coverage Details */}
-      <CollapsibleSection
+      <LeadCard
         icon="🛡️"
         title="Policy & Coverage Details"
         subtitle="Insurance product and financial information"
       >
-        {/* Product Info */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+        <InfoGrid columns={3}>
           <InfoField label="Carrier" value={lead.carrier} />
           <InfoField label="Product Type" value={lead.product_type} />
           <InfoField label="Coverage Amount" value={formatCurrency(lead.coverage_amount)} />
-        </div>
+        </InfoGrid>
 
-        {/* Financials */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+        <InfoGrid columns={3}>
           <InfoField label="Monthly Premium" value={formatCurrency(lead.monthly_premium)} />
           <InfoField label="Lead Value" value={formatCurrency(lead.lead_value)} />
           <InfoField label="Beneficiary Info" value={lead.beneficiary_information} />
-        </div>
+        </InfoGrid>
 
-        {/* Logistics */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+        <InfoGrid columns={3}>
           <InfoField label="Draft Date" value={formatDate(lead.draft_date)} />
           <InfoField label="Future Draft Date" value={formatDate(lead.future_draft_date)} />
           <InfoField label="Lead Source" value={lead.lead_source} />
-        </div>
+        </InfoGrid>
 
-        {/* Notes */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20 }}>
+        <InfoGrid columns={1} bordered={false}>
           <InfoField label="Additional Information" value={lead.additional_information} />
-        </div>
-      </CollapsibleSection>
+        </InfoGrid>
+      </LeadCard>
 
       {/* Section 4: Financial & System Metadata */}
-      <CollapsibleSection
+      <LeadCard
         icon="⚙️"
         title="Financial & System Metadata"
         subtitle="Banking details and CRM workflow data"
       >
-        {/* Banking */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+        <InfoGrid columns={4}>
           <InfoField label="Account Type" value={lead.bank_account_type} />
           <InfoField label="Institution" value={lead.institution_name} />
           <InfoField label="Routing Number" value={lead.routing_number} />
           <InfoField label="Account Number" value={lead.account_number} />
-        </div>
+        </InfoGrid>
 
-        {/* Workflow/CRM */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+        <InfoGrid columns={4}>
           <InfoField label="Lead ID" value={lead.lead_unique_id} />
           <InfoField label="Submission ID" value={lead.submission_id} />
           <InfoField label="Stage" value={lead.stage} />
           <InfoField label="Is Draft" value={formatBool(lead.is_draft)} />
-        </div>
+        </InfoGrid>
 
-        {/* Tags */}
         <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
           <p style={{ margin: "0 0 8px", fontSize: 12, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px" }}>
             Tags
@@ -1819,14 +1488,13 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
           </div>
         </div>
 
-        {/* Audit Trail */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
+        <InfoGrid columns={4} bordered={false}>
           <InfoField label="Created At" value={formatDate(lead.created_at)} />
           <InfoField label="Updated At" value={formatDate(lead.updated_at)} />
           <InfoField label="Submission Date" value={formatDate(lead.submission_date)} />
           <InfoField label="Submitted By" value={lead.submitted_by} />
-        </div>
-      </CollapsibleSection>
+        </InfoGrid>
+      </LeadCard>
     </div>
   );
 }
