@@ -59,8 +59,7 @@ export function LeadCard({
     }}>
       {/* Header */}
       {collapsible ? (
-        <button
-          type="button"
+        <div
           onClick={() => setIsExpanded(!isExpanded)}
           style={{
             width: "100%",
@@ -103,7 +102,7 @@ export function LeadCard({
               </svg>
             </div>
           </div>
-        </button>
+        </div>
       ) : (
         <div
           style={{

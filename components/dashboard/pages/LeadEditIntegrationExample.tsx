@@ -30,7 +30,6 @@ export function LeadEditIntegrationExample({
 
   // Use the hook to handle data fetching and saving
   const {
-    lead,
     pipelines,
     stages,
     licensedAgents,
@@ -60,8 +59,8 @@ export function LeadEditIntegrationExample({
   };
 
   // Generate title from lead name
-  const title = lead
-    ? `Edit "${lead.firstName} ${lead.lastName}"`.trim()
+  const title = leadRow
+    ? `Edit "${leadRow.first_name || ""} ${leadRow.last_name || ""}"`.trim()
     : "Edit Lead";
 
   // Default empty lead data for initial render
@@ -69,16 +68,15 @@ export function LeadEditIntegrationExample({
     firstName: "",
     lastName: "",
     phone: "",
-    pipeline: "",
-    stage: "",
+    pipelineId: null,
+    stageId: null,
     leadValue: null,
     licensedAgentAccount: "",
-    businessName: "",
     leadSource: "",
     tags: "",
     carrier: "",
     productType: "",
-    monthlyPremium: null,
+    monthlyPremium: "",
   };
 
   return (
@@ -115,7 +113,8 @@ export function LeadEditIntegrationExample({
       {/* Lead Edit Modal - only render when editing */}
       {isEditing && (
         <LeadEditForm
-          lead={lead || defaultLeadData}
+          lead={defaultLeadData}
+          leadRowUuid={rowUuid}
           pipelines={pipelines}
           stages={stages}
           licensedAgents={licensedAgents}
@@ -185,43 +184,7 @@ export function LeadEditIntegrationExample({
  *    buttons. Keep only the "Edit Lead" button.
  *
  * 6. ADD the Toast and LeadEditForm at the end of the component (before closing div):
- *
- *    {/* Toast notification */}
- *    {toast && (
- *      <Toast message={toast.message} type={toast.type} onClose={clearToast} />
- *    )}
- *
- *    {/* Lead Edit Modal */}
- *    {isEditing && (
- *      <LeadEditForm
- *        lead={lead || {
- *          firstName: "",
- *          lastName: "",
- *          phone: "",
- *          pipeline: "",
- *          stage: "",
- *          leadValue: null,
- *          licensedAgentAccount: "",
- *          businessName: "",
- *          leadSource: "",
- *          tags: "",
- *          carrier: "",
- *          productType: "",
- *          monthlyPremium: null,
- *        }}
- *        pipelines={pipelines}
- *        stages={stages}
- *        licensedAgents={licensedAgents}
- *        canEdit={effectiveCanEditLead}
- *        onSubmit={saveLead}
- *        onCancel={() => setIsEditing(false)}
- *        onDelete={effectiveCanEditLead ? deleteLead : undefined}
- *        isSaving={isSaving}
- *        isLoading={isLoading}
- *        error={error}
- *        title={`Edit "${fullName}"`}
- *      />
- *    )}
+ *    See actual component code above for implementation.
  *
  * KEY BENEFITS OF THIS APPROACH:
  *
