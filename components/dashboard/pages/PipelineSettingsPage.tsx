@@ -190,6 +190,10 @@ export default function PipelineManagementPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [stageSearch, setStageSearch] = useState("");
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newPipelineName, setNewPipelineName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creatingPipeline, setCreatingPipeline] = useState(false);
 
   const filteredStagesForEdit = useMemo(() => {
     if (!selectedPipeline) return [];
@@ -206,6 +210,10 @@ export default function PipelineManagementPage() {
 
   const hasActiveFilters = filterStages !== "All";
   const activeFilterCount = filterStages !== "All" ? 1 : 0;
+
+  const clearFilters = () => {
+    setFilterStages("All");
+  };
 
   useEffect(() => {
     fetchPipelines();
@@ -239,20 +247,26 @@ export default function PipelineManagementPage() {
   }
 
   async function handleCreatePipeline() {
-    const name = prompt("Enter Pipeline Name:");
-    if (!name) return;
+    if (!newPipelineName.trim()) return;
+
+    setCreatingPipeline(true);
+    setCreateError(null);
 
     const { data, error } = await supabase
       .from("pipelines")
-      .insert([{ name }])
+      .insert([{ name: newPipelineName.trim() }])
       .select()
       .single();
 
     if (error) {
        console.error("Error creating pipeline:", error);
+       setCreateError(error.message || "Failed to create pipeline");
     } else {
+       setShowCreateModal(false);
+       setNewPipelineName("");
        fetchPipelines();
     }
+    setCreatingPipeline(false);
   }
 
   async function handleOpenPipeline(p: Pipeline) {
@@ -830,7 +844,7 @@ export default function PipelineManagementPage() {
             </button>
 
             <button
-              onClick={handleCreatePipeline}
+              onClick={() => { setShowCreateModal(true); setNewPipelineName(""); setCreateError(null); }}
               style={{
                 height: 38,
                 padding: "0 18px",
@@ -883,10 +897,147 @@ export default function PipelineManagementPage() {
                   />
                 </div>
               </div>
+
+              {hasActiveFilters && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {filterStages !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        {stageFilterOptions.find(o => o.value === filterStages)?.label || filterStages}
+                        <button onClick={() => setFilterStages("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#233217",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      padding: "4px 0",
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.textDecoration = "underline";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.textDecoration = "none";
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {showCreateModal && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Create Pipeline</h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {createError && (
+              <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+                <div style={{ fontSize: 13, color: "#dc2626", fontWeight: 500 }}>{createError}</div>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Pipeline name</label>
+              <input
+                type="text"
+                value={newPipelineName}
+                onChange={(e) => setNewPipelineName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreatePipeline();
+                  if (e.key === 'Escape') setShowCreateModal(false);
+                }}
+                placeholder="Enter pipeline name"
+                autoFocus
+                style={{
+                  width: "100%",
+                  height: 44,
+                  border: `1.5px solid ${T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                  background: T.cardBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreatePipeline}
+                disabled={!newPipelineName.trim() || creatingPipeline}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: newPipelineName.trim() && !creatingPipeline ? "#233217" : T.border,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: newPipelineName.trim() && !creatingPipeline ? "pointer" : "not-allowed",
+                  boxShadow: newPipelineName.trim() && !creatingPipeline ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
+                  transition: "all 0.15s ease-in-out",
+                }}
+              >
+                {creatingPipeline ? "Creating..." : "Create Pipeline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div
