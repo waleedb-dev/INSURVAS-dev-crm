@@ -8,6 +8,13 @@ import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import { useCarrierProductDropdowns, type CarrierProductRow } from "@/lib/useCarrierProductDropdowns";
 import { Toast, type ToastType } from "@/components/ui/Toast";
 import { AppSelect } from "@/components/ui/app-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export type TransferLeadFormData = {
   leadUniqueId: string;
@@ -96,6 +103,81 @@ const usStates = [
 ];
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
+
+// Styled Select component matching UserEditorComponent design
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select...",
+  disabled = false,
+  error = false,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")} disabled={disabled}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 42,
+          borderRadius: 10,
+          border: `1.5px solid ${error ? "#dc2626" : T.border}`,
+          backgroundColor: disabled ? T.pageBg : "#fff",
+          color: value ? T.textDark : T.textMuted,
+          fontSize: 14,
+          fontWeight: 600,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          boxShadow: error ? "0 0 0 3px rgba(220, 38, 38, 0.1)" : "none",
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value
+            ? options.find((o) => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: "#fff",
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 99999,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 14,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 const REQUIRED_FORM_KEYS: Array<keyof TransferLeadFormData> = [
   "submissionDate",
@@ -1089,11 +1171,16 @@ export default function TransferLeadApplicationForm({
               )}
             </Field>
             <Field label="Language" required error={getFieldError("language")}>
-              <AppSelect value={formData.language} onChange={(e: any) => set("language")(e)} style={fieldStyleWithError("language")}>
-                <option value="">Select language</option>
-                <option value="English">English</option>
-                <option value="Spanish">Spanish</option>
-              </AppSelect>
+              <StyledSelect
+                value={formData.language}
+                onValueChange={(val) => setFormData((prev) => ({ ...prev, language: val }))}
+                options={[
+                  { value: "English", label: "English" },
+                  { value: "Spanish", label: "Spanish" },
+                ]}
+                placeholder="Select language"
+                error={submitHighlightKeys.has("language")}
+              />
             </Field>
           </div>
         </Section>
@@ -1294,19 +1381,25 @@ export default function TransferLeadApplicationForm({
                     <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
                   </Field>
                   <Field label="State" required error={getFieldError("state")}>
-                    <AppSelect value={formData.state} onChange={(e: any) => set("state")(e)} style={fieldStyleWithError("state")}>
-                      <option value="">Please Select</option>
-                      {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </AppSelect>
+                    <StyledSelect
+                      value={formData.state}
+                      onValueChange={(val) => setFormData((prev) => ({ ...prev, state: val }))}
+                      options={usStates.map((s) => ({ value: s, label: s }))}
+                      placeholder="Please Select"
+                      error={submitHighlightKeys.has("state")}
+                    />
                   </Field>
                   <Field label="Zip Code" required error={getFieldError("zipCode")}>
                     <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
                   </Field>
                   <Field label="Birth State" required error={getFieldError("birthState")}>
-                    <AppSelect value={formData.birthState} onChange={(e: any) => set("birthState")(e)} style={fieldStyleWithError("birthState")}>
-                      <option value="">Please Select</option>
-                      {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </AppSelect>
+                    <StyledSelect
+                      value={formData.birthState}
+                      onValueChange={(val) => setFormData((prev) => ({ ...prev, birthState: val }))}
+                      options={usStates.map((s) => ({ value: s, label: s }))}
+                      placeholder="Please Select"
+                      error={submitHighlightKeys.has("birthState")}
+                    />
                   </Field>
                 </div>
               </Section>
@@ -1390,29 +1483,24 @@ export default function TransferLeadApplicationForm({
                     </div>
                   </Field>
                   <Field label="Carrier" required error={getFieldError("carrier")}>
-                    <AppSelect
-                    value={formData.carrier}
-                    onChange={(e: any) => {
-                      const nextCarrier = e.target.value;
-                      setFormData((prev) => ({ ...prev, carrier: nextCarrier, productType: "" }));
-                    }}
-                    style={fieldStyleWithError("carrier")}
-                  >
-                    <option value="">Please Select</option>
-                    {carriers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                  </AppSelect>
-                </Field>
-                <Field label="Product Type" required error={getFieldError("productType")}>
-                  <AppSelect
-                    value={formData.productType}
-                    onChange={(e: any) => set("productType")(e)}
-                    style={fieldStyleWithError("productType")}
-                    disabled={!formData.carrier.trim() || policyCarrierProductsLoading}
-                  >
-                    <option value="">Please Select</option>
-                    {productsForCarrier.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
-                  </AppSelect>
-                </Field>
+                    <StyledSelect
+                      value={formData.carrier}
+                      onValueChange={(val) => setFormData((prev) => ({ ...prev, carrier: val, productType: "" }))}
+                      options={carriers.map((c) => ({ value: c.name, label: c.name }))}
+                      placeholder="Please Select"
+                      error={submitHighlightKeys.has("carrier")}
+                    />
+                  </Field>
+                  <Field label="Product Type" required error={getFieldError("productType")}>
+                    <StyledSelect
+                      value={formData.productType}
+                      onValueChange={(val) => setFormData((prev) => ({ ...prev, productType: val }))}
+                      options={productsForCarrier.map((p) => ({ value: p.name, label: p.name }))}
+                      placeholder={!formData.carrier.trim() ? "Select carrier first" : (policyCarrierProductsLoading ? "Loading..." : "Please Select")}
+                      disabled={!formData.carrier.trim() || policyCarrierProductsLoading}
+                      error={submitHighlightKeys.has("productType")}
+                    />
+                  </Field>
                 <Field label="Draft Date" required error={getFieldError("draftDate")}>
                   <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyleWithError("draftDate")} />
                 </Field>
@@ -1435,11 +1523,15 @@ export default function TransferLeadApplicationForm({
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <Field label="Bank Account Type">
-                    <AppSelect value={formData.bankAccountType} onChange={(e: any) => set("bankAccountType")(e)} style={fieldStyle}>
-                      <option value="">Please Select</option>
-                      <option value="Checking">Checking</option>
-                      <option value="Savings">Savings</option>
-                    </AppSelect>
+                    <StyledSelect
+                      value={formData.bankAccountType}
+                      onValueChange={(val) => setFormData((prev) => ({ ...prev, bankAccountType: val }))}
+                      options={[
+                        { value: "Checking", label: "Checking" },
+                        { value: "Savings", label: "Savings" },
+                      ]}
+                      placeholder="Please Select"
+                    />
                   </Field>
                   <Field label="Institution Name" required error={getFieldError("institutionName")}>
                     <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyleWithError("institutionName")} />
@@ -2079,22 +2171,16 @@ function Field({
 
 function YesNo({ value, onChange, hasError }: { value: string; onChange: (value: string) => void; hasError?: boolean }) {
   return (
-    <AppSelect value={value} onChange={(e: any) => onChange(e.target.value)} style={{
-      width: "100%",
-      padding: "11px 14px",
-      borderRadius: 8,
-      border: hasError ? `2px solid ${T.danger}` : `1.5px solid ${T.border}`,
-      fontSize: 14,
-      color: T.textDark,
-      outline: "none",
-      fontFamily: T.font,
-      backgroundColor: "#fff",
-      boxSizing: "border-box",
-    }}>
-      <option value="">Please Select</option>
-      <option value="Yes">Yes</option>
-      <option value="No">No</option>
-    </AppSelect>
+    <StyledSelect
+      value={value}
+      onValueChange={onChange}
+      options={[
+        { value: "Yes", label: "Yes" },
+        { value: "No", label: "No" },
+      ]}
+      placeholder="Please Select"
+      error={hasError}
+    />
   );
 }
 
