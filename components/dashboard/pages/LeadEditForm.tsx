@@ -129,8 +129,8 @@ const formSchema = z.object({
   previousApplications: z.string().optional(), // 'Yes' or 'No' in DB
   
   // Pipeline & Stage (IDs for DB, names for display)
-  pipelineId: z.number().nullable(),
-  stageId: z.number().nullable(),
+  pipelineId: z.number().nullable().or(z.literal("")),
+  stageId: z.number().nullable().or(z.literal("")),
   pipelineName: z.string().optional(),
   stageName: z.string().optional(),
   
