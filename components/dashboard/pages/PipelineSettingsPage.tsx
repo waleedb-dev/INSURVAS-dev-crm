@@ -179,7 +179,6 @@ export default function PipelineManagementPage() {
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activePipelineMenu, setActivePipelineMenu] = useState<string | null>(null);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [tempStageName, setTempStageName] = useState("");
   const [isEditingPipelineName, setIsEditingPipelineName] = useState(false);
@@ -194,6 +193,13 @@ export default function PipelineManagementPage() {
   const [newPipelineName, setNewPipelineName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingPipeline, setCreatingPipeline] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
+  const [editPipelineName, setEditPipelineName] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingPipeline, setDeletingPipeline] = useState<Pipeline | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deletingInProgress, setDeletingInProgress] = useState(false);
 
   const filteredStagesForEdit = useMemo(() => {
     if (!selectedPipeline) return [];
@@ -267,6 +273,58 @@ export default function PipelineManagementPage() {
        fetchPipelines();
     }
     setCreatingPipeline(false);
+  }
+
+  function openEditModal(p: Pipeline) {
+    setEditingPipeline(p);
+    setEditPipelineName(p.name);
+    setShowEditModal(true);
+  }
+
+  async function handleUpdatePipeline() {
+    if (!editingPipeline || !editPipelineName.trim()) return;
+
+    const { error } = await supabase
+      .from("pipelines")
+      .update({ name: editPipelineName.trim() })
+      .eq("id", editingPipeline.id);
+
+    if (error) {
+      console.error("Error updating pipeline:", error);
+    } else {
+      setShowEditModal(false);
+      setEditingPipeline(null);
+      setEditPipelineName("");
+      fetchPipelines();
+    }
+  }
+
+  function openDeleteModal(p: Pipeline) {
+    setDeletingPipeline(p);
+    setDeleteConfirmName("");
+    setShowDeleteModal(true);
+  }
+
+  async function handleDeletePipeline() {
+    if (!deletingPipeline) return;
+    if (deleteConfirmName !== deletingPipeline.name) return;
+
+    setDeletingInProgress(true);
+
+    const { error } = await supabase
+      .from("pipelines")
+      .delete()
+      .eq("id", deletingPipeline.id);
+
+    if (error) {
+      console.error("Error deleting pipeline:", error);
+      setDeletingInProgress(false);
+    } else {
+      setShowDeleteModal(false);
+      setDeletingPipeline(null);
+      setDeleteConfirmName("");
+      fetchPipelines();
+    }
   }
 
   async function handleOpenPipeline(p: Pipeline) {
@@ -671,7 +729,7 @@ export default function PipelineManagementPage() {
   }
 
   return (
-    <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }} onClick={() => setActivePipelineMenu(null)}>
+    <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
@@ -1132,17 +1190,19 @@ export default function PipelineManagementPage() {
                         style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
                       >
                         <button 
-                          onClick={(e) => { e.stopPropagation(); setActivePipelineMenu(activePipelineMenu === pipeline.id ? null : pipeline.id); }} 
+                          onClick={() => openEditModal(pipeline)}
                           style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 6, borderRadius: 6 }}
+                          title="Edit Pipeline"
                         >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         </button>
-                        {activePipelineMenu === pipeline.id && (
-                          <div style={{ position: "absolute", top: "calc(100% - 4px)", right: 16, width: 140, backgroundColor: "#fff", borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", border: `1px solid ${T.border}`, zIndex: 100, overflow: "hidden" }}>
-                            <button onClick={() => { handleOpenPipeline(pipeline); setActivePipelineMenu(null); }} style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: T.textDark, textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Edit Pipeline</button>
-                            <button style={{ display: "block", width: "100%", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: "#3b5229", textAlign: "left" }} onMouseEnter={e => e.currentTarget.style.backgroundColor = "#fef2f2"} onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>Delete</button>
-                          </div>
-                        )}
+                        <button 
+                          onClick={() => openDeleteModal(pipeline)}
+                          style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                          title="Delete Pipeline"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                        </button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1151,6 +1211,200 @@ export default function PipelineManagementPage() {
             </ShadcnTable>
           </div>
         </DataGrid>
+      )}
+
+      {showEditModal && editingPipeline && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Edit Pipeline</h2>
+              <button
+                onClick={() => setShowEditModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Pipeline name</label>
+              <input
+                type="text"
+                value={editPipelineName}
+                onChange={(e) => setEditPipelineName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleUpdatePipeline();
+                  if (e.key === 'Escape') setShowEditModal(false);
+                }}
+                placeholder="Enter pipeline name"
+                autoFocus
+                style={{
+                  width: "100%",
+                  height: 44,
+                  border: `1.5px solid ${T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                  background: T.cardBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowEditModal(false)}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdatePipeline}
+                disabled={!editPipelineName.trim()}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: editPipelineName.trim() ? "#233217" : T.border,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: editPipelineName.trim() ? "pointer" : "not-allowed",
+                  boxShadow: editPipelineName.trim() ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
+                  transition: "all 0.15s ease-in-out",
+                }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && deletingPipeline && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#dc2626" }}>Delete Pipeline</h2>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
+                <strong>Warning:</strong> This will permanently delete <strong>"{deletingPipeline.name}"</strong> and all its stages. This action cannot be undone.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                Type <strong>{deletingPipeline.name}</strong> to confirm deletion
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && deleteConfirmName === deletingPipeline.name) handleDeletePipeline();
+                  if (e.key === 'Escape') setShowDeleteModal(false);
+                }}
+                placeholder={deletingPipeline.name}
+                autoFocus
+                style={{
+                  width: "100%",
+                  height: 44,
+                  border: `1.5px solid ${deleteConfirmName === deletingPipeline.name ? "#dc2626" : T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                  background: T.cardBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = deleteConfirmName === deletingPipeline.name ? "#dc2626" : "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmName === deletingPipeline.name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = deleteConfirmName === deletingPipeline.name ? "#dc2626" : T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeletePipeline}
+                disabled={deleteConfirmName !== deletingPipeline.name || deletingInProgress}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: deleteConfirmName === deletingPipeline.name && !deletingInProgress ? "#dc2626" : T.border,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: deleteConfirmName === deletingPipeline.name && !deletingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: deleteConfirmName === deletingPipeline.name && !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                  transition: "all 0.15s ease-in-out",
+                }}
+              >
+                {deletingInProgress ? "Deleting..." : "Delete Pipeline"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
