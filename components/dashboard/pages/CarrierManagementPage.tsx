@@ -236,7 +236,7 @@ export default function CarrierManagementPage() {
   async function fetchCarriers() {
     const { data, error } = await supabase
       .from("carriers")
-      .select("id, name, requires_state_appointment, is_active, created_at")
+      .select("id, name, requires_state_appointment, created_at")
       .order("name");
 
     if (error) {
@@ -252,7 +252,7 @@ export default function CarrierManagementPage() {
           id: String(carrier.id),
           name: carrier.name,
           requiresStateAppointment: carrier.requires_state_appointment ?? false,
-          isActive: carrier.is_active ?? true,
+          isActive: true,
           createdAt: new Date(carrier.created_at).toLocaleString(),
         })),
       );
@@ -651,7 +651,7 @@ export default function CarrierManagementPage() {
         return;
       }
       if (data) {
-        const newC = { id: String(data.id), name: data.name, requiresStateAppointment: data.requires_state_appointment ?? false, isActive: data.is_active ?? true, createdAt: new Date(data.created_at).toLocaleString() };
+        const newC = { id: String(data.id), name: data.name, requiresStateAppointment: data.requires_state_appointment ?? false, isActive: true, createdAt: new Date(data.created_at).toLocaleString() };
         setCarriers(prev => [newC, ...prev]);
         carrierId = String(data.id);
       }
