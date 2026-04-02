@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -232,6 +232,23 @@ const labelStyle: CSSProperties = {
   letterSpacing: "0.4px",
 };
 
+type TabType = 
+  | "Lead Information"
+  | "Personal Information"
+  | "Contact & Address"
+  | "Health Information"
+  | "Policy Details"
+  | "Banking Information";
+
+const tabSections: Record<TabType, string> = {
+  "Lead Information": "section-lead-info",
+  "Personal Information": "section-personal-info",
+  "Contact & Address": "section-contact-address",
+  "Health Information": "section-health-info",
+  "Policy Details": "section-policy-details",
+  "Banking Information": "section-banking-info",
+};
+
 export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
@@ -250,6 +267,16 @@ export default function TransferLeadApplicationForm({
   centerName?: string;
 }) {
   const supabase = getSupabaseBrowserClient();
+  const [activeTab, setActiveTab] = useState<TabType>("Lead Information");
+  const tabs: TabType[] = [
+    "Lead Information",
+    "Personal Information",
+    "Contact & Address",
+    "Health Information",
+    "Policy Details",
+    "Banking Information"
+  ];
+  const contentRef = useRef<HTMLDivElement>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
   const [conditionInput, setConditionInput] = useState("");
   const [medicationInput, setMedicationInput] = useState("");
@@ -349,8 +376,52 @@ export default function TransferLeadApplicationForm({
     return {
       ...fieldStyle,
       ...extra,
-      ...(error ? { border: `2px solid ${T.danger}` } : {}),
+      ...(error ? { 
+        border: `2px solid ${T.danger}`,
+        boxShadow: "0 0 0 3px rgba(220, 38, 38, 0.1)",
+      } : {}),
     };
+  };
+
+  const getFieldError = (key: keyof TransferLeadFormData): string | undefined => {
+    if (!submitHighlightKeys.has(key)) return undefined;
+    
+    const fieldLabels: Record<string, string> = {
+      submissionDate: "Date of submission is required",
+      firstName: "First name is required",
+      lastName: "Last name is required",
+      street1: "Street address is required",
+      city: "City is required",
+      state: "State is required",
+      zipCode: "ZIP code is required",
+      phone: "Valid phone number is required (10 digits)",
+      language: "Language is required",
+      birthState: "Birth state is required",
+      dateOfBirth: "Date of birth is required",
+      age: "Age is required",
+      social: "Valid SSN is required (9 digits)",
+      driverLicenseNumber: "Driver's license number is required",
+      existingCoverageLast2Years: "Please select Yes or No",
+      previousApplications2Years: "Please select Yes or No",
+      height: "Height is required",
+      weight: "Weight is required",
+      doctorName: "Doctor's name is required",
+      tobaccoUse: "Please select Yes or No for tobacco use",
+      healthConditions: "Health conditions are required",
+      medications: "Medications are required",
+      monthlyPremium: "Monthly premium is required",
+      coverageAmount: "Coverage amount is required",
+      carrier: "Carrier is required",
+      productType: "Product type is required",
+      draftDate: "Draft date is required",
+      beneficiaryInformation: "Beneficiary information is required",
+      institutionName: "Institution name is required",
+      routingNumber: "Routing number is required",
+      accountNumber: "Account number is required",
+      futureDraftDate: "Future draft date is required",
+    };
+    
+    return fieldLabels[key] || "This field is required";
   };
 
   const computedLeadUniqueId = useMemo(() => {
@@ -764,6 +835,99 @@ export default function TransferLeadApplicationForm({
     setShowUnderwritingModal(false);
   };
 
+  const canAccessTab = (tab: TabType) => {
+    if (tab === "Lead Information") return true;
+    return phoneGatePassed;
+  };
+
+  const scrollToSection = (tab: TabType) => {
+    if (!canAccessTab(tab)) return;
+    const sectionId = tabSections[tab];
+    const element = document.getElementById(sectionId);
+    if (element && contentRef.current) {
+      const containerTop = contentRef.current.getBoundingClientRect().top;
+      const elementTop = element.getBoundingClientRect().top;
+      const scrollOffset = elementTop - containerTop + contentRef.current.scrollTop - 24;
+      contentRef.current.scrollTo({
+        top: scrollOffset,
+        behavior: "smooth"
+      });
+    }
+    setActiveTab(tab);
+  };
+
+  const handleNext = () => {
+    const idx = tabs.indexOf(activeTab);
+    if (idx < tabs.length - 1) {
+      const nextTab = tabs[idx + 1];
+      scrollToSection(nextTab);
+    }
+  };
+
+  const handleBack = () => {
+    const idx = tabs.indexOf(activeTab);
+    if (idx > 0) {
+      const prevTab = tabs[idx - 1];
+      scrollToSection(prevTab);
+    }
+  };
+
+  // Track scroll position to update active tab
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // If phone gate not passed, always stay on Lead Information
+      if (!phoneGatePassed) {
+        if (activeTab !== "Lead Information") {
+          setActiveTab("Lead Information");
+        }
+        return;
+      }
+
+      // Find which section is most visible in the viewport
+      const containerRect = container.getBoundingClientRect();
+      const viewportCenter = container.scrollTop + (containerRect.height / 3);
+      
+      let closestTab: TabType | null = null;
+      let closestDistance = Infinity;
+      
+      for (const tab of tabs) {
+        const element = document.getElementById(tabSections[tab]);
+        if (element) {
+          const elementTop = element.offsetTop;
+          const elementCenter = elementTop + (element.offsetHeight / 2);
+          const distance = Math.abs(viewportCenter - elementCenter);
+          
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestTab = tab;
+          }
+        }
+      }
+      
+      if (closestTab && closestTab !== activeTab) {
+        setActiveTab(closestTab);
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, tabs, phoneGatePassed]);
+
+  // Reset to Lead Information tab when phone gate is not passed
+  useEffect(() => {
+    if (!phoneGatePassed && activeTab !== "Lead Information") {
+      setActiveTab("Lead Information");
+      // Scroll back to top
+      if (contentRef.current) {
+        contentRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [phoneGatePassed, activeTab]);
+
   return (
     <div style={{ fontFamily: T.font }}>
       {/* Header */}
@@ -782,17 +946,60 @@ export default function TransferLeadApplicationForm({
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Main Content Card with Tabs */}
+      <div style={{ backgroundColor: "#fff", borderRadius: 16, boxShadow: "0 4px 12px rgba(0,0,0,0.02)", border: `1.5px solid ${T.border}`, flex: 1, display: "flex", flexDirection: "column" }}>
+        {/* Tabs - Styled like UserEditorComponent */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 16px", borderBottom: `1px solid ${T.borderLight}`, flexWrap: "wrap" }}>
+          {tabs.map(tab => {
+            const isAccessible = canAccessTab(tab);
+            return (
+              <button
+                key={tab}
+                onClick={() => scrollToSection(tab)}
+                disabled={!isAccessible}
+                style={{
+                  padding: "10px 16px",
+                  border: "none",
+                  borderRadius: 10,
+                  backgroundColor: activeTab === tab ? "#233217" : "transparent",
+                  cursor: isAccessible ? "pointer" : "not-allowed",
+                  fontSize: 12,
+                  fontWeight: activeTab === tab ? 700 : 600,
+                  color: activeTab === tab ? "#fff" : (isAccessible ? T.textMuted : "#a0a0a0"),
+                  transition: "all 0.15s ease-in-out",
+                  whiteSpace: "nowrap",
+                  opacity: isAccessible ? 1 : 0.5,
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== tab && isAccessible) {
+                    e.currentTarget.style.backgroundColor = "#EEF5EE";
+                    e.currentTarget.style.color = "#233217";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== tab) {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = isAccessible ? T.textMuted : "#a0a0a0";
+                  }
+                }}
+              >
+                {tab}
+              </button>
+            );
+          })}
+        </div>
 
-        {/* Section: Lead Info */}
+        <div ref={contentRef} style={{ padding: 24, flex: 1, overflowY: "auto", maxHeight: "calc(100vh - 280px)" }}>
+          {/* Section: Lead Information */}
+          <div id="section-lead-info" style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
         <Section title="Lead Information" icon={
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>
         }>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Date of Submission *">
+            <Field label="Date of Submission" required error={getFieldError("submissionDate")}>
               <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyleWithError("submissionDate")} />
             </Field>
-            <Field label="Phone Number *">
+            <Field label="Phone Number" required error={getFieldError("phone")}>
               <div style={{ position: "relative" }}>
                 <input
                   placeholder="Enter 10 or 11 digits"
@@ -881,7 +1088,7 @@ export default function TransferLeadApplicationForm({
                 </div>
               )}
             </Field>
-            <Field label="Language *">
+            <Field label="Language" required error={getFieldError("language")}>
               <AppSelect value={formData.language} onChange={(e: any) => set("language")(e)} style={fieldStyleWithError("language")}>
                 <option value="">Select language</option>
                 <option value="English">English</option>
@@ -938,26 +1145,28 @@ export default function TransferLeadApplicationForm({
           </div>
         )}
 
-        {phoneGatePassed && (
-          <>
-            {/* Section: Personal Info */}
-            <Section title="Personal Information" icon={
+            </div>
+
+            {/* Section: Personal Information */}
+            {phoneGatePassed && (
+            <div id="section-personal-info" style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
+              <Section title="Personal Information" icon={
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             }>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="First Name *">
+                <Field label="First Name" required error={getFieldError("firstName")}>
                   <input value={formData.firstName} onChange={set("firstName")} style={fieldStyleWithError("firstName")} />
                 </Field>
-                <Field label="Last Name *">
+                <Field label="Last Name" required error={getFieldError("lastName")}>
                   <input value={formData.lastName} onChange={set("lastName")} style={fieldStyleWithError("lastName")} />
                 </Field>
-                <Field label="Date of Birth *">
+                <Field label="Date of Birth" required error={getFieldError("dateOfBirth")}>
                   <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyleWithError("dateOfBirth")} />
                 </Field>
-                <Field label="Age *">
+                <Field label="Age" required error={getFieldError("age")}>
                   <input value={formData.age} onChange={set("age")} style={fieldStyleWithError("age")} />
                 </Field>
-                <Field label="Social Security Number *">
+                <Field label="Social Security Number" required error={getFieldError("social")}>
                   <input
                     value={formData.social}
                     onChange={(e) => {
@@ -1013,7 +1222,7 @@ export default function TransferLeadApplicationForm({
                     </div>
                   )}
                 </Field>
-                <Field label="Driver License Number *">
+                <Field label="Driver License Number" required error={getFieldError("driverLicenseNumber")}>
                   <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyleWithError("driverLicenseNumber")} />
                 </Field>
               </div>
@@ -1065,40 +1274,48 @@ export default function TransferLeadApplicationForm({
                 </div>
               )}
             </Section>
+            </div>
+            )}
 
             {/* Section: Contact & Address */}
-            <Section title="Contact & Address" icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            }>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="Street Address *" full>
-                  <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyleWithError("street1")} />
-                </Field>
-                <Field label="Address Line 2" full>
-                  <input placeholder="Apt, Suite, Unit (optional)" value={formData.street2} onChange={set("street2")} style={fieldStyle} />
-                </Field>
-                <Field label="City *">
-                  <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
-                </Field>
-                <Field label="State *">
-                  <AppSelect value={formData.state} onChange={(e: any) => set("state")(e)} style={fieldStyleWithError("state")}>
-                    <option value="">Please Select</option>
-                    {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </AppSelect>
-                </Field>
-                <Field label="Zip Code *">
-                  <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
-                </Field>
-                <Field label="Birth State *">
-                  <AppSelect value={formData.birthState} onChange={(e: any) => set("birthState")(e)} style={fieldStyleWithError("birthState")}>
-                    <option value="">Please Select</option>
-                    {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </AppSelect>
-                </Field>
-              </div>
-            </Section>
+            {phoneGatePassed && (
+            <div id="section-contact-address" style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
+              <Section title="Contact & Address" icon={
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              }>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Field label="Street Address" required full error={getFieldError("street1")}>
+                    <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyleWithError("street1")} />
+                  </Field>
+                  <Field label="Address Line 2" full>
+                    <input placeholder="Apt, Suite, Unit (optional)" value={formData.street2} onChange={set("street2")} style={fieldStyle} />
+                  </Field>
+                  <Field label="City" required error={getFieldError("city")}>
+                    <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
+                  </Field>
+                  <Field label="State" required error={getFieldError("state")}>
+                    <AppSelect value={formData.state} onChange={(e: any) => set("state")(e)} style={fieldStyleWithError("state")}>
+                      <option value="">Please Select</option>
+                      {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </AppSelect>
+                  </Field>
+                  <Field label="Zip Code" required error={getFieldError("zipCode")}>
+                    <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
+                  </Field>
+                  <Field label="Birth State" required error={getFieldError("birthState")}>
+                    <AppSelect value={formData.birthState} onChange={(e: any) => set("birthState")(e)} style={fieldStyleWithError("birthState")}>
+                      <option value="">Please Select</option>
+                      {usStates.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </AppSelect>
+                  </Field>
+                </div>
+              </Section>
+            </div>
+            )}
 
-            {/* Section: Health */}
+            {/* Section: Health Information */}
+            {phoneGatePassed && (
+            <div id="section-health-info" style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
             <Section
               title="Health Information"
               action={(
@@ -1124,52 +1341,56 @@ export default function TransferLeadApplicationForm({
               }
             >
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="Any existing / previous coverage in last 2 years? *">
+                <Field label="Any existing / previous coverage in last 2 years?" required error={getFieldError("existingCoverageLast2Years")}>
                   <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v }))} hasError={submitHighlightKeys.has("existingCoverageLast2Years")} />
                 </Field>
-                <Field label="Any previous applications in 2 years? *">
+                <Field label="Any previous applications in 2 years?" required error={getFieldError("previousApplications2Years")}>
                   <YesNo value={formData.previousApplications2Years} onChange={(v) => setFormData((p) => ({ ...p, previousApplications2Years: v }))} hasError={submitHighlightKeys.has("previousApplications2Years")} />
                 </Field>
-                <Field label="Height *">
+                <Field label="Height" required error={getFieldError("height")}>
                   <input placeholder='e.g. 5&apos;10"' value={formData.height} onChange={set("height")} style={fieldStyleWithError("height")} />
                 </Field>
-                <Field label="Weight *">
+                <Field label="Weight" required error={getFieldError("weight")}>
                   <input placeholder="e.g. 175 lbs" value={formData.weight} onChange={set("weight")} style={fieldStyleWithError("weight")} />
                 </Field>
-                <Field label="Doctor's Name *">
+                <Field label="Doctor's Name" required error={getFieldError("doctorName")}>
                   <input value={formData.doctorName} onChange={set("doctorName")} style={fieldStyleWithError("doctorName")} />
                 </Field>
-                <Field label="Tobacco Use *">
+                <Field label="Tobacco Use" required error={getFieldError("tobaccoUse")}>
                   <YesNo value={formData.tobaccoUse} onChange={(v) => setFormData((p) => ({ ...p, tobaccoUse: v }))} hasError={submitHighlightKeys.has("tobaccoUse")} />
                 </Field>
-                <Field label="Health Conditions *" full>
+                <Field label="Health Conditions" required full error={getFieldError("healthConditions")}>
                   <textarea value={formData.healthConditions} onChange={set("healthConditions")} style={{ ...fieldStyleWithError("healthConditions"), minHeight: 80, resize: "vertical" }} />
                 </Field>
-                <Field label="Medications *" full>
+                <Field label="Medications" required full error={getFieldError("medications")}>
                   <textarea value={formData.medications} onChange={set("medications")} style={{ ...fieldStyleWithError("medications"), minHeight: 80, resize: "vertical" }} />
                 </Field>
               </div>
             </Section>
+            </div>
+            )}
 
-            {/* Section: Policy */}
-            <Section title="Policy Details" icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            }>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="Monthly Premium *">
-                  <div style={{ position: "relative" }}>
-                    <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
-                    <input value={formData.monthlyPremium} onChange={set("monthlyPremium")} style={fieldStyleWithError("monthlyPremium", { paddingLeft: 28 })} />
-                  </div>
-                </Field>
-                <Field label="Coverage Amount *">
-                  <div style={{ position: "relative" }}>
-                    <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
-                    <input value={formData.coverageAmount} onChange={set("coverageAmount")} style={fieldStyleWithError("coverageAmount", { paddingLeft: 28 })} />
-                  </div>
-                </Field>
-                <Field label="Carrier *">
-                  <AppSelect
+            {/* Section: Policy Details */}
+            {phoneGatePassed && (
+            <div id="section-policy-details" style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
+              <Section title="Policy Details" icon={
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              }>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Field label="Monthly Premium" required error={getFieldError("monthlyPremium")}>
+                    <div style={{ position: "relative" }}>
+                      <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                      <input value={formData.monthlyPremium} onChange={set("monthlyPremium")} style={fieldStyleWithError("monthlyPremium", { paddingLeft: 28 })} />
+                    </div>
+                  </Field>
+                  <Field label="Coverage Amount" required error={getFieldError("coverageAmount")}>
+                    <div style={{ position: "relative" }}>
+                      <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                      <input value={formData.coverageAmount} onChange={set("coverageAmount")} style={fieldStyleWithError("coverageAmount", { paddingLeft: 28 })} />
+                    </div>
+                  </Field>
+                  <Field label="Carrier" required error={getFieldError("carrier")}>
+                    <AppSelect
                     value={formData.carrier}
                     onChange={(e: any) => {
                       const nextCarrier = e.target.value;
@@ -1181,7 +1402,7 @@ export default function TransferLeadApplicationForm({
                     {carriers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                   </AppSelect>
                 </Field>
-                <Field label="Product Type *">
+                <Field label="Product Type" required error={getFieldError("productType")}>
                   <AppSelect
                     value={formData.productType}
                     onChange={(e: any) => set("productType")(e)}
@@ -1192,55 +1413,63 @@ export default function TransferLeadApplicationForm({
                     {productsForCarrier.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
                   </AppSelect>
                 </Field>
-                <Field label="Draft Date *">
+                <Field label="Draft Date" required error={getFieldError("draftDate")}>
                   <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyleWithError("draftDate")} />
                 </Field>
-                <Field label="Future Draft Date *">
+                <Field label="Future Draft Date" required error={getFieldError("futureDraftDate")}>
                   <input type="date" value={formData.futureDraftDate} onChange={set("futureDraftDate")} style={fieldStyleWithError("futureDraftDate")} />
                 </Field>
-                <Field label="Beneficiary Information *" full>
+                <Field label="Beneficiary Information" required full error={getFieldError("beneficiaryInformation")}>
                   <textarea value={formData.beneficiaryInformation} onChange={set("beneficiaryInformation")} style={{ ...fieldStyleWithError("beneficiaryInformation"), minHeight: 72, resize: "vertical" }} />
                 </Field>
               </div>
             </Section>
+            </div>
+            )}
 
-            {/* Section: Banking */}
-            <Section title="Banking Information" icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-            }>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="Bank Account Type">
-                  <AppSelect value={formData.bankAccountType} onChange={(e: any) => set("bankAccountType")(e)} style={fieldStyle}>
-                    <option value="">Please Select</option>
-                    <option value="Checking">Checking</option>
-                    <option value="Savings">Savings</option>
-                  </AppSelect>
-                </Field>
-                <Field label="Institution Name *">
-                  <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyleWithError("institutionName")} />
-                </Field>
-                <Field label="Routing Number *">
-                  <input value={formData.routingNumber} onChange={set("routingNumber")} style={fieldStyleWithError("routingNumber")} />
-                </Field>
-                <Field label="Account Number *">
-                  <input value={formData.accountNumber} onChange={set("accountNumber")} style={fieldStyleWithError("accountNumber")} />
-                </Field>
-              </div>
-            </Section>
+            {/* Section: Banking Information */}
+            {phoneGatePassed && (
+            <div id="section-banking-info" style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
+              <Section title="Banking Information" icon={
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              }>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Field label="Bank Account Type">
+                    <AppSelect value={formData.bankAccountType} onChange={(e: any) => set("bankAccountType")(e)} style={fieldStyle}>
+                      <option value="">Please Select</option>
+                      <option value="Checking">Checking</option>
+                      <option value="Savings">Savings</option>
+                    </AppSelect>
+                  </Field>
+                  <Field label="Institution Name" required error={getFieldError("institutionName")}>
+                    <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyleWithError("institutionName")} />
+                  </Field>
+                  <Field label="Routing Number" required error={getFieldError("routingNumber")}>
+                    <input value={formData.routingNumber} onChange={set("routingNumber")} style={fieldStyleWithError("routingNumber")} />
+                  </Field>
+                  <Field label="Account Number" required error={getFieldError("accountNumber")}>
+                    <input value={formData.accountNumber} onChange={set("accountNumber")} style={fieldStyleWithError("accountNumber")} />
+                  </Field>
+                </div>
+              </Section>
+            </div>
+            )}
 
-            {/* Section: Additional */}
-            <Section title="Additional Information" icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-            }>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="Additional Notes" full>
-                  <textarea value={formData.additionalInformation} onChange={set("additionalInformation")} style={{ ...fieldStyle, minHeight: 96, resize: "vertical" }} />
-                </Field>
-              </div>
-            </Section>
-          </>
-        )}
-
+            {/* Section: Additional Information */}
+            {phoneGatePassed && (
+            <div id="section-additional-info" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <Section title="Additional Information" icon={
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+              }>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Field label="Additional Notes" full>
+                    <textarea value={formData.additionalInformation} onChange={set("additionalInformation")} style={{ ...fieldStyle, minHeight: 96, resize: "vertical" }} />
+                  </Field>
+                </div>
+              </Section>
+            </div>
+            )}
+        </div>
       </div>
 
       {showUnderwritingModal && (
@@ -1616,32 +1845,97 @@ export default function TransferLeadApplicationForm({
         </div>
       )}
 
-      {/* Submit */}
-      <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
+      {/* Footer Actions */}
+      <div style={{
+        marginTop: 24,
+        display: "flex",
+        justifyContent: "flex-end",
+        gap: 12,
+        flexWrap: "wrap",
+      }}>
         <button
           onClick={onBack}
-          style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "11px 24px", fontWeight: 700, cursor: "pointer", fontFamily: T.font, fontSize: 14, color: T.textMid }}
+          style={{
+            height: 42,
+            padding: "0 20px",
+            borderRadius: 10,
+            border: `1px solid ${T.border}`,
+            backgroundColor: "#fff",
+            color: T.textDark,
+            fontSize: 14,
+            fontWeight: 600,
+            fontFamily: T.font,
+            cursor: "pointer",
+            transition: "all 0.15s ease-in-out",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "#233217";
+            e.currentTarget.style.color = "#233217";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = T.border;
+            e.currentTarget.style.color = T.textDark;
+          }}
         >
           Cancel
         </button>
+
+        {phoneGatePassed && activeTab !== "Lead Information" && (
+          <button
+            onClick={handleBack}
+            style={{
+              height: 42,
+              padding: "0 20px",
+              borderRadius: 10,
+              border: `1px solid ${T.border}`,
+              backgroundColor: "#fff",
+              color: T.textDark,
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: T.font,
+              cursor: "pointer",
+              transition: "all 0.15s ease-in-out",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "#233217";
+              e.currentTarget.style.color = "#233217";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = T.border;
+              e.currentTarget.style.color = T.textDark;
+            }}
+          >
+            Back
+          </button>
+        )}
+
         {phoneGatePassed && onSaveDraft && (
           <button
             onClick={() => onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true })}
             style={{
-              background: "#fff",
-              border: `1.5px solid ${T.blue}`,
-              borderRadius: T.radiusMd,
-              padding: "11px 24px",
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: T.font,
-              fontSize: 14,
+              height: 42,
+              padding: "0 20px",
+              borderRadius: 10,
+              border: `1px solid ${T.blue}`,
+              backgroundColor: "#fff",
               color: T.blue,
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: T.font,
+              cursor: "pointer",
+              transition: "all 0.15s ease-in-out",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#EEF5EE";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#fff";
             }}
           >
             Save Draft
           </button>
         )}
+
         {phoneGatePassed && (
           <button
             onClick={async () => {
@@ -1674,20 +1968,35 @@ export default function TransferLeadApplicationForm({
             }}
             disabled={submitDisabled}
             style={{
-              backgroundColor: submitDisabled ? T.border : T.blue,
-              color: "#fff",
+              height: 42,
+              padding: "0 24px",
+              borderRadius: 10,
               border: "none",
-              borderRadius: T.radiusMd,
-              padding: "11px 28px",
-              fontWeight: 800,
-              cursor: submitDisabled ? "not-allowed" : "pointer",
-              fontFamily: T.font,
+              backgroundColor: submitDisabled ? T.border : "#233217",
+              color: "#fff",
               fontSize: 14,
-              boxShadow: submitDisabled ? "none" : `0 4px 12px ${T.blue}44`,
-              transition: "all 0.15s",
+              fontWeight: 600,
+              fontFamily: T.font,
+              cursor: submitDisabled ? "not-allowed" : "pointer",
+              boxShadow: submitDisabled ? "none" : "0 4px 12px rgba(35, 50, 23, 0.2)",
+              opacity: submitDisabled ? 0.6 : 1,
+              transition: "all 0.15s ease-in-out",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+            onMouseEnter={(e) => {
+              if (!submitDisabled) {
+                e.currentTarget.style.backgroundColor = "#1a260f";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!submitDisabled) {
+                e.currentTarget.style.backgroundColor = "#233217";
+              }
             }}
           >
-            {submitButtonLabel || "Submit Application"}
+            {submitButtonLabel || "Submit"}
           </button>
         )}
       </div>
@@ -1699,6 +2008,11 @@ export default function TransferLeadApplicationForm({
       {toast ? (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       ) : null}
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }
@@ -1718,11 +2032,47 @@ function Section({ title, icon, action, children }: { title: string; icon: React
   );
 }
 
-function Field({ label, children, full = false }: { label: string; children: ReactNode; full?: boolean }) {
+function Field({ 
+  label, 
+  children, 
+  full = false, 
+  error,
+  required = false 
+}: { 
+  label: string; 
+  children: ReactNode; 
+  full?: boolean;
+  error?: string;
+  required?: boolean;
+}) {
   return (
-    <div style={{ gridColumn: full ? "span 2" : "span 1" }}>
-      <label style={labelStyle}>{label}</label>
+    <div style={{ gridColumn: full ? "span 2" : "span 1", display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{
+        ...labelStyle,
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+      }}>
+        {label}
+        {required && <span style={{ color: "#dc2626" }}>*</span>}
+      </label>
       {children}
+      {error && (
+        <span style={{ 
+          fontSize: 12, 
+          color: "#dc2626", 
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+        }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+          {error}
+        </span>
+      )}
     </div>
   );
 }
