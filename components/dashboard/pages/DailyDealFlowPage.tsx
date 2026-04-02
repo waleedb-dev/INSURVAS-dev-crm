@@ -1,21 +1,165 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, EmptyState, Toast } from "@/components/ui";
+import { EmptyState, Toast } from "@/components/ui";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { IconDownload, IconRefresh } from "@tabler/icons-react";
+import { Card } from "@/components/ui/card";
+import { Search, Filter, RefreshCw } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { DailyDealFlowRow } from "./daily-deal-flow/types";
-import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE, RETENTION_AGENT_OPTIONS, STATUS_OPTIONS } from "./daily-deal-flow/constants";
+import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE, STATUS_OPTIONS } from "./daily-deal-flow/constants";
 import { dateObjectToESTString } from "./daily-deal-flow/helpers";
-import { DdfToolbar } from "./daily-deal-flow/DdfToolbar";
 import { DdfGroupedGrid } from "./daily-deal-flow/DdfGroupedGrid";
 
 type DailyDealFlowPageProps = {
   canProcessActions: boolean;
-  /** When true, UI copy and create flow assume RLS is scoped to the user's call center. */
   isCallCenterScoped?: boolean;
 };
+
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select..."
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 38,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value && value !== "All" ? T.textDark : T.textMuted,
+          fontSize: 13,
+          fontWeight: 500,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value && value !== "All"
+            ? options.find(o => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; label?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          border: `3px solid ${T.border}`,
+          borderTopColor: "#233217",
+          animation: "spin 0.8s linear infinite",
+        }}
+      />
+      {label && (
+        <span style={{ fontSize: 14, fontWeight: 500, color: T.textMuted }}>{label}</span>
+      )}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <Card
+      style={{
+        borderRadius: 16,
+        border: `1px solid ${T.border}`,
+        borderBottom: "4px solid #DCEBDC",
+        background: T.cardBg,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+        padding: "20px 24px",
+        minHeight: 100,
+        display: "flex",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 16,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
+        <div style={{ width: 80, height: 10, borderRadius: 4, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+        <div style={{ width: 60, height: 26, borderRadius: 6, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+      </div>
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)",
+          backgroundSize: "200% 100%",
+          animation: "shimmer 1.5s infinite",
+        }}
+      />
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+    </Card>
+  );
+}
 
 export default function DailyDealFlowPage({ canProcessActions, isCallCenterScoped = false }: DailyDealFlowPageProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -26,7 +170,6 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
   const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [callCenterId, setCallCenterId] = useState<string | null>(null);
-  const [callCenterName, setCallCenterName] = useState<string | null>(null);
   const [leadVendorOptions, setLeadVendorOptions] = useState<string[]>([]);
   const [bufferAgentOptions, setBufferAgentOptions] = useState<string[]>([]);
   const [agentOptions, setAgentOptions] = useState<string[]>([]);
@@ -34,6 +177,8 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
   const [licensedOptions, setLicensedOptions] = useState<string[]>([]);
   const [carrierOptionsDynamic, setCarrierOptionsDynamic] = useState<string[]>([]);
   const hasWritePermissions = canProcessActions;
+  const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
+  const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState("");
@@ -51,6 +196,24 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
   const [laCallbackFilter, setLaCallbackFilter] = useState(ALL_OPTION);
   const [hourFromFilter, setHourFromFilter] = useState(ALL_OPTION);
   const [hourToFilter, setHourToFilter] = useState(ALL_OPTION);
+  const [groupBy, setGroupBy] = useState("none");
+  const [groupBySecondary, setGroupBySecondary] = useState("none");
+
+  const groupByOptions = [
+    { value: "none", label: "No Grouping" },
+    { value: "lead_vendor", label: "Lead Vendor" },
+    { value: "buffer_agent", label: "Buffer Agent" },
+    { value: "retention_agent", label: "Retention Agent" },
+    { value: "agent", label: "Agent" },
+    { value: "licensed_agent_account", label: "Licensed Agent" },
+    { value: "status", label: "Status" },
+    { value: "call_result", label: "Call Result" },
+    { value: "carrier", label: "Carrier" },
+    { value: "product_type", label: "Product Type" },
+    { value: "is_callback", label: "Callback" },
+    { value: "is_retention_call", label: "Retention" },
+  ];
+
   const visiblePremium = useMemo(
     () => rows.reduce((sum, row) => sum + (Number(row.monthly_premium) || 0), 0),
     [rows],
@@ -64,23 +227,28 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
     [rows],
   );
 
-  const hasActiveFilters =
-    searchTerm.trim() !== "" ||
-    dateFilter !== "" ||
-    dateFromFilter !== "" ||
-    dateToFilter !== "" ||
-    bufferAgentFilter !== ALL_OPTION ||
-    retentionAgentFilter.length > 0 ||
-    licensedAgentFilter !== ALL_OPTION ||
-    leadVendorFilter !== ALL_OPTION ||
-    statusFilter !== ALL_OPTION ||
-    carrierFilter !== ALL_OPTION ||
-    callResultFilter !== ALL_OPTION ||
-    retentionFilter !== ALL_OPTION ||
-    incompleteUpdatesFilter !== ALL_OPTION ||
-    laCallbackFilter !== ALL_OPTION ||
-    hourFromFilter !== ALL_OPTION ||
-    hourToFilter !== ALL_OPTION;
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (searchTerm.trim() !== "") n++;
+    if (dateFilter !== "") n++;
+    if (dateFromFilter !== "") n++;
+    if (dateToFilter !== "") n++;
+    if (bufferAgentFilter !== ALL_OPTION) n++;
+    if (retentionAgentFilter.length > 0) n++;
+    if (licensedAgentFilter !== ALL_OPTION) n++;
+    if (leadVendorFilter !== ALL_OPTION) n++;
+    if (statusFilter !== ALL_OPTION) n++;
+    if (carrierFilter !== ALL_OPTION) n++;
+    if (callResultFilter !== ALL_OPTION) n++;
+    if (retentionFilter !== ALL_OPTION) n++;
+    if (incompleteUpdatesFilter !== ALL_OPTION) n++;
+    if (laCallbackFilter !== ALL_OPTION) n++;
+    if (hourFromFilter !== ALL_OPTION) n++;
+    if (hourToFilter !== ALL_OPTION) n++;
+    return n;
+  }, [searchTerm, dateFilter, dateFromFilter, dateToFilter, bufferAgentFilter, retentionAgentFilter, licensedAgentFilter, leadVendorFilter, statusFilter, carrierFilter, callResultFilter, retentionFilter, incompleteUpdatesFilter, laCallbackFilter, hourFromFilter, hourToFilter]);
+
+  const hasActiveFilters = activeFilterCount > 0;
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -187,11 +355,8 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
           .eq("id", uid)
           .maybeSingle();
         setCallCenterId(profile?.call_center_id ?? null);
-        const c = profile?.call_centers as { name?: string } | null | undefined;
-        setCallCenterName(typeof c?.name === "string" ? c.name : null);
       } else {
         setCallCenterId(null);
-        setCallCenterName(null);
       }
       await loadDistinct();
       await fetchData(1);
@@ -229,7 +394,30 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
     const { data, error } = await query;
     if (error || !data?.length) return setToast({ message: error?.message || "No data to export", type: "error" });
     const headers = ["Submission ID", "Date", "Insured Name", "Lead Vendor", "Phone Number", "Buffer Agent", "Retention Agent", "Agent", "Licensed Agent", "Status", "Call Result", "Carrier", "Product Type", "Draft Date", "Monthly Premium", "Face Amount", "LA Callback", "Notes"];
-    const csv = [headers.join(","), ...(data as DailyDealFlowRow[]).map((r) => [r.submission_id, r.date, r.insured_name, r.lead_vendor, r.client_phone_number, r.buffer_agent, r.retention_agent, r.agent, r.licensed_agent_account, r.status, r.call_result, r.carrier, r.product_type, r.draft_date, r.monthly_premium, r.face_amount, r.la_callback, String(r.notes || "").replace(/"/g, '""')].map((v) => `"${v ?? ""}"`).join(","))].join("\n");
+    const csvRows = (data as DailyDealFlowRow[]).map((r) => {
+      const values = [
+        r.submission_id,
+        r.date,
+        r.insured_name,
+        r.lead_vendor,
+        r.client_phone_number,
+        r.buffer_agent,
+        r.retention_agent,
+        r.agent,
+        r.licensed_agent_account,
+        r.status,
+        r.call_result,
+        r.carrier,
+        r.product_type,
+        r.draft_date,
+        r.monthly_premium,
+        r.face_amount,
+        r.la_callback,
+        String(r.notes || "").replace(/"/g, '""'),
+      ];
+      return values.map((v) => `"${v ?? ""}"`).join(",");
+    });
+    const csv = [headers.join(","), ...csvRows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -241,20 +429,102 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
     setToast({ message: `Exported ${data.length} records`, type: "success" });
   };
 
+  const statusOptions = [{ value: "All", label: "All Status" }, ...STATUS_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
+  const carrierOptions = [{ value: "All", label: "All Carriers" }, ...CARRIER_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
+  const callResultOptions = [{ value: "All", label: "All Results" }, ...CALL_RESULT_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
+  const laCallbackOptions = [{ value: "All", label: "All Callbacks" }, ...LA_CALLBACK_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
+  const bufferOptions = [{ value: "All", label: "All Buffers" }, ...bufferAgentOptions.map(v => ({ value: v, label: v }))];
+  const vendorOptions = [{ value: "All", label: "All Vendors" }, ...leadVendorOptions.map(v => ({ value: v, label: v }))];
+
   if (loading) {
-    return <div style={{ padding: 20, color: T.textMuted }}>Loading Daily Deal Flow...</div>;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, paddingBottom: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
+          {Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)}
+        </div>
+        <div
+          style={{
+            borderRadius: 16,
+            border: `1px solid ${T.border}`,
+            backgroundColor: T.cardBg,
+            padding: "80px 40px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 20,
+          }}
+        >
+          <LoadingSpinner size={48} label="Loading Daily Deal Flow..." />
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ fontFamily: T.font, display: "grid", gap: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: T.textDark }}>Daily Deal Flow</h1>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button variant="ghost" onClick={handleExport}><IconDownload size={14} />Export</Button>
-          <Button variant="ghost" onClick={() => void fetchData(1, true)} disabled={refreshing}><IconRefresh size={14} />Refresh</Button>
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, paddingBottom: 24, position: "relative" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
+        {[
+          { label: "Total Entries", value: totalRecords.toLocaleString(), color: "#233217", icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            ) },
+          { label: "Visible Premium", value: `$${visiblePremium.toLocaleString()}`, color: "#233217", icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            ) },
+          { label: "Avg Premium", value: `$${visibleAveragePremium.toFixed(0)}`, color: "#233217", icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            ) },
+          { label: "Active Carriers", value: activeCarriers.toString(), color: "#233217", icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+            ) },
+        ].map(({ label, value, color, icon }, i) => (
+          <Card
+            key={label}
+            onMouseEnter={() => setHoveredStatIdx(i)}
+            onMouseLeave={() => setHoveredStatIdx(null)}
+            style={{
+              borderRadius: 16,
+              border: `1px solid ${T.border}`,
+              borderBottom: `4px solid ${color}`,
+              background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+              boxShadow: hoveredStatIdx === i ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)" : "0 4px 12px rgba(0,0,0,0.03)",
+              transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
+              transition: "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+              padding: "20px 24px",
+              minHeight: 100,
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 16,
+              cursor: "default",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+              <div style={{ fontSize: 26, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
+                {value}
+              </div>
+            </div>
+            <div
+              style={{
+                color,
+                backgroundColor: hoveredStatIdx === i ? "color-mix(in srgb, #233217 24%, transparent)" : "color-mix(in srgb, #233217 15%, transparent)",
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                transition: "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+              }}
+            >
+              {icon}
+            </div>
+          </Card>
+        ))}
       </div>
 
       {isCallCenterScoped && !callCenterId && (
@@ -267,138 +537,363 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
             border: `1px solid ${T.border}`,
             color: T.textDark,
             fontSize: 13,
+            marginBottom: 16,
           }}
         >
           Your profile is not linked to a call center. You cannot create Daily Deal Flow entries until an administrator assigns your center in Users.
         </div>
       )}
 
-      <style>{`
-        @keyframes stat-card-in {
-          from { opacity: 0; transform: translateY(8px) scale(0.99); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-        {[
-          {
-            label: "TOTAL ENTRIES",
-            value: totalRecords.toLocaleString(),
-            color: T.memberTeal,
-            icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
-            ),
-          },
-          {
-            label: "VISIBLE PREMIUM",
-            value: `$${visiblePremium.toLocaleString()}`,
-            color: T.memberTeal,
-            icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-            ),
-          },
-          {
-            label: "AVG PREMIUM",
-            value: `$${visibleAveragePremium.toFixed(0)}`,
-            color: T.memberTeal,
-            icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
-            ),
-          },
-          {
-            label: "ACTIVE CARRIERS",
-            value: activeCarriers.toString(),
-            color: T.memberTeal,
-            icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /></svg>
-            ),
-          },
-        ].map(({ label, value, color, icon }, index) => (
-          <div
-            key={label}
-            style={{
-              borderRadius: 12,
-              border: `1px solid ${T.border}`,
-              borderBottom: `4px solid ${color}`,
-              background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
-              padding: "20px 24px",
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-              animation: "stat-card-in 0.3s cubic-bezier(0.16,1,0.3,1) both",
-              animationDelay: `${index * 50}ms`,
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
-              <div style={{ fontSize: 32, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 14 }}>
+        <div
+          style={{
+            width: "100%",
+            background: T.cardBg,
+            border: `1px solid ${T.border}`,
+            borderBottom: filterPanelExpanded || hasActiveFilters ? "none" : `1px solid ${T.border}`,
+            borderRadius: filterPanelExpanded || hasActiveFilters ? "16px 16px 0 0" : 16,
+            padding: "14px 20px",
+            boxShadow: filterPanelExpanded || hasActiveFilters ? "none" : T.shadowSm,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 16,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <Search size={16} style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }} />
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search entries..."
+                style={{
+                  height: 38,
+                  minWidth: 260,
+                  paddingLeft: 38,
+                  paddingRight: 14,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  background: T.pageBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
             </div>
-            <div
-              style={{
-                color,
-                backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
-                width: 54,
-                height: 54,
-                borderRadius: 14,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              {icon}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <StyledSelect
+                value={groupBy}
+                onValueChange={(val) => { setGroupBy(val); setCurrentPage(1); }}
+                options={groupByOptions}
+                placeholder="No Grouping"
+              />
+              {groupBy !== "none" && (
+                <StyledSelect
+                  value={groupBySecondary}
+                  onValueChange={(val) => { setGroupBySecondary(val); setCurrentPage(1); }}
+                  options={[{ value: "none", label: "No Secondary Group" }, ...groupByOptions.filter(o => o.value !== "none")]}
+                  placeholder="No Secondary"
+                />
+              )}
             </div>
           </div>
-        ))}
-      </div>
 
-      <DdfToolbar
-        searchTerm={searchTerm}
-        onSearchTermChange={setSearchTerm}
-        dateFilter={dateFilter}
-        dateFromFilter={dateFromFilter}
-        dateToFilter={dateToFilter}
-        onDateFilterChange={(value) => { setDateFilter(value); if (value) { setDateFromFilter(""); setDateToFilter(""); } }}
-        onDateFromFilterChange={(value) => { setDateFromFilter(value); if (value || dateToFilter) setDateFilter(""); }}
-        onDateToFilterChange={(value) => { setDateToFilter(value); if (value || dateFromFilter) setDateFilter(""); }}
-        bufferAgentFilter={bufferAgentFilter}
-        onBufferAgentFilterChange={setBufferAgentFilter}
-        retentionAgentFilter={retentionAgentFilter}
-        onRetentionAgentFilterChange={setRetentionAgentFilter}
-        licensedAgentFilter={licensedAgentFilter}
-        onLicensedAgentFilterChange={setLicensedAgentFilter}
-        leadVendorFilter={leadVendorFilter}
-        onLeadVendorFilterChange={setLeadVendorFilter}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        carrierFilter={carrierFilter}
-        onCarrierFilterChange={setCarrierFilter}
-        callResultFilter={callResultFilter}
-        onCallResultFilterChange={setCallResultFilter}
-        retentionFilter={retentionFilter}
-        onRetentionFilterChange={setRetentionFilter}
-        incompleteUpdatesFilter={incompleteUpdatesFilter}
-        onIncompleteUpdatesFilterChange={setIncompleteUpdatesFilter}
-        laCallbackFilter={laCallbackFilter}
-        onLaCallbackFilterChange={setLaCallbackFilter}
-        hourFromFilter={hourFromFilter}
-        hourToFilter={hourToFilter}
-        onHourFromFilterChange={setHourFromFilter}
-        onHourToFilterChange={setHourToFilter}
-        bufferOptions={bufferAgentOptions}
-        retentionOptions={RETENTION_AGENT_OPTIONS.filter((v) => !v.toLowerCase().includes("all"))}
-        licensedOptions={LICENSED_ACCOUNT_OPTIONS}
-        vendorOptions={leadVendorOptions}
-        statusOptions={STATUS_OPTIONS}
-        carrierOptions={CARRIER_OPTIONS}
-        callResultOptions={CALL_RESULT_OPTIONS}
-        laCallbackOptions={LA_CALLBACK_OPTIONS}
-        totalRows={totalRecords}
-        hasActiveFilters={hasActiveFilters}
-        onClearFilters={clearFilters}
-      />
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => setFilterPanelExpanded((v) => !v)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                height: 38,
+                padding: "0 16px",
+                borderRadius: 10,
+                border: filterPanelExpanded ? `1.5px solid #233217` : `1px solid ${T.border}`,
+                background: filterPanelExpanded ? "#DCEBDC" : T.pageBg,
+                color: filterPanelExpanded ? "#233217" : T.textDark,
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: "pointer",
+                transition: "all 0.15s ease-in-out",
+              }}
+            >
+              <Filter size={16} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 20,
+                  height: 20,
+                  padding: "0 6px",
+                  borderRadius: 999,
+                  background: "#233217",
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={handleExport}
+              style={{
+                height: 38,
+                padding: "0 16px",
+                borderRadius: 10,
+                border: `1px solid ${T.border}`,
+                background: "#fff",
+                color: T.textDark,
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              Export
+            </button>
+
+            <button
+              onClick={() => void fetchData(1, true)}
+              disabled={refreshing}
+              style={{
+                height: 38,
+                padding: "0 16px",
+                borderRadius: 10,
+                border: "none",
+                background: "#233217",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: refreshing ? "not-allowed" : "pointer",
+                opacity: refreshing ? 0.7 : 1,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+              }}
+            >
+              <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {(filterPanelExpanded || hasActiveFilters) && (
+          <div
+            style={{
+              width: "100%",
+              background: T.cardBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: "0 0 16px 16px",
+              padding: "20px 24px",
+              boxShadow: T.shadowSm,
+              display: "flex",
+              flexDirection: "column",
+              gap: 20,
+              overflow: "visible",
+              position: "relative",
+              zIndex: 50,
+            }}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Date</div>
+                <StyledSelect
+                  value={dateFilter}
+                  onValueChange={(val) => { setDateFilter(val); if (val) { setDateFromFilter(""); setDateToFilter(""); } }}
+                  options={[{ value: "", label: "All Dates" }]}
+                  placeholder="Select date..."
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Lead Vendor</div>
+                <StyledSelect
+                  value={leadVendorFilter}
+                  onValueChange={setLeadVendorFilter}
+                  options={vendorOptions}
+                  placeholder="All Vendors"
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Buffer Agent</div>
+                <StyledSelect
+                  value={bufferAgentFilter}
+                  onValueChange={setBufferAgentFilter}
+                  options={bufferOptions}
+                  placeholder="All Buffers"
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Status</div>
+                <StyledSelect
+                  value={statusFilter}
+                  onValueChange={setStatusFilter}
+                  options={statusOptions}
+                  placeholder="All Status"
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Carrier</div>
+                <StyledSelect
+                  value={carrierFilter}
+                  onValueChange={setCarrierFilter}
+                  options={carrierOptions}
+                  placeholder="All Carriers"
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Call Result</div>
+                <StyledSelect
+                  value={callResultFilter}
+                  onValueChange={setCallResultFilter}
+                  options={callResultOptions}
+                  placeholder="All Results"
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>LA Callback</div>
+                <StyledSelect
+                  value={laCallbackFilter}
+                  onValueChange={setLaCallbackFilter}
+                  options={laCallbackOptions}
+                  placeholder="All Callbacks"
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Licensed Agent</div>
+                <StyledSelect
+                  value={licensedAgentFilter}
+                  onValueChange={setLicensedAgentFilter}
+                  options={[{ value: "All", label: "All Agents" }, ...LICENSED_ACCOUNT_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))]}
+                  placeholder="All Agents"
+                />
+              </div>
+            </div>
+
+            {hasActiveFilters && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {searchTerm.trim() !== "" && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Search: {searchTerm}
+                      <button onClick={() => setSearchTerm("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  )}
+                  {dateFilter !== "" && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Date: {dateFilter}
+                      <button onClick={() => setDateFilter("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  )}
+                  {leadVendorFilter !== ALL_OPTION && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Vendor: {leadVendorFilter}
+                      <button onClick={() => setLeadVendorFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  )}
+                  {bufferAgentFilter !== ALL_OPTION && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Buffer: {bufferAgentFilter}
+                      <button onClick={() => setBufferAgentFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  )}
+                  {statusFilter !== ALL_OPTION && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Status: {statusFilter}
+                      <button onClick={() => setStatusFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  )}
+                  {carrierFilter !== ALL_OPTION && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Carrier: {carrierFilter}
+                      <button onClick={() => setCarrierFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  )}
+                  {callResultFilter !== ALL_OPTION && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Result: {callResultFilter}
+                      <button onClick={() => setCallResultFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  )}
+                  {laCallbackFilter !== ALL_OPTION && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Callback: {laCallbackFilter}
+                      <button onClick={() => setLaCallbackFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  )}
+                  {licensedAgentFilter !== ALL_OPTION && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Agent: {licensedAgentFilter}
+                      <button onClick={() => setLicensedAgentFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#233217",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: "4px 0",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+                >
+                  Clear filters
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {rows.length === 0 ? (
         <EmptyState
@@ -428,8 +923,11 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
           retentionOptions={retentionOptions}
           licensedOptions={licensedOptions}
           carrierOptions={carrierOptionsDynamic}
+          groupBy={groupBy}
+          groupBySecondary={groupBySecondary}
         />
       )}
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );

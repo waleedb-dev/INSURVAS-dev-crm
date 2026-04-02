@@ -1,11 +1,17 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { ActionMenu, Badge, Button, EmptyState, FilterChip, Input, Pagination, Table } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { IconRefresh } from "@tabler/icons-react";
-import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
-import { ALL_OPTION } from "./daily-deal-flow/constants";
+import { Search, Filter, RefreshCw } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Commission = {
   id: number;
@@ -33,8 +39,148 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 
 const ITEMS_PER_PAGE = 100;
 
+const ALL_OPTION = "All";
+
 function mapOpts(values: string[]) {
   return [{ value: ALL_OPTION, label: "All" }, ...values.map((v) => ({ value: v, label: v }))];
+}
+
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select..."
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 38,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value && value !== ALL_OPTION ? T.textDark : T.textMuted,
+          fontSize: 13,
+          fontWeight: 500,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value && value !== ALL_OPTION
+            ? options.find(o => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 99999,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; label?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          border: `3px solid ${T.border}`,
+          borderTopColor: "#233217",
+          animation: "spin 0.8s linear infinite",
+        }}
+      />
+      {label && (
+        <span style={{ fontSize: 14, fontWeight: 500, color: T.textMuted }}>{label}</span>
+      )}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <Card
+      style={{
+        borderRadius: 16,
+        border: `1px solid ${T.border}`,
+        borderBottom: "4px solid #DCEBDC",
+        background: T.cardBg,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+        padding: "20px 24px",
+        minHeight: 100,
+        display: "flex",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 16,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
+        <div style={{ width: 80, height: 10, borderRadius: 4, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+        <div style={{ width: 60, height: 26, borderRadius: 6, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+      </div>
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)",
+          backgroundSize: "200% 100%",
+          animation: "shimmer 1.5s infinite",
+        }}
+      />
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+    </Card>
+  );
 }
 
 const STATUS_OPTS_STATIC = ["pending", "approved", "paid", "rejected"];
@@ -44,9 +190,8 @@ export default function CommissionsPage() {
   const [rows, setRows] = useState<Commission[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
 
-  // filters
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(ALL_OPTION);
   const [typeFilter, setTypeFilter] = useState(ALL_OPTION);
@@ -74,6 +219,10 @@ export default function CommissionsPage() {
     const types = [...new Set(rows.map((r) => r.commission_type).filter(Boolean))] as string[];
     return mapOpts(types);
   }, [rows]);
+
+  const statusOptions = useMemo(() => {
+    return mapOpts(STATUS_OPTS_STATIC);
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -116,250 +265,578 @@ export default function CommissionsPage() {
     () => filtered.filter((row) => row.status === "paid").length,
     [filtered],
   );
-  const activeFilterChips = useMemo(
-    () =>
-      [
-        statusFilter !== ALL_OPTION ? { label: `Status: ${statusFilter}`, onClear: () => setStatusFilter(ALL_OPTION) } : null,
-        typeFilter !== ALL_OPTION ? { label: `Type: ${typeFilter}`, onClear: () => setTypeFilter(ALL_OPTION) } : null,
-        fromDate !== "" ? { label: `From: ${fromDate}`, onClear: () => setFromDate("") } : null,
-        toDate !== "" ? { label: `To: ${toDate}`, onClear: () => setToDate("") } : null,
-      ].filter(Boolean) as Array<{ label: string; onClear: () => void }>,
-    [statusFilter, typeFilter, fromDate, toDate],
-  );
+
+  const hasActiveFilters = statusFilter !== ALL_OPTION || typeFilter !== ALL_OPTION || fromDate !== "" || toDate !== "";
+  const activeFilterCount = [
+    statusFilter !== ALL_OPTION,
+    typeFilter !== ALL_OPTION,
+    fromDate !== "",
+    toDate !== "",
+  ].filter(Boolean).length;
 
   return (
-    <div onClick={() => setActiveMenu(null)} style={{ fontFamily: T.font }}>
-
-      {/* Top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 16 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: T.textDark }}>Commissions</h1>
-        </div>
-        <Button variant="ghost" size="sm" onClick={() => void loadRows()} disabled={loading}>
-          <IconRefresh size={14} />
-          Refresh
-        </Button>
-      </div>
+    <div style={{ fontFamily: T.font, padding: "0", animation: "fadeIn 0.3s ease-out" }}>
 
       {loadError && (
-        <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: T.radiusMd, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>
+        <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 12, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>
           {loadError}
         </div>
       )}
 
-      <style>{`
-        @keyframes stat-card-in {
-          from { opacity: 0; transform: translateY(8px) scale(0.99); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
-        {[
-          {
-            label: "TOTAL RECORDS",
-            value: filtered.length.toLocaleString(),
-            color: T.memberTeal,
-            icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
-            ),
-          },
-          {
-            label: "TOTAL COMMISSION",
-            value: fmt(totalCommissionAmount),
-            color: T.memberTeal,
-            icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-            ),
-          },
-          {
-            label: "AVG COMMISSION",
-            value: fmt(averageCommissionAmount),
-            color: T.memberTeal,
-            icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
-            ),
-          },
-          {
-            label: "PAID RECORDS",
-            value: paidCommissionCount.toLocaleString(),
-            color: T.memberTeal,
-            icon: (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-            ),
-          },
-        ].map(({ label, value, color, icon }, index) => (
-          <div
-            key={label}
-            style={{
-              borderRadius: 12,
-              border: `1px solid ${T.border}`,
-              borderBottom: `4px solid ${color}`,
-              background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
-              padding: "20px 24px",
-              display: "flex",
-              justifyContent: "space-between",
-              animation: "stat-card-in 0.3s cubic-bezier(0.16,1,0.3,1) both",
-              animationDelay: `${index * 50}ms`,
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</span>
-              <div style={{ fontSize: 32, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-            </div>
-            <div style={{ color, backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`, width: 54, height: 54, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              {icon}
-            </div>
-          </div>
-        ))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
+        ) : (
+          [
+            { label: "Total Records", value: filtered.length.toLocaleString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+              ) },
+            { label: "Total Commission", value: fmt(totalCommissionAmount), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              ) },
+            { label: "Avg Commission", value: fmt(averageCommissionAmount), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+              ) },
+            { label: "Paid Records", value: paidCommissionCount.toLocaleString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
+              ) },
+          ].map(({ label, value, color, icon }, i) => (
+              <Card
+                key={label}
+                onMouseEnter={() => setHoveredStatIdx(i)}
+                onMouseLeave={() => setHoveredStatIdx(null)}
+                style={{
+                  borderRadius: 16,
+                  border: `1px solid ${T.border}`,
+                  borderBottom: `4px solid ${color}`,
+                  background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+                  boxShadow:
+                    hoveredStatIdx === i
+                      ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+                      : "0 4px 12px rgba(0,0,0,0.03)",
+                  transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
+                  transition:
+                    "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                  padding: "20px 24px",
+                  minHeight: 100,
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                  cursor: "default",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
+                    {value}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    color,
+                    backgroundColor:
+                      hoveredStatIdx === i
+                        ? `color-mix(in srgb, ${color} 24%, transparent)`
+                        : `color-mix(in srgb, ${color} 15%, transparent)`,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition:
+                      "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                    transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                  }}
+                >
+                  {icon}
+                </div>
+              </Card>
+          ))
+        )}
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 14 }}>
         <div
           style={{
+            width: "100%",
             background: T.cardBg,
             border: `1px solid ${T.border}`,
-            borderRadius: 12,
-            padding: "10px 16px",
-            boxShadow: T.shadowSm,
+            borderBottom: filterPanelExpanded || hasActiveFilters ? "none" : `1px solid ${T.border}`,
+            borderRadius: filterPanelExpanded || hasActiveFilters ? "16px 16px 0 0" : 16,
+            padding: "14px 20px",
+            boxShadow: filterPanelExpanded || hasActiveFilters ? "none" : T.shadowSm,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             flexWrap: "wrap",
-            gap: 12,
+            gap: 16,
           }}
         >
-          <div style={{ flex: 1, minWidth: 260, maxWidth: 440 }}>
-            <Input value={search} onChange={(e) => setSearch(e.currentTarget.value)} placeholder="Search commissions by policy, agent, writing no..." />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <Search
+                size={16}
+                style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }}
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search commissions by policy, agent, writing no..."
+                style={{
+                  height: 38,
+                  minWidth: 260,
+                  paddingLeft: 38,
+                  paddingRight: 14,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  background: T.pageBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
           </div>
+
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, whiteSpace: "nowrap" }}>{filtered.length.toLocaleString()} total</span>
             <button
               type="button"
-              onClick={() => setFilterPanelExpanded((prev) => !prev)}
+              onClick={() => setFilterPanelExpanded((v) => !v)}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                height: 34,
-                padding: "0 14px",
-                borderRadius: 8,
-                border: filterPanelExpanded ? `1.5px solid ${T.blue}` : `1px solid ${T.border}`,
-                background: filterPanelExpanded ? T.blueLight : T.pageBg,
-                color: filterPanelExpanded ? T.blue : T.textDark,
-                fontSize: 13,
+                gap: 8,
+                height: 38,
+                padding: "0 16px",
+                borderRadius: 10,
+                border: filterPanelExpanded ? `1.5px solid #233217` : `1px solid ${T.border}`,
+                background: filterPanelExpanded ? "#DCEBDC" : T.pageBg,
+                color: filterPanelExpanded ? "#233217" : T.textDark,
+                fontSize: 14,
                 fontWeight: 600,
                 fontFamily: T.font,
                 cursor: "pointer",
+                transition: "all 0.15s ease-in-out",
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
               </svg>
               Filters
-              {activeFilterChips.length > 0 && <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, background: T.blue, color: "#fff", fontSize: 11, fontWeight: 800 }}>{activeFilterChips.length}</span>}
+              {activeFilterCount > 0 && (
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 20,
+                  height: 20,
+                  padding: "0 6px",
+                  borderRadius: 999,
+                  background: "#233217",
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => void loadRows()}
+              disabled={loading}
+              style={{
+                height: 38,
+                padding: "0 16px",
+                borderRadius: 10,
+                border: `1px solid ${T.border}`,
+                background: T.pageBg,
+                color: T.textDark,
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: loading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                opacity: loading ? 0.6 : 1,
+                transition: "all 0.15s ease-in-out",
+              }}
+            >
+              <RefreshCw size={16} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+              Refresh
             </button>
           </div>
         </div>
 
-        {(filterPanelExpanded || hasFilters) && (
-          <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 20px", boxShadow: T.shadowSm, display: "grid", gap: 16 }}>
-            {filterPanelExpanded && (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(150px, 1fr))", gap: 12 }}>
-                  <div>
-                    <FieldLabel label="From Date" />
-                    <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: "100%", height: 36, border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.textDark, padding: "0 8px" }} />
-                  </div>
-                  <div>
-                    <FieldLabel label="To Date" />
-                    <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ width: "100%", height: 36, border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.textDark, padding: "0 8px" }} />
-                  </div>
-                  <div>
-                    <FieldLabel label="Status" />
-                    <SelectInput value={statusFilter} onChange={(v) => setStatusFilter(String(v))} options={mapOpts(STATUS_OPTS_STATIC)} />
-                  </div>
-                  <div>
-                    <FieldLabel label="Commission Type" />
-                    <SelectInput value={typeFilter} onChange={(v) => setTypeFilter(String(v))} options={typeOptions} />
-                  </div>
+        {(filterPanelExpanded || hasActiveFilters) && (
+          <div
+            style={{
+              width: "100%",
+              background: T.cardBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: "0 0 16px 16px",
+              padding: "20px 24px",
+              boxShadow: T.shadowSm,
+              display: "flex",
+              flexDirection: "column",
+              gap: 20,
+              overflow: "visible",
+              position: "relative",
+              zIndex: 50,
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>From Date</div>
+                  <input 
+                    type="date" 
+                    value={fromDate} 
+                    onChange={(e) => setFromDate(e.target.value)} 
+                    style={{ 
+                      width: "100%", 
+                      height: 38, 
+                      border: `1px solid ${T.border}`, 
+                      borderRadius: 10, 
+                      fontSize: 13, 
+                      color: T.textDark, 
+                      padding: "0 12px",
+                      backgroundColor: T.cardBg,
+                      outline: "none",
+                      fontFamily: T.font,
+                    }} 
+                  />
                 </div>
-              </>
-            )}
-
-            {hasFilters && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", paddingTop: filterPanelExpanded ? 16 : 0, borderTop: filterPanelExpanded ? `1px solid ${T.borderLight}` : "none" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Active:</span>
-                  {activeFilterChips.map((chip) => (
-                    <FilterChip key={chip.label} label={chip.label} onClear={chip.onClear} />
-                  ))}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>To Date</div>
+                  <input 
+                    type="date" 
+                    value={toDate} 
+                    onChange={(e) => setToDate(e.target.value)} 
+                    style={{ 
+                      width: "100%", 
+                      height: 38, 
+                      border: `1px solid ${T.border}`, 
+                      borderRadius: 10, 
+                      fontSize: 13, 
+                      color: T.textDark, 
+                      padding: "0 12px",
+                      backgroundColor: T.cardBg,
+                      outline: "none",
+                      fontFamily: T.font,
+                    }} 
+                  />
                 </div>
-                <button type="button" onClick={clearFilters} style={{ background: "none", border: "none", color: T.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "4px 0" }}>
-                  Clear filters
-                </button>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Status</div>
+                  <StyledSelect
+                    value={statusFilter}
+                    onValueChange={setStatusFilter}
+                    options={statusOptions}
+                    placeholder="All"
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Commission Type</div>
+                  <StyledSelect
+                    value={typeFilter}
+                    onValueChange={setTypeFilter}
+                    options={typeOptions}
+                    placeholder="All Types"
+                  />
+                </div>
               </div>
-            )}
+
+              {hasActiveFilters && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {statusFilter !== ALL_OPTION && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Status: {statusFilter}
+                        <button onClick={() => setStatusFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {typeFilter !== ALL_OPTION && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Type: {typeFilter}
+                        <button onClick={() => setTypeFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {fromDate !== "" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        From: {fromDate}
+                        <button onClick={() => setFromDate("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {toDate !== "" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        To: {toDate}
+                        <button onClick={() => setToDate("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#233217",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      padding: "4px 0",
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.textDecoration = "underline";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.textDecoration = "none";
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Table section */}
-      <div style={{ backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: T.radiusLg, boxShadow: T.shadowSm, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${T.border}` }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>Commission Records</h2>
-          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 500 }}>
-            <span style={{ fontWeight: 700, color: T.textMid }}>{filtered.length.toLocaleString()}</span> total records
-            {totalPages > 1 && <> · Page <span style={{ fontWeight: 700, color: T.textMid }}>{page}</span> of <span style={{ fontWeight: 700, color: T.textMid }}>{totalPages}</span> · Showing <span style={{ fontWeight: 700, color: T.textMid }}>{paginated.length}</span> records</>}
-          </span>
-        </div>
+      <div
+        style={{
+          borderRadius: 16,
+          border: `1px solid ${T.border}`,
+          overflow: "hidden",
+          backgroundColor: T.cardBg,
+        }}
+      >
+        {loading ? (
+          <div
+            style={{
+              padding: "80px 40px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 20,
+            }}
+          >
+            <LoadingSpinner size={48} label="Loading commissions..." />
+          </div>
+        ) : paginated.length === 0 ? (
+          <div
+            style={{
+              padding: "60px 40px",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>{rows.length === 0 ? "No commission records yet" : "No matching records"}</div>
+            <div style={{ fontSize: 14, color: T.textMid }}>{rows.length === 0 ? "Commission records will appear here once created." : "Try adjusting your search or filter criteria."}</div>
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                borderBottom: `1px solid ${T.border}`,
+                overflow: "hidden",
+                backgroundColor: T.cardBg,
+              }}
+            >
+              <ShadcnTable>
+                <TableHeader style={{ backgroundColor: "#233217" }}>
+                  <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                    {[
+                      { label: "S.No", align: "left" as const },
+                      { label: "Policy #", align: "left" as const },
+                      { label: "Agent", align: "left" as const },
+                      { label: "Writing No", align: "left" as const },
+                      { label: "Type", align: "left" as const },
+                      { label: "Amount", align: "right" as const },
+                      { label: "Rate", align: "right" as const },
+                      { label: "Status", align: "left" as const },
+                      { label: "Earned At", align: "left" as const },
+                      { label: "Paid At", align: "left" as const },
+                    ].map(({ label, align }) => (
+                      <TableHead key={label} style={{ 
+                        color: "#ffffff", 
+                        fontWeight: 700, 
+                        fontSize: 12, 
+                        letterSpacing: "0.3px",
+                        padding: "16px 20px",
+                        whiteSpace: "nowrap",
+                        textAlign: align
+                      }}>
+                        {label}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map((r, i) => (
+                    <TableRow 
+                      key={r.id}
+                      style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                      className="hover:bg-muted/30 transition-all duration-150"
+                    >
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: T.textMuted }}>{(page - 1) * ITEMS_PER_PAGE + i + 1}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#233217", fontFamily: "monospace" }}>{r.policy_number}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: T.textDark }}>{r.sales_agent_name || "—"}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.textMuted, fontFamily: "monospace" }}>{r.writing_no || "—"}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        {r.commission_type ? (
+                          <span style={{ 
+                            display: "inline-flex", 
+                            alignItems: "center", 
+                            padding: "4px 10px", 
+                            borderRadius: 6, 
+                            backgroundColor: "#DCEBDC", 
+                            color: "#233217", 
+                            fontSize: 11, 
+                            fontWeight: 700 
+                          }}>
+                            {r.commission_type}
+                          </span>
+                        ) : (
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>—</span>
+                        )}
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px", textAlign: "right" }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{fmt(r.commission_amount)}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px", textAlign: "right" }}>
+                        <span style={{ fontSize: 13, color: T.textMid, fontWeight: 500 }}>{r.commission_rate != null ? `${r.commission_rate}%` : "—"}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        {(() => {
+                          const sc = STATUS_COLORS[r.status] ?? { bg: "#f3f4f6", color: "#6b7a5f" };
+                          return (
+                            <span style={{ 
+                              display: "inline-flex", 
+                              alignItems: "center", 
+                              padding: "4px 10px", 
+                              borderRadius: 6, 
+                              backgroundColor: sc.bg, 
+                              color: sc.color, 
+                              fontSize: 11, 
+                              fontWeight: 700 
+                            }}>
+                              {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 500 }}>
+                          {r.earned_at ? new Date(r.earned_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" }) : "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: r.paid_at ? "#166534" : T.textMuted, fontWeight: 500 }}>
+                          {r.paid_at ? new Date(r.paid_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" }) : "—"}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </ShadcnTable>
+            </div>
 
-        <div style={{ overflowX: "auto" }}>
-          <Table
-            data={paginated.map((r, i) => ({ ...r, _sno: (page - 1) * ITEMS_PER_PAGE + i + 1 }))}
-            columns={[
-              { header: "S.No", key: "_sno", width: 56,
-                render: (r) => <span style={{ fontSize: 13, fontWeight: 600, color: T.textMuted }}>{(r as any)._sno}</span> },
-              { header: "Policy #", key: "policy_number",
-                render: (r) => <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, fontFamily: "monospace" }}>{r.policy_number}</span> },
-              { header: "Agent", key: "sales_agent_name",
-                render: (r) => <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{r.sales_agent_name || "—"}</span> },
-              { header: "Writing No", key: "writing_no",
-                render: (r) => <span style={{ fontSize: 12, color: T.textMuted, fontFamily: "monospace" }}>{r.writing_no || "—"}</span> },
-              { header: "Type", key: "commission_type",
-                render: (r) => r.commission_type
-                  ? <Badge variant="custom" label={r.commission_type} bgColor={T.blueLight} color={T.blue} />
-                  : <span style={{ color: T.textMuted, fontSize: 13 }}>—</span> },
-              { header: "Amount", key: "commission_amount", align: "right",
-                render: (r) => <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{fmt(r.commission_amount)}</span> },
-              { header: "Rate", key: "commission_rate", align: "right",
-                render: (r) => <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>{r.commission_rate != null ? `${r.commission_rate}%` : "—"}</span> },
-              { header: "Status", key: "status",
-                render: (r) => {
-                  const sc = STATUS_COLORS[r.status] ?? { bg: "#f3f4f6", color: "#6b7a5f" };
-                  return <Badge variant="custom" label={r.status.charAt(0).toUpperCase() + r.status.slice(1)} bgColor={sc.bg} color={sc.color} />;
-                } },
-              { header: "Earned At", key: "earned_at",
-                render: (r) => <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{r.earned_at ? new Date(r.earned_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" }) : "—"}</span> },
-              { header: "Paid At", key: "paid_at",
-                render: (r) => <span style={{ fontSize: 12, color: r.paid_at ? T.success : T.textMuted, fontWeight: 600 }}>{r.paid_at ? new Date(r.paid_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" }) : "—"}</span> },
-              { header: "Actions", key: "actions", align: "center",
-                render: (r) => (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <ActionMenu id={String(r.id)} activeId={activeMenu} onToggle={setActiveMenu}
-                      items={[{ label: "View details", onClick: () => {} }]} />
-                  </div>
-                ) },
-            ]}
-          />
-          {!loading && filtered.length === 0 && (
-            <EmptyState title={rows.length === 0 ? "No commission records yet" : "No matching records"} description={rows.length === 0 ? "Commission records will appear here once created." : "Try adjusting your search or filter criteria."} compact />
-          )}
-        </div>
-
-        {totalPages > 1 && (
-          <Pagination page={page} totalItems={filtered.length} itemsPerPage={ITEMS_PER_PAGE} itemLabel="records" onPageChange={setPage} />
+            <div
+              style={{
+                backgroundColor: T.cardBg,
+                padding: "16px 20px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                borderTop: `1px solid ${T.border}`,
+              }}
+            >
+              <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
+                Showing {paginated.length} of {filtered.length.toLocaleString()} commissions
+              </span>
+              {totalPages > 1 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    style={{
+                      height: 32,
+                      width: 32,
+                      borderRadius: 8,
+                      border: `1px solid ${T.border}`,
+                      background: T.cardBg,
+                      color: page === 1 ? T.textMuted : T.textDark,
+                      cursor: page === 1 ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 600,
+                      fontSize: 14,
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+                  </button>
+                  <span style={{ fontSize: 13, color: T.textMid, fontWeight: 600 }}>
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    style={{
+                      height: 32,
+                      width: 32,
+                      borderRadius: 8,
+                      border: `1px solid ${T.border}`,
+                      background: T.cardBg,
+                      color: page === totalPages ? T.textMuted : T.textDark,
+                      cursor: page === totalPages ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 600,
+                      fontSize: 14,
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

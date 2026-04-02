@@ -2,9 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
-import { Pagination, Table, DataGrid, EmptyState } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Search, Filter, Plus, Eye, Edit2, Trash2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Types
 interface IMO {
@@ -71,6 +80,144 @@ type ViewMode =
   | 'agent-wizard' 
   | 'agent-view';
 
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select..."
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 38,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value && value !== "All" ? T.textDark : T.textMuted,
+          fontSize: 13,
+          fontWeight: 500,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value && value !== "All"
+            ? options.find(o => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; label?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          border: `3px solid ${T.border}`,
+          borderTopColor: "#233217",
+          animation: "spin 0.8s linear infinite",
+        }}
+      />
+      {label && (
+        <span style={{ fontSize: 14, fontWeight: 500, color: T.textMuted }}>{label}</span>
+      )}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <Card
+      style={{
+        borderRadius: 16,
+        border: `1px solid ${T.border}`,
+        borderBottom: "4px solid #DCEBDC",
+        background: T.cardBg,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+        padding: "20px 24px",
+        minHeight: 100,
+        display: "flex",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 16,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
+        <div style={{ width: 80, height: 10, borderRadius: 4, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+        <div style={{ width: 60, height: 26, borderRadius: 6, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+      </div>
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)",
+          backgroundSize: "200% 100%",
+          animation: "shimmer 1.5s infinite",
+        }}
+      />
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+    </Card>
+  );
+}
+
 export default function IMOManagementPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   
@@ -127,6 +274,41 @@ export default function IMOManagementPage() {
   const [carrierSpecificStates, setCarrierSpecificStates] = useState<Map<number, Set<string>>>(new Map());
   // Track which carriers are expanded in Step 4
   const [expandedCarriers, setExpandedCarriers] = useState<Set<number>>(new Set());
+
+  // Filter panel state
+  const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
+  
+  // Modal states for IMO
+  const [showCreateImoModal, setShowCreateImoModal] = useState(false);
+  const [showEditImoModal, setShowEditImoModal] = useState(false);
+  const [editingImo, setEditingImo] = useState<IMO | null>(null);
+  const [editImoName, setEditImoName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creatingImo, setCreatingImo] = useState(false);
+  const [showDeleteImoModal, setShowDeleteImoModal] = useState(false);
+  const [deletingImo, setDeletingImo] = useState<IMO | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deletingInProgress, setDeletingInProgress] = useState(false);
+  
+  // Modal states for Agency
+  const [showCreateAgencyModal, setShowCreateAgencyModal] = useState(false);
+  const [showEditAgencyModal, setShowEditAgencyModal] = useState(false);
+  const [editingAgency, setEditingAgency] = useState<Agency | null>(null);
+  const [editAgencyName, setEditAgencyName] = useState("");
+  const [createAgencyError, setCreateAgencyError] = useState<string | null>(null);
+  const [creatingAgency, setCreatingAgency] = useState(false);
+  const [showDeleteAgencyModal, setShowDeleteAgencyModal] = useState(false);
+  const [deletingAgency, setDeletingAgency] = useState<Agency | null>(null);
+  const [deleteAgencyConfirmName, setDeleteAgencyConfirmName] = useState("");
+  const [deletingAgencyInProgress, setDeletingAgencyInProgress] = useState(false);
+  
+  // Modal states for Agent
+  const [showDeleteAgentModal, setShowDeleteAgentModal] = useState(false);
+  const [deletingAgent, setDeletingAgent] = useState<Agent | null>(null);
+  const [deleteAgentConfirmName, setDeleteAgentConfirmName] = useState("");
+  const [deletingAgentInProgress, setDeletingAgentInProgress] = useState(false);
+  
+  const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
 
   // Fetch all reference data
   async function fetchReferenceData() {
@@ -482,6 +664,51 @@ export default function IMOManagementPage() {
     setView('agent-wizard');
   }
 
+  // IMO Modal Helpers
+  function openCreateImoModal() {
+    setEditImoName("");
+    setCreateError(null);
+    setShowCreateImoModal(true);
+  }
+
+  function openEditImoModal(imo: IMO) {
+    setEditingImo(imo);
+    setEditImoName(imo.name);
+    setShowEditImoModal(true);
+  }
+
+  function openDeleteImoModal(imo: IMO) {
+    setDeletingImo(imo);
+    setDeleteConfirmName("");
+    setShowDeleteImoModal(true);
+  }
+
+  // Agency Modal Helpers
+  function openCreateAgencyModal() {
+    setEditAgencyName("");
+    setCreateAgencyError(null);
+    setShowCreateAgencyModal(true);
+  }
+
+  function openEditAgencyModal(agency: Agency) {
+    setEditingAgency(agency);
+    setEditAgencyName(agency.name);
+    setShowEditAgencyModal(true);
+  }
+
+  function openDeleteAgencyModal(agency: Agency) {
+    setDeletingAgency(agency);
+    setDeleteAgencyConfirmName("");
+    setShowDeleteAgencyModal(true);
+  }
+
+  // Agent Modal Helpers
+  function openDeleteAgentModal(agent: Agent) {
+    setDeletingAgent(agent);
+    setDeleteAgentConfirmName("");
+    setShowDeleteAgentModal(true);
+  }
+
   // CRUD Operations
   async function saveIMO() {
     if (!formName.trim()) return;
@@ -724,76 +951,660 @@ export default function IMOManagementPage() {
 
     return (
       <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-          <div>
-            <h1 style={{ fontSize: 32, fontWeight: 800, margin: "0 0 8px" }}>IMO Management</h1>
-          </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            {editingId === -1 ? (
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  autoFocus
-                  value={formName}
-                  onChange={e => setFormName(e.target.value)}
-                  placeholder="IMO Name"
-                  style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 14 }}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
+          ) : (
+            [
+              { label: "Total IMOs", value: imos.length.toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                ) },
+              { label: "Total Agencies", value: imos.reduce((sum, imo) => sum + imo.agencyCount, 0).toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                ) },
+              { label: "Total Agents", value: imos.reduce((sum, imo) => sum + imo.agentCount, 0).toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                ) },
+              { label: "This Month", value: imos.filter(i => new Date(i.createdAt).getMonth() === new Date().getMonth()).length.toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                ) },
+            ].map(({ label, value, color, icon }, i) => (
+                <Card
+                  key={label}
+                  onMouseEnter={() => setHoveredStatIdx(i)}
+                  onMouseLeave={() => setHoveredStatIdx(null)}
+                  style={{
+                    borderRadius: 16,
+                    border: `1px solid ${T.border}`,
+                    borderBottom: `4px solid ${color}`,
+                    background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+                    boxShadow:
+                      hoveredStatIdx === i
+                        ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+                        : "0 4px 12px rgba(0,0,0,0.03)",
+                    transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
+                    transition:
+                      "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                    padding: "20px 24px",
+                    minHeight: 100,
+                    display: "flex",
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 16,
+                    cursor: "default",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
+                      {value}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      color,
+                      backgroundColor:
+                        hoveredStatIdx === i
+                          ? `color-mix(in srgb, ${color} 24%, transparent)`
+                          : `color-mix(in srgb, ${color} 15%, transparent)`,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      transition:
+                        "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                      transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                    }}
+                  >
+                    {icon}
+                  </div>
+                </Card>
+            ))
+          )}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 14 }}>
+          <div
+            style={{
+              width: "100%",
+              background: T.cardBg,
+              border: `1px solid ${T.border}`,
+              borderBottom: filterPanelExpanded ? "none" : `1px solid ${T.border}`,
+              borderRadius: filterPanelExpanded ? "16px 16px 0 0" : 16,
+              padding: "14px 20px",
+              boxShadow: filterPanelExpanded ? "none" : T.shadowSm,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <Search
+                  size={16}
+                  style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }}
                 />
-                <button onClick={saveIMO} disabled={saving} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 16px", fontWeight: 700 }}>
-                  Save
-                </button>
-                <button onClick={() => { setEditingId(null); setFormName(""); }} style={{ backgroundColor: "transparent", border: `1.5px solid ${T.border}`, borderRadius: 8, padding: "10px 16px" }}>
-                  Cancel
-                </button>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search IMOs..."
+                  style={{
+                    height: 38,
+                    minWidth: 260,
+                    paddingLeft: 38,
+                    paddingRight: 14,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    background: T.pageBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
               </div>
-            ) : (
-              <button onClick={() => { setEditingId(-1); setFormName(""); }} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 20px", fontSize: 14, fontWeight: 800 }}>
-                + Add IMO
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                onClick={() => setFilterPanelExpanded((v) => !v)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  height: 38,
+                  padding: "0 16px",
+                  borderRadius: 10,
+                  border: filterPanelExpanded ? `1.5px solid #233217` : `1px solid ${T.border}`,
+                  background: filterPanelExpanded ? "#DCEBDC" : T.pageBg,
+                  color: filterPanelExpanded ? "#233217" : T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease-in-out",
+                }}
+              >
+                <Filter size={16} />
+                Filters
               </button>
-            )}
+
+              <button
+                onClick={() => openCreateImoModal()}
+                style={{
+                  height: 38,
+                  padding: "0 18px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#233217",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Plus size={16} />
+                Add IMO
+              </button>
+            </div>
           </div>
         </div>
 
-        <DataGrid
-          search={search}
-          onSearchChange={(s) => { setSearch(s); setPage(1); }}
-          searchPlaceholder="Search IMOs..."
-          pagination={
-            <Pagination page={currentPage} totalItems={filtered.length} itemsPerPage={itemsPerPage} itemLabel="IMOs" onPageChange={setPage} />
-          }
+        <div
+          style={{
+            borderRadius: 16,
+            border: `1px solid ${T.border}`,
+            overflow: "hidden",
+            backgroundColor: T.cardBg,
+          }}
         >
-          <Table
-            data={paginated}
-            hoverEffect={false}
-            columns={[
-              { header: "IMO Name", key: "name", render: (imo) => <span style={{ fontWeight: 700, color: T.textDark }}>{imo.name}</span> },
-              { header: "Agencies", key: "agencyCount", align: "center", render: (imo) => <span style={{ fontWeight: 700, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 12px", borderRadius: 999 }}>{imo.agencyCount}</span> },
-              { header: "Agents", key: "agentCount", align: "center", render: (imo) => <span style={{ fontWeight: 700, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 12px", borderRadius: 999 }}>{imo.agentCount}</span> },
-              { header: "Created", key: "createdAt", render: (imo) => <span style={{ fontSize: 13, color: T.textMid }}>{imo.createdAt}</span> },
-              {
-                header: "Actions",
-                key: "actions",
-                align: "center",
-                render: (imo) => (
-                  <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
-                    <button onClick={() => navigateToIMOView(imo)} title="View Structure" style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                    <button onClick={() => navigateToAgencyList(imo)} title="Manage Agencies" style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                    </button>
-                    <button onClick={() => { setEditingId(imo.id); setFormName(imo.name); }} title="Edit" style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
-                    <button onClick={() => deleteItem('imo', imo.id, imo.name)} title="Delete" style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    </button>
-                  </div>
-                )
-              }
-            ]}
-          />
-          {!loading && filtered.length === 0 && <EmptyState title="No IMOs found" description="Add an IMO to get started" compact />}
-        </DataGrid>
+          {loading ? (
+            <div
+              style={{
+                padding: "80px 40px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 20,
+              }}
+            >
+              <LoadingSpinner size={48} label="Loading IMOs..." />
+            </div>
+          ) : paginated.length === 0 ? (
+            <div
+              style={{
+                padding: "60px 40px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>No IMOs found</div>
+              <div style={{ fontSize: 14, color: T.textMid }}>Add an IMO or adjust your search filters.</div>
+            </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  borderBottom: `1px solid ${T.border}`,
+                  overflow: "hidden",
+                  backgroundColor: T.cardBg,
+                }}
+              >
+                <ShadcnTable>
+                  <TableHeader style={{ backgroundColor: "#233217" }}>
+                    <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                      {[
+                        { label: "IMO Name", align: "left" as const },
+                        { label: "Agencies", align: "center" as const },
+                        { label: "Agents", align: "center" as const },
+                        { label: "Created", align: "left" as const },
+                        { label: "Actions", align: "center" as const },
+                      ].map(({ label, align }) => (
+                        <TableHead key={label} style={{ 
+                          color: "#ffffff", 
+                          fontWeight: 700, 
+                          fontSize: 12, 
+                          letterSpacing: "0.3px",
+                          padding: "16px 20px",
+                          whiteSpace: "nowrap",
+                          textAlign: align
+                        }}>
+                          {label}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginated.map((imo) => (
+                      <TableRow 
+                        key={imo.id}
+                        onClick={() => navigateToIMOView(imo)}
+                        style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                        className="hover:bg-muted/30 transition-all duration-150"
+                      >
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 14, fontWeight: 500, color: T.textDark }}>
+                            {imo.name}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px", textAlign: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#233217" }}>{imo.agencyCount}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px", textAlign: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#233217" }}>{imo.agentCount}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 13, color: T.textMid, fontWeight: 400 }}>{imo.createdAt}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap" }}
+                          >
+                            <button 
+                              onClick={() => navigateToIMOView(imo)}
+                              style={{ background: "none", border: "none", color: "#233217", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="View Structure"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                            <button 
+                              onClick={() => navigateToAgencyList(imo)}
+                              style={{ background: "none", border: "none", color: "#233217", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Manage Agencies"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                            </button>
+                            <button 
+                              onClick={() => openEditImoModal(imo)}
+                              style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Edit IMO"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button 
+                              onClick={() => openDeleteImoModal(imo)}
+                              style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Delete IMO"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </ShadcnTable>
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: T.cardBg,
+                  padding: "16px 20px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderTop: `1px solid ${T.border}`,
+                }}
+              >
+                <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
+                  Showing {paginated.length} of {imos.length} IMOs
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Create IMO Modal */}
+        {showCreateImoModal && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Add IMO</h2>
+                <button
+                  onClick={() => setShowCreateImoModal(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              {createError && (
+                <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, color: "#dc2626", fontWeight: 500 }}>{createError}</div>
+                </div>
+              )}
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>IMO name</label>
+                <input
+                  type="text"
+                  value={editImoName}
+                  onChange={(e) => setEditImoName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && editImoName.trim()) void saveIMO();
+                    if (e.key === 'Escape') setShowCreateImoModal(false);
+                  }}
+                  placeholder="Enter IMO name"
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    border: `1.5px solid ${T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    padding: "0 14px",
+                    boxSizing: "border-box",
+                    background: T.cardBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowCreateImoModal(false)}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${T.border}`,
+                    background: "#fff",
+                    color: T.textDark,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editImoName.trim()) return;
+                    setCreatingImo(true);
+                    setCreateError(null);
+                    try {
+                      const { error } = await supabase.from("imos").insert([{ name: editImoName.trim() }]);
+                      if (error) throw error;
+                      setShowCreateImoModal(false);
+                      void fetchIMOs();
+                    } catch (err: any) {
+                      setCreateError(err.message || "Failed to create IMO");
+                    } finally {
+                      setCreatingImo(false);
+                    }
+                  }}
+                  disabled={!editImoName.trim() || creatingImo}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: editImoName.trim() && !creatingImo ? "#233217" : T.border,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: editImoName.trim() && !creatingImo ? "pointer" : "not-allowed",
+                    boxShadow: editImoName.trim() && !creatingImo ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  {creatingImo ? "Creating..." : "Add IMO"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit IMO Modal */}
+        {showEditImoModal && editingImo && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Edit IMO</h2>
+                <button
+                  onClick={() => setShowEditImoModal(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>IMO name</label>
+                <input
+                  type="text"
+                  value={editImoName}
+                  onChange={(e) => setEditImoName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && editImoName.trim()) void saveIMO();
+                    if (e.key === 'Escape') setShowEditImoModal(false);
+                  }}
+                  placeholder="Enter IMO name"
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    border: `1.5px solid ${T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    padding: "0 14px",
+                    boxSizing: "border-box",
+                    background: T.cardBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowEditImoModal(false)}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${T.border}`,
+                    background: "#fff",
+                    color: T.textDark,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editImoName.trim() || !editingImo) return;
+                    setSaving(true);
+                    try {
+                      const { error } = await supabase.from("imos").update({ name: editImoName.trim() }).eq("id", editingImo.id);
+                      if (error) throw error;
+                      setShowEditImoModal(false);
+                      void fetchIMOs();
+                    } catch (err: any) {
+                      console.error("Error updating IMO:", err);
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={!editImoName.trim() || saving}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: editImoName.trim() && !saving ? "#233217" : T.border,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: editImoName.trim() && !saving ? "pointer" : "not-allowed",
+                    boxShadow: editImoName.trim() && !saving ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  {saving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete IMO Modal */}
+        {showDeleteImoModal && deletingImo && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#dc2626" }}>Delete IMO</h2>
+                <button
+                  onClick={() => setShowDeleteImoModal(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+                <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
+                  <strong>Warning:</strong> This will permanently delete <strong>"{deletingImo.name}"</strong>. This action cannot be undone.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                  Type <strong>{deletingImo.name}</strong> to confirm deletion
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmName}
+                  onChange={(e) => setDeleteConfirmName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && deleteConfirmName === deletingImo.name) void deleteItem('imo', deletingImo.id, deletingImo.name);
+                    if (e.key === 'Escape') setShowDeleteImoModal(false);
+                  }}
+                  placeholder={deletingImo.name}
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    border: `1.5px solid ${deleteConfirmName === deletingImo.name ? "#dc2626" : T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    padding: "0 14px",
+                    boxSizing: "border-box",
+                    background: T.cardBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = deleteConfirmName === deletingImo.name ? "#dc2626" : "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmName === deletingImo.name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = deleteConfirmName === deletingImo.name ? "#dc2626" : T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowDeleteImoModal(false)}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${T.border}`,
+                    background: "#fff",
+                    color: T.textDark,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setDeletingInProgress(true);
+                    try {
+                      await deleteItem('imo', deletingImo.id, deletingImo.name);
+                      setShowDeleteImoModal(false);
+                    } finally {
+                      setDeletingInProgress(false);
+                    }
+                  }}
+                  disabled={deleteConfirmName !== deletingImo.name || deletingInProgress}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: deleteConfirmName === deletingImo.name && !deletingInProgress ? "#dc2626" : T.border,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: deleteConfirmName === deletingImo.name && !deletingInProgress ? "pointer" : "not-allowed",
+                    boxShadow: deleteConfirmName === deletingImo.name && !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  {deletingInProgress ? "Deleting..." : "Delete IMO"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -809,73 +1620,626 @@ export default function IMOManagementPage() {
       <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }}>
         {renderBreadcrumbs()}
         
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 8px" }}>Agencies - {selectedIMO.name}</h1>
-            <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Manage agencies under this IMO</p>
-          </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            {editingId === -1 ? (
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  autoFocus
-                  value={formName}
-                  onChange={e => setFormName(e.target.value)}
-                  placeholder="Agency Name"
-                  style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: 8, fontSize: 14 }}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
+          ) : (
+            [
+              { label: "Total Agencies", value: agencies.length.toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                ) },
+              { label: "Total Agents", value: agencies.reduce((sum, a) => sum + a.agentCount, 0).toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                ) },
+              { label: "Avg per Agency", value: agencies.length > 0 ? Math.round(agencies.reduce((sum, a) => sum + a.agentCount, 0) / agencies.length).toString() : "0", color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                ) },
+              { label: "This Month", value: agencies.filter(a => new Date(a.createdAt).getMonth() === new Date().getMonth()).length.toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                ) },
+            ].map(({ label, value, color, icon }, i) => (
+                <Card
+                  key={label}
+                  onMouseEnter={() => setHoveredStatIdx(i)}
+                  onMouseLeave={() => setHoveredStatIdx(null)}
+                  style={{
+                    borderRadius: 16,
+                    border: `1px solid ${T.border}`,
+                    borderBottom: `4px solid ${color}`,
+                    background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+                    boxShadow:
+                      hoveredStatIdx === i
+                        ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+                        : "0 4px 12px rgba(0,0,0,0.03)",
+                    transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
+                    transition:
+                      "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                    padding: "20px 24px",
+                    minHeight: 100,
+                    display: "flex",
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 16,
+                    cursor: "default",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
+                      {value}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      color,
+                      backgroundColor:
+                        hoveredStatIdx === i
+                          ? `color-mix(in srgb, ${color} 24%, transparent)`
+                          : `color-mix(in srgb, ${color} 15%, transparent)`,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      transition:
+                        "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                      transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                    }}
+                  >
+                    {icon}
+                  </div>
+                </Card>
+            ))
+          )}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 14 }}>
+          <div
+            style={{
+              width: "100%",
+              background: T.cardBg,
+              border: `1px solid ${T.border}`,
+              borderBottom: filterPanelExpanded ? "none" : `1px solid ${T.border}`,
+              borderRadius: filterPanelExpanded ? "16px 16px 0 0" : 16,
+              padding: "14px 20px",
+              boxShadow: filterPanelExpanded ? "none" : T.shadowSm,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <Search
+                  size={16}
+                  style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }}
                 />
-                <button onClick={saveAgency} disabled={saving} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 16px", fontWeight: 700 }}>
-                  Save
-                </button>
-                <button onClick={() => { setEditingId(null); setFormName(""); }} style={{ backgroundColor: "transparent", border: `1.5px solid ${T.border}`, borderRadius: 8, padding: "10px 16px" }}>
-                  Cancel
-                </button>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search agencies..."
+                  style={{
+                    height: 38,
+                    minWidth: 260,
+                    paddingLeft: 38,
+                    paddingRight: 14,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    background: T.pageBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
               </div>
-            ) : (
-              <button onClick={() => { setEditingId(-1); setFormName(""); }} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 20px", fontSize: 14, fontWeight: 800 }}>
-                + Add Agency
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                onClick={() => openCreateAgencyModal()}
+                style={{
+                  height: 38,
+                  padding: "0 18px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#233217",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Plus size={16} />
+                Add Agency
               </button>
-            )}
+            </div>
           </div>
         </div>
 
-        <DataGrid
-          search={search}
-          onSearchChange={(s) => { setSearch(s); setPage(1); }}
-          searchPlaceholder="Search agencies..."
-          pagination={
-            <Pagination page={currentPage} totalItems={filtered.length} itemsPerPage={itemsPerPage} itemLabel="agencies" onPageChange={setPage} />
-          }
+        <div
+          style={{
+            borderRadius: 16,
+            border: `1px solid ${T.border}`,
+            overflow: "hidden",
+            backgroundColor: T.cardBg,
+          }}
         >
-          <Table
-            data={paginated}
-            hoverEffect={false}
-            columns={[
-              { header: "Agency Name", key: "name", render: (a) => <span style={{ fontWeight: 700, color: T.textDark }}>{a.name}</span> },
-              { header: "Agents", key: "agentCount", align: "center", render: (a) => <span style={{ fontWeight: 700, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 12px", borderRadius: 999 }}>{a.agentCount}</span> },
-              { header: "Created", key: "createdAt", render: (a) => <span style={{ fontSize: 13, color: T.textMid }}>{a.createdAt}</span> },
-              {
-                header: "Actions",
-                key: "actions",
-                align: "center",
-                render: (a) => (
-                  <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
-                    <button onClick={() => navigateToAgentList(a)} title="Manage Agents" style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    </button>
-                    <button onClick={() => { setEditingId(a.id); setFormName(a.name); }} title="Edit" style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
-                    <button onClick={() => deleteItem('agency', a.id, a.name)} title="Delete" style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    </button>
-                  </div>
-                )
-              }
-            ]}
-          />
-          {!loading && filtered.length === 0 && <EmptyState title="No agencies found" description="Add an agency to get started" compact />}
-        </DataGrid>
+          {loading ? (
+            <div
+              style={{
+                padding: "80px 40px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 20,
+              }}
+            >
+              <LoadingSpinner size={48} label="Loading agencies..." />
+            </div>
+          ) : paginated.length === 0 ? (
+            <div
+              style={{
+                padding: "60px 40px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>No agencies found</div>
+              <div style={{ fontSize: 14, color: T.textMid }}>Add an agency or adjust your search filters.</div>
+            </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  borderBottom: `1px solid ${T.border}`,
+                  overflow: "hidden",
+                  backgroundColor: T.cardBg,
+                }}
+              >
+                <ShadcnTable>
+                  <TableHeader style={{ backgroundColor: "#233217" }}>
+                    <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                      {[
+                        { label: "Agency Name", align: "left" as const },
+                        { label: "Agents", align: "center" as const },
+                        { label: "Created", align: "left" as const },
+                        { label: "Actions", align: "center" as const },
+                      ].map(({ label, align }) => (
+                        <TableHead key={label} style={{ 
+                          color: "#ffffff", 
+                          fontWeight: 700, 
+                          fontSize: 12, 
+                          letterSpacing: "0.3px",
+                          padding: "16px 20px",
+                          whiteSpace: "nowrap",
+                          textAlign: align
+                        }}>
+                          {label}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginated.map((agency) => (
+                      <TableRow 
+                        key={agency.id}
+                        onClick={() => navigateToAgentList(agency)}
+                        style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                        className="hover:bg-muted/30 transition-all duration-150"
+                      >
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 14, fontWeight: 500, color: T.textDark }}>
+                            {agency.name}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px", textAlign: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#233217" }}>{agency.agentCount}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 13, color: T.textMid, fontWeight: 400 }}>{agency.createdAt}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap" }}
+                          >
+                            <button 
+                              onClick={() => navigateToAgentList(agency)}
+                              style={{ background: "none", border: "none", color: "#233217", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Manage Agents"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </button>
+                            <button 
+                              onClick={() => openEditAgencyModal(agency)}
+                              style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Edit Agency"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button 
+                              onClick={() => openDeleteAgencyModal(agency)}
+                              style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Delete Agency"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </ShadcnTable>
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: T.cardBg,
+                  padding: "16px 20px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderTop: `1px solid ${T.border}`,
+                }}
+              >
+                <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
+                  Showing {paginated.length} of {agencies.length} agencies
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Create Agency Modal */}
+        {showCreateAgencyModal && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Add Agency</h2>
+                <button
+                  onClick={() => setShowCreateAgencyModal(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              {createAgencyError && (
+                <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, color: "#dc2626", fontWeight: 500 }}>{createAgencyError}</div>
+                </div>
+              )}
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Agency name</label>
+                <input
+                  type="text"
+                  value={editAgencyName}
+                  onChange={(e) => setEditAgencyName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && editAgencyName.trim()) void saveAgency();
+                    if (e.key === 'Escape') setShowCreateAgencyModal(false);
+                  }}
+                  placeholder="Enter agency name"
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    border: `1.5px solid ${T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    padding: "0 14px",
+                    boxSizing: "border-box",
+                    background: T.cardBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowCreateAgencyModal(false)}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${T.border}`,
+                    background: "#fff",
+                    color: T.textDark,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editAgencyName.trim() || !selectedIMO) return;
+                    setCreatingAgency(true);
+                    setCreateAgencyError(null);
+                    try {
+                      const { error } = await supabase.from("agencies").insert([{ name: editAgencyName.trim(), imo_id: selectedIMO.id }]);
+                      if (error) throw error;
+                      setShowCreateAgencyModal(false);
+                      void fetchAgencies(selectedIMO.id);
+                    } catch (err: any) {
+                      setCreateAgencyError(err.message || "Failed to create agency");
+                    } finally {
+                      setCreatingAgency(false);
+                    }
+                  }}
+                  disabled={!editAgencyName.trim() || creatingAgency}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: editAgencyName.trim() && !creatingAgency ? "#233217" : T.border,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: editAgencyName.trim() && !creatingAgency ? "pointer" : "not-allowed",
+                    boxShadow: editAgencyName.trim() && !creatingAgency ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  {creatingAgency ? "Creating..." : "Add Agency"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Agency Modal */}
+        {showEditAgencyModal && editingAgency && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Edit Agency</h2>
+                <button
+                  onClick={() => setShowEditAgencyModal(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Agency name</label>
+                <input
+                  type="text"
+                  value={editAgencyName}
+                  onChange={(e) => setEditAgencyName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && editAgencyName.trim()) void saveAgency();
+                    if (e.key === 'Escape') setShowEditAgencyModal(false);
+                  }}
+                  placeholder="Enter agency name"
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    border: `1.5px solid ${T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    padding: "0 14px",
+                    boxSizing: "border-box",
+                    background: T.cardBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowEditAgencyModal(false)}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${T.border}`,
+                    background: "#fff",
+                    color: T.textDark,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editAgencyName.trim() || !editingAgency) return;
+                    setSaving(true);
+                    try {
+                      const { error } = await supabase.from("agencies").update({ name: editAgencyName.trim() }).eq("id", editingAgency.id);
+                      if (error) throw error;
+                      setShowEditAgencyModal(false);
+                      if (selectedIMO) void fetchAgencies(selectedIMO.id);
+                    } catch (err: any) {
+                      console.error("Error updating agency:", err);
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={!editAgencyName.trim() || saving}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: editAgencyName.trim() && !saving ? "#233217" : T.border,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: editAgencyName.trim() && !saving ? "pointer" : "not-allowed",
+                    boxShadow: editAgencyName.trim() && !saving ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  {saving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Agency Modal */}
+        {showDeleteAgencyModal && deletingAgency && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#dc2626" }}>Delete Agency</h2>
+                <button
+                  onClick={() => setShowDeleteAgencyModal(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+                <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
+                  <strong>Warning:</strong> This will permanently delete <strong>"{deletingAgency.name}"</strong> and unassign all agents. This action cannot be undone.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                  Type <strong>{deletingAgency.name}</strong> to confirm deletion
+                </label>
+                <input
+                  type="text"
+                  value={deleteAgencyConfirmName}
+                  onChange={(e) => setDeleteAgencyConfirmName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && deleteAgencyConfirmName === deletingAgency.name) void deleteItem('agency', deletingAgency.id, deletingAgency.name);
+                    if (e.key === 'Escape') setShowDeleteAgencyModal(false);
+                  }}
+                  placeholder={deletingAgency.name}
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    border: `1.5px solid ${deleteAgencyConfirmName === deletingAgency.name ? "#dc2626" : T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    padding: "0 14px",
+                    boxSizing: "border-box",
+                    background: T.cardBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = deleteAgencyConfirmName === deletingAgency.name ? "#dc2626" : "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteAgencyConfirmName === deletingAgency.name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = deleteAgencyConfirmName === deletingAgency.name ? "#dc2626" : T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowDeleteAgencyModal(false)}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${T.border}`,
+                    background: "#fff",
+                    color: T.textDark,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setDeletingAgencyInProgress(true);
+                    try {
+                      await deleteItem('agency', deletingAgency.id, deletingAgency.name);
+                      setShowDeleteAgencyModal(false);
+                    } finally {
+                      setDeletingAgencyInProgress(false);
+                    }
+                  }}
+                  disabled={deleteAgencyConfirmName !== deletingAgency.name || deletingAgencyInProgress}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: deleteAgencyConfirmName === deletingAgency.name && !deletingAgencyInProgress ? "#dc2626" : T.border,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: deleteAgencyConfirmName === deletingAgency.name && !deletingAgencyInProgress ? "pointer" : "not-allowed",
+                    boxShadow: deleteAgencyConfirmName === deletingAgency.name && !deletingAgencyInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  {deletingAgencyInProgress ? "Deleting..." : "Delete Agency"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -894,80 +2258,423 @@ export default function IMOManagementPage() {
       <div style={{ padding: "0", animation: "fadeIn 0.3s ease-out" }}>
         {renderBreadcrumbs()}
         
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 8px" }}>Agents - {selectedAgency.name}</h1>
-            <p style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>Manage agents under this agency</p>
-          </div>
-          <button onClick={() => navigateToAgentWizard(selectedAgency)} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "12px 20px", fontSize: 14, fontWeight: 800 }}>
-            + Add Agent
-          </button>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
+          ) : (
+            [
+              { label: "Total Agents", value: agents.length.toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                ) },
+              { label: "Active Agents", value: agents.filter(a => a.status === 'Active').length.toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                ) },
+              { label: "Total Carriers", value: carriers.length.toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+                ) },
+              { label: "Total States", value: states.length.toString(), color: "#233217", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                ) },
+            ].map(({ label, value, color, icon }, i) => (
+                <Card
+                  key={label}
+                  onMouseEnter={() => setHoveredStatIdx(i)}
+                  onMouseLeave={() => setHoveredStatIdx(null)}
+                  style={{
+                    borderRadius: 16,
+                    border: `1px solid ${T.border}`,
+                    borderBottom: `4px solid ${color}`,
+                    background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+                    boxShadow:
+                      hoveredStatIdx === i
+                        ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+                        : "0 4px 12px rgba(0,0,0,0.03)",
+                    transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
+                    transition:
+                      "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                    padding: "20px 24px",
+                    minHeight: 100,
+                    display: "flex",
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 16,
+                    cursor: "default",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
+                      {value}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      color,
+                      backgroundColor:
+                        hoveredStatIdx === i
+                          ? `color-mix(in srgb, ${color} 24%, transparent)`
+                          : `color-mix(in srgb, ${color} 15%, transparent)`,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      transition:
+                        "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                      transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                    }}
+                  >
+                    {icon}
+                  </div>
+                </Card>
+            ))
+          )}
         </div>
 
-        <DataGrid
-          search={search}
-          onSearchChange={(s) => { setSearch(s); setPage(1); }}
-          searchPlaceholder="Search agents..."
-          pagination={
-            <Pagination page={currentPage} totalItems={filtered.length} itemsPerPage={itemsPerPage} itemLabel="agents" onPageChange={setPage} />
-          }
+        <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 14 }}>
+          <div
+            style={{
+              width: "100%",
+              background: T.cardBg,
+              border: `1px solid ${T.border}`,
+              borderBottom: filterPanelExpanded ? "none" : `1px solid ${T.border}`,
+              borderRadius: filterPanelExpanded ? "16px 16px 0 0" : 16,
+              padding: "14px 20px",
+              boxShadow: filterPanelExpanded ? "none" : T.shadowSm,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <Search
+                  size={16}
+                  style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }}
+                />
+                <input
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  placeholder="Search agents..."
+                  style={{
+                    height: 38,
+                    minWidth: 260,
+                    paddingLeft: 38,
+                    paddingRight: 14,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    background: T.pageBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                onClick={() => navigateToAgentWizard(selectedAgency)}
+                style={{
+                  height: 38,
+                  padding: "0 18px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#233217",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Plus size={16} />
+                Add Agent
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            borderRadius: 16,
+            border: `1px solid ${T.border}`,
+            overflow: "hidden",
+            backgroundColor: T.cardBg,
+          }}
         >
-          <Table
-            data={paginated}
-            hoverEffect={false}
-            columns={[
-              { 
-                header: "Agent Name", 
-                key: "fullName", 
-                render: (a) => (
-                  <div>
-                    <span style={{ fontWeight: 700, color: T.textDark }}>{a.fullName}</span>
-                    {a.slackUsername !== '-' && <div style={{ fontSize: 12, color: T.textMuted }}>Slack: {a.slackUsername}</div>}
-                  </div>
-                ) 
-              },
-              { header: "Email", key: "email", render: (a) => <span style={{ fontSize: 13, color: T.textMid }}>{a.email}</span> },
-              { 
-                header: "Status", 
-                key: "status",
-                render: (a) => (
-                  <span style={{ 
-                    display: "inline-flex", 
-                    alignItems: "center", 
-                    gap: 6,
-                    padding: "4px 10px",
-                    borderRadius: 999,
-                    backgroundColor: a.status === 'Active' ? '#dcfce7' : '#fee2e2',
-                    color: a.status === 'Active' ? '#166534' : '#991b1b',
-                    fontSize: 12,
-                    fontWeight: 700
-                  }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: a.status === 'Active' ? '#638b4b' : '#3b5229' }}/>
-                    {a.status}
-                  </span>
-                )
-              },
-              { header: "Carriers", key: "carrierCount", align: "center", render: (a) => <span style={{ fontWeight: 700 }}>{a.carrierCount}</span> },
-              { header: "States", key: "stateCount", align: "center", render: (a) => <span style={{ fontWeight: 700 }}>{a.stateCount}</span> },
-              {
-                header: "Actions",
-                key: "actions",
-                align: "center",
-                render: (a) => (
-                  <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
-                    <button onClick={() => handleOpenEditAgent(a)} title="Edit" style={{ background: "none", border: "none", color: T.blue, cursor: "pointer", padding: 6 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
-                    <button onClick={() => deleteItem('agent', a.id, a.fullName)} title="Delete" style={{ background: "none", border: "none", color: "#3b5229", cursor: "pointer", padding: 6 }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    </button>
-                  </div>
-                )
-              }
-            ]}
-          />
-          {!loading && filtered.length === 0 && <EmptyState title="No agents found" description="Add an agent to get started" compact />}
-        </DataGrid>
+          {loading ? (
+            <div
+              style={{
+                padding: "80px 40px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 20,
+              }}
+            >
+              <LoadingSpinner size={48} label="Loading agents..." />
+            </div>
+          ) : paginated.length === 0 ? (
+            <div
+              style={{
+                padding: "60px 40px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>No agents found</div>
+              <div style={{ fontSize: 14, color: T.textMid }}>Add an agent or adjust your search filters.</div>
+            </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  borderBottom: `1px solid ${T.border}`,
+                  overflow: "hidden",
+                  backgroundColor: T.cardBg,
+                }}
+              >
+                <ShadcnTable>
+                  <TableHeader style={{ backgroundColor: "#233217" }}>
+                    <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                      {[
+                        { label: "Agent Name", align: "left" as const },
+                        { label: "Email", align: "left" as const },
+                        { label: "Status", align: "center" as const },
+                        { label: "Carriers", align: "center" as const },
+                        { label: "States", align: "center" as const },
+                        { label: "Actions", align: "center" as const },
+                      ].map(({ label, align }) => (
+                        <TableHead key={label} style={{ 
+                          color: "#ffffff", 
+                          fontWeight: 700, 
+                          fontSize: 12, 
+                          letterSpacing: "0.3px",
+                          padding: "16px 20px",
+                          whiteSpace: "nowrap",
+                          textAlign: align
+                        }}>
+                          {label}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginated.map((agent) => (
+                      <TableRow 
+                        key={agent.id}
+                        style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                        className="hover:bg-muted/30 transition-all duration-150"
+                      >
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <div>
+                            <span style={{ fontSize: 14, fontWeight: 500, color: T.textDark }}>
+                              {agent.fullName}
+                            </span>
+                            {agent.slackUsername !== '-' && (
+                              <div style={{ fontSize: 12, color: T.textMuted }}>Slack: {agent.slackUsername}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 13, color: T.textMid, fontWeight: 400 }}>{agent.email}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px", textAlign: "center" }}>
+                          <span style={{ 
+                            display: "inline-flex", 
+                            alignItems: "center", 
+                            gap: 6,
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            backgroundColor: agent.status === 'Active' ? '#dcfce7' : '#fee2e2',
+                            color: agent.status === 'Active' ? '#166534' : '#991b1b',
+                            fontSize: 12,
+                            fontWeight: 700
+                          }}>
+                            <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: agent.status === 'Active' ? '#638b4b' : '#b91c1c' }}/>
+                            {agent.status}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px", textAlign: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#233217" }}>{agent.carrierCount}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px", textAlign: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#233217" }}>{agent.stateCount}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap" }}
+                          >
+                            <button 
+                              onClick={() => handleOpenEditAgent(agent)}
+                              style={{ background: "none", border: "none", color: "#233217", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Edit Agent"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button 
+                              onClick={() => openDeleteAgentModal(agent)}
+                              style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Delete Agent"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </ShadcnTable>
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: T.cardBg,
+                  padding: "16px 20px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderTop: `1px solid ${T.border}`,
+                }}
+              >
+                <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
+                  Showing {paginated.length} of {filtered.length} agents
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Delete Agent Modal */}
+        {showDeleteAgentModal && deletingAgent && (
+          <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#dc2626" }}>Delete Agent</h2>
+                <button
+                  onClick={() => setShowDeleteAgentModal(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+                <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
+                  <strong>Warning:</strong> This will permanently delete <strong>"{deletingAgent.fullName}"</strong>. This action cannot be undone.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                  Type <strong>{deletingAgent.fullName}</strong> to confirm deletion
+                </label>
+                <input
+                  type="text"
+                  value={deleteAgentConfirmName}
+                  onChange={(e) => setDeleteAgentConfirmName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && deleteAgentConfirmName === deletingAgent.fullName) void deleteItem('agent', deletingAgent.id, deletingAgent.fullName);
+                    if (e.key === 'Escape') setShowDeleteAgentModal(false);
+                  }}
+                  placeholder={deletingAgent.fullName}
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    border: `1.5px solid ${deleteAgentConfirmName === deletingAgent.fullName ? "#dc2626" : T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    padding: "0 14px",
+                    boxSizing: "border-box",
+                    background: T.cardBg,
+                    outline: "none",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = deleteAgentConfirmName === deletingAgent.fullName ? "#dc2626" : "#233217";
+                    e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteAgentConfirmName === deletingAgent.fullName ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = deleteAgentConfirmName === deletingAgent.fullName ? "#dc2626" : T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowDeleteAgentModal(false)}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${T.border}`,
+                    background: "#fff",
+                    color: T.textDark,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setDeletingAgentInProgress(true);
+                    try {
+                      await deleteItem('agent', deletingAgent.id, deletingAgent.fullName);
+                      setShowDeleteAgentModal(false);
+                    } finally {
+                      setDeletingAgentInProgress(false);
+                    }
+                  }}
+                  disabled={deleteAgentConfirmName !== deletingAgent.fullName || deletingAgentInProgress}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: deleteAgentConfirmName === deletingAgent.fullName && !deletingAgentInProgress ? "#dc2626" : T.border,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: deleteAgentConfirmName === deletingAgent.fullName && !deletingAgentInProgress ? "pointer" : "not-allowed",
+                    boxShadow: deleteAgentConfirmName === deletingAgent.fullName && !deletingAgentInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  {deletingAgentInProgress ? "Deleting..." : "Delete Agent"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

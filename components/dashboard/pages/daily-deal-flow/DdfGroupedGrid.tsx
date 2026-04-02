@@ -15,6 +15,7 @@ import {
 } from "./constants";
 import { IconBolt, IconCheck, IconEye, IconPencil, IconPhone, IconTrash, IconX } from "@tabler/icons-react";
 import { duplicateKey, formatDateShort, generatePendingApprovalNotes, getBadgeStyle, getCurrentTimestampEST, getGroupValue } from "./helpers";
+import { Table as ShadcnTable, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/shadcn/table";
 
 const actionIconBtn: CSSProperties = {
   padding: 6,
@@ -47,6 +48,8 @@ type Props = {
   retentionOptions: string[];
   licensedOptions: string[];
   carrierOptions: string[];
+  groupBy: string;
+  groupBySecondary: string;
 };
 
 type SortConfig = { key: string; direction: "asc" | "desc" } | null;
@@ -94,9 +97,9 @@ export function DdfGroupedGrid({
   retentionOptions,
   licensedOptions,
   carrierOptions,
+  groupBy,
+  groupBySecondary,
 }: Props) {
-  const [groupBy, setGroupBy] = useState("none");
-  const [groupBySecondary, setGroupBySecondary] = useState("none");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -283,7 +286,7 @@ export function DdfGroupedGrid({
     onRefresh();
   };
 
-  const rowCellStyle: CSSProperties = { borderBottom: `1px solid ${T.borderLight}`, padding: "8px 10px", fontSize: 12, verticalAlign: "top" };
+  const rowCellStyle: CSSProperties = { borderBottom: `1px solid ${T.border}`, padding: "12px 16px", fontSize: 12, verticalAlign: "top", color: T.textDark };
   const showColumns = hasWritePermissions ? [...columns, "Actions"] : columns;
   const patchDraft = (patch: Partial<DailyDealFlowRow>) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
 
@@ -292,29 +295,29 @@ export function DdfGroupedGrid({
     const isDuplicate = duplicateRows.has(duplicateKey(row));
     const data = isEditing && draft ? draft : row;
     return (
-      <tr key={row.id} style={{ background: isDuplicate ? T.blueFaint : "transparent" }}>
-        <td style={rowCellStyle}>{serialNumber}</td>
-        <td style={rowCellStyle}>{isEditing ? <Input type="date" value={data.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} /> : formatDateShort(row.date)}</td>
-        <td style={rowCellStyle}>
+      <TableRow key={row.id} style={{ background: isDuplicate ? "#FEF9E7" : "transparent", borderBottom: `1px solid ${T.border}` }} className="hover:bg-muted/30 transition-colors">
+        <TableCell style={rowCellStyle}>{serialNumber}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <Input type="date" value={data.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} /> : formatDateShort(row.date)}</TableCell>
+        <TableCell style={rowCellStyle}>
           <span style={getBadgeStyle("vendor", row.lead_vendor)}>{row.lead_vendor || ""}</span>
-        </td>
-        <td style={rowCellStyle}>{isEditing ? <Input value={data.insured_name || ""} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} /> : row.insured_name}</td>
-        <td style={rowCellStyle}>{isEditing ? <Input value={data.client_phone_number || ""} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} /> : row.client_phone_number}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.buffer_agent || ""} onChange={(v) => patchDraft({ buffer_agent: String(v) })} options={bufferAgentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.buffer_agent)}>{row.buffer_agent || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.retention_agent || ""} onChange={(v) => patchDraft({ retention_agent: String(v) })} options={retentionOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.retention_agent)}>{row.retention_agent || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.agent || ""} onChange={(v) => patchDraft({ agent: String(v) })} options={agentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.agent)}>{row.agent || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.licensed_agent_account || ""} onChange={(v) => patchDraft({ licensed_agent_account: String(v) })} options={licensedOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.licensed_agent_account)}>{row.licensed_agent_account || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.status || ""} onChange={(v) => patchDraft({ status: String(v) })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", row.status)}>{row.status || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.call_result || ""} onChange={(v) => patchDraft({ call_result: String(v) })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("result", row.call_result)}>{row.call_result || ""}</span>}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v), product_type: "" })} options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))} /> : row.carrier}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))} /> : row.product_type}</td>
-        <td style={rowCellStyle}>{isEditing ? <Input type="date" value={data.draft_date || ""} onChange={(e) => patchDraft({ draft_date: e.currentTarget.value })} /> : formatDateShort(row.draft_date)}</td>
-        <td style={rowCellStyle}>{isEditing ? <Input type="number" value={String(data.monthly_premium ?? "")} onChange={(e) => patchDraft({ monthly_premium: e.currentTarget.value ? Number(e.currentTarget.value) : null })} /> : row.monthly_premium ? `$${row.monthly_premium.toFixed(2)}` : ""}</td>
-        <td style={rowCellStyle}>{isEditing ? <Input type="number" value={String(data.face_amount ?? "")} onChange={(e) => patchDraft({ face_amount: e.currentTarget.value ? Number(e.currentTarget.value) : null })} /> : row.face_amount ? `$${row.face_amount.toLocaleString()}` : ""}</td>
-        <td style={rowCellStyle}>{isEditing ? <SelectInput value={data.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} /> : row.la_callback}</td>
-        <td style={rowCellStyle}>{isEditing ? <textarea value={data.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ minHeight: 54, width: 160 }} /> : row.notes}</td>
+        </TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <Input value={data.insured_name || ""} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} /> : row.insured_name}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <Input value={data.client_phone_number || ""} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} /> : row.client_phone_number}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.buffer_agent || ""} onChange={(v) => patchDraft({ buffer_agent: String(v) })} options={bufferAgentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.buffer_agent)}>{row.buffer_agent || ""}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.retention_agent || ""} onChange={(v) => patchDraft({ retention_agent: String(v) })} options={retentionOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.retention_agent)}>{row.retention_agent || ""}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.agent || ""} onChange={(v) => patchDraft({ agent: String(v) })} options={agentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.agent)}>{row.agent || ""}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.licensed_agent_account || ""} onChange={(v) => patchDraft({ licensed_agent_account: String(v) })} options={licensedOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.licensed_agent_account)}>{row.licensed_agent_account || ""}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.status || ""} onChange={(v) => patchDraft({ status: String(v) })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", row.status)}>{row.status || ""}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.call_result || ""} onChange={(v) => patchDraft({ call_result: String(v) })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("result", row.call_result)}>{row.call_result || ""}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v), product_type: "" })} options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))} /> : row.carrier}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))} /> : row.product_type}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <Input type="date" value={data.draft_date || ""} onChange={(e) => patchDraft({ draft_date: e.currentTarget.value })} /> : formatDateShort(row.draft_date)}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <Input type="number" value={String(data.monthly_premium ?? "")} onChange={(e) => patchDraft({ monthly_premium: e.currentTarget.value ? Number(e.currentTarget.value) : null })} /> : row.monthly_premium ? `$${row.monthly_premium.toFixed(2)}` : ""}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <Input type="number" value={String(data.face_amount ?? "")} onChange={(e) => patchDraft({ face_amount: e.currentTarget.value ? Number(e.currentTarget.value) : null })} /> : row.face_amount ? `$${row.face_amount.toLocaleString()}` : ""}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} /> : row.la_callback}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <textarea value={data.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ minHeight: 54, width: 160 }} /> : row.notes}</TableCell>
         {hasWritePermissions && (
-          <td style={{ ...rowCellStyle, whiteSpace: "nowrap", minWidth: 210 }}>
+          <TableCell style={{ ...rowCellStyle, whiteSpace: "nowrap", minWidth: 210 }}>
             <div
               style={{
                 display: "flex",
@@ -436,41 +439,29 @@ export function DdfGroupedGrid({
                 </>
               )}
             </div>
-          </td>
+          </TableCell>
         )}
-      </tr>
+      </TableRow>
     );
   };
 
   return (
     <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", padding: 14, borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ display: "flex", gap: 10 }}>
-          <SelectInput
-            value={groupBy}
-            onChange={(v) => { setGroupBy(String(v)); setExpandedGroups(new Set()); onPageChange(1); }}
-            options={[{ value: "none", label: "No Grouping" }, { value: "lead_vendor", label: "Lead Vendor" }, { value: "buffer_agent", label: "Buffer Agent" }, { value: "retention_agent", label: "Retention Agent" }, { value: "agent", label: "Agent" }, { value: "licensed_agent_account", label: "Licensed Agent" }, { value: "status", label: "Status" }, { value: "call_result", label: "Call Result" }, { value: "carrier", label: "Carrier" }, { value: "product_type", label: "Product Type" }, { value: "is_callback", label: "Callback" }, { value: "is_retention_call", label: "Retention" }]}
-            triggerClassName="min-w-[220px]"
-          />
-          {groupBy !== "none" && <SelectInput value={groupBySecondary} onChange={(v) => { setGroupBySecondary(String(v)); setExpandedGroups(new Set()); onPageChange(1); }} options={[{ value: "none", label: "No Secondary Group" }, { value: "lead_vendor", label: "Lead Vendor" }, { value: "buffer_agent", label: "Buffer Agent" }, { value: "retention_agent", label: "Retention Agent" }, { value: "agent", label: "Agent" }, { value: "licensed_agent_account", label: "Licensed Agent" }, { value: "status", label: "Status" }, { value: "call_result", label: "Call Result" }, { value: "carrier", label: "Carrier" }, { value: "product_type", label: "Product Type" }, { value: "is_callback", label: "Callback" }, { value: "is_retention_call", label: "Retention" }]} />}
-        </div>
-        <div style={{ fontSize: 12, color: T.textMuted }}>Page {currentPage}/{totalPages} - Showing {startIndex + 1} to {Math.min(endIndex, totalRecords)} of {totalRecords}</div>
-      </div>
-
       <div style={{ overflow: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 2200 }}>
-          <thead>
-            <tr style={{ background: T.pageBg, borderBottom: `1px solid ${T.border}` }}>
+        <ShadcnTable>
+          <TableHeader style={{ backgroundColor: "#233217" }}>
+            <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
               {showColumns.map((col) => (
-                <th
+                <TableHead
                   key={col}
                   style={{
                     fontSize: 11,
-                    fontWeight: 800,
-                    color: T.textMuted,
+                    fontWeight: 700,
+                    color: "#ffffff",
                     textAlign: "left",
-                    padding: "10px 8px",
+                    padding: "14px 16px",
                     whiteSpace: "nowrap",
+                    letterSpacing: "0.3px",
                     ...(col === "Actions" ? { minWidth: 210 } : {}),
                   }}
                 >
@@ -481,46 +472,46 @@ export function DdfGroupedGrid({
                       if (!key || groupBy === "none") return;
                       setSortConfig((prev) => (prev?.key === key ? { key, direction: prev.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" }));
                     }}
-                    style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 800, color: "inherit", padding: 0 }}
+                    style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "inherit", padding: 0, letterSpacing: "inherit" }}
                   >
                     {col}
                   </button>
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {groupBy === "none" &&
               grouped.ungroupedData.map((row, idx) => renderRow(row, startIndex + idx + 1))}
             {groupBy !== "none" &&
               grouped.groups.map((group) => (
                 <Fragment key={group.key}>
-                  <tr key={`${group.key}-header`} style={{ background: T.blueFaint }}>
-                    <td colSpan={showColumns.length} style={{ padding: 10, borderBottom: `1px solid ${T.border}` }}>
-                      <button onClick={() => toggleGroup(group.key)} style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, color: T.textDark }}>
+                  <TableRow key={`${group.key}-header`} style={{ background: "#EFF6EE", borderBottom: `1px solid ${T.border}` }}>
+                    <TableCell colSpan={showColumns.length} style={{ padding: "10px 16px" }}>
+                      <button onClick={() => toggleGroup(group.key)} style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 800, color: "#233217", fontSize: 13 }}>
                         {expandedGroups.has(group.key) ? "v" : ">"} {group.label} ({group.count})
                       </button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                   {expandedGroups.has(group.key) &&
                     (groupBySecondary === "none"
                       ? group.items.map((row, i) => renderRow(row, startIndex + i + 1))
                       : group.subgroups.map((subgroup) => (
                           <Fragment key={subgroup.key}>
-                            <tr key={`${subgroup.key}-header`} style={{ background: T.pageBg }}>
-                              <td colSpan={showColumns.length} style={{ padding: "8px 26px", borderBottom: `1px solid ${T.borderLight}` }}>
+                            <TableRow key={`${subgroup.key}-header`} style={{ background: T.pageBg, borderBottom: `1px solid ${T.borderLight}` }}>
+                              <TableCell colSpan={showColumns.length} style={{ padding: "8px 32px", borderBottom: `1px solid ${T.borderLight}` }}>
                                 <button onClick={() => toggleGroup(subgroup.key)} style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 700, fontSize: 12, color: T.textMid }}>
                                   {expandedGroups.has(subgroup.key) ? "v" : ">"} {subgroup.label} ({subgroup.count})
                                 </button>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                             {expandedGroups.has(subgroup.key) && subgroup.items.map((row: DailyDealFlowRow, i: number) => renderRow(row, startIndex + i + 1))}
                           </Fragment>
                         )))}
                 </Fragment>
               ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </ShadcnTable>
       </div>
 
       <Pagination

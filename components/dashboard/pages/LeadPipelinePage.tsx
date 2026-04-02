@@ -2,18 +2,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
-import { ActionMenu, Pagination, Avatar, Badge, Table, DataGrid, FilterChip, EmptyState } from "@/components/ui";
-import { AppSelect } from "@/components/ui/app-select";
-import LeadViewComponent from "./LeadViewComponent";
+import { Avatar, EmptyState } from "@/components/ui";
+import { Card } from "@/components/ui/card";
+import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
+import { Search, Filter, Plus } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import LeadViewComponent from "./LeadViewComponent";
 
 type Stage = string;
 
 interface Lead {
-  /** Display / drag id: lead_unique_id when present, else leads.id */
   id: string;
-  /** UUID primary key in public.leads — required for fetch/update */
   rowUuid: string;
   name: string;
   phone: string;
@@ -24,6 +31,8 @@ interface Lead {
   agentColor: string;
   daysInStage: number;
   stage: Stage;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 type LeadRow = Record<string, unknown>;
@@ -55,6 +64,7 @@ const DEFAULT_STAGES: Stage[] = [
   "New Lead", "Attempted Contact", "Contacted", "Discovery Call", "Presentation",
   "Needs Quote", "Quoted", "Underwriting", "Bound", "Won", "Lost"
 ];
+
 const STAGE_CONFIG: Record<string, { color: string; bg: string; header: string }> = {
   "New Lead":          { color: "#638b4b", bg: "#f2f8ee", header: "#ddecd4" },
   "Attempted Contact": { color: "#6366f1", bg: "#eef2ff", header: "#e0e7ff" },
@@ -92,14 +102,149 @@ const LEAD_ALL_LEADS_ROLES = new Set([
   "accounting",
 ]);
 
-// const INITIAL_LEADS: Lead[] = [ ... ]; // Dummy data commented out for production
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select..."
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 38,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value && value !== "All" ? T.textDark : T.textMuted,
+          fontSize: 13,
+          fontWeight: 500,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value && value !== "All"
+            ? options.find(o => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; label?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          border: `3px solid ${T.border}`,
+          borderTopColor: "#233217",
+          animation: "spin 0.8s linear infinite",
+        }}
+      />
+      {label && (
+        <span style={{ fontSize: 14, fontWeight: 500, color: T.textMuted }}>{label}</span>
+      )}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <Card
+      style={{
+        borderRadius: 16,
+        border: `1px solid ${T.border}`,
+        borderBottom: "4px solid #DCEBDC",
+        background: T.cardBg,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+        padding: "20px 24px",
+        minHeight: 100,
+        display: "flex",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 16,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
+        <div style={{ width: 80, height: 10, borderRadius: 4, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+        <div style={{ width: 60, height: 26, borderRadius: 6, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+      </div>
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)",
+          backgroundSize: "200% 100%",
+          animation: "shimmer 1.5s infinite",
+        }}
+      />
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+    </Card>
+  );
+}
 
 export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdateActions?: boolean }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role;
-  // `canUpdateActions` is already permission-mapped by parent (and excludes call_center_admin).
   const canEditLeadPipeline = canUpdateActions;
 
   const goToLead = useCallback(
@@ -109,41 +254,35 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     },
     [router, routeRole]
   );
-  const [leads, setLeads] = useState<Lead[]>([]); // Start with empty array, no dummy data
-  const [dragRowUuid, setDragRowUuid] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState<Stage | null>(null);
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-  const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
+
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
   const [pipeline, setPipeline] = useState<string>("");
   const [pipelines, setPipelines] = useState<string[]>([]);
   const [stages, setStages] = useState<Stage[]>(DEFAULT_STAGES);
   const [userCallCenterId, setUserCallCenterId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [itemsPerPage, setItemsPerPage] = useState(20);
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [itemsPerPage] = useState(20);
   const [page, setPage] = useState(1);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [activeFilterTab, setActiveFilterTab] = useState<"Filters" | "Fields">("Filters");
-  const [activeTab, setActiveTab] = useState("Opportunities");
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
+  const [dragRowUuid, setDragRowUuid] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<Stage | null>(null);
+  const [kanbanPage, setKanbanPage] = useState<Record<string, number>>({});
+  const KANBAN_ITEMS_PER_PAGE = 25;
+  const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [filterStage, setFilterStage] = useState<Stage | "All">("All");
   const [filterType, setFilterType] = useState("All");
   const [filterAgent, setFilterAgent] = useState("All");
   const [filterSource, setFilterSource] = useState("All");
   const [filterMinPremium, setFilterMinPremium] = useState("");
   const [filterMaxPremium, setFilterMaxPremium] = useState("");
-  const [drawerStage, setDrawerStage] = useState<Stage | "All">("All");
-  const [drawerType, setDrawerType] = useState("All");
-  const [drawerAgent, setDrawerAgent] = useState("All");
-  const [drawerSource, setDrawerSource] = useState("All");
-  const [drawerMinPremium, setDrawerMinPremium] = useState("");
-  const [drawerMaxPremium, setDrawerMaxPremium] = useState("");
   const [quickEditLead, setQuickEditLead] = useState<Lead | null>(null);
   const [activeQuickEditTab, setActiveQuickEditTab] = useState<"Opportunity Details" | "Notes">("Opportunity Details");
   const [quickEditRow, setQuickEditRow] = useState<LeadRow | null>(null);
   const [quickEditLoading, setQuickEditLoading] = useState(false);
   const [quickEditSaving, setQuickEditSaving] = useState(false);
   const [quickEditError, setQuickEditError] = useState<string | null>(null);
-  const [hideEmptyQuickFields, setHideEmptyQuickFields] = useState(false);
   const [quickEditStages, setQuickEditStages] = useState<Stage[]>([]);
   const [leadNotes, setLeadNotes] = useState<LeadNoteRow[]>([]);
   const [leadNotesLoading, setLeadNotesLoading] = useState(false);
@@ -152,6 +291,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [addingNote, setAddingNote] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [licensedOwnerOptions, setLicensedOwnerOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
 
   const resolvePipelineId = useCallback(
     async (pipelineName: string) => {
@@ -162,6 +302,31 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     [supabase]
   );
 
+  const filteredLeads = useMemo(() => {
+    const query = search.toLowerCase().trim();
+    const numericQuery = query.replace(/\D/g, "");
+
+    return leads.filter(l => {
+      const matchesSearch = !query ||
+        l.name.toLowerCase().includes(query) ||
+        l.phone.includes(numericQuery) ||
+        l.type.toLowerCase().includes(query) ||
+        l.source.toLowerCase().includes(query);
+      const matchesStage = filterStage === "All" || l.stage === filterStage;
+      const matchesType = filterType === "All" || l.type === filterType;
+      const matchesAgent = filterAgent === "All" || l.agent === filterAgent;
+      const matchesSource = filterSource === "All" || l.source === filterSource;
+      const minPremium = filterMinPremium.trim() ? Number(filterMinPremium) : null;
+      const maxPremium = filterMaxPremium.trim() ? Number(filterMaxPremium) : null;
+      const validMin = minPremium == null || Number.isNaN(minPremium) ? true : l.premium >= minPremium;
+      const validMax = maxPremium == null || Number.isNaN(maxPremium) ? true : l.premium <= maxPremium;
+      return matchesSearch && matchesStage && matchesType && matchesAgent && matchesSource && validMin && validMax;
+    });
+  }, [leads, search, filterStage, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
+
+  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
+  const paginatedLeads = filteredLeads.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
   const byStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
   const stageValue = (stage: Stage) => byStage(stage).reduce((s, l) => s + l.premium, 0);
 
@@ -169,20 +334,69 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     setCollapsedStages((prev) => ({ ...prev, [stage]: !prev[stage] }));
   };
 
-  const filteredLeads = leads.filter(l => {
-    const matchesSearch = !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.type.toLowerCase().includes(search.toLowerCase());
-    const matchesStage = filterStage === "All" || l.stage === filterStage;
-    const matchesType = filterType === "All" || l.type === filterType;
-    const matchesAgent = filterAgent === "All" || l.agent === filterAgent;
-    const matchesSource = filterSource === "All" || l.source === filterSource;
-    const minPremium = filterMinPremium.trim() ? Number(filterMinPremium) : null;
-    const maxPremium = filterMaxPremium.trim() ? Number(filterMaxPremium) : null;
-    const validMin = minPremium == null || Number.isNaN(minPremium) ? true : l.premium >= minPremium;
-    const validMax = maxPremium == null || Number.isNaN(maxPremium) ? true : l.premium <= maxPremium;
-    return matchesSearch && matchesStage && matchesType && matchesAgent && matchesSource && validMin && validMax;
-  });
-  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
-  const paginatedLeads = filteredLeads.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (filterStage !== "All") n++;
+    if (filterType !== "All") n++;
+    if (filterAgent !== "All") n++;
+    if (filterSource !== "All") n++;
+    if (filterMinPremium.trim()) n++;
+    if (filterMaxPremium.trim()) n++;
+    return n;
+  }, [filterStage, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
+
+  const hasActiveFilters = activeFilterCount > 0;
+
+  const clearAllFilters = () => {
+    setSearch("");
+    setFilterStage("All");
+    setFilterType("All");
+    setFilterAgent("All");
+    setFilterSource("All");
+    setFilterMinPremium("");
+    setFilterMaxPremium("");
+    setPage(1);
+  };
+
+  const resolveStageId = useCallback(async (pipelineName: string, stageName: string) => {
+    const { data: pipelineRow } = await supabase.from("pipelines").select("id").eq("name", pipelineName).maybeSingle();
+    if (!pipelineRow?.id) return null;
+    const { data: st } = await supabase
+      .from("pipeline_stages")
+      .select("id")
+      .eq("pipeline_id", pipelineRow.id)
+      .eq("name", stageName)
+      .maybeSingle();
+    return st?.id ?? null;
+  }, [supabase]);
+
+  const handleKanbanDrop = useCallback(
+    async (targetStage: Stage) => {
+      if (!dragRowUuid || !canEditLeadPipeline) {
+        setDragRowUuid(null);
+        setDragOver(null);
+        return;
+      }
+      const droppedUuid = dragRowUuid;
+      const prevLead = leads.find((l) => l.rowUuid === droppedUuid);
+      if (!prevLead || prevLead.stage === targetStage) {
+        setDragRowUuid(null);
+        setDragOver(null);
+        return;
+      }
+      const stageId = await resolveStageId(pipeline, targetStage);
+      setLeads((p) => p.map((l) => (l.rowUuid === droppedUuid ? { ...l, stage: targetStage, daysInStage: 0 } : l)));
+      const updatePayload: Record<string, unknown> = { stage: targetStage };
+      if (stageId != null) updatePayload.stage_id = stageId;
+      const { error } = await supabase.from("leads").update(updatePayload).eq("id", droppedUuid);
+      setDragRowUuid(null);
+      setDragOver(null);
+      if (error && prevLead) {
+        setLeads((p) => p.map((l) => (l.rowUuid === droppedUuid ? prevLead : l)));
+      }
+    },
+    [dragRowUuid, canEditLeadPipeline, leads, pipeline, resolveStageId, supabase]
+  );
 
   useEffect(() => {
     setPage(1);
@@ -195,6 +409,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
   const loadLeadsForPipeline = useCallback(async () => {
     if (!stages.length) return;
+    setLoading(true);
 
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData?.session?.user?.id || null;
@@ -207,7 +422,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     }
 
     const selectCols =
-      "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, pipeline_id, is_draft, call_center_id, licensed_agent_account";
+      "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, pipeline_id, is_draft, call_center_id, licensed_agent_account, created_at, updated_at";
 
     const isTransferPipeline = pipeline === "Transfer Portal";
     const canViewAllCenters = role ? LEAD_ALL_LEADS_ROLES.has(role) : false;
@@ -232,6 +447,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         agentColor: "#638b4b",
         daysInStage: 0,
         stage: stageName,
+        createdAt: row.created_at ? String(row.created_at) : undefined,
+        updatedAt: row.updated_at ? String(row.updated_at) : undefined,
       };
     };
 
@@ -239,6 +456,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       const transferPipelineId = await resolvePipelineId("Transfer Portal");
       if (!transferPipelineId) {
         setLeads([]);
+        setLoading(false);
         return;
       }
       let q: any = supabase.from("leads").select(selectCols).eq("pipeline_id", transferPipelineId).eq("is_draft", false).order("created_at", { ascending: false });
@@ -251,21 +469,25 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
       if (error || !data || data.length === 0) {
         setLeads([]);
+        setLoading(false);
         return;
       }
 
       setLeads((data as Record<string, unknown>[]).map((row) => mapRow(row)));
+      setLoading(false);
       return;
     }
 
     if (!pipeline) {
       setLeads([]);
+      setLoading(false);
       return;
     }
 
     const selectedPipelineId = await resolvePipelineId(pipeline);
     if (!selectedPipelineId) {
       setLeads([]);
+      setLoading(false);
       return;
     }
     let q: any = supabase.from("leads").select(selectCols).eq("pipeline_id", selectedPipelineId).eq("is_draft", false).order("created_at", { ascending: false });
@@ -277,11 +499,13 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     const { data, error } = await q;
     if (error || !data) {
       setLeads([]);
+      setLoading(false);
       return;
     }
 
     const mapped: Lead[] = (data as Record<string, unknown>[]).map((row) => mapRow(row));
     setLeads(mapped);
+    setLoading(false);
   }, [pipeline, stages, supabase, resolvePipelineId]);
 
   useEffect(() => {
@@ -533,7 +757,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   };
 
   const deleteLeadNote = async (noteId: string) => {
-    if (!window.confirm("Delete this note?")) return;
     setLeadNotesError(null);
     const { error } = await supabase.from("lead_notes").delete().eq("id", noteId);
     if (error) {
@@ -542,46 +765,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     }
     if (quickEditLead?.rowUuid) await loadLeadNotes(quickEditLead.rowUuid);
   };
-
-  const resolveStageId = useCallback(async (pipelineName: string, stageName: string) => {
-    const { data: pipelineRow } = await supabase.from("pipelines").select("id").eq("name", pipelineName).maybeSingle();
-    if (!pipelineRow?.id) return null;
-    const { data: st } = await supabase
-      .from("pipeline_stages")
-      .select("id")
-      .eq("pipeline_id", pipelineRow.id)
-      .eq("name", stageName)
-      .maybeSingle();
-    return st?.id ?? null;
-  }, [supabase]);
-
-  const handleKanbanDrop = useCallback(
-    async (targetStage: Stage) => {
-      if (!dragRowUuid || !canEditLeadPipeline) {
-        setDragRowUuid(null);
-        setDragOver(null);
-        return;
-      }
-      const droppedUuid = dragRowUuid;
-      const prevLead = leads.find((l) => l.rowUuid === droppedUuid);
-      if (!prevLead || prevLead.stage === targetStage) {
-        setDragRowUuid(null);
-        setDragOver(null);
-        return;
-      }
-      const stageId = await resolveStageId(pipeline, targetStage);
-      setLeads((p) => p.map((l) => (l.rowUuid === droppedUuid ? { ...l, stage: targetStage, daysInStage: 0 } : l)));
-      const updatePayload: Record<string, unknown> = { stage: targetStage };
-      if (stageId != null) updatePayload.stage_id = stageId;
-      const { error } = await supabase.from("leads").update(updatePayload).eq("id", droppedUuid);
-      setDragRowUuid(null);
-      setDragOver(null);
-      if (error && prevLead) {
-        setLeads((p) => p.map((l) => (l.rowUuid === droppedUuid ? prevLead : l)));
-      }
-    },
-    [dragRowUuid, canEditLeadPipeline, leads, pipeline, resolveStageId, supabase]
-  );
 
   const closeQuickEdit = () => {
     setQuickEditLead(null);
@@ -631,11 +814,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         const parsed = JSON.parse(tagsRaw);
         if (Array.isArray(parsed)) tagsVal = parsed.map((t) => String(t));
       } catch {
-        tagsVal = tagsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+        tagsVal = tagsRaw.split(",").map((s: string) => s.trim()).filter(Boolean);
       }
     }
 
-    // DB columns `age`, `monthly_premium`, `coverage_amount` are text — must not send JSON numbers.
     const payload: Record<string, unknown> = {
       first_name: strVal("first_name"),
       last_name: strVal("last_name"),
@@ -700,7 +882,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
   const deleteQuickEdit = async () => {
     if (!quickEditLead?.rowUuid) return;
-    if (!window.confirm("Delete this lead permanently? This cannot be undone.")) return;
     setQuickEditSaving(true);
     setQuickEditError(null);
     const { error } = await supabase.from("leads").delete().eq("id", quickEditLead.rowUuid);
@@ -712,6 +893,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     await loadLeadsForPipeline();
     closeQuickEdit();
   };
+
+  const [showAddLead, setShowAddLead] = useState(false);
+  const sourceOptions = Array.from(new Set(leads.map((lead) => lead.source).filter(Boolean)));
 
   const renderKanbanBoard = () => (
     <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
@@ -757,16 +941,17 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         
         .kanban-column-body {
           overflow-y: auto;
-          max-height: calc(100vh - 320px);
-          min-height: 480px;
-          padding: 12px 2px;
+          max-height: calc(100vh - 280px);
+          min-height: 400px;
+          padding: 12px 10px;
           display: flex;
           flex-direction: column;
           gap: 12px;
         }
-        .kanban-column-body::-webkit-scrollbar { width: 5px; }
+        .kanban-column-body::-webkit-scrollbar { width: 6px; }
         .kanban-column-body::-webkit-scrollbar-track { background: transparent; }
-        .kanban-column-body::-webkit-scrollbar-thumb { background-color: #c8d4bb; border-radius: 10px; }
+        .kanban-column-body::-webkit-scrollbar-thumb { background-color: #b8c9a8; border-radius: 6px; }
+        .kanban-column-body::-webkit-scrollbar-thumb:hover { background-color: #233217; }
       `}</style>
       
       <div className="kanban-container">
@@ -776,6 +961,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
             const stageLeads = byStage(stage).filter(l => filteredLeads.includes(l));
             const isCollapsed = collapsedStages[stage];
             const isOver = dragOver === stage;
+            const currentPage = kanbanPage[stage] || 1;
+            const totalPages = Math.ceil(stageLeads.length / KANBAN_ITEMS_PER_PAGE);
+            const paginatedLeads = stageLeads.slice((currentPage - 1) * KANBAN_ITEMS_PER_PAGE, currentPage * KANBAN_ITEMS_PER_PAGE);
             return (
               <div
                 key={stage}
@@ -830,8 +1018,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       </div>
                     </div>
 
-                    <div className="kanban-column-body" style={{ backgroundColor: isOver ? cfg.bg + "40" : "transparent", transition: "background-color 0.2s" }}>
-                      {stageLeads.map((lead) => (
+                    <div className="kanban-column-body" style={{ backgroundColor: isOver ? cfg.bg + "40" : "#fafcf8", transition: "background-color 0.2s" }}>
+                      {paginatedLeads.map((lead) => (
                         <div
                           key={lead.rowUuid}
                           onClick={() => goToLead(lead.rowUuid)}
@@ -839,16 +1027,16 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                           onDragStart={() => { if (canEditLeadPipeline) setDragRowUuid(lead.rowUuid); }}
                           onDragEnd={() => { setDragRowUuid(null); setDragOver(null); }}
                           style={{
-                            backgroundColor: "#fff", borderRadius: 8, padding: "16px",
-                            boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: `1px solid ${T.border}`,
-                            borderLeft: `3px solid ${cfg.color}`,
-                            cursor: canEditLeadPipeline ? "grab" : "default",
+                            backgroundColor: "#fff", borderRadius: 10, padding: "16px",
+                            boxShadow: "0 2px 8px rgba(35, 50, 23, 0.08)", border: `1px solid ${T.border}`,
+                            borderLeft: `4px solid ${cfg.color}`,
+                            cursor: canEditLeadPipeline ? "grab" : "pointer",
                             opacity: dragRowUuid === lead.rowUuid ? 0.5 : 1,
-                            transition: "all 0.15s",
+                            transition: "all 0.2s ease",
                             position: "relative"
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.boxShadow = T.shadowSm; }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.06)"; }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = "#233217"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(35, 50, 23, 0.15)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "0 2px 8px rgba(35, 50, 23, 0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, alignItems: "flex-start" }}>
                             <div style={{ flex: 1, marginRight: 8 }}>
@@ -869,7 +1057,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                 </button>
                               )}
-                              <input type="checkbox" onClick={(e) => e.stopPropagation()} style={{ width: 14, height: 14, accentColor: T.blue, cursor: "pointer", border: `1.5px solid ${T.border}`, borderRadius: 3 }} />
+                              <input type="checkbox" onClick={(e) => e.stopPropagation()} style={{ width: 16, height: 16, accentColor: "#233217", cursor: "pointer", border: `1.5px solid ${T.border}`, borderRadius: 4 }} />
                             </div>
                           </div>
 
@@ -886,14 +1074,14 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                               </div>
                             </div>
 
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 12, borderTop: `1px solid ${T.borderLight}` }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 12, borderTop: `1px solid ${T.borderLight}` }}>
                              {[
-                               { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>, count: 11 },
-                               { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, count: 52 },
+                               { icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>, count: 11, color: "#638b4b" },
+                               { icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, count: 52, color: "#9333ea" },
                              ].map((item, idx) => (
-                               <div key={idx} style={{ color: T.textMuted, display: "flex", alignItems: "center", position: "relative", cursor: "pointer" }}>
+                               <div key={idx} style={{ color: item.color, display: "flex", alignItems: "center", position: "relative", cursor: "pointer", opacity: 0.7 }}>
                                  {item.count !== undefined && item.count > 0 && (
-                                   <div style={{ position: "absolute", top: -8, right: -10, backgroundColor: T.blue, color: "#fff", fontSize: 8, fontWeight: 800, minWidth: 16, height: 16, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid #fff", padding: "0 2px" }}>{item.count}</div>
+                                   <div style={{ position: "absolute", top: -8, right: -10, backgroundColor: item.color, color: "#fff", fontSize: 9, fontWeight: 800, minWidth: 18, height: 18, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid #fff", padding: "0 3px" }}>{item.count}</div>
                                  )}
                                  {item.icon}
                                </div>
@@ -901,6 +1089,52 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                           </div>
                         </div>
                       ))}
+
+                      {totalPages > 1 && (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 4px", borderTop: `1px solid ${T.borderLight}`, marginTop: 4 }}>
+                          <button
+                            onClick={() => setKanbanPage(prev => ({ ...prev, [stage]: Math.max(1, (prev[stage] || 1) - 1) }))}
+                            disabled={currentPage === 1}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 6,
+                              border: `1px solid ${T.border}`,
+                              background: "#fff",
+                              color: currentPage === 1 ? T.textMuted : "#233217",
+                              cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              opacity: currentPage === 1 ? 0.5 : 1,
+                            }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+                          </button>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>
+                            {currentPage} / {totalPages}
+                          </span>
+                          <button
+                            onClick={() => setKanbanPage(prev => ({ ...prev, [stage]: Math.min(totalPages, (prev[stage] || 1) + 1) }))}
+                            disabled={currentPage === totalPages}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 6,
+                              border: `1px solid ${T.border}`,
+                              background: "#fff",
+                              color: currentPage === totalPages ? T.textMuted : "#233217",
+                              cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              opacity: currentPage === totalPages ? 0.5 : 1,
+                            }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -911,49 +1145,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       </div>
     </div>
   );
-
-  const [showAddLead, setShowAddLead] = useState(false);
-  const sourceOptions = Array.from(new Set(leads.map((lead) => lead.source).filter(Boolean)));
-
-  const openFilterDrawer = () => {
-    setDrawerStage(filterStage);
-    setDrawerType(filterType);
-    setDrawerAgent(filterAgent);
-    setDrawerSource(filterSource);
-    setDrawerMinPremium(filterMinPremium);
-    setDrawerMaxPremium(filterMaxPremium);
-    setIsFilterOpen(true);
-  };
-
-  const applyDrawerFilters = () => {
-    setFilterStage(drawerStage);
-    setFilterType(drawerType);
-    setFilterAgent(drawerAgent);
-    setFilterSource(drawerSource);
-    setFilterMinPremium(drawerMinPremium.trim());
-    setFilterMaxPremium(drawerMaxPremium.trim());
-    setIsFilterOpen(false);
-  };
-
-  const resetDrawerFilters = () => {
-    setDrawerStage("All");
-    setDrawerType("All");
-    setDrawerAgent("All");
-    setDrawerSource("All");
-    setDrawerMinPremium("");
-    setDrawerMaxPremium("");
-    setFilterStage("All");
-    setFilterType("All");
-    setFilterAgent("All");
-    setFilterSource("All");
-    setFilterMinPremium("");
-    setFilterMaxPremium("");
-  };
-
-  const clearAllFilters = () => {
-    setSearch("");
-    resetDrawerFilters();
-  };
 
   if (showAddLead) {
     return <LeadViewComponent isCreation onBack={() => setShowAddLead(false)} onSubmit={(newLead: any) => {
@@ -975,338 +1166,639 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     }} />;
   }
 
+  const totalPremium = filteredLeads.reduce((s, l) => s + l.premium, 0);
+  const avgPremium = filteredLeads.length ? totalPremium / filteredLeads.length : 0;
+  const uniqueAgents = new Set(filteredLeads.map((l) => l.agent)).size;
+
+  const stageOptions = [{ value: "All", label: "All Stages" }, ...stages.map(s => ({ value: s, label: s }))];
+  const typeOptions = [{ value: "All", label: "All Types" }, ...Object.keys(TYPE_COLORS).map(t => ({ value: t, label: t }))];
+  const agentOptions = [{ value: "All", label: "All Owners" }, ...Array.from(new Set(leads.map((l) => l.agent))).map(a => ({ value: a, label: a }))];
+  const sourceFilterOptions = [{ value: "All", label: "All Sources" }, ...sourceOptions.map(s => ({ value: s, label: s }))];
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, paddingBottom: 24, position: "relative" }}>
-      {/* Drawer Overlay */}
-      {isFilterOpen && (
-        <div onClick={() => setIsFilterOpen(false)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.15)", zIndex: 1000, backdropFilter: "blur(2px)" }} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
+        ) : (
+          [
+            { label: "Total Opportunities", value: filteredLeads.length.toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              ) },
+            { label: "Total Value", value: `$${totalPremium.toLocaleString()}`, color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              ) },
+            { label: "Average Value", value: `$${Math.round(avgPremium).toLocaleString()}`, color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              ) },
+            { label: "Active Owners", value: uniqueAgents.toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              ) },
+          ].map(({ label, value, color, icon }, i) => (
+              <Card
+                key={label}
+                onMouseEnter={() => setHoveredStatIdx(i)}
+                onMouseLeave={() => setHoveredStatIdx(null)}
+                style={{
+                  borderRadius: 16,
+                  border: `1px solid ${T.border}`,
+                  borderBottom: `4px solid ${color}`,
+                  background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+                  boxShadow:
+                    hoveredStatIdx === i
+                      ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+                      : "0 4px 12px rgba(0,0,0,0.03)",
+                  transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
+                  transition:
+                    "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                  padding: "20px 24px",
+                  minHeight: 100,
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                  cursor: "default",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
+                    {value}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    color,
+                    backgroundColor:
+                      hoveredStatIdx === i
+                        ? `color-mix(in srgb, ${color} 24%, transparent)`
+                        : `color-mix(in srgb, ${color} 15%, transparent)`,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition:
+                      "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                    transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                  }}
+                >
+                  {icon}
+                </div>
+              </Card>
+          ))
+        )}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 14 }}>
+        <div
+          style={{
+            width: "100%",
+            background: T.cardBg,
+            border: `1px solid ${T.border}`,
+            borderBottom: filterPanelExpanded || hasActiveFilters ? "none" : `1px solid ${T.border}`,
+            borderRadius: filterPanelExpanded || hasActiveFilters ? "16px 16px 0 0" : 16,
+            padding: "14px 20px",
+            boxShadow: filterPanelExpanded || hasActiveFilters ? "none" : T.shadowSm,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 16,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <StyledSelect
+              value={pipeline}
+              onValueChange={setPipeline}
+              options={pipelines.map(p => ({ value: p, label: p }))}
+              placeholder="Select pipeline..."
+            />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <Search
+                size={16}
+                style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }}
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search opportunities..."
+                style={{
+                  height: 38,
+                  minWidth: 260,
+                  paddingLeft: 38,
+                  paddingRight: 14,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  background: T.pageBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setFilterPanelExpanded((v) => !v)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                height: 38,
+                padding: "0 16px",
+                borderRadius: 10,
+                border: filterPanelExpanded ? `1.5px solid #233217` : `1px solid ${T.border}`,
+                background: filterPanelExpanded ? "#DCEBDC" : T.pageBg,
+                color: filterPanelExpanded ? "#233217" : T.textDark,
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: "pointer",
+                transition: "all 0.15s ease-in-out",
+              }}
+            >
+              <Filter size={16} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 20,
+                  height: 20,
+                  padding: "0 6px",
+                  borderRadius: 999,
+                  background: "#233217",
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
+            <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden" }}>
+               <button onClick={() => setViewMode("kanban")} style={{ padding: "8px 10px", background: viewMode === "kanban" ? "#DCEBDC" : "#fff", color: viewMode === "kanban" ? "#233217" : T.textMuted, border: "none", cursor: "pointer" }}>
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+               </button>
+               <button onClick={() => setViewMode("list")} style={{ padding: "8px 10px", background: viewMode === "list" ? "#DCEBDC" : "#fff", color: viewMode === "list" ? "#233217" : T.textMuted, border: "none", borderLeft: `1px solid ${T.border}`, cursor: "pointer" }}>
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+               </button>
+            </div>
+
+            {canEditLeadPipeline && (
+              <button
+                onClick={() => setShowAddLead(true)}
+                style={{
+                  height: 38,
+                  padding: "0 18px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#233217",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Plus size={16} />
+                Add Lead
+              </button>
+            )}
+          </div>
+        </div>
+
+        {(filterPanelExpanded || hasActiveFilters) && (
+          <div
+            style={{
+              width: "100%",
+              background: T.cardBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: "0 0 16px 16px",
+              padding: "20px 24px",
+              boxShadow: T.shadowSm,
+              display: "flex",
+              flexDirection: "column",
+              gap: 20,
+              overflow: "visible",
+              position: "relative",
+              zIndex: 50,
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Stage</div>
+                  <StyledSelect
+                    value={filterStage}
+                    onValueChange={(val) => setFilterStage(val as Stage | "All")}
+                    options={stageOptions}
+                    placeholder="All Stages"
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Type</div>
+                  <StyledSelect
+                    value={filterType}
+                    onValueChange={setFilterType}
+                    options={typeOptions}
+                    placeholder="All Types"
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Owner</div>
+                  <StyledSelect
+                    value={filterAgent}
+                    onValueChange={setFilterAgent}
+                    options={agentOptions}
+                    placeholder="All Owners"
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Source</div>
+                  <StyledSelect
+                    value={filterSource}
+                    onValueChange={setFilterSource}
+                    options={sourceFilterOptions}
+                    placeholder="All Sources"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Min Value</div>
+                  <input
+                    type="number"
+                    value={filterMinPremium}
+                    onChange={(e) => setFilterMinPremium(e.target.value)}
+                    placeholder="0"
+                    style={{
+                      width: "100%",
+                      height: 38,
+                      paddingLeft: 14,
+                      paddingRight: 12,
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 10,
+                      fontSize: 13,
+                      color: T.textDark,
+                      background: T.cardBg,
+                      outline: "none",
+                      fontFamily: T.font,
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "#233217";
+                      e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = T.border;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Max Value</div>
+                  <input
+                    type="number"
+                    value={filterMaxPremium}
+                    onChange={(e) => setFilterMaxPremium(e.target.value)}
+                    placeholder="10000"
+                    style={{
+                      width: "100%",
+                      height: 38,
+                      paddingLeft: 14,
+                      paddingRight: 12,
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 10,
+                      fontSize: 13,
+                      color: T.textDark,
+                      background: T.cardBg,
+                      outline: "none",
+                      fontFamily: T.font,
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "#233217";
+                      e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = T.border;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
+              </div>
+
+              {hasActiveFilters && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {filterStage !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Stage: {filterStage}
+                        <button onClick={() => setFilterStage("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {filterType !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Type: {filterType}
+                        <button onClick={() => setFilterType("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {filterAgent !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Owner: {filterAgent}
+                        <button onClick={() => setFilterAgent("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {filterSource !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Source: {filterSource}
+                        <button onClick={() => setFilterSource("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {filterMinPremium.trim() && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Min: ${filterMinPremium}
+                        <button onClick={() => setFilterMinPremium("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {filterMaxPremium.trim() && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Max: ${filterMaxPremium}
+                        <button onClick={() => setFilterMaxPremium("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#233217",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      padding: "4px 0",
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.textDecoration = "underline";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.textDecoration = "none";
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div
+          style={{
+            borderRadius: 16,
+            border: `1px solid ${T.border}`,
+            backgroundColor: T.cardBg,
+            padding: "80px 40px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 20,
+          }}
+        >
+          <LoadingSpinner size={48} label="Loading opportunities..." />
+        </div>
+      ) : filteredLeads.length === 0 ? (
+        <EmptyState title="No opportunities found" description="Try changing your search or filters." />
+      ) : viewMode === "kanban" ? (
+        filteredLeads.length === 0 ? (
+          <EmptyState title="No opportunities found" description="Try changing your search or filters." compact />
+        ) : (
+          renderKanbanBoard()
+        )
+      ) : (
+        <div
+          style={{
+            borderRadius: 16,
+            border: `1px solid ${T.border}`,
+            borderBottom: "none",
+            overflow: "hidden",
+            backgroundColor: T.cardBg,
+          }}
+        >
+          <ShadcnTable>
+            <TableHeader style={{ backgroundColor: "#233217" }}>
+              <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                {[
+                  { label: "Opportunity", align: "left" as const },
+                  { label: "Stage", align: "left" as const },
+                  { label: "Type", align: "left" as const },
+                  { label: "Value", align: "right" as const },
+                  { label: "Owner", align: "left" as const },
+                  { label: "Source", align: "left" as const },
+                  { label: "Actions", align: "center" as const },
+                ].map(({ label, align }) => (
+                  <TableHead key={label} style={{
+                    color: "#ffffff",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    letterSpacing: "0.3px",
+                    padding: "16px 20px",
+                    whiteSpace: "nowrap",
+                    textAlign: align
+                  }}>
+                    {label}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedLeads.map((lead) => (
+                <TableRow
+                  key={lead.rowUuid}
+                  onClick={() => goToLead(lead.rowUuid)}
+                  style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                  className="hover:bg-muted/30 transition-all duration-150"
+                >
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <Avatar name={lead.name} size={32} style={{ border: `1px solid ${T.border}` }} />
+                      <div>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: T.textDark }}>{lead.name}</p>
+                        <p style={{ margin: 0, fontSize: 12, color: T.textMuted }}>{lead.phone ? formatPhoneDisplay(lead.phone) : "No phone"}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      backgroundColor: TYPE_COLORS[lead.type] ? `${TYPE_COLORS[lead.type]}15` : "#f0f0f0",
+                      color: TYPE_COLORS[lead.type] || T.textMid,
+                    }}>
+                      {lead.stage}
+                    </span>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      backgroundColor: TYPE_COLORS[lead.type] ? `${TYPE_COLORS[lead.type]}15` : "#f0f0f0",
+                      color: TYPE_COLORS[lead.type] || T.textMid,
+                    }}>
+                      {lead.type}
+                    </span>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px", textAlign: "right" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#233217" }}>${lead.premium.toLocaleString()}</span>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Avatar name={lead.agent} size={28} style={{ backgroundColor: lead.agentColor }} />
+                      <span style={{ fontSize: 13, fontWeight: 500, color: T.textDark }}>{lead.agent}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <span style={{ fontSize: 13, color: T.textMid }}>{lead.source}</span>
+                  </TableCell>
+                  <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
+                    >
+                      <button
+                        onClick={() => goToLead(lead.rowUuid)}
+                        style={{ background: "none", border: "none", color: "#233217", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                        title="View Lead"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                      {canEditLeadPipeline && (
+                        <button
+                          onClick={() => openQuickEdit(lead)}
+                          style={{ background: "none", border: "none", color: T.textMuted, cursor: "pointer", padding: 6, borderRadius: 6 }}
+                          title="Quick Edit"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </ShadcnTable>
+        </div>
       )}
 
-      {/* Filter Sidebar */}
-      <div style={{ position: "fixed", top: 0, right: isFilterOpen ? 0 : -420, width: 420, bottom: 0, backgroundColor: "#fff", zIndex: 1001, boxShadow: "-8px 0 32px rgba(0,0,0,0.05)", transition: "right 0.3s ease", display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "24px", borderBottom: `1.5px solid ${T.borderLight}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Customise Card</h2>
-          <button onClick={() => setIsFilterOpen(false)} style={{ background: T.rowBg, border: "none", borderRadius: "50%", width: 32, height: 32, cursor: "pointer" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      {viewMode === "list" && !loading && filteredLeads.length > 0 && (
+        <div style={{
+          backgroundColor: T.cardBg,
+          border: `1px solid ${T.border}`,
+          borderTop: "none",
+          borderRadius: "0 0 16px 16px",
+          padding: "16px 20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}>
+          <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
+            Showing {((page - 1) * itemsPerPage) + 1} to {Math.min(page * itemsPerPage, filteredLeads.length)} of {filteredLeads.length} opportunities
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
-              onClick={() => setActiveFilterTab("Filters")}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
               style={{
-                padding: "8px 12px",
+                width: 36,
+                height: 36,
                 borderRadius: 8,
-                border: activeFilterTab === "Filters" ? `1px solid ${T.blue}` : `1px solid ${T.border}`,
-                backgroundColor: activeFilterTab === "Filters" ? T.blueFaint : "#fff",
-                color: activeFilterTab === "Filters" ? T.blue : T.textMuted,
-                fontWeight: 700,
-                cursor: "pointer",
+                border: `1px solid ${T.border}`,
+                background: "#fff",
+                color: page === 1 ? T.textMuted : "#233217",
+                cursor: page === 1 ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              Filters
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark, minWidth: 80, textAlign: "center" }}>
+              Page {page} of {totalPages}
+            </span>
             <button
-              onClick={() => setActiveFilterTab("Fields")}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
               style={{
-                padding: "8px 12px",
+                width: 36,
+                height: 36,
                 borderRadius: 8,
-                border: activeFilterTab === "Fields" ? `1px solid ${T.blue}` : `1px solid ${T.border}`,
-                backgroundColor: activeFilterTab === "Fields" ? T.blueFaint : "#fff",
-                color: activeFilterTab === "Fields" ? T.blue : T.textMuted,
-                fontWeight: 700,
-                cursor: "pointer",
+                border: `1px solid ${T.border}`,
+                background: "#fff",
+                color: page === totalPages ? T.textMuted : "#233217",
+                cursor: page === totalPages ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              Fields
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
             </button>
           </div>
-          {activeFilterTab === "Filters" ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Stage</label>
-                <AppSelect value={drawerStage} onChange={(e: any) => setDrawerStage(e.target.value as Stage | "All")} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
-                  <option value="All">All Stages</option>
-                  {stages.map((s) => <option key={s} value={s}>{s}</option>)}
-                </AppSelect>
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Type</label>
-                <AppSelect value={drawerType} onChange={(e: any) => setDrawerType(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
-                  <option value="All">All Types</option>
-                  {Object.keys(TYPE_COLORS).map((t) => <option key={t} value={t}>{t}</option>)}
-                </AppSelect>
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Owner</label>
-                <AppSelect value={drawerAgent} onChange={(e: any) => setDrawerAgent(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
-                  <option value="All">All Owners</option>
-                  {Array.from(new Set(leads.map((l) => l.agent))).map((a) => <option key={a} value={a}>{a}</option>)}
-                </AppSelect>
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Source</label>
-                <AppSelect value={drawerSource} onChange={(e: any) => setDrawerSource(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>
-                  <option value="All">All Sources</option>
-                  {sourceOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </AppSelect>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Min Value</label>
-                  <input
-                    value={drawerMinPremium}
-                    onChange={(e) => setDrawerMinPremium(e.target.value.replace(/[^0-9.]/g, ""))}
-                    placeholder="0"
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Max Value</label>
-                  <input
-                    value={drawerMaxPremium}
-                    onChange={(e) => setDrawerMaxPremium(e.target.value.replace(/[^0-9.]/g, ""))}
-                    placeholder="10000"
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}
-                  />
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ color: T.textMuted, fontSize: 13, lineHeight: 1.5 }}>
-              Field visibility controls can be added next. Current list and kanban cards already use active filters.
-            </div>
-          )}
         </div>
-        <div style={{ padding: "16px 24px", borderTop: `1.5px solid ${T.borderLight}`, display: "flex", gap: 12, justifyContent: "flex-end", backgroundColor: "#f9fafb" }}>
-          <button onClick={clearAllFilters} style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 16px", fontWeight: 700 }}>Clear Filters</button>
-          <button onClick={() => setIsFilterOpen(false)} style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 20px", fontWeight: 700 }}>Cancel</button>
-          <button onClick={applyDrawerFilters} style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontWeight: 700 }}>Apply</button>
-        </div>
-      </div>
+      )}
 
-      {/* Pipeline & Filter Toolbar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0", borderBottom: `1px solid ${T.pageBg}`, flexShrink: 0, gap: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <AppSelect
-            value={pipeline}
-            onChange={(e) => setPipeline(e.target.value)}
-            style={{ width: 260, padding: "8px 14px", border: `1.5px solid ${T.border}`, borderRadius: 10, fontSize: 13, fontWeight: 800, backgroundColor: "#fff", cursor: "pointer", outline: "none" }}
-          >
-            {pipelines.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </AppSelect>
-          <span style={{ fontSize: 12, fontWeight: 700, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 10px", borderRadius: 20 }}>{leads.length} opportunities</span>
-          
-          <div style={{ width: 1, height: 24, backgroundColor: T.border, margin: "0 4px" }} />
-          
-          <button onClick={openFilterDrawer} style={{ padding: "8px 16px", border: `1.5px solid ${T.blue}30`, borderRadius: 20, backgroundColor: T.blueFaint, color: T.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            Advanced Filters
-          </button>
-          <button style={{ padding: "8px 16px", border: `1.5px solid ${T.border}`, borderRadius: 20, backgroundColor: "#fff", color: T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
-            Sort (1)
-          </button>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden" }}>
-             <button onClick={() => setViewMode("kanban")} style={{ padding: "8px 10px", background: viewMode === "kanban" ? T.blueFaint : "#fff", color: viewMode === "kanban" ? T.blue : T.textMuted, border: "none", cursor: "pointer" }}>
-               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-             </button>
-             <button onClick={() => setViewMode("list")} style={{ padding: "8px 10px", background: viewMode === "list" ? T.blueFaint : "#fff", color: viewMode === "list" ? T.blue : T.textMuted, border: "none", borderLeft: `1px solid ${T.border}`, cursor: "pointer" }}>
-               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-             </button>
-          </div>
-          {canEditLeadPipeline && (
-            <button
-              onClick={() => setShowAddLead(true)}
-              style={{
-                backgroundColor: T.blue,
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "8px 16px",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              + Add lead
-            </button>
-          )}
-        </div>
-      </div>
-
-
-      {/* Main Board Area */}
-      <DataGrid
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search Opportunities..."
-        filters={
-          <>
-            <AppSelect value={filterStage} onChange={(e: any) => setFilterStage(e.target.value as any)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-              <option value="All">All Stages</option>
-              {stages.map(s => <option key={s} value={s}>{s}</option>)}
-            </AppSelect>
-            <AppSelect value={filterType} onChange={(e: any) => setFilterType(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-              <option value="All">All Types</option>
-              {Object.keys(TYPE_COLORS).map(t => <option key={t} value={t}>{t}</option>)}
-            </AppSelect>
-            <AppSelect value={filterAgent} onChange={(e: any) => setFilterAgent(e.target.value)} style={{ padding: "10px 14px", border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, fontWeight: 600, color: T.textMid, fontFamily: T.font, cursor: "pointer", backgroundColor: "transparent" }}>
-              <option value="All">All Owners</option>
-              {Array.from(new Set(leads.map(l => l.agent))).map(a => <option key={a} value={a}>{a}</option>)}
-            </AppSelect>
-          </>
-        }
-        activeFilters={
-          (filterStage !== "All" || filterType !== "All" || filterAgent !== "All" || filterSource !== "All" || Boolean(filterMinPremium) || Boolean(filterMaxPremium)) && (
-            <>
-              {filterStage !== "All" && <FilterChip label={`Stage: ${filterStage}`} onClear={() => setFilterStage("All")} />}
-              {filterType !== "All" && <FilterChip label={`Type: ${filterType}`} onClear={() => setFilterType("All")} />}
-              {filterAgent !== "All" && <FilterChip label={`Owner: ${filterAgent}`} onClear={() => setFilterAgent("All")} />}
-              {filterSource !== "All" && <FilterChip label={`Source: ${filterSource}`} onClear={() => setFilterSource("All")} />}
-              {Boolean(filterMinPremium) && <FilterChip label={`Min: $${filterMinPremium}`} onClear={() => setFilterMinPremium("")} />}
-              {Boolean(filterMaxPremium) && <FilterChip label={`Max: $${filterMaxPremium}`} onClear={() => setFilterMaxPremium("")} />}
-              <button
-                onClick={clearAllFilters}
-                style={{ background: "none", border: "none", color: T.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", marginLeft: "auto" }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "underline")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.textDecoration = "none")}
-              >
-                Clear Filters
-              </button>
-            </>
-          )
-        }
-        pagination={
-          viewMode === "list" ? (
-            <Pagination page={page} totalItems={filteredLeads.length} itemsPerPage={itemsPerPage} itemLabel="leads" onPageChange={setPage} />
-          ) : undefined
-        }
-      >
-        {viewMode === "kanban" ? (
-          filteredLeads.length === 0 ? (
-            <EmptyState title="No opportunities found" description="Try changing your search or filters." compact />
-          ) : (
-            renderKanbanBoard()
-          )
-        ) : (
-          <>
-            <Table
-              data={paginatedLeads}
-              viewportHeight={520}
-              onRowClick={(lead) => goToLead(lead.rowUuid)}
-              columns={[
-              {
-                header: <input type="checkbox" style={{ width: 15, height: 15, accentColor: T.blue }} />,
-                key: "checkbox",
-                width: 40,
-                align: "center",
-                render: () => <input type="checkbox" onClick={(e) => e.stopPropagation()} style={{ width: 14, height: 14, accentColor: T.blue }} />
-              },
-              {
-                header: "Opportunity",
-                key: "name",
-                sortable: true,
-                render: (lead) => <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.blue }}>{lead.name} ...</p>
-              },
-              {
-                header: "Contact",
-                key: "contact",
-                render: (lead) => (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Avatar name={lead.name} size={26} style={{ border: `1px solid ${T.border}` }} />
-                    <span style={{ fontSize: 13, color: T.textMid }}>{lead.name}...</span>
-                  </div>
-                )
-              },
-              {
-                header: "Stage",
-                key: "stage",
-                sortable: true,
-                render: (lead) => <span style={{ fontSize: 13, color: T.textMid }}>{lead.stage}...</span>
-              },
-              {
-                header: "Opportunity Value",
-                key: "premium",
-                sortable: true,
-                render: (lead) => <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>${lead.premium.toLocaleString()}</span>
-              },
-              {
-                header: "Status",
-                key: "status",
-                render: () => <Badge label="open" variant="custom" color={T.textMid} bgColor={T.pageBg} />
-              },
-              {
-                header: "Opportunity Owner",
-                key: "agent",
-                render: (lead) => <Avatar name={lead.agent} size={28} style={{ backgroundColor: lead.agentColor }} />
-              },
-              {
-                header: "Tags",
-                key: "tags",
-                render: () => <span style={{ backgroundColor: T.rowBg, borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 700, color: T.textMuted }}>call center</span>
-              },
-              {
-                header: "Created",
-                key: "created",
-                sortable: true,
-                render: () => (
-                  <div style={{ fontSize: 11, color: T.textMid }}>
-                     <p style={{ margin: 0 }}>Mar 9, 2026</p>
-                     <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>03:51 PM</p>
-                  </div>
-                )
-              },
-              {
-                header: "Updated",
-                key: "updated",
-                sortable: true,
-                render: () => (
-                  <div style={{ fontSize: 11, color: T.textMid }}>
-                     <p style={{ margin: 0 }}>Mar 16, 2026</p>
-                     <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>10:42 AM</p>
-                  </div>
-                )
-              },
-              {
-                header: "Actions",
-                key: "actions",
-                align: "center",
-                render: (lead) => (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <ActionMenu
-                      id={lead.id}
-                      activeId={activeMenu}
-                      onToggle={setActiveMenu}
-                      items={[
-                        { label: "View Details", onClick: () => goToLead(lead.rowUuid) },
-                        ...(canEditLeadPipeline ? [{ label: "Quick Edit", onClick: () => openQuickEdit(lead) }] : []),
-                      ]}
-                    />
-                  </div>
-                )
-              }
-              ]}
-            />
-            {filteredLeads.length === 0 && (
-              <EmptyState title="No opportunities found" description="Try changing your search or filters." compact />
-            )}
-          </>
-        )}
-      </DataGrid>
- 
-      {/* Quick Edit Modal */}
       {quickEditLead && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, backdropFilter: "blur(4px)" }}>
           <div style={{ backgroundColor: "#fff", borderRadius: "12px", width: "100%", maxWidth: 1000, height: "100%", maxHeight: 800, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 50px rgba(0,0,0,0.2)" }}>
-            {/* Header */}
             <div style={{ padding: "24px 32px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 8px" }}>
@@ -1314,11 +1806,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                   {quickEditRow
                     ? `${String(quickEditRow.first_name ?? "").trim()} ${String(quickEditRow.last_name ?? "").trim()}`.trim() || "Lead"
                     : quickEditLead.name}
-                  {quickEditRow?.phone != null && String(quickEditRow.phone).trim()
-                    ? ` — ${formatPhoneDisplay(String(quickEditRow.phone))}`
-                    : quickEditLead.phone
-                      ? ` — ${formatPhoneDisplay(quickEditLead.phone)}`
-                      : ""}
                   &quot;
                 </h2>
                 <p style={{ margin: 0, fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
@@ -1338,14 +1825,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               </div>
             )}
 
-            {/* Content Area */}
             <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
               {quickEditLoading && (
                 <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.7)", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: T.textMuted }}>
                   Loading lead…
                 </div>
               )}
-              {/* Left Sidebar */}
               <div style={{ width: 220, borderRight: `1px solid ${T.borderLight}`, padding: "16px 8px", backgroundColor: "#fcfdff" }}>
                 {(["Opportunity Details", "Notes"] as const).map((tab) => (
                   <button
@@ -1355,8 +1840,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     style={{
                       width: "100%", padding: "12px 16px", border: "none", borderRadius: "8px", textAlign: "left", fontSize: 13, fontWeight: 700,
                       cursor: "pointer",
-                      backgroundColor: activeQuickEditTab === tab ? T.blueFaint : "transparent",
-                      color: activeQuickEditTab === tab ? T.blue : T.textMuted,
+                      backgroundColor: activeQuickEditTab === tab ? "#DCEBDC" : "transparent",
+                      color: activeQuickEditTab === tab ? "#233217" : T.textMuted,
                       marginBottom: 4, transition: "all 0.2s"
                     }}
                   >
@@ -1365,7 +1850,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 ))}
               </div>
 
-              {/* Right Form Area */}
               <div style={{ flex: 1, padding: "32px", overflowY: "auto", backgroundColor: "#fff" }}>
                 {!quickEditRow && !quickEditLoading ? (
                   <p style={{ color: T.textMuted, fontSize: 14 }}>No data loaded.</p>
@@ -1398,19 +1882,21 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Pipeline</label>
-                        <AppSelect value={String(quickEditRow.pipeline_name ?? pipeline)} onChange={(e: any) => patchQuickEdit("pipeline_name", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                          {pipelines.map((p) => (
-                            <option key={p} value={p}>{p}</option>
-                          ))}
-                        </AppSelect>
+                        <StyledSelect
+                          value={String(quickEditRow.pipeline_name ?? pipeline)}
+                          onValueChange={(val) => patchQuickEdit("pipeline_name", val)}
+                          options={pipelines.map(p => ({ value: p, label: p }))}
+                          placeholder="Select pipeline..."
+                        />
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Stage</label>
-                        <AppSelect value={String(quickEditRow.stage ?? "")} onChange={(e: any) => patchQuickEdit("stage", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                          {(quickEditStages.length ? quickEditStages : stages).map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </AppSelect>
+                        <StyledSelect
+                          value={String(quickEditRow.stage ?? "")}
+                          onValueChange={(val) => patchQuickEdit("stage", val)}
+                          options={[{ value: "All", label: "All Stages" }, ...(quickEditStages.length ? quickEditStages : stages).map(s => ({ value: s, label: s }))]}
+                          placeholder="Select stage..."
+                        />
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Opportunity Value</label>
@@ -1421,25 +1907,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Owner (Licensed Agent)</label>
-                        <AppSelect
+                        <StyledSelect
                           value={String(quickEditRow.licensed_agent_account ?? "")}
-                          onChange={(e) => patchQuickEdit("licensed_agent_account", e.target.value)}
-                          style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}
-                        >
-                          <option value="">Unassigned</option>
-                          {(() => {
-                            const current = String(quickEditRow.licensed_agent_account ?? "").trim();
-                            if (!current) return null;
-                            const exists = licensedOwnerOptions.some((u) => u.name === current);
-                            if (exists) return null;
-                            return (
-                              <option value={current}>{current}</option>
-                            );
-                          })()}
-                          {licensedOwnerOptions.map((u) => (
-                            <option key={u.id} value={u.name}>{u.name}</option>
-                          ))}
-                        </AppSelect>
+                          onValueChange={(val) => patchQuickEdit("licensed_agent_account", val)}
+                          options={[{ value: "", label: "Unassigned" }, ...licensedOwnerOptions.map(u => ({ value: u.name, label: u.name }))]}
+                          placeholder="Select owner..."
+                        />
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Business Name</label>
@@ -1451,10 +1924,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       </div>
                       <div>
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Tags</label>
-                        <input value={Array.isArray(quickEditRow.tags) ? quickEditRow.tags.join(", ") : String(quickEditRow.tags ?? "")} onChange={(e) => patchQuickEdit("tags", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} placeholder="comma-separated tags" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
+                        <input value={Array.isArray(quickEditRow.tags) ? quickEditRow.tags.join(", ") : String(quickEditRow.tags ?? "")} onChange={(e) => patchQuickEdit("tags", e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean))} placeholder="comma-separated tags" style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
                       </div>
                       <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Carrier_op</label>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Carrier</label>
                         <input value={String(quickEditRow.carrier ?? "")} onChange={(e) => patchQuickEdit("carrier", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }} />
                       </div>
                       <div>
@@ -1478,9 +1951,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     {leadNotesError && (
                       <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>
                         {leadNotesError}
-                        {leadNotesError.includes("relation") || leadNotesError.includes("lead_notes") ? (
-                          <span> — Apply <code style={{ fontSize: 12 }}>sql/lead_notes.sql</code> in Supabase.</span>
-                        ) : null}
                       </div>
                     )}
 
@@ -1509,7 +1979,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                         disabled={!canEditLeadPipeline || addingNote || !newNoteText.trim()}
                         onClick={() => void addLeadNote()}
                         style={{
-                          background: T.blue,
+                          background: "#233217",
                           color: "#fff",
                           border: "none",
                           borderRadius: 8,
@@ -1557,7 +2027,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                                   style={{
                                     background: "none",
                                     border: "none",
-                                    color: T.danger,
+                                    color: "#dc2626",
                                     cursor: "pointer",
                                     padding: 4,
                                     lineHeight: 1,
@@ -1574,7 +2044,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                                 <>
                                   <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{note.body.slice(0, 400)}…</p>
                                   <details style={{ marginTop: 8 }}>
-                                    <summary style={{ cursor: "pointer", fontSize: 12, color: T.blue, fontWeight: 700 }}>
+                                    <summary style={{ cursor: "pointer", fontSize: 12, color: "#233217", fontWeight: 700 }}>
                                       Show full note
                                     </summary>
                                     <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap", color: T.textDark }}>{note.body}</p>
@@ -1594,28 +2064,18 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               </div>
             </div>
 
-            {/* Footer */}
             <div style={{ padding: "16px 32px", borderTop: `1.5px solid ${T.borderLight}`, backgroundColor: "#fff", display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", gap: 12 }}>
-                <button type="button" disabled={quickEditSaving || !canEditLeadPipeline} onClick={deleteQuickEdit} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "8px", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", color: T.danger, cursor: canEditLeadPipeline ? "pointer" : "not-allowed", opacity: canEditLeadPipeline ? 1 : 0.5 }}>
+                <button type="button" disabled={quickEditSaving || !canEditLeadPipeline} onClick={deleteQuickEdit} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "8px", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626", cursor: canEditLeadPipeline ? "pointer" : "not-allowed", opacity: canEditLeadPipeline ? 1 : 0.5 }}>
                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
                 </button>
                 <button type="button" onClick={closeQuickEdit} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "8px", padding: "0 24px", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
                 <button
                   type="button"
                   disabled={quickEditSaving || quickEditLoading || !quickEditRow || !canEditLeadPipeline}
-                  title={
-                    !canEditLeadPipeline
-                      ? "Only Sales Admin can edit leads in Lead Pipeline."
-                      : quickEditLoading
-                        ? "Loading lead…"
-                        : !quickEditRow
-                          ? "Lead data not loaded."
-                          : undefined
-                  }
                   onClick={saveQuickEdit}
                   style={{
-                    background: T.blue,
+                    background: "#233217",
                     color: "#fff",
                     border: "none",
                     borderRadius: "8px",
@@ -1624,7 +2084,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     fontWeight: 700,
                     cursor: canEditLeadPipeline && !quickEditSaving && !quickEditLoading && quickEditRow ? "pointer" : "not-allowed",
                     opacity: canEditLeadPipeline && !quickEditSaving && !quickEditLoading && quickEditRow ? 1 : 0.6,
-                    boxShadow: "0 4px 12px rgba(37,99,235,0.2)",
+                    boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
                   }}
                 >
                   {quickEditSaving ? "Saving…" : "Update"}
