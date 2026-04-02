@@ -6,7 +6,7 @@ import { Badge, Pagination, Table, DataGrid, FilterChip } from "@/components/ui"
 import { Card } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Search, Filter, Plus } from "lucide-react";
+import { Search, Filter, Plus, ChevronDown } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -186,6 +186,7 @@ export default function PipelineManagementPage() {
   const [tempPipelineName, setTempPipelineName] = useState("");
   const [search, setSearch] = useState("");
   const [filterStages, setFilterStages] = useState("All");
+  const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [stageSearch, setStageSearch] = useState("");
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
@@ -202,6 +203,9 @@ export default function PipelineManagementPage() {
     { value: "With Stages", label: "With stages" },
     { value: "Empty", label: "Empty" },
   ];
+
+  const hasActiveFilters = filterStages !== "All";
+  const activeFilterCount = filterStages !== "All" ? 1 : 0;
 
   useEffect(() => {
     fetchPipelines();
@@ -736,10 +740,10 @@ export default function PipelineManagementPage() {
             width: "100%",
             background: T.cardBg,
             border: `1px solid ${T.border}`,
-            borderBottom: `1px solid ${T.border}`,
-            borderRadius: "16px 16px 0 0",
+            borderBottom: filterPanelExpanded || hasActiveFilters ? "none" : `1px solid ${T.border}`,
+            borderRadius: filterPanelExpanded || hasActiveFilters ? "16px 16px 0 0" : 16,
             padding: "14px 20px",
-            boxShadow: T.shadowSm,
+            boxShadow: filterPanelExpanded || hasActiveFilters ? "none" : T.shadowSm,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -781,16 +785,50 @@ export default function PipelineManagementPage() {
                 }}
               />
             </div>
-
-            <StyledSelect
-              value={filterStages}
-              onValueChange={setFilterStages}
-              options={stageFilterOptions}
-              placeholder="Filter by stages"
-            />
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => setFilterPanelExpanded((v) => !v)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                height: 38,
+                padding: "0 16px",
+                borderRadius: 10,
+                border: filterPanelExpanded ? `1.5px solid #233217` : `1px solid ${T.border}`,
+                background: filterPanelExpanded ? "#DCEBDC" : T.pageBg,
+                color: filterPanelExpanded ? "#233217" : T.textDark,
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: T.font,
+                cursor: "pointer",
+                transition: "all 0.15s ease-in-out",
+              }}
+            >
+              <Filter size={16} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 20,
+                  height: 20,
+                  padding: "0 6px",
+                  borderRadius: 999,
+                  background: "#233217",
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={handleCreatePipeline}
               style={{
@@ -815,6 +853,39 @@ export default function PipelineManagementPage() {
             </button>
           </div>
         </div>
+
+        {(filterPanelExpanded || hasActiveFilters) && (
+          <div
+            style={{
+              width: "100%",
+              background: T.cardBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: "0 0 16px 16px",
+              padding: "20px 24px",
+              boxShadow: T.shadowSm,
+              display: "flex",
+              flexDirection: "column",
+              gap: 20,
+              overflow: "visible",
+              position: "relative",
+              zIndex: 50,
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Filter by stages</div>
+                  <StyledSelect
+                    value={filterStages}
+                    onValueChange={setFilterStages}
+                    options={stageFilterOptions}
+                    placeholder="All pipelines"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {loading ? (
