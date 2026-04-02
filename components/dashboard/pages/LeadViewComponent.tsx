@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui";
 import { AppSelect } from "@/components/ui/app-select";
 import ConvertClientPolicyModal from "./ConvertClientPolicyModal";
 import PolicyFormFields from "./PolicyFormFields";
+import { getCurrentUserPermissionKeys, type PermissionKey } from "@/lib/auth/permissions";
 
 interface Lead {
   name: string;
@@ -133,6 +134,33 @@ export default function LeadViewComponent({
     stage: defaultStage || "New Lead",
   });
 
+  const PROJECTS = [
+    {
+      id: "PN0001265", name: "Medical App (iOS native)", created: "Sep 12, 2020",
+      priority: "Medium" as const, allTasks: 34, activeTasks: 13,
+      assignees: ["#638b4b","#74a557","#94c278","#4e6e3a"], extraAssignees: 2,
+      emoji: "💊", color: "#e8edf8", progress: 38,
+      description: "A fully native iOS medical application for patient management, appointment scheduling, and telemedicine consultations.",
+      tags: ["iOS","Healthcare","Mobile"],
+    },
+    {
+      id: "PN0001221", name: "Food Delivery Service", created: "Sep 10, 2020",
+      priority: "Medium" as const, allTasks: 50, activeTasks: 24,
+      assignees: ["#3b5229","#74a557","#bbd9a9"], extraAssignees: 0,
+      emoji: "🍔", color: "#f0fdf4", progress: 52,
+      description: "End-to-end food delivery platform with real-time order tracking, restaurant dashboard, and driver apps.",
+      tags: ["Web","Mobile","Logistics"],
+    },
+    {
+      id: "PN0001290", name: "Food Delivery Service", created: "May 28, 2020",
+      priority: "Low" as const, allTasks: 23, activeTasks: 20,
+      assignees: ["#638b4b","#94c278","#4e6e3a"], extraAssignees: 5,
+      emoji: "📦", color: "#fdf4ff", progress: 86,
+      description: "Cloud-based logistics platform.",
+      tags: ["Web","Logistics"],
+    },
+  ];
+
   const [rowUuid, setRowUuid] = useState<string | null>(leadRowUuid ?? null);
   const [leadRow, setLeadRow] = useState<LeadRow | null>(null);
   const [loadingLead, setLoadingLead] = useState(!isCreation && !previewMode);
@@ -147,6 +175,8 @@ export default function LeadViewComponent({
   const [newNoteText, setNewNoteText] = useState("");
   const [addingNote, setAddingNote] = useState(false);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [userPermissionKeys, setUserPermissionKeys] = useState<Set<PermissionKey>>(new Set());
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   const [callResultsRows, setCallResultsRows] = useState<LeadRow[]>([]);
   const [callUpdatesLoading, setCallUpdatesLoading] = useState(false);
@@ -161,6 +191,36 @@ export default function LeadViewComponent({
   const [policyStageNames, setPolicyStageNames] = useState<string[]>([]);
   const [policyLookupReady, setPolicyLookupReady] = useState(false);
   const [convertClientModalOpen, setConvertClientModalOpen] = useState(false);
+
+
+  // For the LeadViewComponent props
+// Instead of nested leadRow, use flat structure
+const sampleLead = {
+  lead_unique_id: "LEAD-2024-001",
+  first_name: "John",
+  last_name: "Smith",
+  phone: "555-123-4567",
+  email: "john.smith@example.com",
+  lead_source: "BPO Transfer Lead Source",
+  product_type: "Auto Insurance",
+  carrier: "State Farm",
+  monthly_premium: 1250.00,
+  coverage_amount: 50000,
+  pipeline: "Call Center Transfer",
+  stage: "New Lead",
+  lead_value: 2500,
+  submission_date: "2024-01-15",
+  street1: "123 Main St",
+  street2: "Apt 4B",
+  city: "Los Angeles",
+  state: "CA",
+  zip_code: "90210",
+  tags: "hot-lead,retention",
+  created_at: "2024-01-15T10:30:00Z",
+};
+
+// Then use it directly
+<LeadSummaryCard lead={sampleLead} section="identity" />
 
   const resolveLeadUuid = useCallback(
     async (id: string | undefined): Promise<string | null> => {
@@ -241,6 +301,27 @@ export default function LeadViewComponent({
     };
   }, [isCreation, previewMode, leadId, leadRowUuid, resolveLeadUuid, supabase]);
 
+  // Fetch user permissions from Supabase
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setPermissionsLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) {
+        setPermissionsLoading(false);
+        return;
+      }
+      const permissions = await getCurrentUserPermissionKeys(supabase, user.id);
+      if (!cancelled) {
+        setUserPermissionKeys(permissions);
+        setPermissionsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
   const pipelineNameForStages = (() => {
     if (isEditing && editDraft) {
       if (editDraft.pipeline_id != null && editDraft.pipeline_id !== "") {
@@ -269,7 +350,7 @@ export default function LeadViewComponent({
   }, [isEditing, editDraft, leadRow, leadName, previewMode]);
 
   const startEdit = () => {
-    if (!leadRow || !canEditLead) return;
+    if (!leadRow || !effectiveCanEditLead) return;
     setEditDraft({ ...leadRow });
     setIsEditing(true);
     setSaveError(null);
@@ -280,6 +361,16 @@ export default function LeadViewComponent({
     setEditDraft(null);
     setSaveError(null);
   };
+
+  // Check edit permission from Supabase (falls back to prop if permissions still loading)
+  const effectiveCanEditLead = useMemo(() => {
+    // Use prop value if permissions are still loading
+    if (permissionsLoading) return canEditLead;
+    // Check Supabase permissions - has either lead_pipeline.update or transfer_leads.edit
+    const hasEditPermission = userPermissionKeys.has("action.lead_pipeline.update") || 
+                              userPermissionKeys.has("action.transfer_leads.edit");
+    return hasEditPermission;
+  }, [permissionsLoading, canEditLead, userPermissionKeys]);
 
   const resolveStageId = async (pipelineName: string, stageName: string) => {
     const { data: pipelineRow } = await supabase.from("pipelines").select("id").eq("name", pipelineName).maybeSingle();
@@ -736,7 +827,7 @@ export default function LeadViewComponent({
               <button type="button" onClick={cancelEdit} disabled={saving} style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
                 Cancel
               </button>
-              <button type="button" onClick={() => void saveLeadEdits()} disabled={saving || !canEditLead} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: saving || !canEditLead ? "not-allowed" : "pointer", opacity: canEditLead ? 1 : 0.6 }}>
+              <button type="button" onClick={() => void saveLeadEdits()} disabled={saving || !effectiveCanEditLead} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: saving || !effectiveCanEditLead ? "not-allowed" : "pointer", opacity: effectiveCanEditLead ? 1 : 0.6 }}>
                 {saving ? "Saving…" : "Save changes"}
               </button>
             </>
@@ -745,8 +836,8 @@ export default function LeadViewComponent({
               <button
                 type="button"
                 onClick={startEdit}
-                disabled={!canEditLead || !leadRow}
-                title={!canEditLead ? "You do not have permission to edit this lead." : undefined}
+                disabled={!effectiveCanEditLead || !leadRow}
+                title={!effectiveCanEditLead ? "You do not have permission to edit this lead." : undefined}
                 style={{
                   backgroundColor: "#fff",
                   border: `1.5px solid ${T.border}`,
@@ -754,9 +845,9 @@ export default function LeadViewComponent({
                   padding: "10px 20px",
                   fontSize: 13,
                   fontWeight: 700,
-                  cursor: canEditLead && leadRow ? "pointer" : "not-allowed",
+                  cursor: effectiveCanEditLead && leadRow ? "pointer" : "not-allowed",
                   color: T.textDark,
-                  opacity: canEditLead && leadRow ? 1 : 0.55,
+                  opacity: effectiveCanEditLead && leadRow ? 1 : 0.55,
                 }}
               >
                 Edit Lead
@@ -786,6 +877,14 @@ export default function LeadViewComponent({
         </div>
       </div>
 
+{/* 
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
+  {PROJECTS.map((p) => (
+    <ProjectCard key={p.id} {...p} />
+  ))}
+</div>  */}
+
+
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <div style={{ backgroundColor: "#fff", borderRadius: "20px", padding: "8px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, display: "flex", gap: 4 }}>
@@ -812,6 +911,12 @@ export default function LeadViewComponent({
               </button>
             ))}
           </div>
+
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
+  <LeadSummaryCard lead={sampleLead} />
+</div>
+
 
           <div style={{ backgroundColor: "#fff", borderRadius: "24px", padding: "32px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, minHeight: 600 }}>
             {activeTab === "Overview" && (
@@ -1440,6 +1545,250 @@ export default function LeadViewComponent({
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
+    </div>
+  );
+}
+
+
+function ProjectCard({ id, name, created, priority, allTasks, activeTasks, assignees, extraAssignees, emoji, color }: any) {
+  return (
+    <div style={{
+      backgroundColor: "#fff", borderRadius: 20, overflow: "hidden",
+      border: `1.5px solid ${T.border}`,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+      display: "grid", gridTemplateColumns: "1.2fr 1fr 0.8fr",
+      alignItems: "stretch"
+    }}>
+      {/* Detail Section */}
+      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", gap: 16 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{emoji}</div>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: T.textMuted }}>{id}</p>
+          <h4 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: T.textDark }}>{name}</h4>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+             <div style={{ display: "flex", alignItems: "center", gap: 4, color: T.textMuted }}>
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+               <span style={{ fontSize: 11, fontWeight: 600 }}>Created {created}</span>
+             </div>
+             <div style={{ display: "flex", alignItems: "center", gap: 3, color: priority === "Low" ? "#16a34a" : "#ca8a04" }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d={priority === "Low" ? "M12 19V5M19 12l-7 7-7-7" : "M12 5v14M5 12l7-7 7 7"}/></svg>
+                <span style={{ fontSize: 11, fontWeight: 800 }}>{priority}</span>
+             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Section */}
+      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Project Data</p>
+        <div style={{ display: "flex", gap: 24 }}>
+          <div>
+            <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>All tasks</p>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{allTasks}</p>
+          </div>
+          <div>
+            <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Active tasks</p>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{activeTasks}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Assignees Section */}
+      <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Assignees</p>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          {assignees.map((c: string, i: number) => (
+            <div key={i} style={{ 
+              width: 28, height: 28, borderRadius: "50%", backgroundColor: c, border: "2px solid #fff", 
+              marginLeft: i === 0 ? 0 : -8, zIndex: 10 - i,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#fff"
+            }}>
+              {["SS","RD","ET","LC"][i]}
+            </div>
+          ))}
+          {extraAssignees > 0 && (
+            <div style={{ 
+              width: 28, height: 28, borderRadius: "50%", backgroundColor: T.blueFaint, border: "2px solid #fff", 
+              marginLeft: -8, zIndex: 0, color: T.blue, fontSize: 10, fontWeight: 800,
+              display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              +{extraAssignees}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface LeadSummaryCardProps {
+  lead: {
+    lead_unique_id?: string;
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    lead_source?: string;
+    product_type?: string;
+    carrier?: string;
+    monthly_premium?: number;
+    coverage_amount?: number;
+    pipeline?: string;
+    stage?: string;
+    lead_value?: number;
+    submission_date?: string;
+    street1?: string;
+    street2?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+    created_at?: string;
+  };
+  section: "identity" | "policy" | "pipeline" | "location";
+}
+
+function LeadSummaryCard({ lead }: { lead: LeadSummaryCardProps["lead"] }) {
+  return (
+    <div style={{
+      backgroundColor: "#fff",
+      borderRadius: 16,
+      overflow: "hidden",
+      border: `1.5px solid ${T.border}`,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+      display: "flex",
+      flexDirection: "column",
+      padding: "24px",
+      gap: 0, // Remove gap, use dividers instead
+    }}>
+      {/* Header - Identity */}
+      <div style={{ display: "flex", gap: 16, alignItems: "center", paddingBottom: 20 }}>
+        <div style={{
+          width: 52, height: 52, borderRadius: 14,
+          backgroundColor: "#EEF5EE",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 26,
+        }}>
+          👤
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+          <h4 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: T.textDark }}>
+            {`${lead.first_name || ""} ${lead.last_name || ""}`.trim() || "—"}
+          </h4>
+        </div>
+        
+      
+      </div>
+
+      {/* Divider 1 - After Header */}
+      <div style={{ height: 1, backgroundColor: T.borderLight }} />
+
+      {/* Row 1: Contact | Policy */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, padding: "20px 0" }}>
+        
+        {/* Contact Info - with right border */}
+        <div style={{ borderRight: `1px solid ${T.borderLight}`, paddingRight: 24 }}>
+          <p style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 800, color: T.textDark }}>
+            Contact Info
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Phone</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.phone || "—"}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Lead Source</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.lead_source || "—"}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Policy Data - with left padding */}
+        <div style={{ paddingLeft: 24 }}>
+          <p style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 800, color: T.textDark }}>
+            Policy Data
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Product Type</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.product_type || "—"}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Carrier</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.carrier || "—"}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Monthly Premium</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>
+                {lead.monthly_premium ? `$${Number(lead.monthly_premium).toLocaleString()}` : "—"}
+              </p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Coverage</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>
+                {lead.coverage_amount ? `$${Number(lead.coverage_amount).toLocaleString()}` : "—"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Divider 2 - Between rows */}
+      <div style={{ height: 1, backgroundColor: T.borderLight }} />
+
+      {/* Row 2: Pipeline | Location */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, padding: "20px 0" }}>
+        
+        {/* Pipeline Info - with right border */}
+        <div style={{ borderRight: `1px solid ${T.borderLight}`, paddingRight: 24 }}>
+          <p style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 800, color: T.textDark }}>
+           Pipeline Info
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Pipeline</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.pipeline || "—"}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Current Stage</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.stage || "—"}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Lead Value</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>
+                {lead.lead_value ? `$${Number(lead.lead_value).toLocaleString()}` : "—"}
+              </p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Submitted</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.submission_date || "—"}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Location Info - with left padding */}
+        <div style={{ paddingLeft: 24 }}>
+          <p style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 800, color: T.textDark }}>
+            Address Details
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Street</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.street1 || "—"}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>City</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.city || "—"}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>State</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.state || "—"}</p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>ZIP</p>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.zip_code || "—"}</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
