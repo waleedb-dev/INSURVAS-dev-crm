@@ -1,14 +1,15 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { LayoutDashboard, Phone, FileText, Shield } from "lucide-react";
 import { POLICY_SCHEMA_SECTIONS, policyDisplayValue, type PolicyRow } from "@/lib/policy-schema";
 import { buildDraftFromPolicyRow, payloadFromDraft } from "@/lib/policy-form-utils";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, Toast } from "@/components/ui";
 import ConvertClientPolicyModal from "./ConvertClientPolicyModal";
 import PolicyFormFields from "./PolicyFormFields";
 import { getCurrentUserPermissionKeys, type PermissionKey } from "@/lib/auth/permissions";
 import { LeadCard, InfoField, InfoGrid, formatCurrency, formatBool, formatDate } from "./LeadCard";
+import { LeadEditForm, useLeadEdit } from "./LeadEditForm";
 
 interface Lead {
   name: string;
@@ -57,58 +58,17 @@ const TAB_CONFIG: { id: TabType; label: string; icon: React.ComponentType<{ size
 ];
 
 function TabNavigation({ activeTab, onTabChange }: { activeTab: TabType; onTabChange: (tab: TabType) => void }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [pillStyle, setPillStyle] = useState({ left: 0, width: 0 });
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const buttons = containerRef.current.querySelectorAll("[data-tab-button]");
-    const activeIndex = TAB_CONFIG.findIndex((t) => t.id === activeTab);
-    const activeButton = buttons[activeIndex] as HTMLButtonElement | undefined;
-    if (activeButton) {
-      setPillStyle({
-        left: activeButton.offsetLeft,
-        width: activeButton.offsetWidth,
-      });
-    }
-  }, [activeTab]);
-
-  // Muted brand green for icons - more distinguishable from text
-  const iconColor = "#6b7a5f";
-  const iconColorActive = "#4e6e3a";
-
-  // Track background matches header bg (sidebarBg) for seamless look
-  const trackBg = T.sidebarBg;
-
   return (
     <div
-      ref={containerRef}
       style={{
         display: "flex",
         justifyContent: "flex-start",
-        position: "relative",
-        backgroundColor: trackBg,
-        borderRadius: 14,
+        gap: 4,
         padding: 4,
-        gap: 0,
+        backgroundColor: T.sidebarBg,
+        borderRadius: 10,
       }}
     >
-      {/* Floating white pill - only for active tab */}
-      <div
-        style={{
-          position: "absolute",
-          top: 4,
-          left: pillStyle.left,
-          width: pillStyle.width,
-          height: "calc(100% - 8px)",
-          backgroundColor: "#fff",
-          borderRadius: 10,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
       {TAB_CONFIG.map((tab) => {
         const isActive = activeTab === tab.id;
         const Icon = tab.icon;
@@ -116,41 +76,27 @@ function TabNavigation({ activeTab, onTabChange }: { activeTab: TabType; onTabCh
           <button
             key={tab.id}
             type="button"
-            data-tab-button
             onClick={() => onTabChange(tab.id)}
             style={{
-              flex: "0 0 auto",
+              height: 34,
+              padding: "0 14px",
+              borderRadius: 10,
+              border: "none",
+              background: isActive ? "#233217" : "transparent",
+              color: isActive ? "#fff" : T.textMuted,
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: T.font,
+              cursor: "pointer",
+              boxShadow: isActive ? "0 2px 8px rgba(35, 50, 23, 0.2)" : "none",
+              transition: "all 0.15s ease-in-out",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
-              padding: "10px 20px",
-              border: "none",
-              borderRadius: 10,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: isActive ? 600 : 400,
-              color: isActive ? T.textDark : T.textMuted,
-              backgroundColor: "transparent",
-              transition: "color 0.2s ease",
-              fontFamily: T.font,
-              position: "relative",
-              zIndex: 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!isActive) {
-                e.currentTarget.style.color = T.textMid;
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isActive) {
-                e.currentTarget.style.color = T.textMuted;
-              }
             }}
           >
-            <div style={{ display: "flex", color: isActive ? iconColorActive : iconColor }}>
-              <Icon size={12} />
-            </div>
+            <Icon size={12} />
             <span>{tab.label}</span>
           </button>
         );
@@ -248,14 +194,13 @@ export default function LeadViewComponent({
   const [loadingLead, setLoadingLead] = useState(!isCreation && !previewMode);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState<LeadRow | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [editToast, setEditToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const [leadNotes, setLeadNotes] = useState<LeadNoteRow[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
   const [userPermissionKeys, setUserPermissionKeys] = useState<Set<PermissionKey>>(new Set());
   const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
 
   const [callResultsRows, setCallResultsRows] = useState<LeadRow[]>([]);
   const [callUpdatesLoading, setCallUpdatesLoading] = useState(false);
@@ -270,7 +215,6 @@ export default function LeadViewComponent({
   const [policyStageNames, setPolicyStageNames] = useState<string[]>([]);
   const [policyLookupReady, setPolicyLookupReady] = useState(false);
   const [convertClientModalOpen, setConvertClientModalOpen] = useState(false);
-
 
   const resolveLeadUuid = useCallback(
     async (id: string | undefined): Promise<string | null> => {
@@ -357,6 +301,7 @@ export default function LeadViewComponent({
         setPermissionsLoading(false);
         return;
       }
+      setSessionUserId(user.id);
       const permissions = await getCurrentUserPermissionKeys(supabase, user.id);
       if (!cancelled) {
         setUserPermissionKeys(permissions);
@@ -368,14 +313,41 @@ export default function LeadViewComponent({
     };
   }, [supabase]);
 
+  // Check edit permission from Supabase (falls back to prop if permissions still loading)
+  const effectiveCanEditLead = useMemo(() => {
+    // Use prop value if permissions are still loading
+    if (permissionsLoading) return canEditLead;
+    // Check Supabase permissions - has either lead_pipeline.update or transfer_leads.edit
+    const hasEditPermission = userPermissionKeys.has("action.lead_pipeline.update") || 
+                              userPermissionKeys.has("action.transfer_leads.edit");
+    return hasEditPermission;
+  }, [permissionsLoading, canEditLead, userPermissionKeys]);
+
+  // Lead Edit Form hook
+  const {
+    pipelines: editFormPipelines,
+    stages: editFormStages,
+    licensedAgents: editFormLicensedAgents,
+    isLoading: editFormLoading,
+    isSaving: editFormSaving,
+    error: editFormError,
+    toast: editFormToast,
+    saveLead,
+    deleteLead,
+    clearToast,
+  } = useLeadEdit({
+    leadRowUuid: rowUuid,
+    canEdit: effectiveCanEditLead,
+    onSave: (updated) => {
+      setLeadRow(updated as LeadRow);
+      setIsEditing(false);
+    },
+    onDelete: () => {
+      onBack();
+    },
+  });
+
   const pipelineNameForStages = (() => {
-    if (isEditing && editDraft) {
-      if (editDraft.pipeline_id != null && editDraft.pipeline_id !== "") {
-        const byId = pipelines.find((p) => p.id === Number(editDraft.pipeline_id));
-        if (byId) return byId.name;
-      }
-      return String(editDraft.pipeline ?? "");
-    }
     if (leadRow?.pipeline_id != null && leadRow.pipeline_id !== "") {
       const byId = pipelines.find((p) => p.id === Number(leadRow.pipeline_id));
       if (byId) return byId.name;
@@ -388,123 +360,11 @@ export default function LeadViewComponent({
     pipelines[0];
 
   const fullName = useMemo(() => {
-    const d = isEditing && editDraft ? editDraft : leadRow;
     if (previewMode && leadName) return leadName;
-    if (!d) return leadName || "Lead";
-    const combined = `${String(d.first_name ?? "").trim()} ${String(d.last_name ?? "").trim()}`.trim();
+    if (!leadRow) return leadName || "Lead";
+    const combined = `${String(leadRow.first_name ?? "").trim()} ${String(leadRow.last_name ?? "").trim()}`.trim();
     return combined || leadName || "Lead";
-  }, [isEditing, editDraft, leadRow, leadName, previewMode]);
-
-  const startEdit = () => {
-    if (!leadRow || !effectiveCanEditLead) return;
-    setEditDraft({ ...leadRow });
-    setIsEditing(true);
-    setSaveError(null);
-  };
-
-  const cancelEdit = () => {
-    setIsEditing(false);
-    setEditDraft(null);
-    setSaveError(null);
-  };
-
-  // Check edit permission from Supabase (falls back to prop if permissions still loading)
-  const effectiveCanEditLead = useMemo(() => {
-    // Use prop value if permissions are still loading
-    if (permissionsLoading) return canEditLead;
-    // Check Supabase permissions - has either lead_pipeline.update or transfer_leads.edit
-    const hasEditPermission = userPermissionKeys.has("action.lead_pipeline.update") || 
-                              userPermissionKeys.has("action.transfer_leads.edit");
-    return hasEditPermission;
-  }, [permissionsLoading, canEditLead, userPermissionKeys]);
-
-  const resolveStageId = async (pipelineName: string, stageName: string) => {
-    const { data: pipelineRow } = await supabase.from("pipelines").select("id").eq("name", pipelineName).maybeSingle();
-    if (!pipelineRow?.id) return null;
-    const { data: st } = await supabase
-      .from("pipeline_stages")
-      .select("id")
-      .eq("pipeline_id", pipelineRow.id)
-      .eq("name", stageName)
-      .maybeSingle();
-    return st?.id ?? null;
-  };
-
-  const saveLeadEdits = async () => {
-    if (!rowUuid || !editDraft) return;
-    setSaving(true);
-    setSaveError(null);
-
-    const str = (k: string) => {
-      const v = editDraft[k];
-      if (v == null) return null;
-      if (typeof v === "string") return v.trim() === "" ? null : v.trim();
-      return String(v);
-    };
-    const num = (k: string) => {
-      const raw = editDraft[k];
-      if (raw === "" || raw == null) return null;
-      const n = Number(raw);
-      return Number.isFinite(n) ? n : null;
-    };
-
-    const pipelineName = str("pipeline") || "Transfer Portal";
-    const stageName = str("stage") || "Transfer API";
-    const stageId = await resolveStageId(pipelineName, stageName);
-    const pipelineId = pipelines.find((p) => p.name === pipelineName)?.id ?? null;
-
-    let tagsVal: string[] | null = null;
-    const tr = editDraft.tags;
-    if (Array.isArray(tr)) tagsVal = tr.map((t) => String(t)).filter(Boolean);
-    else if (typeof tr === "string" && tr.trim()) {
-      tagsVal = tr.split(",").map((s) => s.trim()).filter(Boolean);
-    }
-
-    const payload: Record<string, unknown> = {
-      first_name: str("first_name"),
-      last_name: str("last_name"),
-      phone: str("phone"),
-      street1: str("street1"),
-      street2: str("street2"),
-      city: str("city"),
-      state: str("state"),
-      zip_code: str("zip_code"),
-      product_type: str("product_type"),
-      lead_value: num("lead_value"),
-      monthly_premium: str("monthly_premium"),
-      coverage_amount: str("coverage_amount"),
-      carrier: str("carrier"),
-      lead_source: str("lead_source"),
-      submission_date: str("submission_date"),
-      stage: stageName,
-    };
-    if (pipelineId != null) payload.pipeline_id = pipelineId;
-    if (stageId != null) payload.stage_id = stageId;
-    if (tagsVal) payload.tags = tagsVal;
-
-    const { data: updated, error } = await supabase.from("leads").update(payload).eq("id", rowUuid).select("*").maybeSingle();
-    setSaving(false);
-    if (error) {
-      setSaveError(error.message);
-      return;
-    }
-    if (updated) {
-      setLeadRow(updated as LeadRow);
-      setIsEditing(false);
-      setEditDraft(null);
-    }
-  };
-
-  const display = isEditing && editDraft ? editDraft : leadRow;
-
-  const tags: string[] = Array.isArray(display?.tags)
-    ? (display!.tags as unknown[]).map(String)
-    : typeof display?.tags === "string"
-      ? display.tags
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
+  }, [leadRow, leadName, previewMode]);
 
   const loadNotes = useCallback(async () => {
     if (!rowUuid) return;
@@ -676,10 +536,6 @@ export default function LeadViewComponent({
     if (!error) await loadNotes();
   };
 
-  const patchDraft = (key: string, value: unknown) => {
-    setEditDraft((prev) => (prev ? { ...prev, [key]: value } : null));
-  };
-
   const handleSave = () => {
     if (onSubmit) onSubmit(formData);
   };
@@ -822,9 +678,6 @@ export default function LeadViewComponent({
         </div>
 
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {saveError && (
-            <span style={{ fontSize: 12, color: "#b91c1c", fontWeight: 600, maxWidth: 280 }}>{saveError}</span>
-          )}
           {isCreation ? (
             <>
               <button type="button" onClick={onBack} style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: T.textDark }}>
@@ -834,20 +687,11 @@ export default function LeadViewComponent({
                 Create Lead
               </button>
             </>
-          ) : isEditing ? (
-            <>
-              <button type="button" onClick={cancelEdit} disabled={saving} style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
-                Cancel
-              </button>
-              <button type="button" onClick={() => void saveLeadEdits()} disabled={saving || !effectiveCanEditLead} style={{ backgroundColor: T.blue, color: "#fff", border: "none", borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: saving || !effectiveCanEditLead ? "not-allowed" : "pointer", opacity: effectiveCanEditLead ? 1 : 0.6 }}>
-                {saving ? "Saving…" : "Save changes"}
-              </button>
-            </>
           ) : (
             <>
               <button
                 type="button"
-                onClick={startEdit}
+                onClick={() => setIsEditing(true)}
                 disabled={!effectiveCanEditLead || !leadRow}
                 title={!effectiveCanEditLead ? "You do not have permission to edit this lead." : undefined}
                 style={{
@@ -982,6 +826,108 @@ export default function LeadViewComponent({
           policyRow={policyRow}
           leadRow={leadRow}
           onSaved={() => void loadPolicyForLead()}
+        />
+      )}
+
+      {/* Toast notification for edit form */}
+      {(editFormToast || editToast) && (
+        <Toast
+          message={(editFormToast || editToast)?.message || ""}
+          type={(editFormToast || editToast)?.type || "success"}
+          onClose={() => {
+            clearToast();
+            setEditToast(null);
+          }}
+        />
+      )}
+
+      {/* Lead Edit Modal */}
+      {isEditing && leadRow && (
+        <LeadEditForm
+          // Use exact lead values from leadRow (from LeadViewComponent's state)
+          lead={{
+            // Contact Information
+            firstName: String(leadRow.first_name ?? ""),
+            lastName: String(leadRow.last_name ?? ""),
+            phone: String(leadRow.phone ?? ""),
+            language: String(leadRow.language ?? ""),
+            
+            // Address
+            street1: String(leadRow.street1 ?? ""),
+            street2: String(leadRow.street2 ?? ""),
+            city: String(leadRow.city ?? ""),
+            state: String(leadRow.state ?? ""),
+            zipCode: String(leadRow.zip_code ?? ""),
+            
+            // Personal Details
+            dateOfBirth: String(leadRow.date_of_birth ?? ""),
+            social: String(leadRow.social ?? ""),
+            driverLicenseNumber: String(leadRow.driver_license_number ?? ""),
+            birthState: String(leadRow.birth_state ?? ""),
+            age: String(leadRow.age ?? ""),
+            
+            // Health & Underwriting (all text in DB)
+            height: String(leadRow.height ?? ""),
+            weight: String(leadRow.weight ?? ""),
+            tobaccoUse: String(leadRow.tobacco_use ?? ""),
+            healthConditions: String(leadRow.health_conditions ?? ""),
+            medications: String(leadRow.medications ?? ""),
+            doctorName: String(leadRow.doctor_name ?? ""),
+            existingCoverage: String(leadRow.existing_coverage_last_2_years ?? ""),
+            previousApplications: String(leadRow.previous_applications_2_years ?? ""),
+            
+            // Pipeline & Stage
+            pipeline: String(leadRow.pipeline ?? leadRow.pipeline_name ?? formData.pipeline),
+            stage: String(leadRow.stage ?? formData.stage),
+            
+            // Opportunity Details
+            leadValue: leadRow.lead_value != null ? Number(leadRow.lead_value) : null,
+            licensedAgentAccount: String(leadRow.licensed_agent_account ?? ""),
+            leadSource: String(leadRow.lead_source ?? ""),
+            tags: Array.isArray(leadRow.tags) ? (leadRow.tags as string[]).join(", ") : String(leadRow.tags ?? ""),
+            submissionDate: String(leadRow.submission_date ?? ""),
+            
+            // Policy & Coverage (all text in DB)
+            carrier: String(leadRow.carrier ?? ""),
+            productType: String(leadRow.product_type ?? ""),
+            coverageAmount: String(leadRow.coverage_amount ?? ""),
+            monthlyPremium: String(leadRow.monthly_premium ?? ""),
+            draftDate: String(leadRow.draft_date ?? ""),
+            futureDraftDate: String(leadRow.future_draft_date ?? ""),
+            beneficiaryInformation: String(leadRow.beneficiary_information ?? ""),
+            additionalInformation: String(leadRow.additional_information ?? ""),
+            
+            // Banking Details
+            bankAccountType: String(leadRow.bank_account_type ?? ""),
+            institutionName: String(leadRow.institution_name ?? ""),
+            routingNumber: String(leadRow.routing_number ?? ""),
+            accountNumber: String(leadRow.account_number ?? ""),
+          }}
+          pipelines={editFormPipelines.length > 0 ? editFormPipelines : pipelines.map(p => p.name)}
+          stages={editFormStages.length > 0 ? editFormStages : currentPipeline?.stages || []}
+          licensedAgents={editFormLicensedAgents}
+          canEdit={effectiveCanEditLead}
+          onSubmit={async (data) => {
+            await saveLead(data);
+            if (editFormToast?.type === "success") {
+              setIsEditing(false);
+            }
+          }}
+          onCancel={() => setIsEditing(false)}
+          onDelete={effectiveCanEditLead ? async () => {
+            await deleteLead();
+            if (editFormToast?.type === "success") {
+              onBack();
+            }
+          } : undefined}
+          isSaving={editFormSaving}
+          isLoading={editFormLoading}
+          error={editFormError}
+          title={`Edit "${fullName}"`}
+          // Notes management props
+          leadRowUuid={rowUuid}
+          canEditNotes={effectiveCanEditLead}
+          sessionUserId={sessionUserId}
         />
       )}
 
