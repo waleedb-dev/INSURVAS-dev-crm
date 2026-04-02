@@ -35,9 +35,12 @@ const formSchema = z.object({
   existingCoverage: z.string().optional(), // 'Yes' or 'No' in DB
   previousApplications: z.string().optional(), // 'Yes' or 'No' in DB
   
-  // Pipeline & Stage
-  pipeline: z.string().min(1, "Pipeline is required"),
-  stage: z.string().min(1, "Stage is required"),
+  // Pipeline & Stage (stored as IDs in DB)
+  pipelineId: z.number().nullable().or(z.literal("")),
+  stageId: z.number().nullable().or(z.literal("")),
+  // Display names (not stored in DB)
+  pipelineName: z.string().optional(),
+  stageName: z.string().optional(),
   
   // Opportunity Details
   leadValue: z.number().min(0, "Value must be positive").nullable().or(z.literal("")),
@@ -85,8 +88,8 @@ export type ToastMessage = {
 };
 
 interface UseLeadEditReturn {
-  pipelines: string[];
-  stages: string[];
+  pipelines: { id: number; name: string }[];
+  stages: { id: number; name: string }[];
   licensedAgents: { value: string; label: string }[];
   isLoading: boolean;
   isSaving: boolean;
@@ -104,8 +107,8 @@ export function useLeadEdit({
   onDelete,
 }: UseLeadEditOptions): UseLeadEditReturn {
   const supabase = getSupabaseBrowserClient();
-  const [pipelines, setPipelines] = useState<string[]>([]);
-  const [stages, setStages] = useState<string[]>([]);
+  const [pipelines, setPipelines] = useState<{ id: number; name: string }[]>([]);
+  const [stages, setStages] = useState<{ id: number; name: string }[]>([]);
   const [licensedAgents, setLicensedAgents] = useState<{ value: string; label: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -119,13 +122,13 @@ export function useLeadEdit({
     async function fetchLookups() {
       setIsLoading(true);
       try {
-        // Fetch pipelines
-        const { data: pipelinesData } = await supabase.from("pipelines").select("name").order("name");
-        setPipelines(pipelinesData?.map((p) => p.name) || []);
+        // Fetch pipelines with IDs
+        const { data: pipelinesData } = await supabase.from("pipelines").select("id, name").order("name");
+        setPipelines(pipelinesData?.map((p) => ({ id: Number(p.id), name: p.name })) || []);
 
-        // Fetch stages
-        const { data: stagesData } = await supabase.from("pipeline_stages").select("name").order("position");
-        setStages(stagesData?.map((s) => s.name) || []);
+        // Fetch stages with IDs
+        const { data: stagesData } = await supabase.from("pipeline_stages").select("id, name").order("position");
+        setStages(stagesData?.map((s) => ({ id: Number(s.id), name: s.name })) || []);
 
         // Fetch licensed agents
         const { data: agentsData } = await supabase
@@ -159,19 +162,6 @@ export function useLeadEdit({
       setError(null);
 
       try {
-        // Resolve pipeline_id and stage_id
-        const { data: pipelineRow } = await supabase
-          .from("pipelines")
-          .select("id")
-          .eq("name", data.pipeline)
-          .maybeSingle();
-
-        const { data: stageRow } = await supabase
-          .from("pipeline_stages")
-          .select("id")
-          .eq("name", data.stage)
-          .maybeSingle();
-
         const payload: Record<string, unknown> = {
           // Contact
           first_name: data.firstName,
@@ -203,9 +193,9 @@ export function useLeadEdit({
           existing_coverage_last_2_years: data.existingCoverage || null,
           previous_applications_2_years: data.previousApplications || null,
           
-          // Pipeline & Stage
-          pipeline: data.pipeline,
-          stage: data.stage,
+          // Pipeline & Stage (use IDs)
+          pipeline_id: data.pipelineId,
+          stage_id: data.stageId,
           
           // Opportunity
           lead_value: data.leadValue,
@@ -230,13 +220,6 @@ export function useLeadEdit({
           routing_number: data.routingNumber || null,
           account_number: data.accountNumber || null,
         };
-
-        if (pipelineRow?.id) {
-          payload.pipeline_id = pipelineRow.id;
-        }
-        if (stageRow?.id) {
-          payload.stage_id = stageRow.id;
-        }
 
         const { data: updated, error: updateError } = await supabase
           .from("leads")

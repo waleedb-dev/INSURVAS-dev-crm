@@ -53,9 +53,11 @@ const formSchema = z.object({
   existingCoverage: z.string().optional(), // 'Yes' or 'No' in DB
   previousApplications: z.string().optional(), // 'Yes' or 'No' in DB
   
-  // Pipeline & Stage
-  pipeline: z.string().min(1, "Pipeline is required"),
-  stage: z.string().min(1, "Stage is required"),
+  // Pipeline & Stage (IDs for DB, names for display)
+  pipelineId: z.number().nullable(),
+  stageId: z.number().nullable(),
+  pipelineName: z.string().optional(),
+  stageName: z.string().optional(),
   
   // Opportunity Details
   leadValue: z.number().min(0, "Value must be positive").nullable().or(z.literal("")),
@@ -94,8 +96,8 @@ type NoteRow = {
 
 interface LeadEditFormProps {
   lead: LeadEditFormData;
-  pipelines: string[];
-  stages: string[];
+  pipelines: { id: number; name: string }[];
+  stages: { id: number; name: string }[];
   licensedAgents: { value: string; label: string }[];
   canEdit: boolean;
   onSubmit: (data: LeadEditFormData) => void;
@@ -685,17 +687,21 @@ export function LeadEditForm({
                   <SectionHeader title="Pipeline & Stage" />
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
                     <Controller
-                      name="pipeline"
+                      name="pipelineId"
                       control={control}
                       render={({ field }) => (
-                        <FormField label="Pipeline" error={errors.pipeline?.message} required>
-                          <Select value={field.value} onValueChange={field.onChange} disabled={!canEdit}>
-                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${errors.pipeline ? "#dc2626" : T.border}`, fontSize: 14, fontWeight: 600 }}>
+                        <FormField label="Pipeline" error={errors.pipelineId?.message} required>
+                          <Select 
+                            value={field.value?.toString() || ""} 
+                            onValueChange={(val) => field.onChange(val ? Number(val) : null)} 
+                            disabled={!canEdit}
+                          >
+                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${errors.pipelineId ? "#dc2626" : T.border}`, fontSize: 14, fontWeight: 600 }}>
                               <SelectValue placeholder="Select pipeline..." />
                             </SelectTrigger>
                             <SelectContent>
                               {pipelines.map((pipeline) => (
-                                <SelectItem key={pipeline} value={pipeline}>{pipeline}</SelectItem>
+                                <SelectItem key={pipeline.id} value={pipeline.id.toString()}>{pipeline.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -703,17 +709,21 @@ export function LeadEditForm({
                       )}
                     />
                     <Controller
-                      name="stage"
+                      name="stageId"
                       control={control}
                       render={({ field }) => (
-                        <FormField label="Stage" error={errors.stage?.message} required>
-                          <Select value={field.value} onValueChange={field.onChange} disabled={!canEdit}>
-                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${errors.stage ? "#dc2626" : T.border}`, fontSize: 14, fontWeight: 600 }}>
+                        <FormField label="Stage" error={errors.stageId?.message} required>
+                          <Select 
+                            value={field.value?.toString() || ""} 
+                            onValueChange={(val) => field.onChange(val ? Number(val) : null)} 
+                            disabled={!canEdit}
+                          >
+                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${errors.stageId ? "#dc2626" : T.border}`, fontSize: 14, fontWeight: 600 }}>
                               <SelectValue placeholder="Select stage..." />
                             </SelectTrigger>
                             <SelectContent>
                               {stages.map((stage) => (
-                                <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                                <SelectItem key={stage.id} value={stage.id.toString()}>{stage.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>

@@ -876,9 +876,9 @@ export default function LeadViewComponent({
             existingCoverage: String(leadRow.existing_coverage_last_2_years ?? ""),
             previousApplications: String(leadRow.previous_applications_2_years ?? ""),
             
-            // Pipeline & Stage
-            pipeline: String(leadRow.pipeline ?? leadRow.pipeline_name ?? formData.pipeline),
-            stage: String(leadRow.stage ?? formData.stage),
+            // Pipeline & Stage (use IDs from DB)
+            pipelineId: leadRow.pipeline_id != null ? Number(leadRow.pipeline_id) : null,
+            stageId: leadRow.stage_id != null ? Number(leadRow.stage_id) : null,
             
             // Opportunity Details
             leadValue: leadRow.lead_value != null ? Number(leadRow.lead_value) : null,
@@ -903,8 +903,8 @@ export default function LeadViewComponent({
             routingNumber: String(leadRow.routing_number ?? ""),
             accountNumber: String(leadRow.account_number ?? ""),
           }}
-          pipelines={editFormPipelines.length > 0 ? editFormPipelines : pipelines.map(p => p.name)}
-          stages={editFormStages.length > 0 ? editFormStages : currentPipeline?.stages || []}
+          pipelines={editFormPipelines.length > 0 ? editFormPipelines : pipelines.map(p => ({ id: p.id, name: p.name }))}
+          stages={editFormStages.length > 0 ? editFormStages : (currentPipeline?.stages || []).map((s, idx) => ({ id: idx + 1, name: s }))}
           licensedAgents={editFormLicensedAgents}
           canEdit={effectiveCanEditLead}
           onSubmit={async (data) => {
