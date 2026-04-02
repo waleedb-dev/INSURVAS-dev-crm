@@ -329,12 +329,14 @@ export default function LeadViewComponent({
     stages: editFormStages,
     licensedAgents: editFormLicensedAgents,
     isLoading: editFormLoading,
+    isLoadingStages: editFormLoadingStages,
     isSaving: editFormSaving,
     error: editFormError,
     toast: editFormToast,
     saveLead,
     deleteLead,
     clearToast,
+    fetchStagesForPipeline,
   } = useLeadEdit({
     leadRowUuid: rowUuid,
     canEdit: effectiveCanEditLead,
@@ -346,6 +348,13 @@ export default function LeadViewComponent({
       onBack();
     },
   });
+
+  // Fetch stages when editing starts and lead has a pipeline_id
+  useEffect(() => {
+    if (isEditing && leadRow?.pipeline_id) {
+      fetchStagesForPipeline(Number(leadRow.pipeline_id));
+    }
+  }, [isEditing, leadRow?.pipeline_id, fetchStagesForPipeline]);
 
   const pipelineNameForStages = (() => {
     if (leadRow?.pipeline_id != null && leadRow.pipeline_id !== "") {
@@ -904,7 +913,7 @@ export default function LeadViewComponent({
             accountNumber: String(leadRow.account_number ?? ""),
           }}
           pipelines={editFormPipelines.length > 0 ? editFormPipelines : pipelines.map(p => ({ id: p.id, name: p.name }))}
-          stages={editFormStages.length > 0 ? editFormStages : (currentPipeline?.stages || []).map((s, idx) => ({ id: idx + 1, name: s }))}
+          stages={editFormStages}
           licensedAgents={editFormLicensedAgents}
           canEdit={effectiveCanEditLead}
           onSubmit={async (data) => {
@@ -922,12 +931,15 @@ export default function LeadViewComponent({
           } : undefined}
           isSaving={editFormSaving}
           isLoading={editFormLoading}
+          isLoadingStages={editFormLoadingStages}
           error={editFormError}
           title={`Edit "${fullName}"`}
           // Notes management props
           leadRowUuid={rowUuid}
           canEditNotes={effectiveCanEditLead}
           sessionUserId={sessionUserId}
+          // Dynamic stage loading
+          onPipelineChange={fetchStagesForPipeline}
         />
       )}
 
