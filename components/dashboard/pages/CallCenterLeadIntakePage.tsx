@@ -6,12 +6,158 @@ import { ActionMenu, DataGrid, FilterChip, Input, Pagination, Table, Toast, Empt
 import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
 import LeadViewComponent from "./LeadViewComponent";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
+import { Search, Filter, Plus, ChevronDown } from "lucide-react";
+
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select..."
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 38,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value && value !== "All" ? T.textDark : T.textMuted,
+          fontSize: 13,
+          fontWeight: 500,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value && value !== "All" 
+            ? options.find(o => o.value === value)?.label || value 
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; label?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          border: `3px solid ${T.border}`,
+          borderTopColor: "#233217",
+          animation: "spin 0.8s linear infinite",
+        }}
+      />
+      {label && (
+        <span style={{ fontSize: 14, fontWeight: 500, color: T.textMuted }}>{label}</span>
+      )}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <Card
+      style={{
+        borderRadius: 16,
+        border: `1px solid ${T.border}`,
+        borderBottom: "4px solid #DCEBDC",
+        background: T.cardBg,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+        padding: "20px 24px",
+        minHeight: 100,
+        display: "flex",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 16,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
+        <div style={{ width: 80, height: 10, borderRadius: 4, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+        <div style={{ width: 60, height: 26, borderRadius: 6, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
+      </div>
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)",
+          backgroundSize: "200% 100%",
+          animation: "shimmer 1.5s infinite",
+        }}
+      />
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+    </Card>
+  );
+}
 import {
   applyClaimSelectionToSession,
   fetchClaimAgents,
@@ -37,6 +183,8 @@ type IntakeLead = {
   /** ISO `created_at` for date-range filtering */
   createdAtIso: string;
   isDraft?: boolean;
+  carrier: string;
+  state: string;
 };
 
 type TransferKanbanColumnId =
@@ -536,15 +684,14 @@ export default function CallCenterLeadIntakePage({
   const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
   const [editingLead, setEditingLead] = useState<{ rowId: string; formData: TransferLeadFormData } | null>(null);
   const [search, setSearch] = useState("");
-  const [filterSource, setFilterSource] = useState("All");
   const [filterDateSingle, setFilterDateSingle] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterCenter, setFilterCenter] = useState("All");
-  const [filterPipeline, setFilterPipeline] = useState("All");
-  const [filterStage, setFilterStage] = useState("All");
   const [filterCreatedBy, setFilterCreatedBy] = useState("All");
   const [filterProductType, setFilterProductType] = useState("All");
+  const [filterCarrier, setFilterCarrier] = useState("All");
+  const [filterState, setFilterState] = useState("All");
   const [filterDraft, setFilterDraft] = useState<"All" | "draft" | "live">("All");
   const [filterMinPremium, setFilterMinPremium] = useState("");
   const [filterMaxPremium, setFilterMaxPremium] = useState("");
@@ -575,6 +722,7 @@ export default function CallCenterLeadIntakePage({
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
   const [claimSelection, setClaimSelection] = useState<ClaimSelections>(DEFAULT_CLAIM_SELECTION);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const itemsPerPage = 7;
 
   useEffect(() => {
@@ -603,12 +751,14 @@ export default function CallCenterLeadIntakePage({
   }, [supabase]);
 
   const refreshLeads = async () => {
+    setIsLoading(true);
     const {
       data: { session },
     } = await supabase.auth.getSession();
 
     if (!session?.user?.id) {
       setLeads([]);
+      setIsLoading(false);
       return;
     }
 
@@ -620,7 +770,7 @@ export default function CallCenterLeadIntakePage({
 
     const baseQuery = supabase
       .from("leads")
-      .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, pipeline_id, stage, stage_id, call_center_id, created_at, is_draft, pipelines(name), call_centers(name), users!submitted_by(full_name)")
+      .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, carrier, state, pipeline_id, stage, stage_id, call_center_id, created_at, is_draft, pipelines(name), call_centers(name), users!submitted_by(full_name)")
       .eq("pipelines.name", "Transfer Portal")
       .eq("stage", "Transfer API")
       .order("created_at", { ascending: false });
@@ -672,10 +822,13 @@ export default function CallCenterLeadIntakePage({
         createdAt: lead.created_at ? new Date(String(lead.created_at)).toLocaleString() : "Just now",
         createdAtIso: lead.created_at ? String(lead.created_at) : "",
         isDraft: typeof lead.is_draft === "boolean" ? lead.is_draft : false,
+        carrier: typeof lead.carrier === "string" && lead.carrier.trim() !== "" ? lead.carrier : "N/A",
+        state: typeof lead.state === "string" && lead.state.trim() !== "" ? lead.state : "N/A",
       };
     });
 
     setLeads(mapped);
+    setIsLoading(false);
   };
 
   const openClaimModalForLead = async (lead: IntakeLead) => {
@@ -763,24 +916,22 @@ export default function CallCenterLeadIntakePage({
     void fetchDefaultTransferStage();
   }, [supabase]);
 
-  const sources = useMemo(() => Array.from(new Set(leads.map((lead) => lead.source))), [leads]);
   const centerOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.centerName))), [leads]);
-  const pipelineOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.pipelineName))), [leads]);
-  const stageOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.stage))), [leads]);
   const createdByOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.createdBy))), [leads]);
   const productTypeOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.type))), [leads]);
+  const carrierOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.carrier))).filter(v => v && v !== "N/A"), [leads]);
+  const stateOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.state))).filter(v => v && v !== "N/A"), [leads]);
 
   const transferLeadsHasActiveFilters = useMemo(() => {
     const minP = filterMinPremium.trim();
     const maxP = filterMaxPremium.trim();
     return (
-      filterSource !== "All" ||
       filterDateSingle !== "" ||
       filterDateFrom !== "" ||
       filterDateTo !== "" ||
       filterCenter !== "All" ||
-      filterPipeline !== "All" ||
-      filterStage !== "All" ||
+      filterCarrier !== "All" ||
+      filterState !== "All" ||
       filterCreatedBy !== "All" ||
       filterProductType !== "All" ||
       filterDraft !== "All" ||
@@ -789,13 +940,12 @@ export default function CallCenterLeadIntakePage({
     );
   }, [
     search,
-    filterSource,
     filterDateSingle,
     filterDateFrom,
     filterDateTo,
     filterCenter,
-    filterPipeline,
-    filterStage,
+    filterCarrier,
+    filterState,
     filterCreatedBy,
     filterProductType,
     filterDraft,
@@ -807,13 +957,12 @@ export default function CallCenterLeadIntakePage({
     const minP = filterMinPremium.trim();
     const maxP = filterMaxPremium.trim();
     let n = 0;
-    if (filterSource !== "All") n++;
     if (filterDateSingle !== "") n++;
     if (filterDateFrom !== "") n++;
     if (filterDateTo !== "") n++;
     if (filterCenter !== "All") n++;
-    if (filterPipeline !== "All") n++;
-    if (filterStage !== "All") n++;
+    if (filterCarrier !== "All") n++;
+    if (filterState !== "All") n++;
     if (filterCreatedBy !== "All") n++;
     if (filterProductType !== "All") n++;
     if (filterDraft !== "All") n++;
@@ -821,13 +970,12 @@ export default function CallCenterLeadIntakePage({
     if (maxP !== "" && !Number.isNaN(Number(maxP))) n++;
     return n;
   }, [
-    filterSource,
     filterDateSingle,
     filterDateFrom,
     filterDateTo,
     filterCenter,
-    filterPipeline,
-    filterStage,
+    filterCarrier,
+    filterState,
     filterCreatedBy,
     filterProductType,
     filterDraft,
@@ -837,13 +985,12 @@ export default function CallCenterLeadIntakePage({
 
   const clearTransferLeadFilters = () => {
     setSearch("");
-    setFilterSource("All");
     setFilterDateSingle("");
     setFilterDateFrom("");
     setFilterDateTo("");
     setFilterCenter("All");
-    setFilterPipeline("All");
-    setFilterStage("All");
+    setFilterCarrier("All");
+    setFilterState("All");
     setFilterCreatedBy("All");
     setFilterProductType("All");
     setFilterDraft("All");
@@ -861,7 +1008,6 @@ export default function CallCenterLeadIntakePage({
     const maxOk = maxPrem == null || !Number.isNaN(maxPrem);
 
     return leads.filter((lead) => {
-      const matchSource = filterSource === "All" || lead.source === filterSource;
       const matchSearch =
         !query ||
         lead.name.toLowerCase().includes(query) ||
@@ -877,8 +1023,8 @@ export default function CallCenterLeadIntakePage({
         if (filterDateTo && day && day > filterDateTo) matchDate = false;
       }
       const matchCenter = filterCenter === "All" || lead.centerName === filterCenter;
-      const matchPipeline = filterPipeline === "All" || lead.pipelineName === filterPipeline;
-      const matchStage = filterStage === "All" || lead.stage === filterStage;
+      const matchCarrier = filterCarrier === "All" || lead.carrier === filterCarrier;
+      const matchState = filterState === "All" || lead.state === filterState;
       const matchCreatedBy = filterCreatedBy === "All" || lead.createdBy === filterCreatedBy;
       const matchType = filterProductType === "All" || lead.type === filterProductType;
       const matchDraft =
@@ -889,12 +1035,11 @@ export default function CallCenterLeadIntakePage({
       if (maxOk && maxPrem != null) matchPrem = matchPrem && lead.premium <= maxPrem;
 
       return (
-        matchSource &&
         matchSearch &&
         matchDate &&
         matchCenter &&
-        matchPipeline &&
-        matchStage &&
+        matchCarrier &&
+        matchState &&
         matchCreatedBy &&
         matchType &&
         matchDraft &&
@@ -904,13 +1049,12 @@ export default function CallCenterLeadIntakePage({
   }, [
     leads,
     search,
-    filterSource,
     filterDateSingle,
     filterDateFrom,
     filterDateTo,
     filterCenter,
-    filterPipeline,
-    filterStage,
+    filterCarrier,
+    filterState,
     filterCreatedBy,
     filterProductType,
     filterDraft,
@@ -925,13 +1069,12 @@ export default function CallCenterLeadIntakePage({
     setPage(1);
   }, [
     search,
-    filterSource,
     filterDateSingle,
     filterDateFrom,
     filterDateTo,
     filterCenter,
-    filterPipeline,
-    filterStage,
+    filterCarrier,
+    filterState,
     filterCreatedBy,
     filterProductType,
     filterDraft,
@@ -1880,91 +2023,95 @@ export default function CallCenterLeadIntakePage({
 
   return (
     <div onClick={() => setActiveMenu(null)}>
-      {/* Stats Row — 5 compact KPIs (wide vs tall ratio similar to reference dashboards) */}
+      {/* Stats Row — 5 compact KPIs */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-          gap: 12,
+          gap: 20,
           marginBottom: 24,
         }}
       >
-        {[
-          { label: "TOTAL LEADS", value: filtered.length.toString(), color: T.memberTeal, icon: (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            ) },
-          { label: "TOTAL PREMIUM", value: `$${totalPremium.toLocaleString()}`, color: T.memberTeal, icon: (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-            ) },
-          { label: "AVG PREMIUM", value: `$${avgPremium.toFixed(0)}`, color: T.memberTeal, icon: (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
-            ) },
-          { label: "ACTIVE PIPELINES", value: uniquePipelines.toString(), color: T.memberTeal, icon: (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-            ) },
-          { label: "DRAFT LEADS", value: draftCount.toString(), color: T.memberTeal, icon: (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
-            ) },
-        ].map(({ label, value, color, icon }, i) => (
-            <Card
-              key={label}
-              onMouseEnter={() => setHoveredStatIdx(i)}
-              onMouseLeave={() => setHoveredStatIdx(null)}
-              style={{
-                borderRadius: 12,
-                border: `1px solid ${T.border}`,
-                borderBottom: `4px solid ${color}`,
-                background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
-                boxShadow:
-                  hoveredStatIdx === i
-                    ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
-                    : "0 4px 12px rgba(0,0,0,0.03)",
-                transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
-                transition:
-                  "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
-                padding: "12px 14px",
-                minHeight: 88,
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 10,
-                cursor: "default",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
-                <div style={{ fontSize: 22, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
-                  {value}
-                </div>
-              </div>
-              <div
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => <StatSkeleton key={i} />)
+        ) : (
+          [
+            { label: "TOTAL LEADS", value: filtered.length.toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              ) },
+            { label: "TOTAL PREMIUM", value: `$${totalPremium.toLocaleString()}`, color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+              ) },
+            { label: "AVG PREMIUM", value: `$${avgPremium.toFixed(0)}`, color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/></svg>
+              ) },
+            { label: "ACTIVE PIPELINES", value: uniquePipelines.toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              ) },
+            { label: "DRAFT LEADS", value: draftCount.toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+              ) },
+          ].map(({ label, value, color, icon }, i) => (
+              <Card
+                key={label}
+                onMouseEnter={() => setHoveredStatIdx(i)}
+                onMouseLeave={() => setHoveredStatIdx(null)}
                 style={{
-                  color,
-                  backgroundColor:
+                  borderRadius: 16,
+                  border: `1px solid ${T.border}`,
+                  borderBottom: `4px solid ${color}`,
+                  background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+                  boxShadow:
                     hoveredStatIdx === i
-                      ? `color-mix(in srgb, ${color} 24%, transparent)`
-                      : `color-mix(in srgb, ${color} 15%, transparent)`,
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                      ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+                      : "0 4px 12px rgba(0,0,0,0.03)",
+                  transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
                   transition:
-                    "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
-                  transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                    "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                  padding: "20px 24px",
+                  minHeight: 100,
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                  cursor: "default",
                 }}
               >
-                {icon}
-              </div>
-            </Card>
-        ))}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
+                    {value}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    color,
+                    backgroundColor:
+                      hoveredStatIdx === i
+                        ? `color-mix(in srgb, ${color} 24%, transparent)`
+                        : `color-mix(in srgb, ${color} 15%, transparent)`,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition:
+                      "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+                    transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
+                  }}
+                >
+                  {icon}
+                </div>
+              </Card>
+          ))
+        )}
       </div>
 
       {/* Filter toolbar */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 14 }}>
         {/* Top Bar */}
         <div
           style={{
@@ -1974,54 +2121,50 @@ export default function CallCenterLeadIntakePage({
             borderBottom:
               filterPanelExpanded || transferLeadsHasActiveFilters ? "none" : `1px solid ${T.border}`,
             borderRadius:
-              filterPanelExpanded || transferLeadsHasActiveFilters ? "12px 12px 0 0" : 12,
-            padding: "10px 16px",
+              filterPanelExpanded || transferLeadsHasActiveFilters ? "16px 16px 0 0" : 16,
+            padding: "14px 20px",
             boxShadow:
               filterPanelExpanded || transferLeadsHasActiveFilters ? "none" : T.shadowSm,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             flexWrap: "wrap",
-            gap: 12,
+            gap: 16,
           }}
         >
           {/* Left: Search */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             {/* Search */}
             <div style={{
               position: "relative",
               display: "flex",
               alignItems: "center",
             }}>
-              <svg
-                width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                style={{ position: "absolute", left: 10, pointerEvents: "none", zIndex: 1 }}
-              >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+              <Search
+                size={16}
+                style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }}
+              />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search leads..."
                 style={{
-                  height: 34,
-                  minWidth: 240,
-                  paddingLeft: 32,
-                  paddingRight: 12,
+                  height: 38,
+                  minWidth: 260,
+                  paddingLeft: 38,
+                  paddingRight: 14,
                   border: `1px solid ${T.border}`,
-                  borderRadius: 8,
-                  fontSize: 13,
+                  borderRadius: 10,
+                  fontSize: 14,
                   color: T.textDark,
                   background: T.pageBg,
                   outline: "none",
                   fontFamily: T.font,
-                  transition: "border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
+                  transition: "all 0.15s ease-in-out",
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = T.blue;
-                  e.currentTarget.style.boxShadow = `0 0 0 3px ${T.blue}20`;
+                  e.currentTarget.style.borderColor = "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.borderColor = T.border;
@@ -2038,7 +2181,7 @@ export default function CallCenterLeadIntakePage({
                 display: "inline-flex",
                 alignItems: "center",
                 padding: 4,
-                borderRadius: 10,
+                borderRadius: 12,
                 border: `1px solid ${T.border}`,
                 background: T.pageBg,
                 gap: 4,
@@ -2055,18 +2198,18 @@ export default function CallCenterLeadIntakePage({
                     type="button"
                     onClick={() => setViewMode(option.id)}
                     style={{
-                      height: 30,
-                      padding: "0 12px",
-                      borderRadius: 8,
+                      height: 34,
+                      padding: "0 14px",
+                      borderRadius: 10,
                       border: "none",
-                      background: active ? T.cardBg : "transparent",
-                      color: active ? T.textDark : T.textMuted,
-                      fontSize: 12,
-                      fontWeight: 700,
+                      background: active ? "#233217" : "transparent",
+                      color: active ? "#fff" : T.textMuted,
+                      fontSize: 13,
+                      fontWeight: 600,
                       fontFamily: T.font,
                       cursor: "pointer",
-                      boxShadow: active ? "0 1px 3px rgba(15, 23, 42, 0.08)" : "none",
-                      transition: "all 0.2s ease",
+                      boxShadow: active ? "0 2px 8px rgba(35, 50, 23, 0.2)" : "none",
+                      transition: "all 0.15s ease-in-out",
                     }}
                   >
                     {option.label}
@@ -2081,40 +2224,37 @@ export default function CallCenterLeadIntakePage({
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                height: 34,
-                padding: "0 14px",
-                borderRadius: 8,
+                gap: 8,
+                height: 38,
+                padding: "0 16px",
+                borderRadius: 10,
                 border: filterPanelExpanded
-                  ? `1.5px solid ${T.blue}`
+                  ? `1.5px solid #233217`
                   : `1px solid ${T.border}`,
-                background: filterPanelExpanded ? T.blueLight : T.pageBg,
-                color: filterPanelExpanded ? T.blue : T.textDark,
-                fontSize: 13,
+                background: filterPanelExpanded ? "#DCEBDC" : T.pageBg,
+                color: filterPanelExpanded ? "#233217" : T.textDark,
+                fontSize: 14,
                 fontWeight: 600,
                 fontFamily: T.font,
                 cursor: "pointer",
-                transition:
-                  "border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
+                transition: "all 0.15s ease-in-out",
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-              </svg>
+              <Filter size={16} />
               Filters
               {transferLeadDetailedFilterCount > 0 && (
                 <span style={{
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  minWidth: 18,
-                  height: 18,
-                  padding: "0 5px",
+                  minWidth: 20,
+                  height: 20,
+                  padding: "0 6px",
                   borderRadius: 999,
-                  background: T.blue,
+                  background: "#233217",
                   color: "#fff",
                   fontSize: 11,
-                  fontWeight: 800,
+                  fontWeight: 700,
                 }}>
                   {transferLeadDetailedFilterCount}
                 </span>
@@ -2130,24 +2270,21 @@ export default function CallCenterLeadIntakePage({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 8,
-                height: 34,
-                padding: "0 16px",
-                borderRadius: 8,
+                height: 38,
+                padding: "0 18px",
+                borderRadius: 10,
                 border: "none",
-                background: canCreateLeads ? T.blue : T.border,
+                background: canCreateLeads ? "#233217" : T.border,
                 color: "#fff",
-                fontSize: 13,
-                fontWeight: 700,
+                fontSize: 14,
+                fontWeight: 600,
                 fontFamily: T.font,
                 cursor: canCreateLeads ? "pointer" : "not-allowed",
-                boxShadow: canCreateLeads ? `0 4px 12px ${T.blue}33` : "none",
-                transition:
-                  "background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
+                boxShadow: canCreateLeads ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
+                transition: "all 0.15s ease-in-out",
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+              <Plus size={16} />
               Add New Lead
             </button>
           </div>
@@ -2159,143 +2296,210 @@ export default function CallCenterLeadIntakePage({
               width: "100%",
               background: T.cardBg,
               border: `1px solid ${T.border}`,
-              borderRadius: "0 0 12px 12px",
-              padding: "16px 20px",
+              borderRadius: "0 0 16px 16px",
+              padding: "20px 24px",
               boxShadow: T.shadowSm,
               display: "flex",
               flexDirection: "column",
-              gap: 16,
+              gap: 20,
+              overflow: "visible",
+              position: "relative",
+              zIndex: 50,
             }}
           >
             {filterPanelExpanded && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
-              <div>
-                <FieldLabel label="Single date" />
-                <input
-                  type="date"
-                  value={filterDateSingle}
-                  onChange={(e) => {
-                    setFilterDateSingle(e.target.value);
-                    setFilterDateFrom("");
-                    setFilterDateTo("");
-                  }}
-                  style={TL_DATE_INPUT_STYLE}
-                />
-              </div>
-              <div>
-                <FieldLabel label="Date from" />
-                <input
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={(e) => {
-                    setFilterDateFrom(e.target.value);
-                    setFilterDateSingle("");
-                  }}
-                  style={TL_DATE_INPUT_STYLE}
-                />
-              </div>
-              <div>
-                <FieldLabel label="Date to" />
-                <input
-                  type="date"
-                  value={filterDateTo}
-                  onChange={(e) => {
-                    setFilterDateTo(e.target.value);
-                    setFilterDateSingle("");
-                  }}
-                  style={TL_DATE_INPUT_STYLE}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
-              <div>
-                <FieldLabel label="Source" />
-                <SelectInput
-                  value={filterSource}
-                  onChange={(v) => setFilterSource(String(v))}
-                  options={mapSelectOptions(sources, "All sources")}
-                />
-              </div>
-              <div>
-                <FieldLabel label="Centre" />
-                <SelectInput
-                  value={filterCenter}
-                  onChange={(v) => setFilterCenter(String(v))}
-                  options={mapSelectOptions(centerOptions, "All centres")}
-                />
-              </div>
-              <div>
-                <FieldLabel label="Pipeline" />
-                <SelectInput
-                  value={filterPipeline}
-                  onChange={(v) => setFilterPipeline(String(v))}
-                  options={mapSelectOptions(pipelineOptions, "All pipelines")}
-                />
-              </div>
-              <div>
-                <FieldLabel label="Stage" />
-                <SelectInput
-                  value={filterStage}
-                  onChange={(v) => setFilterStage(String(v))}
-                  options={mapSelectOptions(stageOptions, "All stages")}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
-              <div>
-                <FieldLabel label="Created by" />
-                <SelectInput
-                  value={filterCreatedBy}
-                  onChange={(v) => setFilterCreatedBy(String(v))}
-                  options={mapSelectOptions(createdByOptions, "All users")}
-                />
-              </div>
-              <div>
-                <FieldLabel label="Product type" />
-                <SelectInput
-                  value={filterProductType}
-                  onChange={(v) => setFilterProductType(String(v))}
-                  options={mapSelectOptions(productTypeOptions, "All types")}
-                />
-              </div>
-              <div>
-                <FieldLabel label="Draft status" />
-                <SelectInput
-                  value={filterDraft}
-                  onChange={(v) => setFilterDraft(String(v) as "All" | "draft" | "live")}
-                  options={[
-                    { value: "All", label: "All records" },
-                    { value: "live", label: "Submitted only" },
-                    { value: "draft", label: "Drafts only" },
-                  ]}
-                />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <FieldLabel label="Min premium ($)" />
-                  <Input
-                    value={filterMinPremium}
-                    onChange={(e) => setFilterMinPremium(e.target.value)}
-                    placeholder="Any"
-                    inputMode="decimal"
-                    style={{ height: 36 }}
-                  />
+                  <div>
+                    <FieldLabel label="Single date" />
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type="date"
+                        value={filterDateSingle}
+                        onChange={(e) => {
+                          setFilterDateSingle(e.target.value);
+                          setFilterDateFrom("");
+                          setFilterDateTo("");
+                        }}
+                        style={{
+                          width: "100%",
+                          height: 38,
+                          borderRadius: 10,
+                          border: `1px solid ${T.border}`,
+                          backgroundColor: T.cardBg,
+                          color: filterDateSingle ? T.textDark : T.textMuted,
+                          fontSize: 13,
+                          fontWeight: 500,
+                          padding: "0 12px",
+                          boxSizing: "border-box",
+                          transition: "all 0.15s ease-in-out",
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = "#233217";
+                          e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <FieldLabel label="Date from" />
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type="date"
+                        value={filterDateFrom}
+                        onChange={(e) => {
+                          setFilterDateFrom(e.target.value);
+                          setFilterDateSingle("");
+                        }}
+                        style={{
+                          width: "100%",
+                          height: 38,
+                          borderRadius: 10,
+                          border: `1px solid ${T.border}`,
+                          backgroundColor: T.cardBg,
+                          color: filterDateFrom ? T.textDark : T.textMuted,
+                          fontSize: 13,
+                          fontWeight: 500,
+                          padding: "0 12px",
+                          boxSizing: "border-box",
+                          transition: "all 0.15s ease-in-out",
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = "#233217";
+                          e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <FieldLabel label="Date to" />
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type="date"
+                        value={filterDateTo}
+                        onChange={(e) => {
+                          setFilterDateTo(e.target.value);
+                          setFilterDateSingle("");
+                        }}
+                        style={{
+                          width: "100%",
+                          height: 38,
+                          borderRadius: 10,
+                          border: `1px solid ${T.border}`,
+                          backgroundColor: T.cardBg,
+                          color: filterDateTo ? T.textDark : T.textMuted,
+                          fontSize: 13,
+                          fontWeight: 500,
+                          padding: "0 12px",
+                          boxSizing: "border-box",
+                          transition: "all 0.15s ease-in-out",
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = "#233217";
+                          e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <FieldLabel label="Max premium ($)" />
-                  <Input
-                    value={filterMaxPremium}
-                    onChange={(e) => setFilterMaxPremium(e.target.value)}
-                    placeholder="Any"
-                    inputMode="decimal"
-                    style={{ height: 36 }}
-                  />
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+                  <div>
+                    <FieldLabel label="Centre" />
+                    <StyledSelect
+                      value={filterCenter}
+                      onValueChange={setFilterCenter}
+                      options={mapSelectOptions(centerOptions, "All centres")}
+                      placeholder="All centres"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="Carrier" />
+                    <StyledSelect
+                      value={filterCarrier}
+                      onValueChange={setFilterCarrier}
+                      options={mapSelectOptions(carrierOptions, "All carriers")}
+                      placeholder="All carriers"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="State" />
+                    <StyledSelect
+                      value={filterState}
+                      onValueChange={setFilterState}
+                      options={mapSelectOptions(stateOptions, "All states")}
+                      placeholder="All states"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="Product type" />
+                    <StyledSelect
+                      value={filterProductType}
+                      onValueChange={setFilterProductType}
+                      options={mapSelectOptions(productTypeOptions, "All types")}
+                      placeholder="All types"
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+                  <div>
+                    <FieldLabel label="Created by" />
+                    <StyledSelect
+                      value={filterCreatedBy}
+                      onValueChange={setFilterCreatedBy}
+                      options={mapSelectOptions(createdByOptions, "All users")}
+                      placeholder="All users"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="Draft status" />
+                    <StyledSelect
+                      value={filterDraft}
+                      onValueChange={(v) => setFilterDraft(v as "All" | "draft" | "live")}
+                      options={[
+                        { value: "All", label: "All records" },
+                        { value: "live", label: "Submitted only" },
+                        { value: "draft", label: "Drafts only" },
+                      ]}
+                      placeholder="All records"
+                    />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div>
+                      <FieldLabel label="Min premium ($)" />
+                      <Input
+                        value={filterMinPremium}
+                        onChange={(e) => setFilterMinPremium(e.target.value)}
+                        placeholder="Any"
+                        inputMode="decimal"
+                        style={{ height: 38, borderRadius: 10 }}
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel label="Max premium ($)" />
+                      <Input
+                        value={filterMaxPremium}
+                        onChange={(e) => setFilterMaxPremium(e.target.value)}
+                        placeholder="Any"
+                        inputMode="decimal"
+                        style={{ height: 38, borderRadius: 10 }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2307,19 +2511,18 @@ export default function CallCenterLeadIntakePage({
                 gap: 12, 
                 flexWrap: "wrap",
                 paddingTop: filterPanelExpanded ? 16 : 0,
-                borderTop: filterPanelExpanded ? `1px solid ${T.borderLight}` : "none",
+                borderTop: filterPanelExpanded ? `1px solid ${T.border}` : "none",
               }}>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
               Active:
             </span>
-            {filterSource !== "All" && <FilterChip label={`Source: ${filterSource}`} onClear={() => setFilterSource("All")} />}
             {filterDateSingle !== "" && <FilterChip label={`Date: ${filterDateSingle}`} onClear={() => setFilterDateSingle("")} />}
             {filterDateFrom !== "" && <FilterChip label={`From: ${filterDateFrom}`} onClear={() => setFilterDateFrom("")} />}
             {filterDateTo !== "" && <FilterChip label={`To: ${filterDateTo}`} onClear={() => setFilterDateTo("")} />}
             {filterCenter !== "All" && <FilterChip label={`Centre: ${filterCenter}`} onClear={() => setFilterCenter("All")} />}
-            {filterPipeline !== "All" && <FilterChip label={`Pipeline: ${filterPipeline}`} onClear={() => setFilterPipeline("All")} />}
-            {filterStage !== "All" && <FilterChip label={`Stage: ${filterStage}`} onClear={() => setFilterStage("All")} />}
+            {filterCarrier !== "All" && <FilterChip label={`Carrier: ${filterCarrier}`} onClear={() => setFilterCarrier("All")} />}
+            {filterState !== "All" && <FilterChip label={`State: ${filterState}`} onClear={() => setFilterState("All")} />}
             {filterCreatedBy !== "All" && <FilterChip label={`Created by: ${filterCreatedBy}`} onClear={() => setFilterCreatedBy("All")} />}
             {filterProductType !== "All" && <FilterChip label={`Type: ${filterProductType}`} onClear={() => setFilterProductType("All")} />}
             {filterDraft !== "All" && (
@@ -2342,11 +2545,12 @@ export default function CallCenterLeadIntakePage({
                   style={{
                     background: "none",
                     border: "none",
-                    color: T.blue,
-                    fontSize: 12,
-                    fontWeight: 700,
+                    color: "#233217",
+                    fontSize: 13,
+                    fontWeight: 600,
                     cursor: "pointer",
                     padding: "4px 0",
+                    transition: "all 0.15s ease-in-out",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.textDecoration = "underline";
@@ -2363,129 +2567,248 @@ export default function CallCenterLeadIntakePage({
         )}
       </div>
 
-      {viewMode === "table" ? (
+{viewMode === "table" ? (
+        isLoading ? (
+          <div
+            style={{
+              borderRadius: 16,
+              border: `1px solid ${T.border}`,
+              backgroundColor: T.cardBg,
+              padding: "80px 40px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 20,
+            }}
+          >
+            <LoadingSpinner size={48} label="Loading leads..." />
+          </div>
+        ) : (
         <DataGrid
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="Search leads by name, phone, source, or ID..."
           noHeader
-          style={{ borderRadius: 12 }}
+          style={{ borderRadius: 16, border: `1px solid ${T.border}`, overflow: "hidden"}}
           pagination={
-            <Pagination
-              page={page}
-              totalItems={filtered.length}
-              itemsPerPage={itemsPerPage}
-              itemLabel="leads"
-              onPageChange={setPage}
-            />
+            <div style={{
+              backgroundColor: T.cardBg,
+              borderTop: `1px solid ${T.border}`,
+              padding: "16px 20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
+                Showing {((page - 1) * itemsPerPage) + 1} - {Math.min(page * itemsPerPage, filtered.length)} of {filtered.length} leads
+              </span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button
+                  onClick={() => setPage(page -1)}
+                  disabled={page === 1}
+                  style={{
+                    backgroundColor: "transparent",
+                    color: page === 1 ? T.textMuted : "#233217",
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 10,
+                    padding: "8px 16px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: page === 1 ? "not-allowed" : "pointer",
+                    fontFamily: T.font,
+                    opacity: page === 1 ? 0.5 : 1,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (page !==1) {
+                      e.currentTarget.style.backgroundColor = "#233217";
+                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.borderColor = "#233217";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = page === 1 ? T.textMuted : "#233217";
+                    e.currentTarget.style.borderColor = T.border;
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 500, padding: "0 8px" }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage(page + 1)}
+                  disabled={page === totalPages || totalPages === 0}
+                  style={{
+                    backgroundColor: "transparent",
+                    color: (page === totalPages || totalPages === 0) ? T.textMuted : "#233217",
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 10,
+                    padding: "8px 16px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: (page === totalPages || totalPages === 0) ? "not-allowed" : "pointer",
+                    fontFamily: T.font,
+                    opacity: (page === totalPages || totalPages === 0) ? 0.5 : 1,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (page !== totalPages && totalPages !== 0) {
+                      e.currentTarget.style.backgroundColor = "#233217";
+                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.borderColor = "#233217";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = (page === totalPages || totalPages === 0) ? T.textMuted : "#233217";
+                    e.currentTarget.style.borderColor = T.border;
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           }
         >
           <>
             <div
               style={{
-                borderRadius: "10px 10px 0 0",
-                border: `1.5px solid ${T.border}`,
+                borderRadius: "16px 16px 0 0",
+                border: `1px solid ${T.border}`,
                 borderBottom: "none",
                 overflow: "hidden",
                 backgroundColor: T.cardBg,
               }}
             >
               <ShadcnTable>
-                <TableHeader style={{ backgroundColor: T.asideChrome }}>
+                <TableHeader style={{ backgroundColor: "#233217" }}>
                   <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
                     {[
-                      "LEAD ID", "CLIENT", "CONTACT", "CENTRE", "PREMIUM", "CREATED BY", "ACTIONS"
-                    ].map(header => (
-                      <TableHead key={header} style={{ 
-                        color: "white", 
-                        fontWeight: 800, 
-                        fontSize: 11, 
-                        letterSpacing: "0.5px",
-                        padding: "16px",
+                      { label: "Lead ID", align: "left" as const },
+                      { label: "Customer Name", align: "left" as const },
+                      { label: "Customer Phone", align: "left" as const },
+                      { label: "Carrier", align: "left" as const },
+                      { label: "State", align: "left" as const },
+                      { label: "Premium", align: "left" as const },
+                      { label: "Actions", align: "center" as const },
+                    ].map(({ label, align }) => (
+                      <TableHead key={label} style={{ 
+                        color: "#ffffff", 
+                        fontWeight: 700, 
+                        fontSize: 12, 
+                        letterSpacing: "0.3px",
+                        padding: "16px 20px",
                         whiteSpace: "nowrap",
-                        textAlign: header === "ACTIONS" ? "center" : "left"
+                        textAlign: align
                       }}>
-                        {header}
+                        {label}
                       </TableHead>
                     ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginated.map((lead) => {
-                    return (
-                      <TableRow 
-                        key={lead.id}
-                        onClick={() => void openLeadFromGrid(lead)}
-                        style={{ cursor: "pointer", borderBottom: `1px solid ${T.asideChrome}` }}
-                        className="hover:bg-muted/30 transition-[background-color] duration-200 ease-out"
-                      >
-                        <TableCell style={{ padding: "12px 16px" }}>
-                          <span style={{ fontSize: 12, fontWeight: 800, color: T.textDark, textDecoration: "underline" }}>
-                            {lead.id}
-                          </span>
-                        </TableCell>
-                        <TableCell style={{ padding: "12px 16px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: "50%",
-                              backgroundColor: T.asideChrome,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "#fff",
-                              fontSize: 11,
-                              fontWeight: 800,
-                              flexShrink: 0,
-                            }}>
-                              {getInitials(lead.name)}
-                            </div>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: "60px 20px", textAlign: "center" }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+                          <div style={{
+                            width: 40,
+                            height: 40,
+                            border: `4px solid ${T.border}`,
+                            borderTopColor: "#233217",
+                            borderRadius: "50%",
+                            animation: "spin 0.8s linear infinite",
+                          }} />
+                          <style>{`
+                            @keyframes spin {
+                              to { transform: rotate(360deg); }
+                            }
+                          `}</style>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#233217" }}>Loading leads...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : paginated.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: "60px 20px", textAlign: "center" }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                          <Search size={40} color={T.textMuted} style={{ opacity: 0.5 }} />
+                          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: T.textDark }}>No leads found</h3>
+                          <p style={{ margin: 0, fontSize: 14, color: T.textMuted }}>Try changing your search or filter selections.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginated.map((lead) => {
+                      return (
+                        <TableRow 
+                          key={lead.id}
+                          style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                          className="hover:bg-muted/30 transition-all duration-150"
+                        >
+                          <TableCell style={{ padding: "14px 20px" }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
+                              }}
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: "#233217",
+                                textDecoration: "underline",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                                fontFamily: T.font,
+                              }}
+                            >
+                              {lead.id}
+                            </button>
+                          </TableCell>
+                          <TableCell style={{ padding: "14px 20px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>{lead.name}</span>
+                              <span style={{ fontSize: 14, fontWeight: 500, color: T.textDark }}>{lead.name}</span>
                               {lead.isDraft ? (
                                 <span
                                   style={{
-                                    backgroundColor: "#fff7ed",
-                                    color: "#c2410c",
-                                    border: "1px solid #fdba74",
+                                    backgroundColor: "#FEF3C7",
+                                    color: "#92400E",
+                                    border: "1px solid #FCD34D",
                                     borderRadius: 999,
                                     padding: "2px 8px",
                                     fontSize: 10,
-                                    fontWeight: 800,
+                                    fontWeight: 600,
                                     letterSpacing: "0.2px",
-                                    textTransform: "uppercase",
                                   }}
                                 >
                                   Draft
                                 </span>
                               ) : null}
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell style={{ padding: "12px 16px" }}>
-                          <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{lead.phone}</div>
-                          <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginTop: 4 }}>{lead.source}</div>
-                        </TableCell>
-                        <TableCell style={{ padding: "12px 16px" }}>
-                          <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
-                            {lead.centerName}
-                          </span>
-                        </TableCell>
-                        <TableCell style={{ padding: "12px 16px" }}>
-                          <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>
-                            ${lead.premium.toLocaleString()}
-                          </span>
-                        </TableCell>
-                        <TableCell style={{ padding: "12px 16px" }}>
-                          <span style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>
-                            {lead.createdBy}
-                          </span>
-                        </TableCell>
-                        <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
+                          </TableCell>
+                          <TableCell style={{ padding: "14px 20px" }}>
+                            <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.phone}</span>
+                          </TableCell>
+                          <TableCell style={{ padding: "14px 20px" }}>
+                            <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.carrier}</span>
+                          </TableCell>
+                          <TableCell style={{ padding: "14px 20px" }}>
+                            <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.state}</span>
+                          </TableCell>
+                          <TableCell style={{ padding: "14px 20px" }}>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: "#233217" }}>
+                              ${lead.premium.toLocaleString()}
+                            </span>
+                          </TableCell>
+                          <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
                           >
                             {!isCallCenterTransferRole && (
                               <button
@@ -2499,14 +2822,25 @@ export default function CallCenterLeadIntakePage({
                                   router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
                                 }}
                                 style={{
-                                  border: `1.5px solid ${T.border}`,
-                                  borderRadius: 8,
+                                  border: `1px solid ${T.border}`,
+                                  borderRadius: 10,
                                   background: T.cardBg,
-                                  color: T.textDark,
+                                  color: "#233217",
                                   fontSize: 12,
-                                  fontWeight: 700,
-                                  padding: "6px 12px",
+                                  fontWeight: 600,
+                                  padding: "6px 14px",
                                   cursor: "pointer",
+                                  transition: "all 0.15s ease-in-out",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = "#233217";
+                                  e.currentTarget.style.color = "#fff";
+                                  e.currentTarget.style.borderColor = "#233217";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = T.cardBg;
+                                  e.currentTarget.style.color = "#233217";
+                                  e.currentTarget.style.borderColor = T.border;
                                 }}
                               >
                                 View Lead
@@ -2519,14 +2853,25 @@ export default function CallCenterLeadIntakePage({
                                   type="button"
                                   onClick={() => void openClaimModalForLead(lead)}
                                   style={{
-                                    border: `1.5px solid ${T.border}`,
-                                    borderRadius: 8,
+                                    border: `1px solid ${T.border}`,
+                                    borderRadius: 10,
                                     background: T.cardBg,
-                                    color: T.textDark,
+                                    color: "#233217",
                                     fontSize: 12,
-                                    fontWeight: 700,
-                                    padding: "6px 12px",
+                                    fontWeight: 600,
+                                    padding: "6px 14px",
                                     cursor: "pointer",
+                                    transition: "all 0.15s ease-in-out",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = "#233217";
+                                    e.currentTarget.style.color = "#fff";
+                                    e.currentTarget.style.borderColor = "#233217";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = T.cardBg;
+                                    e.currentTarget.style.color = "#233217";
+                                    e.currentTarget.style.borderColor = T.border;
                                   }}
                                 >
                                   Claim Call
@@ -2536,14 +2881,25 @@ export default function CallCenterLeadIntakePage({
                                   type="button"
                                   onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
                                   style={{
-                                    border: `1.5px solid ${T.border}`,
-                                    borderRadius: 8,
+                                    border: `1px solid ${T.border}`,
+                                    borderRadius: 10,
                                     background: T.cardBg,
-                                    color: T.textDark,
+                                    color: "#233217",
                                     fontSize: 12,
-                                    fontWeight: 700,
-                                    padding: "6px 12px",
+                                    fontWeight: 600,
+                                    padding: "6px 14px",
                                     cursor: "pointer",
+                                    transition: "all 0.15s ease-in-out",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = "#233217";
+                                    e.currentTarget.style.color = "#fff";
+                                    e.currentTarget.style.borderColor = "#233217";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = T.cardBg;
+                                    e.currentTarget.style.color = "#233217";
+                                    e.currentTarget.style.borderColor = T.border;
                                   }}
                                 >
                                   Claim Retention
@@ -2573,18 +2929,18 @@ export default function CallCenterLeadIntakePage({
                         </TableCell>
                       </TableRow>
                     );
-                  })}
+                  }))}
                 </TableBody>
               </ShadcnTable>
             </div>
-            {filtered.length === 0 && (
-              <EmptyState title="No leads found" description="Try changing your search or filter selections." compact />
-            )}
           </>
         </DataGrid>
+      )
       ) : (
         renderTransferKanbanBoard()
       )}
+
+      <div style={{ height: 8 }} />
 
       {pendingDeleteLead && (
         <div
@@ -2668,23 +3024,15 @@ export default function CallCenterLeadIntakePage({
       />
       <style jsx>{`
         .lead-action-btn {
-          transition:
-            background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-            border-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-            color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-            transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-            box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+          transition: all 0.15s ease-in-out;
         }
         .lead-action-btn:hover {
-          background: #3b5229;
-          border-color: #3b5229;
+          background: #233217;
+          border-color: #233217;
           color: #fff;
-          transform: translateY(-1px);
-          box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
         }
         .lead-action-btn:active {
-          transform: translateY(0);
-          box-shadow: 0 1px 4px rgba(37, 99, 235, 0.25);
+          transform: scale(0.98);
         }
       `}</style>
     </div>

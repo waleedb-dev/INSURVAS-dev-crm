@@ -9,10 +9,10 @@ export function FieldLabel({ label }: { label: string }) {
     <span
       style={{
         fontSize: 11,
-        fontWeight: 700,
+        fontWeight: 600,
         color: T.textMuted,
-        letterSpacing: 0.4,
-        textTransform: "uppercase",
+        letterSpacing: 0.3,
+        textTransform: "capitalize",
       }}
     >
       {label}

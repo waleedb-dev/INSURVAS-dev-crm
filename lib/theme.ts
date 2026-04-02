@@ -64,5 +64,5 @@ export const T = {
   radiusXl:  20,
 
   // ── Font ─────────────────────────────────────────────────────────────────
-  font: "'SpotifyMix', sans-serif",
+  font: "'Inter', system-ui, sans-serif",
 } as const;

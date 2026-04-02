@@ -3,6 +3,29 @@
 import { ReactNode, useState, useRef, useEffect } from "react";
 import { T } from "@/lib/theme";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
+import {
+  LayoutDashboard,
+  Briefcase,
+  GitBranch,
+  ArrowLeftRight,
+  DollarSign,
+  ScrollText,
+  Users,
+  Layers,
+  Building2,
+  Headphones,
+  Settings,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Bell,
+  Moon,
+  Sun,
+  LogOut,
+  ChevronDown,
+  Menu,
+} from "lucide-react";
 
 export type DashPage =
   | "dashboard" | "nearest-events"
@@ -28,22 +51,33 @@ interface Props {
   userInitials?: string;
 }
 
-const SIDEBAR_W  = 230;
-const SIDEBAR_SM = 64;
+const SIDEBAR_W  = 260;
+const SIDEBAR_SM = 72;
 
-const NAV_ITEMS: { id: DashPage; label: string; Icon: React.FC<{ active: boolean }> }[] = [
-  { id: "dashboard",        label: "Overview",         Icon: DashboardIcon },
-  { id: "daily-deal-flow",  label: "Daily Deal Flow",  Icon: ProjectsIcon },
-  { id: "lead-pipeline",    label: "Lead Pipeline",    Icon: VacationsIcon },
-  { id: "call-center-lead-intake", label: "Transfer Leads", Icon: EmployeesIcon },
-  { id: "commissions",      label: "Commissions",      Icon: CommissionsIcon },
-  { id: "policies",         label: "Policies",         Icon: PoliciesIcon },
-  { id: "users-access",     label: "Users & Access",   Icon: MessengerIcon },
-  { id: "pipeline-management", label: "Pipelines",     Icon: InfoPortalIcon },
-  { id: "carrier-management", label: "Carriers",       Icon: ProjectsIcon },
-  { id: "bpo-centres",      label: "BPO Centres",      Icon: VacationsIcon },
-  { id: "imo-management",   label: "IMO Management",   Icon: InfoPortalIcon },
-  { id: "upline-carrier-states", label: "Upline States", Icon: InfoPortalIcon },
+const INSURVAS_SIDEBAR_BG = "#233217";
+const INSURVAS_TEXT_MUTED = "#C2D5C2";
+const INSURVAS_TEXT_WHITE = "#ffffff";
+const INSURVAS_ACCENT = "#DCEBDC";
+
+interface NavItem {
+  id: DashPage;
+  label: string;
+  icon: React.ReactNode;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { id: "dashboard", label: "Overview", icon: <LayoutDashboard size={22} strokeWidth={1.8} /> },
+  { id: "daily-deal-flow", label: "Daily Deal Flow", icon: <Briefcase size={22} strokeWidth={1.8} /> },
+  { id: "lead-pipeline", label: "Lead Pipeline", icon: <GitBranch size={22} strokeWidth={1.8} /> },
+  { id: "call-center-lead-intake", label: "Transfer Leads", icon: <ArrowLeftRight size={22} strokeWidth={1.8} /> },
+  { id: "commissions", label: "Commissions", icon: <DollarSign size={22} strokeWidth={1.8} /> },
+  { id: "policies", label: "Policies", icon: <ScrollText size={22} strokeWidth={1.8} /> },
+  { id: "users-access", label: "Users & Access", icon: <Users size={22} strokeWidth={1.8} /> },
+  { id: "pipeline-management", label: "Pipelines", icon: <Layers size={22} strokeWidth={1.8} /> },
+  { id: "carrier-management", label: "Carriers", icon: <Building2 size={22} strokeWidth={1.8} /> },
+  { id: "bpo-centres", label: "BPO Centres", icon: <Headphones size={22} strokeWidth={1.8} /> },
+  { id: "imo-management", label: "IMO Management", icon: <Settings size={22} strokeWidth={1.8} /> },
+  { id: "upline-carrier-states", label: "Upline States", icon: <MapPin size={22} strokeWidth={1.8} /> },
 ];
 
 const PAGE_TITLE: Record<DashPage, string> = {
@@ -127,20 +161,18 @@ export default function DashboardLayout({
       {/* ── Sidebar ────────────────────────────────────────────────────────── */}
       <aside style={{
         width: sidebarW, flexShrink: 0,
-        backgroundColor: T.asideChrome,
+        backgroundColor: INSURVAS_SIDEBAR_BG,
         display: "flex", flexDirection: "column",
         position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 100,
-        borderRight: "1px solid rgba(255,255,255,0.1)",
         transition: "width 0.22s cubic-bezier(.4,0,.2,1)",
-        /* visible so account / notification panels (position absolute; left: 100%) are not clipped */
         overflow: "visible",
-        paddingTop: 24, paddingBottom: 20,
+        paddingTop: 20, paddingBottom: 20,
       }}>
 
         {/* Logo row */}
         <div style={{
-          padding: `0 ${collapsed ? 12 : 20}px`,
-          marginBottom: 28,
+          padding: `0 ${collapsed ? 16 : 20}px`,
+          marginBottom: 24,
           display: "flex", alignItems: "center",
           justifyContent: collapsed ? "center" : "space-between",
           transition: "padding 0.22s",
@@ -148,40 +180,64 @@ export default function DashboardLayout({
           <div
             onClick={() => onNavigate("dashboard")}
             style={{
-              height: 40,
-              width: collapsed ? 40 : 150,
-              display: "flex", alignItems: "center", justifyContent: "flex-start",
+              height: 36,
+              width: collapsed ? 36 : 160,
+              display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", flexShrink: 0,
-              transition: "transform 0.15s, width 0.22s",
+              transition: "all 0.15s ease-in-out",
               overflow: "hidden",
             }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = "scale(1.02)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; }}
           >
-            <img 
-              src={collapsed ? "/logo-collapsed.png" : "/logo-expanded.png"} 
-              alt="Logo" 
-              style={{ 
-                width: "100%", 
-                height: "100%", 
-                objectFit: "contain", 
-                objectPosition: "left center",
-                filter: "brightness(0) invert(1)", // Always white logo
-                transition: "filter 0.3s" 
-              }} 
-            />
+            {collapsed ? (
+              <div style={{ 
+                width: 36, 
+                height: 36, 
+                borderRadius: 10, 
+                backgroundColor: INSURVAS_ACCENT, 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+              }}>
+                <Menu size={18} color={INSURVAS_SIDEBAR_BG} />
+              </div>
+            ) : (
+              <img 
+                src="/logo-expanded.png" 
+                alt="Logo" 
+                style={{ 
+                  width: "100%", 
+                  height: "100%", 
+                  objectFit: "contain", 
+                  objectPosition: "left center",
+                  filter: "brightness(0) invert(1)",
+                }} 
+              />
+            )}
           </div>
 
           {!collapsed && (
-            <button onClick={() => setCollapsed(true)} style={{
-              background: "none", border: "none", cursor: "pointer", padding: 6,
-              borderRadius: 6, color: "#a1a1aa", transition: "color 0.15s",
-            }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#fff"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#a1a1aa"; }}
+            <button 
+              onClick={() => setCollapsed(true)} 
+              style={{
+                background: "none", border: "none", cursor: "pointer", padding: 8,
+                borderRadius: 8, color: INSURVAS_TEXT_MUTED, transition: "all 0.15s ease-in-out",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+              onMouseEnter={(e) => { 
+                const el = e.currentTarget as HTMLElement;
+                el.style.color = INSURVAS_TEXT_WHITE;
+                el.style.backgroundColor = "rgba(255,255,255,0.08)";
+              }}
+              onMouseLeave={(e) => { 
+                const el = e.currentTarget as HTMLElement;
+                el.style.color = INSURVAS_TEXT_MUTED;
+                el.style.backgroundColor = "transparent";
+              }}
               title="Collapse sidebar"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <ChevronLeft size={18} />
             </button>
           )}
         </div>
@@ -189,15 +245,26 @@ export default function DashboardLayout({
         {/* Expand button when collapsed */}
         {collapsed && (
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-            <button onClick={() => setCollapsed(false)} style={{
-              background: "none", border: "none", cursor: "pointer", padding: 6,
-              borderRadius: 6, color: "#a1a1aa", transition: "color 0.15s",
-            }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#fff"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#a1a1aa"; }}
+            <button 
+              onClick={() => setCollapsed(false)} 
+              style={{
+                background: "none", border: "none", cursor: "pointer", padding: 8,
+                borderRadius: 8, color: INSURVAS_TEXT_MUTED, transition: "all 0.15s ease-in-out",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+              onMouseEnter={(e) => { 
+                const el = e.currentTarget as HTMLElement;
+                el.style.color = INSURVAS_TEXT_WHITE;
+                el.style.backgroundColor = "rgba(255,255,255,0.08)";
+              }}
+              onMouseLeave={(e) => { 
+                const el = e.currentTarget as HTMLElement;
+                el.style.color = INSURVAS_TEXT_MUTED;
+                el.style.backgroundColor = "transparent";
+              }}
               title="Expand sidebar"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <ChevronRight size={18} />
             </button>
           </div>
         )}
@@ -206,24 +273,33 @@ export default function DashboardLayout({
         {!collapsed && (
           <div style={{ padding: "0 16px", marginBottom: 24 }}>
             <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: "rgba(255, 255, 255, 0.03)",
-              border: "1px solid rgba(255, 255, 255, 0.07)",
-              borderRadius: 8,
-              padding: "8px 12px",
+              display: "flex", alignItems: "center", gap: 10,
+              background: "rgba(255, 255, 255, 0.04)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: 10,
+              padding: "10px 14px",
               cursor: "text",
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+              transition: "all 0.15s ease-in-out",
+            }}
+              onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
+                const el = e.currentTarget as HTMLDivElement;
+                el.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
+                el.style.borderColor = "rgba(255, 255, 255, 0.15)";
+              }}
+              onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
+                const el = e.currentTarget as HTMLDivElement;
+                el.style.backgroundColor = "rgba(255, 255, 255, 0.04)";
+                el.style.borderColor = "rgba(255, 255, 255, 0.08)";
+              }}
+            >
+              <Search size={16} color={INSURVAS_TEXT_MUTED} style={{ flexShrink: 0 }} />
               <input
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Search..."
                 style={{
                   flex: 1, background: "transparent", border: "none", outline: "none",
-                  color: "#fff", fontSize: 13, fontFamily: T.font,
+                  color: INSURVAS_TEXT_WHITE, fontSize: 13, fontFamily: T.font,
                   minWidth: 0,
                 }}
               />
@@ -232,35 +308,62 @@ export default function DashboardLayout({
         )}
 
         {/* Nav */}
-        <nav style={{ padding: `0 ${collapsed ? 8 : 12}px`, overflowY: "auto", transition: "padding 0.22s" }}>
-          {NAV_ITEMS.filter((item) => visiblePageSet.has(item.id)).map(({ id, label, Icon }) => {
-            const isActive = id === activeNav;
+        <nav style={{ padding: `0 ${collapsed ? 12 : 12}px`, overflowY: "auto", transition: "padding 0.22s", flex: 1 }}>
+          {!collapsed && (
+            <div style={{ 
+              fontSize: 10, 
+              fontWeight: 700, 
+              color: INSURVAS_TEXT_MUTED, 
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              padding: "0 14px",
+              marginBottom: 12,
+            }}>
+              Menu
+            </div>
+          )}
+          {NAV_ITEMS.filter((item) => visiblePageSet.has(item.id)).map((item) => {
+            const isActive = item.id === activeNav;
             return (
               <button
-                key={id}
-                id={`nav-${id}`}
-                onClick={() => onNavigate(id)}
-                title={collapsed ? label : undefined}
+                key={item.id}
+                id={`nav-${item.id}`}
+                onClick={() => onNavigate(item.id)}
+                title={collapsed ? item.label : undefined}
                 style={{
                   display: "flex", alignItems: "center",
-                  gap: collapsed ? 0 : 12,
+                  gap: collapsed ? 0 : 14,
                   justifyContent: collapsed ? "center" : "flex-start",
                   width: "100%",
-                  padding: collapsed ? "10px 0" : "10px 14px",
-                  borderRadius: 8, border: "none", cursor: "pointer",
-                  backgroundColor: isActive ? "rgba(255, 255, 255, 0.06)" : (hoveredNav === id ? "rgba(255, 255, 255, 0.025)" : "transparent"),
-                  color: isActive ? "#fff" : (hoveredNav === id ? "#fff" : "#a1a1aa"),
-                  fontSize: 14, fontWeight: isActive ? 600 : 500,
-                  marginBottom: 2, fontFamily: T.font,
-                  transition: "color 0.15s, background-color 0.15s",
+                  padding: collapsed ? "14px 0" : "14px 16px",
+                  borderRadius: 12, border: "none", cursor: "pointer",
+                  backgroundColor: isActive ? INSURVAS_ACCENT : "transparent",
+                  color: isActive ? INSURVAS_SIDEBAR_BG : (hoveredNav === item.id ? INSURVAS_TEXT_WHITE : INSURVAS_TEXT_MUTED),
+                  fontSize: 15, fontWeight: isActive ? 700 : 600,
+                  marginBottom: 4, fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
                   overflow: "hidden", whiteSpace: "nowrap",
                   textAlign: "left",
+                  transform: hoveredNav === item.id && !isActive ? "scale(1.01)" : "scale(1)",
+                  position: "relative",
                 }}
-                onMouseEnter={() => setHoveredNav(id)}
+                onMouseEnter={() => setHoveredNav(item.id)}
                 onMouseLeave={() => setHoveredNav(null)}
               >
-                <span style={{ flexShrink: 0, display: "flex" }}><Icon active={isActive} /></span>
-                {!collapsed && <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>}
+                {isActive && (
+                  <span style={{
+                    position: "absolute",
+                    left: 0,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 3,
+                    height: 20,
+                    backgroundColor: INSURVAS_SIDEBAR_BG,
+                    borderRadius: "0 3px 3px 0",
+                  }} />
+                )}
+                <span style={{ flexShrink: 0, display: "flex" }}>{item.icon}</span>
+                {!collapsed && <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>}
               </button>
             );
           })}
@@ -320,12 +423,9 @@ export default function DashboardLayout({
                 }}
               >
                 <span style={{ position: "relative", display: "flex" }}>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 2C10 2 6 4 6 9V13L4 15H16L14 13V9C14 4 10 2 10 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                    <path d="M8.5 15.5C8.5 16.33 9.17 17 10 17C10.83 17 11.5 16.33 11.5 15.5" stroke="currentColor" strokeWidth="1.5" />
-                  </svg>
+                  <Bell size={20} />
                   {unread > 0 && (
-                    <span style={{ position: "absolute", top: -2, right: -2, width: 7, height: 7, borderRadius: "50%", backgroundColor: T.danger, border: `2px solid ${T.cardBg}` }} />
+                    <span style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: "50%", backgroundColor: T.danger, border: `2px solid ${T.cardBg}` }} />
                   )}
                 </span>
               </button>
@@ -375,21 +475,9 @@ export default function DashboardLayout({
               }}
             >
               {isDark ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="5" />
-                  <line x1="12" y1="1" x2="12" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="23" />
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                  <line x1="1" y1="12" x2="3" y2="12" />
-                  <line x1="21" y1="12" x2="23" y2="12" />
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
+                <Sun size={18} />
               ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
+                <Moon size={18} />
               )}
               Appearance
             </button>
@@ -416,9 +504,7 @@ export default function DashboardLayout({
               >
                 <div style={{ width: 26, height: 26, borderRadius: "50%", backgroundColor: T.blue, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{userInitials}</div>
                 <span style={{ fontSize: 13, fontWeight: 700, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userDisplayName}</span>
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, transition: "transform 0.18s", transform: showUser ? "rotate(180deg)" : "rotate(0)" }}>
-                  <path d="M3 4.5L6 7.5L9 4.5" stroke={T.textMuted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <ChevronDown size={14} style={{ flexShrink: 0, transition: "transform 0.18s", transform: showUser ? "rotate(180deg)" : "rotate(0)" }} />
               </button>
               {showUser && (
                 <div style={{ position: "absolute", right: 0, top: "calc(100% + 10px)", width: 220, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 250, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
@@ -441,7 +527,7 @@ export default function DashboardLayout({
                       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#f2f8ee"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                     >
-                      <LogoutIcon />Sign out
+                      <LogOut size={16} />Sign out
                     </button>
                   </div>
                 </div>
@@ -461,59 +547,4 @@ export default function DashboardLayout({
   );
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-function DashboardIcon({ active }: { active: boolean }) {
-  const c = "currentColor";
-  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="6" height="6" rx="2" fill={c} /><rect x="11" y="1" width="6" height="6" rx="2" fill={c} /><rect x="1" y="11" width="6" height="6" rx="2" fill={c} /><rect x="11" y="11" width="6" height="6" rx="2" fill={c} /></svg>;
-}
-function ProjectsIcon({ active }: { active: boolean }) {
-  const c = "currentColor";
-  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 4C2 2.9 2.9 2 4 2H7L9 5H14C15.1 5 16 5.9 16 7V14C16 15.1 15.1 16 14 16H4C2.9 16 2 15.1 2 14V4Z" stroke={c} strokeWidth="1.5" /></svg>;
-}
-function CalendarIcon({ active }: { active: boolean }) {
-  const c = "currentColor";
-  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="4" width="14" height="13" rx="2" stroke={c} strokeWidth="1.5" /><path d="M5 2V5M13 2V5" stroke={c} strokeWidth="1.5" strokeLinecap="round" /><path d="M2 8H16" stroke={c} strokeWidth="1.5" /></svg>;
-}
-function VacationsIcon({ active }: { active: boolean }) {
-  const c = "currentColor";
-  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2L11 7H16L12 10L14 15L9 12L4 15L6 10L2 7H7L9 2Z" stroke={c} strokeWidth="1.5" strokeLinejoin="round" /></svg>;
-}
-function EmployeesIcon({ active }: { active: boolean }) {
-  const c = "currentColor";
-  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="6" r="3.5" stroke={c} strokeWidth="1.5" /><path d="M2 16C2 13.24 5.13 11 9 11C12.87 11 16 13.24 16 16" stroke={c} strokeWidth="1.5" strokeLinecap="round" /></svg>;
-}
-function MessengerIcon({ active }: { active: boolean }) {
-  const c = "currentColor";
-  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M16 9C16 12.87 12.87 16 9 16C7.82 16 6.7 15.7 5.73 15.18L2 16L2.82 12.27C2.3 11.3 2 10.18 2 9C2 5.13 5.13 2 9 2C12.87 2 16 5.13 16 9Z" stroke={c} strokeWidth="1.5" strokeLinejoin="round" /></svg>;
-}
-function InfoPortalIcon({ active }: { active: boolean }) {
-  const c = "currentColor";
-  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 5H15M3 9H15M3 13H10" stroke={c} strokeWidth="1.5" strokeLinecap="round" /></svg>;
-}
-function LogoutIcon() {
-  return <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M11 3H14C15.1 3 16 3.9 16 5V13C16 14.1 15.1 15 14 15H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><path d="M7 12L11 9L7 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M11 9H2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>;
-}
-function CommissionsIcon({ active }: { active: boolean }) {
-  const c = "currentColor";
-  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke={c} strokeWidth="1.5" /><path d="M9 5v1.5M9 11.5V13M7 8c0-1.1.9-2 2-2s2 .9 2 2-2 2-2 2-2 .9-2 2" stroke={c} strokeWidth="1.5" strokeLinecap="round" /></svg>;
-}
-function PoliciesIcon({ active }: { active: boolean }) {
-  const c = "currentColor";
-  return <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="3" y="2" width="12" height="14" rx="2" stroke={c} strokeWidth="1.5" /><path d="M6 6h6M6 9h6M6 12h4" stroke={c} strokeWidth="1.5" strokeLinecap="round" /></svg>;
-}
-function MiniSupportIllustration() {
-  return (
-    <svg width="80" height="68" viewBox="0 0 80 68" fill="none">
-      <rect x="8" y="50" width="64" height="5" rx="2.5" fill="#c7d5e8" />
-      <rect x="24" y="30" width="34" height="24" rx="4" fill="#fff" stroke="#c7d5e8" strokeWidth="1.5" />
-      <rect x="26" y="32" width="30" height="18" rx="2" fill={T.blueLight} />
-      <path d="M20 54 L60 54 L57 50 L23 50Z" fill="#c8d4bb" />
-      <circle cx="52" cy="20" r="8" fill="#fde68a" />
-      <path d="M44 19 Q44 10 52 9 Q60 10 60 19 Q60 14 56.5 13 Q54 11 52 11 Q50 11 47.5 13 Q44 14 44 19Z" fill="#1e1b4b" />
-      <ellipse cx="52" cy="28" rx="7" ry="9" fill="#f9a8d4" />
-      <rect x="12" y="38" width="14" height="12" rx="3" fill="#60a5fa" />
-      <line x1="19" y1="36" x2="19" y2="26" stroke="#4ade80" strokeWidth="1.5" />
-      <ellipse cx="19" cy="28" rx="6" ry="8" fill="#66d88a" opacity="0.8" />
-    </svg>
-  );
-}
+
