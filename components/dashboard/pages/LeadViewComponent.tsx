@@ -12,7 +12,6 @@ import { getCurrentUserPermissionKeys, type PermissionKey } from "@/lib/auth/per
 
 interface Lead {
   name: string;
-  email: string;
   phone: string;
   premium: number;
   type: string;
@@ -303,68 +302,6 @@ export default function LeadViewComponent({
   const [policyLookupReady, setPolicyLookupReady] = useState(false);
   const [convertClientModalOpen, setConvertClientModalOpen] = useState(false);
 
-
-  // Sample lead data with complete schema
-const sampleLead = {
-  // 1. Personal & Contact Information
-  first_name: "John",
-  last_name: "Smith",
-  social: "XXX-XX-1234",
-  driver_license_number: "D12345678",
-  date_of_birth: "1985-03-15",
-  age: 39,
-  birth_state: "California",
-  language: "English",
-  phone: "+1 (555) 123-4567",
-  email: "john.smith@example.com",
-  street1: "123 Main St",
-  street2: "Apt 4B",
-  city: "Los Angeles",
-  state: "CA",
-  zip_code: "90210",
-
-  // 2. Health & Underwriting Data
-  height: "5'10\"",
-  weight: "175 lbs",
-  health_conditions: "None reported",
-  medications: "None",
-  doctor_name: "Dr. Sarah Johnson",
-  tobacco_use: false,
-  existing_coverage_last_2_years: "No prior coverage",
-  previous_applications_2_years: "None",
-
-  // 3. Policy & Coverage Details
-  carrier: "State Farm",
-  product_type: "Whole Life Insurance",
-  coverage_amount: 500000,
-  monthly_premium: 1250.00,
-  lead_value: 2500,
-  draft_date: "2024-02-01",
-  future_draft_date: "2024-03-01",
-  beneficiary_information: "Jane Smith (Spouse) - 100%",
-  additional_information: "Client prefers email contact. Interested in adding riders for accidental death.",
-
-  // 4. Financial & System Metadata
-  id: "550e8400-e29b-41d4-a716-446655440000",
-  lead_unique_id: "LEAD-2024-001",
-  submission_id: "SUB-2024-0089",
-  stage: "New Lead",
-  stage_id: "stage_001",
-  pipeline_id: "pipe_001",
-  is_draft: false,
-  tags: ["hot-lead", "retention", "high-value"],
-  bank_account_type: "Checking",
-  institution_name: "Bank of America",
-  routing_number: "*****1234",
-  account_number: "*****9876",
-  created_at: "2024-01-15T10:30:00Z",
-  updated_at: "2024-01-15T14:22:00Z",
-  submission_date: "2024-01-15",
-  submitted_by: "agent_michael_davis",
-  call_center_id: "CC_LA_001",
-  licensed_agent_account: "agent_sarah_wilson",
-  lead_source: "BPO Transfer Lead Source",
-};
 
   const resolveLeadUuid = useCallback(
     async (id: string | undefined): Promise<string | null> => {
@@ -1035,7 +972,13 @@ const sampleLead = {
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         {activeTab === "Overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <LeadSummaryCard lead={sampleLead} />
+            {loadingLead ? (
+              <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading lead data…</div>
+            ) : leadRow ? (
+              <LeadSummaryCard lead={leadRow as LeadSummaryCardProps["lead"]} />
+            ) : (
+              <EmptyState title="No lead data" description="Unable to load lead information." />
+            )}
           </div>
         )}
 
@@ -1749,21 +1692,15 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
           <InfoField label="Full Name" value={`${lead.first_name || ""} ${lead.last_name || ""}`.trim()} />
           <InfoField label="SSN" value={lead.social} />
           <InfoField label="Driver's License" value={lead.driver_license_number} />
-          <InfoField label="Date of Birth" value={formatDate(lead.date_of_birth)} />
+          <InfoField label="Phone" value={lead.phone} />
         </div>
 
         {/* Demographics Row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Date of Birth" value={formatDate(lead.date_of_birth)} />
           <InfoField label="Age" value={lead.age} />
           <InfoField label="Birth State" value={lead.birth_state} />
           <InfoField label="Preferred Language" value={lead.language} />
-          <div /> {/* Empty cell to maintain grid alignment */}
-        </div>
-
-        {/* Contact Row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
-          <InfoField label="Phone" value={lead.phone} />
-          <InfoField label="Email" value={lead.email} />
         </div>
 
         {/* Address Row */}
