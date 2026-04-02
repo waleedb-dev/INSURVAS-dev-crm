@@ -11,3 +11,9 @@ export { Toast } from "./Toast";
 export { ActionMenu } from "./ActionMenu";
 export { EmptyState } from "./EmptyState";
 export { AnimatedContent } from "./AnimatedContent";
+
+// Lead Edit Form components
+export { LeadEditForm } from "../dashboard/pages/LeadEditForm";
+export { useLeadEdit } from "../dashboard/pages/useLeadEdit";
+export type { LeadEditFormData } from "../dashboard/pages/LeadEditForm";
+export type { ToastMessage } from "../dashboard/pages/useLeadEdit";

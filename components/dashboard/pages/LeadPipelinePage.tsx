@@ -1810,8 +1810,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 </h2>
                 <p style={{ margin: 0, fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
                   {canEditLeadPipeline
-                    ? "Loaded from database — edit below, then Update."
-                    : "Read-only view — only Sales Admin can edit in Lead Pipeline."}
+                    }
                 </p>
               </div>
               <button type="button" onClick={closeQuickEdit} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }}>
@@ -1943,10 +1942,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 ) : (
                   <div style={{ maxWidth: 720 }}>
                     <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Notes</h3>
-                    <p style={{ margin: "0 0 20px", fontSize: 12, color: T.textMuted, lineHeight: 1.5 }}>
-                      Each note is saved in <strong>lead_notes</strong> (newest first). Legacy text may still live in{" "}
-                      <strong>Opportunity Details → Additional information</strong> until you migrate it.
-                    </p>
+                    
 
                     {leadNotesError && (
                       <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>
