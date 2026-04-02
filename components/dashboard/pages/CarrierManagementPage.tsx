@@ -20,6 +20,7 @@ interface Carrier {
   id: string;
   name: string;
   requiresStateAppointment: boolean;
+  isActive: boolean;
   createdAt: string;
 }
 
@@ -222,18 +223,20 @@ export default function CarrierManagementPage() {
   const [editingInfoGroupType, setEditingInfoGroupType] = useState<CarrierInfo['groupType']>('Carrier Requirements');
   const [editingInfoDescription, setEditingInfoDescription] = useState("");
 
-  const hasActiveFilters = search.trim() !== "";
-  const activeFilterCount = search.trim() !== "" ? 1 : 0;
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  const hasActiveFilters = statusFilter !== "All";
+  const activeFilterCount = statusFilter !== "All" ? 1 : 0;
 
   const clearFilters = () => {
-    setSearch("");
+    setStatusFilter("All");
     setPage(1);
   };
 
   async function fetchCarriers() {
     const { data, error } = await supabase
       .from("carriers")
-      .select("id, name, requires_state_appointment, created_at")
+      .select("id, name, requires_state_appointment, is_active, created_at")
       .order("name");
 
     if (error) {
@@ -249,6 +252,7 @@ export default function CarrierManagementPage() {
           id: String(carrier.id),
           name: carrier.name,
           requiresStateAppointment: carrier.requires_state_appointment ?? false,
+          isActive: carrier.is_active ?? true,
           createdAt: new Date(carrier.created_at).toLocaleString(),
         })),
       );
@@ -647,7 +651,7 @@ export default function CarrierManagementPage() {
         return;
       }
       if (data) {
-        const newC = { id: String(data.id), name: data.name, requiresStateAppointment: data.requires_state_appointment ?? false, createdAt: new Date(data.created_at).toLocaleString() };
+        const newC = { id: String(data.id), name: data.name, requiresStateAppointment: data.requires_state_appointment ?? false, isActive: data.is_active ?? true, createdAt: new Date(data.created_at).toLocaleString() };
         setCarriers(prev => [newC, ...prev]);
         carrierId = String(data.id);
       }
@@ -1693,50 +1697,27 @@ export default function CarrierManagementPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Search</div>
-                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                    <Search
-                      size={16}
-                      style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }}
-                    />
-                    <input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search carriers..."
-                      style={{
-                        width: "100%",
-                        height: 38,
-                        paddingLeft: 38,
-                        paddingRight: 14,
-                        border: `1px solid ${T.border}`,
-                        borderRadius: 10,
-                        fontSize: 14,
-                        color: T.textDark,
-                        background: T.pageBg,
-                        outline: "none",
-                        fontFamily: T.font,
-                        transition: "all 0.15s ease-in-out",
-                      }}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = "#233217";
-                        e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = T.border;
-                        e.currentTarget.style.boxShadow = "none";
-                      }}
-                    />
-                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Status</div>
+                  <StyledSelect
+                    value={statusFilter}
+                    onValueChange={setStatusFilter}
+                    options={[
+                      { value: "All", label: "All Statuses" },
+                      { value: "Active", label: "Active" },
+                      { value: "Inactive", label: "Inactive" },
+                    ]}
+                    placeholder="All Statuses"
+                  />
                 </div>
               </div>
 
               {hasActiveFilters && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {search.trim() !== "" && (
+                    {statusFilter !== "All" && (
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
-                        Search: {search}
-                        <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        Status: {statusFilter}
+                        <button onClick={() => setStatusFilter("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
                         </button>
                       </div>
