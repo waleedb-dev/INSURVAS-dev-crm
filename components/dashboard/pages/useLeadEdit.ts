@@ -201,7 +201,10 @@ export function useLeadEdit({
           lead_value: data.leadValue,
           licensed_agent_account: data.licensedAgentAccount || null,
           lead_source: data.leadSource || null,
-          tags: data.tags ? data.tags.split(",").map((t) => t.trim()).filter(Boolean) : null,
+          // Fixed:
+tags: data.tags ? data.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+//                                                              ^^^^^^^^^^^^
+//                                                              Empty array instead of null
           submission_date: data.submissionDate || null,
           
           // Policy
