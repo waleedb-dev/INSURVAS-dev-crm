@@ -3,12 +3,18 @@ import React, { useState, useEffect, useMemo } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Pagination } from "@/components/ui";
-import { AppSelect } from "@/components/ui/app-select";
 import {
   isUnlicensedSalesSubtype,
   UNLICENSED_SALES_SUBTYPE_LABELS,
   type UnlicensedSalesSubtype,
 } from "@/lib/auth/unlicensedSalesSubtype";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Role { id: string; name: string; key: string; }
 interface BpoCenter { id: string; name: string; }
@@ -30,11 +36,84 @@ interface UserEditorProps {
 
 type TabType = "User Info" | "Roles & Permissions";
 
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select...",
+  disabled = false,
+  error = false,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")} disabled={disabled}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 42,
+          borderRadius: 10,
+          border: `1.5px solid ${error ? "#dc2626" : T.border}`,
+          backgroundColor: disabled ? T.pageBg : "#fff",
+          color: value ? T.textDark : T.textMuted,
+          fontSize: 14,
+          fontWeight: 600,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          boxShadow: error ? "0 0 0 3px rgba(220, 38, 38, 0.1)" : "none",
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value
+            ? options.find((o) => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: "#fff",
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 99999,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 14,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export default function UserEditorComponent({ user, onClose, onSubmit }: UserEditorProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [activeTab, setActiveTab] = useState<TabType>("User Info");
   
-  // Identity State
   const [firstName, setFirstName] = useState(() => {
     if (!user?.name) return "";
     const parts = user.name.split(" ");
@@ -48,7 +127,6 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
   
-  // Selection State
   const [roles, setRoles] = useState<Role[]>([]);
   const [centers, setCenters] = useState<BpoCenter[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -63,7 +141,6 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Permissions pagination (12 = 6 rows × 2 columns in the grid)
   const [permissionsPage, setPermissionsPage] = useState(1);
   const permissionsPerPage = 12;
 
@@ -102,13 +179,10 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
         name: p.description || p.key
       })));
 
-      // If editing an existing user, load their role and permissions initially
       if (user?.roleId && !selectedRoleId) {
         setSelectedRoleId(user.roleId);
       }
 
-      // If editing an existing user, preselect their current BPO centre.
-      // UsersAccessPage doesn't include call_center_id in its list query, so we fetch it here.
       if (user?.id) {
         const { data: userRow } = await supabase
           .from("users")
@@ -156,27 +230,24 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   }, [selectedRoleId, supabase, user?.id]);
 
   const togglePermission = (id: string) => {
-    if (rolePermissionIds.has(id)) return; // inherited from role; not directly removable here
+    if (rolePermissionIds.has(id)) return;
     const next = new Set(selectedPermissions);
     if (next.has(id)) next.delete(id); else next.add(id);
     setSelectedPermissions(next);
   };
 
-  // Validation functions
   const isUserInfoValid = () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) return false;
     if (!selectedRoleId) return false;
-    // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) return false;
-    // If call center role, center must be selected
     if (isCallCenterRole && !selectedCenterId) return false;
     if (isUnlicensedSalesRole && !unlicensedSalesSubtype) return false;
     return true;
   };
 
   const handleNext = () => {
-    if (!isUserInfoValid()) return; // Prevent navigation if validation fails
+    if (!isUserInfoValid()) return;
     const idx = tabs.indexOf(activeTab);
     if (idx < tabs.length - 1) setActiveTab(tabs[idx + 1]);
   };
@@ -204,29 +275,31 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
       }
       
       if (user?.id) {
-        // ── UPDATE EXISTING USER ──
+        const payload = {
+          action: "update_user",
+          user_id: user.id,
+          full_name: fullName,
+          phone,
+          role_id: selectedRoleId,
+          call_center_id: isCallCenterRole ? selectedCenterId : null,
+          unlicensed_sales_subtype:
+            isUnlicensedSalesRole && unlicensedSalesSubtype ? unlicensedSalesSubtype : null,
+          permissions: Array.from(selectedPermissions),
+        };
         const { data: result, error: invokeError } = await supabase.functions.invoke("manage_user_admin_v3", {
-          body: {
-            action: "update_user",
-            user_id: user.id,
-            full_name: fullName,
-            phone,
-            role_id: selectedRoleId,
-            call_center_id: isCallCenterRole ? selectedCenterId : null,
-            unlicensed_sales_subtype:
-              isUnlicensedSalesRole && unlicensedSalesSubtype ? unlicensedSalesSubtype : null,
-            permissions: Array.from(selectedPermissions),
-          },
+          body: payload,
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
         });
 
         if (invokeError) {
+          console.error("Edge function error:", invokeError);
           throw new Error(invokeError.message || "Failed to update user");
         }
 
         if (!result?.success) {
+          console.error("Edge function result:", result);
           throw new Error(result?.error || result?.message || "Failed to update user");
         }
 
@@ -238,12 +311,10 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           phone,
           roleId: selectedRoleId,
           centerId: isCallCenterRole ? selectedCenterId : null,
-            permissions: Array.from(selectedPermissions),
+          permissions: Array.from(selectedPermissions),
           isUpdate: true
         });
       } else {
-        // ── CREATE NEW USER VIA EDGE FUNCTION ──
-        // Call create_user_with_auth function which handles auth.users + public.users
         const payload = {
           email,
           full_name: fullName,
@@ -262,11 +333,32 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           },
         });
 
+        console.log("create_user_auth_admin_v6 response:", { invokeError, result });
+
         if (invokeError) {
-          throw new Error(invokeError.message || "Failed to create user");
+          let errorDetail = "Failed to create user";
+          const ctx = (invokeError as any).context;
+          if (ctx && typeof ctx.json === 'function') {
+            try {
+              const json = await ctx.json();
+              console.log("Error response JSON:", json);
+              errorDetail = json.error || json.message || JSON.stringify(json);
+            } catch {
+              try {
+                const text = await ctx.text();
+                console.log("Error response text:", text);
+                errorDetail = text;
+              } catch {
+                console.log("Could not read error response body");
+              }
+            }
+          }
+          console.error("Edge function invoke error:", invokeError);
+          throw new Error(errorDetail);
         }
 
         if (!result?.success || !result?.user?.id) {
+          console.error("Edge function result:", result);
           throw new Error(result?.error || result?.message || "Failed to create user");
         }
 
@@ -278,7 +370,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
           phone,
           roleId: selectedRoleId,
           centerId: isCallCenterRole ? selectedCenterId : null,
-            permissions: Array.from(selectedPermissions).filter((id) => !rolePermissionIds.has(id)),
+          permissions: Array.from(selectedPermissions).filter((id) => !rolePermissionIds.has(id)),
           isUpdate: false
         });
       }
@@ -293,111 +385,227 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
     }
   };
 
-  const inputStyle = { width: "100%", padding: "12px 16px", border: `1px solid ${T.border}`, borderRadius: "8px", fontSize: 14, color: T.textDark, fontFamily: T.font, backgroundColor: "#fff", outline: "none", transition: "all 0.2s" };
-  const labelStyle = { display: "block", fontSize: 13, fontWeight: 600, color: T.textDark, marginBottom: 8 };
+  const inputStyle = {
+    width: "100%",
+    height: 42,
+    padding: "0 14px",
+    border: `1.5px solid ${T.border}`,
+    borderRadius: 10,
+    fontSize: 14,
+    fontWeight: 500,
+    color: T.textDark,
+    fontFamily: T.font,
+    backgroundColor: "#fff",
+    outline: "none",
+    transition: "all 0.15s ease-in-out",
+  } as const;
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#233217",
+    marginBottom: 6,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.3px",
+  };
 
   return (
-    <div style={{ animation: "fadeIn 0.3s ease-out", color: T.textDark, backgroundColor: T.pageBg, minHeight: "100%", padding: "20px 40px" }}>
+    <div style={{ animation: "fadeIn 0.3s ease-out", color: T.textDark, backgroundColor: T.pageBg, minHeight: "100%", padding: "32px 40px" }}>
+      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button onClick={onClose} style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: "12px", width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.textMid }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          <button
+            onClick={onClose}
+            style={{
+              background: "#fff",
+              border: `1.5px solid ${T.border}`,
+              borderRadius: "12px",
+              width: 42,
+              height: 42,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: T.textMid,
+              transition: "all 0.15s ease-in-out",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "#233217";
+              e.currentTarget.style.color = "#233217";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = T.border;
+              e.currentTarget.style.color = T.textMid;
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
           </button>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>Staff Management</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-              <span style={{ fontSize: 13, color: T.blue, fontWeight: 700 }}>{user ? "Edit Profile" : "New Team Member"}</span>
+              <span style={{ fontSize: 13, color: "#233217", fontWeight: 700 }}>{user ? "Edit Profile" : "New Team Member"}</span>
             </div>
             <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0 }}>{user ? `Managing ${user.name}` : "Team Member Onboarding"}</h1>
           </div>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
-        {/* Left Column Profile Card */}
-        <div style={{ width: 340, flexShrink: 0, display: "flex", flexDirection: "column", gap: 24 }}>
-          <div style={{ backgroundColor: "#fff", borderRadius: "24px", padding: "32px 24px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, textAlign: "center" }}>
-            <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 20px" }}>
-              <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: `linear-gradient(135deg, ${T.blue} 0%, #444cf7 100%)`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, fontWeight: 800, border: "4px solid #fff", boxShadow: "0 4px 10px rgba(0,0,0,0.1)" }}>
-                {(firstName[0] || "?")}{(lastName[0] || "")}
-              </div>
-            </div>
-            <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800 }}>{firstName} {lastName}</h2>
-            <p style={{ margin: "0 0 16px", fontSize: 13, color: T.textMuted, fontWeight: 600 }}>{currentRole?.name || user?.role || "Position TBD"}</p>
-            <div style={{ borderTop: `1.5px solid ${T.borderLight}`, paddingTop: 24, textAlign: "left" }}>
-              <div style={{ marginBottom: 16 }}><p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Email Address</p><p style={{ margin: 0, fontSize: 13, fontWeight: 700, wordBreak: "break-all" }}>{email || "—"}</p></div>
-              <div>
-                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Phone</p>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>{phone || "—"}</p>
-              </div>
-            </div>
-          </div>
+      {/* Main Content */}
+      <div style={{ backgroundColor: "#fff", borderRadius: 16, boxShadow: "0 4px 12px rgba(0,0,0,0.02)", border: `1.5px solid ${T.border}`, flex: 1, display: "flex", flexDirection: "column" }}>
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 16px", borderBottom: `1px solid ${T.borderLight}` }}>
+          {tabs.map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: "10px 20px",
+                border: "none",
+                borderRadius: 10,
+                backgroundColor: activeTab === tab ? "#233217" : "transparent",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: activeTab === tab ? 700 : 600,
+                color: activeTab === tab ? "#fff" : T.textMuted,
+                transition: "all 0.15s ease-in-out",
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== tab) {
+                  e.currentTarget.style.backgroundColor = "#EEF5EE";
+                  e.currentTarget.style.color = "#233217";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== tab) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = T.textMuted;
+                }
+              }}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
 
-        {/* Right Column Tabbed Content */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 24 }}>
-          <div style={{ backgroundColor: "#fff", borderRadius: "24px", padding: 0, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, minHeight: 650, display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "8px", borderBottom: `1.5px solid ${T.borderLight}`, display: "flex", gap: 4 }}>
-              {tabs.map(tab => (
-                <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: "12px 20px", border: "none", borderRadius: "12px", cursor: "pointer", fontSize: 13, fontWeight: activeTab === tab ? 800 : 600, backgroundColor: activeTab === tab ? T.blueFaint : "transparent", color: activeTab === tab ? T.blue : T.textMuted, transition: "all 0.2s" }}>{tab}</button>
-              ))}
-            </div>
-
-            <div style={{ padding: 40, flex: 1 }}>
-              {activeTab === "User Info" && (
+        <div style={{ padding: 40, flex: 1 }}>
+          {activeTab === "User Info" && (
                 <div style={{ animation: "fadeInUp 0.3s ease-out" }}>
-                  <h3 style={{ margin: "0 0 32px", fontSize: 18, fontWeight: 800 }}>Primary Identity</h3>
+                  <h3 style={{ margin: "0 0 32px", fontSize: 18, fontWeight: 800, color: T.textDark }}>Primary Identity</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
-                    <div><label style={labelStyle}>Given Name <span style={{ color: T.danger }}>*</span></label><input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="e.g. John" style={inputStyle} /></div>
-                    <div><label style={labelStyle}>Family Name <span style={{ color: T.danger }}>*</span></label><input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="e.g. Doe" style={inputStyle} /></div>
-                    <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Email Address <span style={{ color: T.danger }}>*</span></label><input value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" style={inputStyle} /></div>
-                    <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Phone Number</label><input value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g. (555) 123-4567" style={inputStyle} /></div>
+                    <div>
+                      <label style={labelStyle}>Given Name <span style={{ color: "#dc2626" }}>*</span></label>
+                      <input
+                        value={firstName}
+                        onChange={e => setFirstName(e.target.value)}
+                        placeholder="e.g. John"
+                        style={inputStyle}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = "#233217";
+                          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(35, 50, 23, 0.1)";
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Family Name <span style={{ color: "#dc2626" }}>*</span></label>
+                      <input
+                        value={lastName}
+                        onChange={e => setLastName(e.target.value)}
+                        placeholder="e.g. Doe"
+                        style={inputStyle}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = "#233217";
+                          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(35, 50, 23, 0.1)";
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: "span 2" }}>
+                      <label style={labelStyle}>Email Address <span style={{ color: "#dc2626" }}>*</span></label>
+                      <input
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        placeholder="john@example.com"
+                        style={inputStyle}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = "#233217";
+                          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(35, 50, 23, 0.1)";
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: "span 2" }}>
+                      <label style={labelStyle}>Phone Number</label>
+                      <input
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                        placeholder="e.g. (555) 123-4567"
+                        style={inputStyle}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = "#233217";
+                          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(35, 50, 23, 0.1)";
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
                   </div>
-                  <h3 style={{ margin: "40px 0 32px", fontSize: 18, fontWeight: 800 }}>Role & Organization</h3>
+
+                  <h3 style={{ margin: "40px 0 32px", fontSize: 18, fontWeight: 800, color: T.textDark }}>Role & Organization</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                    <div><label style={labelStyle}>Access Role <span style={{ color: T.danger }}>*</span></label>
-                      <AppSelect
+                    <div>
+                      <label style={labelStyle}>Access Role <span style={{ color: "#dc2626" }}>*</span></label>
+                      <StyledSelect
                         value={selectedRoleId}
-                        onChange={(e: any) => {
-                          const v = e.target.value;
+                        onValueChange={(v) => {
                           setSelectedRoleId(v);
                           const rk = roles.find((r) => r.id === v)?.key;
                           if (rk !== "sales_agent_unlicensed") setUnlicensedSalesSubtype("");
                           if (rk !== "call_center_admin" && rk !== "call_center_agent") setSelectedCenterId("");
                         }}
-                        style={inputStyle as any}
-                      >
-                        <option value="">Select a role...</option>
-                        {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                      </AppSelect>
+                        options={roles.map(r => ({ value: r.id, label: r.name }))}
+                        placeholder="Select a role..."
+                      />
                     </div>
                     {isCallCenterRole && (
-                      <div style={{ animation: "fadeInDown 0.2s" }}><label style={labelStyle}>BPO Centre <span style={{ color: T.danger }}>*</span></label>
-                        <AppSelect value={selectedCenterId} onChange={(e: any) => setSelectedCenterId(e.target.value)} style={inputStyle as any}>
-                          <option value="">Select a centre...</option>
-                          {centers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </AppSelect>
+                      <div>
+                        <label style={labelStyle}>BPO Centre <span style={{ color: "#dc2626" }}>*</span></label>
+                        <StyledSelect
+                          value={selectedCenterId}
+                          onValueChange={setSelectedCenterId}
+                          options={centers.map(c => ({ value: c.id, label: c.name }))}
+                          placeholder="Select a centre..."
+                        />
                       </div>
                     )}
                     {isUnlicensedSalesRole && (
-                      <div style={{ animation: "fadeInDown 0.2s" }}>
-                        <label style={labelStyle}>Type <span style={{ color: T.danger }}>*</span></label>
-                        <AppSelect
+                      <div>
+                        <label style={labelStyle}>Type <span style={{ color: "#dc2626" }}>*</span></label>
+                        <StyledSelect
                           value={unlicensedSalesSubtype}
-                          onChange={(e: any) => {
-                            const v = String(e.target.value);
-                            setUnlicensedSalesSubtype(v === "" ? "" : (v as UnlicensedSalesSubtype));
-                          }}
-                          style={inputStyle as any}
-                        >
-                          <option value="">Select buffer or retention…</option>
-                          {(Object.keys(UNLICENSED_SALES_SUBTYPE_LABELS) as UnlicensedSalesSubtype[]).map((k) => (
-                            <option key={k} value={k}>
-                              {UNLICENSED_SALES_SUBTYPE_LABELS[k]}
-                            </option>
-                          ))}
-                        </AppSelect>
+                          onValueChange={(v) => setUnlicensedSalesSubtype(v === "" ? "" : (v as UnlicensedSalesSubtype))}
+                          options={(Object.keys(UNLICENSED_SALES_SUBTYPE_LABELS) as UnlicensedSalesSubtype[]).map((k) => ({
+                            value: k,
+                            label: UNLICENSED_SALES_SUBTYPE_LABELS[k],
+                          }))}
+                          placeholder="Select buffer or retention..."
+                        />
                       </div>
                     )}
                   </div>
@@ -407,8 +615,17 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
               {activeTab === "Roles & Permissions" && (
                 <div style={{ animation: "fadeInUp 0.3s ease-out" }}>
                   <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Dynamic Permissions</h3>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: T.blue, backgroundColor: T.blueFaint, padding: "4px 12px", borderRadius: 20 }}>{selectedPermissionCount} selected</span>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>Dynamic Permissions</h3>
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      color: "#233217",
+                      backgroundColor: "#DCEBDC",
+                      padding: "4px 12px",
+                      borderRadius: 20,
+                    }}>
+                      {selectedPermissionCount} selected
+                    </span>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
                     {permissions
@@ -416,13 +633,56 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                       .map(p => {
                       const isInherited = rolePermissionIds.has(p.id);
                       return (
-                      <div key={p.id} onClick={() => togglePermission(p.id)} style={{ padding: "16px 20px", borderRadius: 12, border: `1.5px solid ${selectedPermissions.has(p.id) ? T.blue : T.border}`, backgroundColor: selectedPermissions.has(p.id) ? T.blueFaint : "transparent", cursor: isInherited ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 12, opacity: isInherited ? 0.85 : 1 }}>
-                        <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${selectedPermissions.has(p.id) ? T.blue : T.border}`, backgroundColor: selectedPermissions.has(p.id) ? T.blue : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          {selectedPermissions.has(p.id) && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4"><path d="M20 6L9 17l-5-5"/></svg>}
+                      <div
+                        key={p.id}
+                        onClick={() => togglePermission(p.id)}
+                        style={{
+                          padding: "16px 20px",
+                          borderRadius: 12,
+                          border: `1.5px solid ${selectedPermissions.has(p.id) ? "#233217" : T.border}`,
+                          backgroundColor: selectedPermissions.has(p.id) ? "#EEF5EE" : "transparent",
+                          cursor: isInherited ? "not-allowed" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          opacity: isInherited ? 0.85 : 1,
+                          transition: "all 0.15s ease-in-out",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isInherited) {
+                            e.currentTarget.style.borderColor = "#233217";
+                            e.currentTarget.style.backgroundColor = selectedPermissions.has(p.id) ? "#EEF5EE" : "#f8f8f8";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isInherited) {
+                            e.currentTarget.style.borderColor = selectedPermissions.has(p.id) ? "#233217" : T.border;
+                            e.currentTarget.style.backgroundColor = selectedPermissions.has(p.id) ? "#EEF5EE" : "transparent";
+                          }
+                        }}
+                      >
+                        <div style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: 4,
+                          border: `2px solid ${selectedPermissions.has(p.id) ? "#233217" : T.border}`,
+                          backgroundColor: selectedPermissions.has(p.id) ? "#233217" : "#fff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}>
+                          {selectedPermissions.has(p.id) && (
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4">
+                              <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                          )}
                         </div>
                         <div>
-                          <p style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>{p.name}</p>
-                          {isInherited && <p style={{ margin: "4px 0 0", fontSize: 11, fontWeight: 700, color: T.textMuted }}>Inherited from role</p>}
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.textDark }}>{p.name}</p>
+                          {isInherited && (
+                            <p style={{ margin: "4px 0 0", fontSize: 11, fontWeight: 600, color: T.textMuted }}>Inherited from role</p>
+                          )}
                         </div>
                       </div>
                     )})}
@@ -444,68 +704,172 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
               )}
             </div>
 
-            <div style={{ padding: "24px 40px", borderTop: `1.5px solid ${T.borderLight}`, display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Footer Actions */}
+            <div style={{
+              padding: "24px 40px",
+              borderTop: `1.5px solid ${T.border}`,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}>
               {error && (
-                <div style={{ backgroundColor: "#fee", border: `1px solid ${T.danger}`, borderRadius: T.radiusSm, padding: "12px 16px", fontSize: 13, color: T.danger }}>
+                <div style={{
+                  backgroundColor: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: 10,
+                  padding: "12px 16px",
+                  fontSize: 13,
+                  color: "#991b1b",
+                  fontWeight: 600,
+                }}>
                   {error}
                 </div>
               )}
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                <button onClick={onClose} disabled={isLoading} style={{ backgroundColor: "transparent", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: isLoading ? "not-allowed" : "pointer", color: T.textMuted, opacity: isLoading ? 0.6 : 1 }}>Cancel</button>
-                {activeTab !== "User Info" && <button onClick={handleBack} disabled={isLoading} style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusMd, padding: "10px 24px", fontSize: 13, fontWeight: 700, cursor: isLoading ? "not-allowed" : "pointer", opacity: isLoading ? 0.6 : 1 }}>Back</button>}
+                <button
+                  onClick={onClose}
+                  disabled={isLoading}
+                  style={{
+                    height: 42,
+                    padding: "0 20px",
+                    borderRadius: 10,
+                    border: `1px solid ${T.border}`,
+                    backgroundColor: "#fff",
+                    color: T.textDark,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: isLoading ? "not-allowed" : "pointer",
+                    opacity: isLoading ? 0.6 : 1,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isLoading) {
+                      e.currentTarget.style.borderColor = "#233217";
+                      e.currentTarget.style.color = "#233217";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.color = T.textDark;
+                  }}
+                >
+                  Cancel
+                </button>
+                {activeTab !== "User Info" && (
+                  <button
+                    onClick={handleBack}
+                    disabled={isLoading}
+                    style={{
+                      height: 42,
+                      padding: "0 20px",
+                      borderRadius: 10,
+                      border: `1px solid ${T.border}`,
+                      backgroundColor: "#fff",
+                      color: T.textDark,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      fontFamily: T.font,
+                      cursor: isLoading ? "not-allowed" : "pointer",
+                      opacity: isLoading ? 0.6 : 1,
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isLoading) {
+                        e.currentTarget.style.borderColor = "#233217";
+                        e.currentTarget.style.color = "#233217";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = T.border;
+                      e.currentTarget.style.color = T.textDark;
+                    }}
+                  >
+                    Back
+                  </button>
+                )}
                 {activeTab === tabs[tabs.length - 1] ? (
                   <button 
                     onClick={handleFinalSubmit}
                     disabled={!isUserInfoValid() || isLoading}
-                    title={!isUserInfoValid() ? "Please fill in all required fields (Given Name, Family Name, Email, Access Role)" + (isCallCenterRole ? ", and BPO Centre" : "") + (isUnlicensedSalesRole ? ", and Type" : "") : undefined}
+                    title={!isUserInfoValid() ? "Please fill in all required fields" : undefined}
                     style={{ 
-                      backgroundColor: (isUserInfoValid() && !isLoading) ? T.blue : T.border, 
+                      height: 42,
+                      padding: "0 24px",
+                      borderRadius: 10,
+                      border: "none",
+                      backgroundColor: (isUserInfoValid() && !isLoading) ? "#233217" : T.border, 
                       color: "#fff", 
-                      border: "none", 
-                      borderRadius: T.radiusMd, 
-                      padding: "10px 32px", 
-                      fontSize: 13, 
-                      fontWeight: 700, 
+                      fontSize: 14,
+                      fontWeight: 600,
+                      fontFamily: T.font,
                       cursor: (isUserInfoValid() && !isLoading) ? "pointer" : "not-allowed",
-                      boxShadow: (isUserInfoValid() && !isLoading) ? `0 4px 12px ${T.blue}44` : "none",
+                      boxShadow: (isUserInfoValid() && !isLoading) ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
                       opacity: (isUserInfoValid() && !isLoading) ? 1 : 0.6,
-                      transition: "all 0.2s",
+                      transition: "all 0.15s ease-in-out",
                       display: "flex",
                       alignItems: "center",
-                      gap: 8
+                      gap: 8,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (isUserInfoValid() && !isLoading) {
+                        e.currentTarget.style.backgroundColor = "#1a260f";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (isUserInfoValid() && !isLoading) {
+                        e.currentTarget.style.backgroundColor = "#233217";
+                      }
                     }}
                   >
-                    {isLoading && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" style={{ opacity: 0.25 }} /><path d="M12 2a10 10 0 0 1 0 20" style={{ animation: "spin 1s linear infinite" }} /></svg>}
-                    {isLoading ? "Saving..." : "Finish Setup"}
+                    {isLoading ? (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                          <circle cx="12" cy="12" r="10" style={{ opacity: 0.25 }} />
+                          <path d="M12 2a10 10 0 0 1 0 20" />
+                        </svg>
+                        Saving...
+                      </>
+                    ) : "Finish Setup"}
                   </button>
                 ) : (
                   <button 
                     onClick={handleNext}
                     disabled={!isUserInfoValid() || isLoading}
-                    title={!isUserInfoValid() ? "Please fill in all required fields (Given Name, Family Name, Email, Access Role)" + (isCallCenterRole ? ", and BPO Centre" : "") + (isUnlicensedSalesRole ? ", and Type" : "") : undefined}
+                    title={!isUserInfoValid() ? "Please fill in all required fields" : undefined}
                     style={{ 
-                      backgroundColor: (isUserInfoValid() && !isLoading) ? T.blue : T.border, 
+                      height: 42,
+                      padding: "0 24px",
+                      borderRadius: 10,
+                      border: "none",
+                      backgroundColor: (isUserInfoValid() && !isLoading) ? "#233217" : T.border, 
                       color: "#fff", 
-                      border: "none", 
-                      borderRadius: T.radiusMd, 
-                      padding: "10px 32px", 
-                      fontSize: 13, 
-                      fontWeight: 700, 
+                      fontSize: 14,
+                      fontWeight: 600,
+                      fontFamily: T.font,
                       cursor: (isUserInfoValid() && !isLoading) ? "pointer" : "not-allowed",
-                      boxShadow: (isUserInfoValid() && !isLoading) ? `0 4px 12px ${T.blue}44` : "none",
+                      boxShadow: (isUserInfoValid() && !isLoading) ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
                       opacity: (isUserInfoValid() && !isLoading) ? 1 : 0.6,
-                      transition: "all 0.2s"
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (isUserInfoValid() && !isLoading) {
+                        e.currentTarget.style.backgroundColor = "#1a260f";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (isUserInfoValid() && !isLoading) {
+                        e.currentTarget.style.backgroundColor = "#233217";
+                      }
                     }}
                   >
                     Next Step
                   </button>
-                )}
-              </div>
+)}
             </div>
           </div>
         </div>
-      </div>
-      <style>{`
+        <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
