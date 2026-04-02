@@ -1,6 +1,7 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { LayoutDashboard, Phone, FileText, Shield } from "lucide-react";
 import { POLICY_SCHEMA_SECTIONS, policyDisplayValue, type PolicyRow } from "@/lib/policy-schema";
 import { buildDraftFromPolicyRow, payloadFromDraft } from "@/lib/policy-form-utils";
 import { EmptyState } from "@/components/ui";
@@ -48,6 +49,116 @@ interface LeadViewProps {
 
 type TabType = "Overview" | "Call updates" | "Notes" | "Policy & coverage";
 type PipelineOption = { id: number; name: string; stages: string[] };
+
+const TAB_CONFIG: { id: TabType; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+  { id: "Overview", label: "Overview", icon: LayoutDashboard },
+  { id: "Call updates", label: "Call updates", icon: Phone },
+  { id: "Notes", label: "Notes", icon: FileText },
+  { id: "Policy & coverage", label: "Policy & coverage", icon: Shield },
+];
+
+function TabNavigation({ activeTab, onTabChange }: { activeTab: TabType; onTabChange: (tab: TabType) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [pillStyle, setPillStyle] = useState({ left: 0, width: 0 });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const buttons = containerRef.current.querySelectorAll("[data-tab-button]");
+    const activeIndex = TAB_CONFIG.findIndex((t) => t.id === activeTab);
+    const activeButton = buttons[activeIndex] as HTMLButtonElement | undefined;
+    if (activeButton) {
+      setPillStyle({
+        left: activeButton.offsetLeft,
+        width: activeButton.offsetWidth,
+      });
+    }
+  }, [activeTab]);
+
+  // Muted brand green for icons - more distinguishable from text
+  const iconColor = "#6b7a5f";
+  const iconColorActive = "#4e6e3a";
+
+  // Track background matches header bg (sidebarBg) for seamless look
+  const trackBg = T.sidebarBg;
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        display: "flex",
+        justifyContent: "flex-start",
+        position: "relative",
+        backgroundColor: trackBg,
+        borderRadius: 14,
+        padding: 4,
+        gap: 0,
+      }}
+    >
+      {/* Floating white pill - only for active tab */}
+      <div
+        style={{
+          position: "absolute",
+          top: 4,
+          left: pillStyle.left,
+          width: pillStyle.width,
+          height: "calc(100% - 8px)",
+          backgroundColor: "#fff",
+          borderRadius: 10,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+          transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
+      {TAB_CONFIG.map((tab) => {
+        const isActive = activeTab === tab.id;
+        const Icon = tab.icon;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            data-tab-button
+            onClick={() => onTabChange(tab.id)}
+            style={{
+              flex: "0 0 auto",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              padding: "10px 20px",
+              border: "none",
+              borderRadius: 10,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: isActive ? 600 : 400,
+              color: isActive ? T.textDark : T.textMuted,
+              backgroundColor: "transparent",
+              transition: "color 0.2s ease",
+              fontFamily: T.font,
+              position: "relative",
+              zIndex: 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.color = T.textMid;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.color = T.textMuted;
+              }
+            }}
+          >
+            <div style={{ display: "flex", color: isActive ? iconColorActive : iconColor }}>
+              <Icon size={12} />
+            </div>
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -193,34 +304,67 @@ export default function LeadViewComponent({
   const [convertClientModalOpen, setConvertClientModalOpen] = useState(false);
 
 
-  // For the LeadViewComponent props
-// Instead of nested leadRow, use flat structure
+  // Sample lead data with complete schema
 const sampleLead = {
-  lead_unique_id: "LEAD-2024-001",
+  // 1. Personal & Contact Information
   first_name: "John",
   last_name: "Smith",
-  phone: "555-123-4567",
+  social: "XXX-XX-1234",
+  driver_license_number: "D12345678",
+  date_of_birth: "1985-03-15",
+  age: 39,
+  birth_state: "California",
+  language: "English",
+  phone: "+1 (555) 123-4567",
   email: "john.smith@example.com",
-  lead_source: "BPO Transfer Lead Source",
-  product_type: "Auto Insurance",
-  carrier: "State Farm",
-  monthly_premium: 1250.00,
-  coverage_amount: 50000,
-  pipeline: "Call Center Transfer",
-  stage: "New Lead",
-  lead_value: 2500,
-  submission_date: "2024-01-15",
   street1: "123 Main St",
   street2: "Apt 4B",
   city: "Los Angeles",
   state: "CA",
   zip_code: "90210",
-  tags: "hot-lead,retention",
-  created_at: "2024-01-15T10:30:00Z",
-};
 
-// Then use it directly
-<LeadSummaryCard lead={sampleLead} section="identity" />
+  // 2. Health & Underwriting Data
+  height: "5'10\"",
+  weight: "175 lbs",
+  health_conditions: "None reported",
+  medications: "None",
+  doctor_name: "Dr. Sarah Johnson",
+  tobacco_use: false,
+  existing_coverage_last_2_years: "No prior coverage",
+  previous_applications_2_years: "None",
+
+  // 3. Policy & Coverage Details
+  carrier: "State Farm",
+  product_type: "Whole Life Insurance",
+  coverage_amount: 500000,
+  monthly_premium: 1250.00,
+  lead_value: 2500,
+  draft_date: "2024-02-01",
+  future_draft_date: "2024-03-01",
+  beneficiary_information: "Jane Smith (Spouse) - 100%",
+  additional_information: "Client prefers email contact. Interested in adding riders for accidental death.",
+
+  // 4. Financial & System Metadata
+  id: "550e8400-e29b-41d4-a716-446655440000",
+  lead_unique_id: "LEAD-2024-001",
+  submission_id: "SUB-2024-0089",
+  stage: "New Lead",
+  stage_id: "stage_001",
+  pipeline_id: "pipe_001",
+  is_draft: false,
+  tags: ["hot-lead", "retention", "high-value"],
+  bank_account_type: "Checking",
+  institution_name: "Bank of America",
+  routing_number: "*****1234",
+  account_number: "*****9876",
+  created_at: "2024-01-15T10:30:00Z",
+  updated_at: "2024-01-15T14:22:00Z",
+  submission_date: "2024-01-15",
+  submitted_by: "agent_michael_davis",
+  call_center_id: "CC_LA_001",
+  licensed_agent_account: "agent_sarah_wilson",
+  lead_source: "BPO Transfer Lead Source",
+};
 
   const resolveLeadUuid = useCallback(
     async (id: string | undefined): Promise<string | null> => {
@@ -701,10 +845,6 @@ const sampleLead = {
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
             </button>
-            <div>
-              <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Leads · Lead Profile</p>
-              <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>{leadName || "Demo lead"}</h1>
-            </div>
           </div>
         </div>
         <div
@@ -795,18 +935,7 @@ const sampleLead = {
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>Leads</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-              <span style={{ fontSize: 13, color: T.blue, fontWeight: 700 }}>{isCreation ? "Create New Lead" : "Lead Profile"}</span>
-            </div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
-              {isCreation ? "New Lead Entry" : fullName}
-            </h1>
-          </div>
+          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
 
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -877,657 +1006,62 @@ const sampleLead = {
         </div>
       </div>
 
-{/* 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
-  {PROJECTS.map((p) => (
-    <ProjectCard key={p.id} {...p} />
-  ))}
-</div>  */}
-
-
+      {/* Tab Content */}
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <div style={{ backgroundColor: "#fff", borderRadius: "20px", padding: "8px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, display: "flex", gap: 4 }}>
-            {(["Overview", "Call updates", "Notes", "Policy & coverage"] as TabType[]).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  flex: 1,
-                  padding: "12px 0",
-                  border: "none",
-                  borderRadius: "12px",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  fontWeight: activeTab === tab ? 800 : 600,
-                  backgroundColor: activeTab === tab ? T.blueFaint : "transparent",
-                  color: activeTab === tab ? T.blue : T.textMuted,
-                  transition: "all 0.2s",
-                  fontFamily: T.font,
-                }}
-              >
-                {tab}
-              </button>
-            ))}
+        {activeTab === "Overview" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <LeadSummaryCard lead={sampleLead} />
           </div>
+        )}
 
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
-  <LeadSummaryCard lead={sampleLead} />
-</div>
-
-
-          <div style={{ backgroundColor: "#fff", borderRadius: "24px", padding: "32px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)", border: `1.5px solid ${T.border}`, minHeight: 600 }}>
-            {activeTab === "Overview" && (
-              <div style={{ animation: "fadeInUp 0.3s ease-out" }}>
-                <h3 style={{ margin: "0 0 6px", fontSize: 20, fontWeight: 800 }}>Lead record</h3>
-
-                {!isCreation && leadRow && display && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 34 }}>
-                    {(() => {
-                      const d = isEditing && editDraft ? editDraft : display;
-                      const ro = !isEditing;
-                      const roStyle = {
-                        ...inputStyle,
-                        backgroundColor: T.pageBg,
-                        color: T.textMid,
-                      } as const;
-                      const fieldStyle = ro ? roStyle : inputStyle;
-
-                      const pipelineName =
-                        d?.pipeline_id != null && d?.pipeline_id !== ""
-                          ? pipelines.find((p) => p.id === Number(d.pipeline_id))?.name || String(d?.pipeline ?? "")
-                          : String(d?.pipeline ?? "");
-                      const stagesForPipeline =
-                        pipelines.find((p) => p.name === pipelineName)?.stages ||
-                        currentPipeline?.stages ||
-                        [];
-
-                      return (
-                        <>
-                          <div>
-                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Primary Identity</h3>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                              <div>
-                                <label style={labelStyle}>
-                                  Given Name <span style={{ color: T.danger }}>*</span>
-                                </label>
-                                <input
-                                  value={String(d?.first_name ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("first_name", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div>
-                                <label style={labelStyle}>
-                                  Family Name <span style={{ color: T.danger }}>*</span>
-                                </label>
-                                <input
-                                  value={String(d?.last_name ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("last_name", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div style={{ gridColumn: "1 / -1" }}>
-                                <label style={labelStyle}>Phone Number</label>
-                                <input
-                                  value={String(d?.phone ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("phone", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div style={{ gridColumn: "1 / -1" }}>
-                                <label style={labelStyle}>Lead source</label>
-                                <input
-                                  value={String(d?.lead_source ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("lead_source", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          <div>
-                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Policy & coverage</h3>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                              <div>
-                                <label style={labelStyle}>Product type</label>
-                                <input
-                                  value={String(d?.product_type ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("product_type", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div>
-                                <label style={labelStyle}>Carrier</label>
-                                <input
-                                  value={String(d?.carrier ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("carrier", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div>
-                                <label style={labelStyle}>Monthly premium</label>
-                                <input
-                                  value={String(d?.monthly_premium ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("monthly_premium", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div>
-                                <label style={labelStyle}>Coverage amount</label>
-                                <input
-                                  value={String(d?.coverage_amount ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("coverage_amount", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div style={{ gridColumn: "1 / -1" }}>
-                                <label style={labelStyle}>Tags</label>
-                                <input
-                                  value={
-                                    Array.isArray(d?.tags)
-                                      ? (d.tags as unknown[]).map(String).filter(Boolean).join(", ")
-                                      : typeof d?.tags === "string"
-                                        ? String(d.tags)
-                                        : ""
-                                  }
-                                  readOnly={ro}
-                                  onChange={(e) =>
-                                    patchDraft(
-                                      "tags",
-                                      e.target.value
-                                        .split(",")
-                                        .map((s) => s.trim())
-                                        .filter(Boolean)
-                                    )
-                                  }
-                                  style={fieldStyle}
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          <div>
-                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Pipeline</h3>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                              <div>
-                                <label style={labelStyle}>Pipeline</label>
-                                <AppSelect
-                                  value={pipelineName}
-                                  disabled={ro}
-                                  onChange={(e) => {
-                                    const pName = e.target.value;
-                                    const p = pipelines.find((pl) => pl.name === pName);
-                                    patchDraft("pipeline", pName);
-                                    patchDraft("pipeline_id", p?.id ?? null);
-                                    if (p?.stages?.length) patchDraft("stage", p.stages[0]);
-                                  }}
-                                  style={(ro ? roStyle : inputStyle) as any}
-                                >
-                                  {pipelines.map((p) => (
-                                    <option key={p.name} value={p.name}>
-                                      {p.name}
-                                    </option>
-                                  ))}
-                                </AppSelect>
-                              </div>
-                              <div>
-                                <label style={labelStyle}>Stage</label>
-                                <AppSelect
-                                  value={String(d?.stage ?? "")}
-                                  disabled={ro}
-                                  onChange={(e) => patchDraft("stage", e.target.value)}
-                                  style={(ro ? roStyle : inputStyle) as any}
-                                >
-                                  {stagesForPipeline.map((s) => (
-                                    <option key={s} value={s}>
-                                      {s}
-                                    </option>
-                                  ))}
-                                </AppSelect>
-                              </div>
-                              <div>
-                                <label style={labelStyle}>Lead value</label>
-                                <input
-                                  value={d?.lead_value != null && d?.lead_value !== "" ? String(d.lead_value) : ""}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("lead_value", e.target.value === "" ? null : Number(e.target.value))}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div>
-                                <label style={labelStyle}>Submission date</label>
-                                <input
-                                  value={String(d?.submission_date ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("submission_date", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          <div>
-                            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 800 }}>Location</h3>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                              <div style={{ gridColumn: "1 / -1" }}>
-                                <label style={labelStyle}>Street 1</label>
-                                <input
-                                  value={String(d?.street1 ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("street1", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div style={{ gridColumn: "1 / -1" }}>
-                                <label style={labelStyle}>Street 2</label>
-                                <input
-                                  value={String(d?.street2 ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("street2", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div>
-                                <label style={labelStyle}>City</label>
-                                <input
-                                  value={String(d?.city ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("city", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div>
-                                <label style={labelStyle}>State</label>
-                                <input
-                                  value={String(d?.state ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("state", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                              <div>
-                                <label style={labelStyle}>ZIP</label>
-                                <input
-                                  value={String(d?.zip_code ?? "")}
-                                  readOnly={ro}
-                                  onChange={(e) => patchDraft("zip_code", e.target.value)}
-                                  style={fieldStyle}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {/* Row metadata intentionally hidden */}
-
-                {isCreation && (
-                  <>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
-                      <div style={{ backgroundColor: T.pageBg, border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
-                        <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Policy / product</p>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Product type</label>
-                          <AppSelect
-                            value={formData.type}
-                            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                            style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700 }}
-                          >
-                            <option value="Auto">Auto Insurance</option>
-                            <option value="Home">Home Insurance</option>
-                            <option value="Life">Life Insurance</option>
-                            <option value="Health">Health Insurance</option>
-                            <option value="Commercial">Commercial Insurance</option>
-                          </AppSelect>
-                        </div>
-                      </div>
-                      <div style={{ backgroundColor: T.pageBg, border: `1.5px solid ${T.borderLight}`, borderRadius: "16px", padding: "20px" }}>
-                        <p style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Pipeline & stage</p>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Pipeline</label>
-                            <AppSelect
-                              value={formData.pipeline}
-                              onChange={(e) => {
-                                const pName = e.target.value;
-                                const p = pipelines.find((pl) => pl.name === pName);
-                                setFormData({ ...formData, pipeline: pName, stage: p ? p.stages[0] : "" });
-                              }}
-                              style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700, outline: "none" }}
-                            >
-                              {pipelines.map((p) => (
-                                <option key={p.name} value={p.name}>
-                                  {p.name}
-                                </option>
-                              ))}
-                            </AppSelect>
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase" }}>Stage</label>
-                            <AppSelect
-                              value={formData.stage}
-                              onChange={(e) => setFormData({ ...formData, stage: e.target.value })}
-                              style={{ padding: "10px", borderRadius: "10px", border: `1.5px solid ${T.border}`, fontWeight: 700, outline: "none" }}
-                            >
-                              {currentPipeline?.stages.map((s) => (
-                                <option key={s} value={s}>
-                                  {s}
-                                </option>
-                              ))}
-                            </AppSelect>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ border: `2px dashed ${T.border}`, borderRadius: "24px", padding: 40, textAlign: "center", color: T.textMuted }}>
-                      <p style={{ fontWeight: 600 }}>Additional fields will be available after lead creation.</p>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {activeTab === "Call updates" && !isCreation && (
-              <div>
-                <h3 style={{ margin: "0 0 20px", fontSize: 20, fontWeight: 800 }}>Call updates</h3>
-
-                {callUpdatesLoading ? (
-                  <p style={{ color: T.textMuted, fontWeight: 600 }}>Loading call data…</p>
-                ) : (
-                  <>
-                    {callResultsRows.length === 0 ? (
-                      <EmptyState
-                        title="No call updates yet"
-                        description="Call results appear here after a call is logged from Transfer Leads or related flows."
-                        compact
-                      />
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                        {callResultsRows.map((cr, i) => (
-                          <div
-                            key={String(cr.id ?? i)}
-                            style={{
-                              border: `1.5px solid ${T.border}`,
-                              borderRadius: 16,
-                              padding: 20,
-                              background: T.rowBg,
-                            }}
-                          >
-                            <p style={{ margin: "0 0 14px", fontSize: 12, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.6 }}>
-                              Call result{callResultsRows.length > 1 ? ` · ${String(cr.submission_id ?? i + 1)}` : ""}
-                            </p>
-                            <div
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-                                gap: "12px 20px",
-                              }}
-                            >
-                              {CALL_RESULT_FIELD_ORDER.map(({ key, label, format }) => {
-                                const raw = cr[key];
-                                if (raw === undefined || raw === null || raw === "") return null;
-                                const text = format ? format(raw) : fmt(raw);
-                                if (text === "—") return null;
-                                return (
-                                  <div key={key}>
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>{label}</div>
-                                    <div style={{ fontSize: 14, fontWeight: 600, color: T.textDark, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>{text}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            {activeTab === "Notes" && !isCreation && (
-              <div>
-                <h3 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800 }}>Notes</h3>
-                <p style={{ margin: "0 0 16px", fontSize: 12, color: T.textMuted, lineHeight: 1.5 }}>
-                  Table <code style={{ fontSize: 11 }}>public.lead_notes</code>, linked by <code style={{ fontSize: 11 }}>lead_id</code> →{" "}
-                  <code style={{ fontSize: 11 }}>leads.id</code> (same as Lead Pipeline quick edit).
-                </p>
-                <textarea
-                  value={newNoteText}
-                  onChange={(e) => setNewNoteText(e.target.value)}
-                  placeholder="Add a note…"
-                  disabled={!canEditLead || addingNote}
-                  rows={4}
-                  style={{
-                    width: "100%",
-                    padding: 14,
-                    borderRadius: 12,
-                    border: `1.5px solid ${T.border}`,
-                    fontFamily: T.font,
-                    fontSize: 14,
-                    marginBottom: 10,
-                    resize: "vertical",
-                  }}
-                />
-                <button
-                  type="button"
-                  disabled={!canEditLead || addingNote || !newNoteText.trim()}
-                  onClick={() => void addNote()}
-                  style={{
-                    background: T.blue,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 10,
-                    padding: "10px 20px",
-                    fontWeight: 800,
-                    cursor: canEditLead && newNoteText.trim() ? "pointer" : "not-allowed",
-                    opacity: canEditLead ? 1 : 0.6,
-                    marginBottom: 28,
-                  }}
-                >
-                  {addingNote ? "Adding…" : "Add note"}
-                </button>
-
-                {notesLoading ? (
-                  <p style={{ color: T.textMuted }}>Loading notes…</p>
-                ) : leadNotes.length === 0 ? (
-                  <p style={{ color: T.textMuted, padding: 16, background: T.pageBg, borderRadius: 10 }}>No notes yet.</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {leadNotes.map((note) => (
-                      <div key={note.id} style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, background: T.rowBg }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                          <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 700 }}>
-                            {formatTs(note.created_at)} · {note.authorName}
-                          </span>
-                          {canEditLead && note.created_by && sessionUserId === note.created_by && (
-                            <button type="button" onClick={() => void deleteNote(note.id)} style={{ background: "none", border: "none", color: T.danger, cursor: "pointer", fontSize: 12 }}>
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                        <p style={{ margin: 0, fontSize: 14, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{note.body}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === "Policy & coverage" && !isCreation && (
-              <div>
-                <h3 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800 }}>Policy & coverage</h3>
-                {policyLoading ? (
-                  <p style={{ color: T.textMuted, fontSize: 14, margin: 0 }}>Loading policy…</p>
-                ) : !policyRow ? (
-                  <div style={{ maxWidth: 480, margin: "0 auto" }}>
-                    <EmptyState
-                      title="No policy linked"
-                      description="Create one with Convert to Client in the header."
-                      emoji="📋"
-                      compact
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <p style={{ margin: "0 0 16px", fontSize: 12, color: T.textMuted, lineHeight: 1.5 }}>
-                      Newest <code style={{ fontSize: 11 }}>public.policies</code> row for this lead. Field labels match column names.
-                    </p>
-                    {policyRow && canEditLead && !previewMode ? (
-                      <>
-                        {policySaveError ? (
-                          <div
-                            style={{
-                              marginBottom: 14,
-                              padding: "10px 12px",
-                              borderRadius: 10,
-                              background: "#fef2f2",
-                              border: `1px solid ${T.border}`,
-                              fontSize: 13,
-                              color: "#991b1b",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {policySaveError}
-                          </div>
-                        ) : null}
-                        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-                          <button
-                            type="button"
-                            onClick={() => void savePolicyFromTab()}
-                            disabled={policySaving || !policyLookupReady}
-                            style={{
-                              border: "none",
-                              background: policySaving || !policyLookupReady ? T.border : T.blue,
-                              color: "#fff",
-                              borderRadius: 10,
-                              padding: "10px 20px",
-                              fontWeight: 700,
-                              fontSize: 13,
-                              cursor: policySaving || !policyLookupReady ? "not-allowed" : "pointer",
-                            }}
-                          >
-                            {policySaving ? "Saving…" : "Save policy"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => resetPolicyDraft()}
-                            disabled={policySaving}
-                            style={{
-                              border: `1.5px solid ${T.border}`,
-                              background: "#fff",
-                              color: T.textDark,
-                              borderRadius: 10,
-                              padding: "10px 18px",
-                              fontWeight: 700,
-                              fontSize: 13,
-                              cursor: policySaving ? "not-allowed" : "pointer",
-                            }}
-                          >
-                            Reset
-                          </button>
-                        </div>
-                        <div style={{ maxWidth: 960 }}>
-                          <PolicyFormFields
-                            draft={policyDraft}
-                            onChange={(key, value) => setPolicyDraft((prev) => ({ ...prev, [key]: value }))}
-                            callCenterNames={policyCallCenterNames}
-                            carrierNames={policyCarrierNames}
-                            stageNames={policyStageNames}
-                            lookupReady={policyLookupReady}
-                            sectionTitleStyle={{
-                              fontSize: 12,
-                              fontWeight: 800,
-                              color: T.textMuted,
-                              textTransform: "uppercase",
-                              letterSpacing: 0.5,
-                              margin: "0 0 14px",
-                            }}
-                            gridGap={20}
-                            sectionMarginBottom={28}
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ maxWidth: 960 }}>
-                        {POLICY_SCHEMA_SECTIONS.map((section) => (
-                          <div key={section.title} style={{ marginBottom: 28 }}>
-                            <h4
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 800,
-                                color: T.textMuted,
-                                textTransform: "uppercase",
-                                letterSpacing: 0.5,
-                                margin: "0 0 14px",
-                              }}
-                            >
-                              {section.title}
-                            </h4>
-                            <div
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns: "1fr 1fr",
-                                gap: 20,
-                              }}
-                            >
-                              {section.fields.map((field) => {
-                                const val = policyDisplayValue(policyRow, field.key, field.kind);
-                                const displayVal = val.trim() === "" ? "—" : val;
-                                const colStyle = field.wide ? { gridColumn: "1 / -1" as const } : undefined;
-                                return (
-                                  <div key={field.key} style={colStyle}>
-                                    <div style={labelStyle}>{field.label}</div>
-                                    <div
-                                      role="group"
-                                      aria-label={field.label}
-                                      style={{
-                                        margin: 0,
-                                        padding: "10px 12px",
-                                        borderRadius: 10,
-                                        backgroundColor: T.pageBg,
-                                        border: `1px solid ${T.borderLight}`,
-                                        fontSize: 14,
-                                        color: displayVal === "—" ? T.textMuted : T.textDark,
-                                        fontWeight: 600,
-                                        whiteSpace: field.multiline ? "pre-wrap" : "normal",
-                                        lineHeight: 1.45,
-                                        minHeight: field.multiline ? 80 : 42,
-                                        boxSizing: "border-box",
-                                        userSelect: "text",
-                                        cursor: "default",
-                                      }}
-                                    >
-                                      {displayVal}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
+        {activeTab === "Call updates" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <CallUpdatesTab
+              callResultsRows={callResultsRows}
+              callUpdatesLoading={callUpdatesLoading}
+              isCreation={isCreation}
+              previewMode={previewMode}
+            />
           </div>
-        </div>
+        )}
+
+        {activeTab === "Notes" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <NotesTab
+              leadNotes={leadNotes}
+              notesLoading={notesLoading}
+              newNoteText={newNoteText}
+              setNewNoteText={setNewNoteText}
+              addingNote={addingNote}
+              addNote={addNote}
+              deleteNote={deleteNote}
+              isCreation={isCreation}
+              previewMode={previewMode}
+              canEditLead={effectiveCanEditLead}
+            />
+          </div>
+        )}
+
+        {activeTab === "Policy & coverage" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <PolicyCoverageTab
+              policyRow={policyRow}
+              policyLoading={policyLoading}
+              policyDraft={policyDraft}
+              setPolicyDraft={setPolicyDraft}
+              policySaving={policySaving}
+              policySaveError={policySaveError}
+              savePolicyFromTab={savePolicyFromTab}
+              resetPolicyDraft={resetPolicyDraft}
+              policyCallCenterNames={policyCallCenterNames}
+              policyCarrierNames={policyCarrierNames}
+              policyStageNames={policyStageNames}
+              policyLookupReady={policyLookupReady}
+              canEditLead={canEditLead}
+              previewMode={previewMode}
+            />
+          </div>
+        )}
       </div>
 
       {!isCreation && !previewMode && (
@@ -1545,6 +1079,337 @@ const sampleLead = {
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
+    </div>
+  );
+}
+
+// Tab Content Components
+function CallUpdatesTab({
+  callResultsRows,
+  callUpdatesLoading,
+  isCreation,
+  previewMode,
+}: {
+  callResultsRows: LeadRow[];
+  callUpdatesLoading: boolean;
+  isCreation: boolean | undefined;
+  previewMode: boolean | undefined;
+}) {
+  if (isCreation || previewMode) {
+    return (
+      <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>
+        Call updates are not available in {isCreation ? "creation" : "preview"} mode.
+      </div>
+    );
+  }
+
+  if (callUpdatesLoading) {
+    return <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading call updates…</div>;
+  }
+
+  if (callResultsRows.length === 0) {
+    return (
+      <EmptyState
+        title="No call updates"
+        description="Call activity will appear here when agents contact this lead."
+      />
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {callResultsRows.map((row, idx) => (
+        <div
+          key={idx}
+          style={{
+            backgroundColor: "#fff",
+            borderRadius: 16,
+            border: `1.5px solid ${T.border}`,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+            padding: "20px 24px",
+          }}
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+            {CALL_RESULT_FIELD_ORDER.map((field) => (
+              <div key={field.key}>
+                <p style={{ margin: "0 0 4px", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                  {field.label}
+                </p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: T.textDark }}>
+                  {field.format ? field.format(row[field.key]) : fmt(row[field.key])}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NotesTab({
+  leadNotes,
+  notesLoading,
+  newNoteText,
+  setNewNoteText,
+  addingNote,
+  addNote,
+  deleteNote,
+  isCreation,
+  previewMode,
+  canEditLead,
+}: {
+  leadNotes: LeadNoteRow[];
+  notesLoading: boolean;
+  newNoteText: string;
+  setNewNoteText: (text: string) => void;
+  addingNote: boolean;
+  addNote: () => Promise<void>;
+  deleteNote: (id: string) => Promise<void>;
+  isCreation: boolean | undefined;
+  previewMode: boolean | undefined;
+  canEditLead: boolean;
+}) {
+  if (isCreation || previewMode) {
+    return (
+      <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>
+        Notes are not available in {isCreation ? "creation" : "preview"} mode.
+      </div>
+    );
+  }
+
+  if (notesLoading) {
+    return <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading notes…</div>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Add Note Input */}
+      {canEditLead && (
+        <div
+          style={{
+            backgroundColor: "#fff",
+            borderRadius: 16,
+            border: `1.5px solid ${T.border}`,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+            padding: "20px 24px",
+          }}
+        >
+          <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: T.textDark }}>Add Note</p>
+          <textarea
+            value={newNoteText}
+            onChange={(e) => setNewNoteText(e.target.value)}
+            placeholder="Enter note..."
+            style={{
+              width: "100%",
+              padding: "12px 16px",
+              border: `1px solid ${T.border}`,
+              borderRadius: "8px",
+              fontSize: 14,
+              color: T.textDark,
+              fontFamily: T.font,
+              backgroundColor: "#fff",
+              outline: "none",
+              resize: "vertical",
+              minHeight: 80,
+              marginBottom: 12,
+            }}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={() => void addNote()}
+              disabled={addingNote || !newNoteText.trim()}
+              style={{
+                backgroundColor: T.blue,
+                color: "#fff",
+                border: "none",
+                borderRadius: T.radiusMd,
+                padding: "10px 24px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: addingNote || !newNoteText.trim() ? "not-allowed" : "pointer",
+                opacity: addingNote || !newNoteText.trim() ? 0.6 : 1,
+              }}
+            >
+              {addingNote ? "Adding…" : "Add Note"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Notes List */}
+      {leadNotes.length === 0 ? (
+        <EmptyState
+          title="No notes"
+          description="Add notes to track important information about this lead."
+        />
+      ) : (
+        leadNotes.map((note) => (
+          <div
+            key={note.id}
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              border: `1.5px solid ${T.border}`,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+              padding: "20px 24px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+              <div>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.textDark }}>
+                  {note.authorName || "User"}
+                </p>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted }}>
+                  {formatTs(note.created_at)}
+                </p>
+              </div>
+              {canEditLead && (
+                <button
+                  type="button"
+                  onClick={() => void deleteNote(note.id)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#b91c1c",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: "4px 8px",
+                  }}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+            <p style={{ margin: 0, fontSize: 14, color: T.textDark, whiteSpace: "pre-wrap" }}>{note.body}</p>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function PolicyCoverageTab({
+  policyRow,
+  policyLoading,
+  policyDraft,
+  setPolicyDraft,
+  policySaving,
+  policySaveError,
+  savePolicyFromTab,
+  resetPolicyDraft,
+  policyCallCenterNames,
+  policyCarrierNames,
+  policyStageNames,
+  policyLookupReady,
+  canEditLead,
+  previewMode,
+}: {
+  policyRow: PolicyRow | null;
+  policyLoading: boolean;
+  policyDraft: Record<string, string>;
+  setPolicyDraft: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  policySaving: boolean;
+  policySaveError: string | null;
+  savePolicyFromTab: () => Promise<void>;
+  resetPolicyDraft: () => void;
+  policyCallCenterNames: string[];
+  policyCarrierNames: string[];
+  policyStageNames: string[];
+  policyLookupReady: boolean;
+  canEditLead: boolean | undefined;
+  previewMode: boolean | undefined;
+}) {
+  if (previewMode) {
+    return (
+      <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>
+        Policy & coverage is not available in preview mode.
+      </div>
+    );
+  }
+
+  if (policyLoading) {
+    return <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading policy…</div>;
+  }
+
+  if (!policyRow) {
+    return (
+      <EmptyState
+        title="No policy linked"
+        description="This lead hasn't been converted to a client yet. Click 'Convert to Client' to create a policy."
+      />
+    );
+  }
+
+  return (
+    <div
+      style={{
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        border: `1.5px solid ${T.border}`,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+        padding: "24px",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>Policy Details</p>
+        {canEditLead && (
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              type="button"
+              onClick={resetPolicyDraft}
+              disabled={policySaving}
+              style={{
+                backgroundColor: "#fff",
+                border: `1.5px solid ${T.border}`,
+                borderRadius: T.radiusMd,
+                padding: "8px 16px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: policySaving ? "not-allowed" : "pointer",
+                color: T.textDark,
+              }}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => void savePolicyFromTab()}
+              disabled={policySaving || !policyLookupReady}
+              style={{
+                backgroundColor: T.blue,
+                color: "#fff",
+                border: "none",
+                borderRadius: T.radiusMd,
+                padding: "8px 20px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: policySaving || !policyLookupReady ? "not-allowed" : "pointer",
+                opacity: policyLookupReady ? 1 : 0.6,
+              }}
+            >
+              {policySaving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {policySaveError && (
+        <div style={{ marginBottom: 16, padding: 12, backgroundColor: "#fef2f2", borderRadius: 8, color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>
+          {policySaveError}
+        </div>
+      )}
+
+      <PolicyFormFields
+        draft={policyDraft}
+        onChange={(key, value) => setPolicyDraft((prev) => ({ ...prev, [key]: value }))}
+        callCenterNames={policyCallCenterNames}
+        carrierNames={policyCarrierNames}
+        stageNames={policyStageNames}
+        lookupReady={policyLookupReady}
+      />
     </div>
   );
 }
@@ -1623,170 +1488,299 @@ function ProjectCard({ id, name, created, priority, allTasks, activeTasks, assig
 
 interface LeadSummaryCardProps {
   lead: {
-    lead_unique_id?: string;
+    // 1. Personal & Contact Information
     first_name?: string;
     last_name?: string;
+    social?: string;
+    driver_license_number?: string;
+    date_of_birth?: string;
+    age?: number;
+    birth_state?: string;
+    language?: string;
     phone?: string;
-    lead_source?: string;
-    product_type?: string;
-    carrier?: string;
-    monthly_premium?: number;
-    coverage_amount?: number;
-    pipeline?: string;
-    stage?: string;
-    lead_value?: number;
-    submission_date?: string;
+    email?: string;
     street1?: string;
     street2?: string;
     city?: string;
     state?: string;
     zip_code?: string;
+
+    // 2. Health & Underwriting Data
+    height?: string;
+    weight?: string;
+    health_conditions?: string;
+    medications?: string;
+    doctor_name?: string;
+    tobacco_use?: boolean;
+    existing_coverage_last_2_years?: string;
+    previous_applications_2_years?: string;
+
+    // 3. Policy & Coverage Details
+    carrier?: string;
+    product_type?: string;
+    coverage_amount?: number;
+    monthly_premium?: number;
+    lead_value?: number;
+    draft_date?: string;
+    future_draft_date?: string;
+    beneficiary_information?: string;
+    additional_information?: string;
+
+    // 4. Financial & System Metadata
+    id?: string;
+    lead_unique_id?: string;
+    submission_id?: string;
+    stage?: string;
+    stage_id?: string;
+    pipeline_id?: string;
+    is_draft?: boolean;
+    tags?: string[];
+    bank_account_type?: string;
+    institution_name?: string;
+    routing_number?: string;
+    account_number?: string;
     created_at?: string;
+    updated_at?: string;
+    submission_date?: string;
+    submitted_by?: string;
+    call_center_id?: string;
+    licensed_agent_account?: string;
+    lead_source?: string;
   };
-  section: "identity" | "policy" | "pipeline" | "location";
 }
 
-function LeadSummaryCard({ lead }: { lead: LeadSummaryCardProps["lead"] }) {
+function SectionHeader({ icon, title, subtitle }: { icon: string; title: string; subtitle?: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: 10,
+        backgroundColor: "#EEF5EE",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 20,
+      }}>
+        {icon}
+      </div>
+      <div>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: T.textDark }}>{title}</p>
+        {subtitle && <p style={{ margin: "2px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 500 }}>{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+function InfoField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p style={{ margin: "0 0 4px", fontSize: 12, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+        {label}
+      </p>
+      <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: T.textDark }}>
+        {value || "—"}
+      </p>
+    </div>
+  );
+}
+
+function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
+  // Helper to format currency
+  const formatCurrency = (val: number | undefined) => {
+    if (val == null) return "—";
+    return `$${Number(val).toLocaleString()}`;
+  };
+
+  // Helper to format boolean
+  const formatBool = (val: boolean | undefined) => {
+    if (val === true) return "Yes";
+    if (val === false) return "No";
+    return "—";
+  };
+
+  // Helper to format date
+  const formatDate = (val: string | undefined) => {
+    if (!val) return "—";
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return val;
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  };
+
   return (
     <div style={{
-      backgroundColor: "#fff",
-      borderRadius: 16,
-      overflow: "hidden",
-      border: `1.5px solid ${T.border}`,
-      boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
       display: "flex",
       flexDirection: "column",
-      padding: "24px",
-      gap: 0, // Remove gap, use dividers instead
+      gap: 20,
     }}>
-      {/* Header - Identity */}
-      <div style={{ display: "flex", gap: 16, alignItems: "center", paddingBottom: 20 }}>
-        <div style={{
-          width: 52, height: 52, borderRadius: 14,
-          backgroundColor: "#EEF5EE",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 26,
-        }}>
-          👤
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-          <h4 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: T.textDark }}>
-            {`${lead.first_name || ""} ${lead.last_name || ""}`.trim() || "—"}
-          </h4>
-        </div>
-        
-      
-      </div>
+      {/* Section 1: Personal & Contact Information */}
+      <div style={{
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        border: `1.5px solid ${T.border}`,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+        padding: "24px",
+      }}>
+        <SectionHeader icon="👤" title="Personal & Contact Information" subtitle="Identity, demographics, and location details" />
 
-      {/* Divider 1 - After Header */}
-      <div style={{ height: 1, backgroundColor: T.borderLight }} />
-
-      {/* Row 1: Contact | Policy */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, padding: "20px 0" }}>
-        
-        {/* Contact Info - with right border */}
-        <div style={{ borderRight: `1px solid ${T.borderLight}`, paddingRight: 24 }}>
-          <p style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 800, color: T.textDark }}>
-            Contact Info
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Phone</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.phone || "—"}</p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Lead Source</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.lead_source || "—"}</p>
-            </div>
-          </div>
+        {/* Identity Row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="First Name" value={lead.first_name} />
+          <InfoField label="Last Name" value={lead.last_name} />
+          <InfoField label="SSN" value={lead.social} />
+          <InfoField label="Driver's License" value={lead.driver_license_number} />
         </div>
 
-        {/* Policy Data - with left padding */}
-        <div style={{ paddingLeft: 24 }}>
-          <p style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 800, color: T.textDark }}>
-            Policy Data
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Product Type</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.product_type || "—"}</p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Carrier</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.carrier || "—"}</p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Monthly Premium</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>
-                {lead.monthly_premium ? `$${Number(lead.monthly_premium).toLocaleString()}` : "—"}
-              </p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Coverage</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>
-                {lead.coverage_amount ? `$${Number(lead.coverage_amount).toLocaleString()}` : "—"}
-              </p>
-            </div>
-          </div>
+        {/* Demographics Row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Date of Birth" value={formatDate(lead.date_of_birth)} />
+          <InfoField label="Age" value={lead.age} />
+          <InfoField label="Birth State" value={lead.birth_state} />
+          <InfoField label="Preferred Language" value={lead.language} />
+        </div>
+
+        {/* Contact Row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Phone" value={lead.phone} />
+          <InfoField label="Email" value={lead.email} />
+        </div>
+
+        {/* Address Row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
+          <InfoField label="Street Address" value={`${lead.street1 || ""} ${lead.street2 ? lead.street2 : ""}`.trim()} />
+          <InfoField label="City" value={lead.city} />
+          <InfoField label="State" value={lead.state} />
+          <InfoField label="ZIP Code" value={lead.zip_code} />
         </div>
       </div>
 
-      {/* Divider 2 - Between rows */}
-      <div style={{ height: 1, backgroundColor: T.borderLight }} />
+      {/* Section 2: Health & Underwriting Data */}
+      <div style={{
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        border: `1.5px solid ${T.border}`,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+        padding: "24px",
+      }}>
+        <SectionHeader icon="🏥" title="Health & Underwriting Data" subtitle="Risk assessment and medical history" />
 
-      {/* Row 2: Pipeline | Location */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, padding: "20px 0" }}>
-        
-        {/* Pipeline Info - with right border */}
-        <div style={{ borderRight: `1px solid ${T.borderLight}`, paddingRight: 24 }}>
-          <p style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 800, color: T.textDark }}>
-           Pipeline Info
+        {/* Physical Metrics */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Height" value={lead.height} />
+          <InfoField label="Weight" value={lead.weight} />
+          <InfoField label="Tobacco Use" value={formatBool(lead.tobacco_use)} />
+          <InfoField label="Doctor Name" value={lead.doctor_name} />
+        </div>
+
+        {/* Medical History */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Health Conditions" value={lead.health_conditions} />
+          <InfoField label="Current Medications" value={lead.medications} />
+        </div>
+
+        {/* History */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
+          <InfoField label="Existing Coverage (Last 2 Years)" value={lead.existing_coverage_last_2_years} />
+          <InfoField label="Previous Applications (Last 2 Years)" value={lead.previous_applications_2_years} />
+        </div>
+      </div>
+
+      {/* Section 3: Policy & Coverage Details */}
+      <div style={{
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        border: `1.5px solid ${T.border}`,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+        padding: "24px",
+      }}>
+        <SectionHeader icon="🛡️" title="Policy & Coverage Details" subtitle="Insurance product and financial information" />
+
+        {/* Product Info */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Carrier" value={lead.carrier} />
+          <InfoField label="Product Type" value={lead.product_type} />
+          <InfoField label="Coverage Amount" value={formatCurrency(lead.coverage_amount)} />
+        </div>
+
+        {/* Financials */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Monthly Premium" value={formatCurrency(lead.monthly_premium)} />
+          <InfoField label="Lead Value" value={formatCurrency(lead.lead_value)} />
+          <InfoField label="Beneficiary Info" value={lead.beneficiary_information} />
+        </div>
+
+        {/* Logistics */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Draft Date" value={formatDate(lead.draft_date)} />
+          <InfoField label="Future Draft Date" value={formatDate(lead.future_draft_date)} />
+          <InfoField label="Lead Source" value={lead.lead_source} />
+        </div>
+
+        {/* Notes */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20 }}>
+          <InfoField label="Additional Information" value={lead.additional_information} />
+        </div>
+      </div>
+
+      {/* Section 4: Financial & System Metadata */}
+      <div style={{
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        border: `1.5px solid ${T.border}`,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+        padding: "24px",
+      }}>
+        <SectionHeader icon="⚙️" title="Financial & System Metadata" subtitle="Banking details and CRM workflow data" />
+
+        {/* Banking */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Account Type" value={lead.bank_account_type} />
+          <InfoField label="Institution" value={lead.institution_name} />
+          <InfoField label="Routing Number" value={lead.routing_number} />
+          <InfoField label="Account Number" value={lead.account_number} />
+        </div>
+
+        {/* Workflow/CRM */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <InfoField label="Lead ID" value={lead.lead_unique_id} />
+          <InfoField label="Submission ID" value={lead.submission_id} />
+          <InfoField label="Stage" value={lead.stage} />
+          <InfoField label="Is Draft" value={formatBool(lead.is_draft)} />
+        </div>
+
+        {/* Tags */}
+        <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>
+          <p style={{ margin: "0 0 8px", fontSize: 12, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+            Tags
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Pipeline</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.pipeline || "—"}</p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Current Stage</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.stage || "—"}</p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Lead Value</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>
-                {lead.lead_value ? `$${Number(lead.lead_value).toLocaleString()}` : "—"}
-              </p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Submitted</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.submission_date || "—"}</p>
-            </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {lead.tags && lead.tags.length > 0 ? (
+              lead.tags.map((tag, i) => (
+                <span key={i} style={{
+                  backgroundColor: "#EEF5EE",
+                  color: "#4e6e3a",
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}>
+                  {tag}
+                </span>
+              ))
+            ) : (
+              <span style={{ color: T.textMuted, fontSize: 14 }}>—</span>
+            )}
           </div>
         </div>
 
-        {/* Location Info - with left padding */}
-        <div style={{ paddingLeft: 24 }}>
-          <p style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 800, color: T.textDark }}>
-            Address Details
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>Street</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.street1 || "—"}</p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>City</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.city || "—"}</p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>State</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.state || "—"}</p>
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: T.textMuted, fontWeight: 700 }}>ZIP</p>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{lead.zip_code || "—"}</p>
-            </div>
-          </div>
+        {/* Audit Trail */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
+          <InfoField label="Created At" value={formatDate(lead.created_at)} />
+          <InfoField label="Updated At" value={formatDate(lead.updated_at)} />
+          <InfoField label="Submission Date" value={formatDate(lead.submission_date)} />
+          <InfoField label="Submitted By" value={lead.submitted_by} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginTop: 16 }}>
+          <InfoField label="Call Center ID" value={lead.call_center_id} />
+          <InfoField label="Licensed Agent" value={lead.licensed_agent_account} />
+          <InfoField label="Lead Source" value={lead.lead_source} />
         </div>
       </div>
     </div>
