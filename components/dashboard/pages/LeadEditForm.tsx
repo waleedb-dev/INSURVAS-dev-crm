@@ -129,8 +129,8 @@ const formSchema = z.object({
   previousApplications: z.string().optional(), // 'Yes' or 'No' in DB
   
   // Pipeline & Stage (IDs for DB, names for display)
-  pipelineId: z.number().nullable(),
-  stageId: z.number().nullable(),
+  pipelineId: z.number().nullable().or(z.literal("")),
+  stageId: z.number().nullable().or(z.literal("")),
   pipelineName: z.string().optional(),
   stageName: z.string().optional(),
   
@@ -180,6 +180,7 @@ interface LeadEditFormProps {
   onDelete?: () => void;
   isSaving?: boolean;
   isLoading?: boolean;
+  isLoadingStages?: boolean;
   error?: string | null;
   title?: string;
   subtitle?: string;
@@ -187,6 +188,8 @@ interface LeadEditFormProps {
   leadRowUuid: string | null;
   canEditNotes?: boolean;
   sessionUserId?: string | null;
+  // Dynamic stage loading
+  onPipelineChange?: (pipelineId: number | null) => void;
 }
 
 type TabType = "Opportunity Details" | "Personal Info" | "Policy & Banking" | "Notes";
@@ -368,6 +371,7 @@ export function LeadEditForm({
   onDelete,
   isSaving = false,
   isLoading = false,
+  isLoadingStages = false,
   error = null,
   title = "Edit Lead",
   subtitle = "",
@@ -375,6 +379,8 @@ export function LeadEditForm({
   leadRowUuid,
   canEditNotes = true,
   sessionUserId = null,
+  // Dynamic stage loading
+  onPipelineChange,
 }: LeadEditFormProps) {
   const supabase = getSupabaseBrowserClient();
   const [activeTab, setActiveTab] = React.useState<TabType>("Opportunity Details");
@@ -401,6 +407,9 @@ export function LeadEditForm({
   React.useEffect(() => {
     form.reset(lead);
   }, [lead, form]);
+
+  // Watch pipelineId to conditionally enable/disable stage select
+  const pipelineId = form.watch("pipelineId");
 
   const loadNotes = React.useCallback(async () => {
     if (!leadRowUuid) return;
@@ -786,7 +795,14 @@ export function LeadEditForm({
                         <FormField label="Pipeline" error={errors.pipelineId?.message} required>
                           <StyledSelect
                             value={field.value?.toString() || ""}
-                            onValueChange={(val) => field.onChange(val ? Number(val) : null)}
+                            onValueChange={(val) => {
+                              const newPipelineId = val ? Number(val) : null;
+                              field.onChange(newPipelineId);
+                              // Reset stage when pipeline changes
+                              form.setValue("stageId", null, { shouldValidate: false });
+                              // Fetch stages for new pipeline
+                              onPipelineChange?.(newPipelineId);
+                            }}
                             options={pipelines.map((p) => ({ value: p.id.toString(), label: p.name }))}
                             placeholder="Select pipeline..."
                             disabled={!canEdit}
@@ -804,8 +820,8 @@ export function LeadEditForm({
                             value={field.value?.toString() || ""}
                             onValueChange={(val) => field.onChange(val ? Number(val) : null)}
                             options={stages.map((s) => ({ value: s.id.toString(), label: s.name }))}
-                            placeholder="Select stage..."
-                            disabled={!canEdit}
+                            placeholder={isLoadingStages ? "Loading stages..." : pipelineId ? "Select stage..." : "Select pipeline first"}
+                            disabled={!canEdit || !pipelineId || isLoadingStages}
                             error={!!errors.stageId}
                           />
                         </FormField>

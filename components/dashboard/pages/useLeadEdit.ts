@@ -92,12 +92,14 @@ interface UseLeadEditReturn {
   stages: { id: number; name: string }[];
   licensedAgents: { value: string; label: string }[];
   isLoading: boolean;
+  isLoadingStages: boolean;
   isSaving: boolean;
   error: string | null;
   toast: ToastMessage | null;
   saveLead: (data: LeadEditFormData) => Promise<void>;
   deleteLead: () => Promise<void>;
   clearToast: () => void;
+  fetchStagesForPipeline: (pipelineId: number | null) => Promise<void>;
 }
 
 export function useLeadEdit({
@@ -111,13 +113,14 @@ export function useLeadEdit({
   const [stages, setStages] = useState<{ id: number; name: string }[]>([]);
   const [licensedAgents, setLicensedAgents] = useState<{ value: string; label: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingStages, setIsLoadingStages] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
   const clearToast = useCallback(() => setToast(null), []);
 
-  // Fetch lookup data (pipelines, stages, agents)
+  // Fetch lookup data (pipelines, agents) - stages fetched dynamically based on pipeline
   useEffect(() => {
     async function fetchLookups() {
       setIsLoading(true);
@@ -125,10 +128,6 @@ export function useLeadEdit({
         // Fetch pipelines with IDs
         const { data: pipelinesData } = await supabase.from("pipelines").select("id, name").order("name");
         setPipelines(pipelinesData?.map((p) => ({ id: Number(p.id), name: p.name })) || []);
-
-        // Fetch stages with IDs
-        const { data: stagesData } = await supabase.from("pipeline_stages").select("id, name").order("position");
-        setStages(stagesData?.map((s) => ({ id: Number(s.id), name: s.name })) || []);
 
         // Fetch licensed agents
         const { data: agentsData } = await supabase
@@ -149,6 +148,29 @@ export function useLeadEdit({
       }
     }
     fetchLookups();
+  }, [supabase]);
+
+  // Fetch stages dynamically based on selected pipeline
+  const fetchStagesForPipeline = useCallback(async (pipelineId: number | null) => {
+    if (!pipelineId) {
+      setStages([]);
+      return;
+    }
+
+    setIsLoadingStages(true);
+    try {
+      const { data: stagesData } = await supabase
+        .from("pipeline_stages")
+        .select("id, name")
+        .eq("pipeline_id", pipelineId)
+        .order("position");
+      setStages(stagesData?.map((s) => ({ id: Number(s.id), name: s.name })) || []);
+    } catch {
+      // Silently fail - stages are not critical
+      setStages([]);
+    } finally {
+      setIsLoadingStages(false);
+    }
   }, [supabase]);
 
   const saveLead = useCallback(
@@ -274,12 +296,14 @@ tags: data.tags ? data.tags.split(",").map((t) => t.trim()).filter(Boolean) : []
     stages,
     licensedAgents,
     isLoading,
+    isLoadingStages,
     isSaving,
     error,
     toast,
     saveLead,
     deleteLead,
     clearToast,
+    fetchStagesForPipeline,
   };
 }
 
