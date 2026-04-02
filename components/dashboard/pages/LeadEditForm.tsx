@@ -16,6 +16,81 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+// StyledSelect component matching CallCenterLeadIntakePage design
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select...",
+  disabled = false,
+  error = false,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")} disabled={disabled}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 42,
+          borderRadius: 10,
+          border: `1.5px solid ${error ? "#dc2626" : T.border}`,
+          backgroundColor: disabled ? T.pageBg : "#fff",
+          color: value ? T.textDark : T.textMuted,
+          fontSize: 14,
+          fontWeight: 600,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          boxShadow: error ? "0 0 0 3px rgba(220, 38, 38, 0.1)" : "none",
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value
+            ? options.find((o) => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: "#fff",
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 14,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 // Import type from useLeadEdit to avoid circular dependencies
 import type { LeadEditFormData } from "./useLeadEdit";
 
@@ -295,7 +370,7 @@ export function LeadEditForm({
   isLoading = false,
   error = null,
   title = "Edit Lead",
-  subtitle = "Loaded from database — edit below, then Update.",
+  subtitle = "",
   // Notes management
   leadRowUuid,
   canEditNotes = true,
@@ -310,6 +385,12 @@ export function LeadEditForm({
   const [newNoteText, setNewNoteText] = React.useState("");
   const [addingNote, setAddingNote] = React.useState(false);
   const [notesError, setNotesError] = React.useState<string | null>(null);
+
+  // Delete note modal state
+  const [showDeleteNoteModal, setShowDeleteNoteModal] = React.useState(false);
+  const [deletingNote, setDeletingNote] = React.useState<NoteRow | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = React.useState("");
+  const [deleteInProgress, setDeleteInProgress] = React.useState(false);
 
   const form = useForm<LeadEditFormData>({
     resolver: zodResolver(formSchema),
@@ -387,16 +468,28 @@ export function LeadEditForm({
     }
   }, [leadRowUuid, newNoteText, supabase, loadNotes]);
 
-  const deleteNote = React.useCallback(async (noteId: string) => {
-    if (!window.confirm("Delete this note?")) return;
+  const openDeleteNoteModal = React.useCallback((note: NoteRow) => {
+    setDeletingNote(note);
+    setDeleteConfirmText("");
+    setShowDeleteNoteModal(true);
+  }, []);
+
+  const handleDeleteNote = React.useCallback(async () => {
+    if (!deletingNote) return;
+    setDeleteInProgress(true);
     try {
-      const { error } = await supabase.from("lead_notes").delete().eq("id", noteId);
+      const { error } = await supabase.from("lead_notes").delete().eq("id", deletingNote.id);
       if (error) throw error;
+      setShowDeleteNoteModal(false);
+      setDeletingNote(null);
+      setDeleteConfirmText("");
       await loadNotes();
     } catch (err) {
       setNotesError(err instanceof Error ? err.message : "Failed to delete note");
+    } finally {
+      setDeleteInProgress(false);
     }
-  }, [supabase, loadNotes]);
+  }, [supabase, loadNotes, deletingNote]);
 
   const handleSubmit = form.handleSubmit((data) => {
     onSubmit(data);
@@ -691,20 +784,14 @@ export function LeadEditForm({
                       control={control}
                       render={({ field }) => (
                         <FormField label="Pipeline" error={errors.pipelineId?.message} required>
-                          <Select 
-                            value={field.value?.toString() || ""} 
-                            onValueChange={(val) => field.onChange(val ? Number(val) : null)} 
+                          <StyledSelect
+                            value={field.value?.toString() || ""}
+                            onValueChange={(val) => field.onChange(val ? Number(val) : null)}
+                            options={pipelines.map((p) => ({ value: p.id.toString(), label: p.name }))}
+                            placeholder="Select pipeline..."
                             disabled={!canEdit}
-                          >
-                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${errors.pipelineId ? "#dc2626" : T.border}`, fontSize: 14, fontWeight: 600 }}>
-                              <SelectValue placeholder="Select pipeline..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {pipelines.map((pipeline) => (
-                                <SelectItem key={pipeline.id} value={pipeline.id.toString()}>{pipeline.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            error={!!errors.pipelineId}
+                          />
                         </FormField>
                       )}
                     />
@@ -713,20 +800,14 @@ export function LeadEditForm({
                       control={control}
                       render={({ field }) => (
                         <FormField label="Stage" error={errors.stageId?.message} required>
-                          <Select 
-                            value={field.value?.toString() || ""} 
-                            onValueChange={(val) => field.onChange(val ? Number(val) : null)} 
+                          <StyledSelect
+                            value={field.value?.toString() || ""}
+                            onValueChange={(val) => field.onChange(val ? Number(val) : null)}
+                            options={stages.map((s) => ({ value: s.id.toString(), label: s.name }))}
+                            placeholder="Select stage..."
                             disabled={!canEdit}
-                          >
-                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${errors.stageId ? "#dc2626" : T.border}`, fontSize: 14, fontWeight: 600 }}>
-                              <SelectValue placeholder="Select stage..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {stages.map((stage) => (
-                                <SelectItem key={stage.id} value={stage.id.toString()}>{stage.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            error={!!errors.stageId}
+                          />
                         </FormField>
                       )}
                     />
@@ -757,17 +838,13 @@ export function LeadEditForm({
                       control={control}
                       render={({ field }) => (
                         <FormField label="Owner (Licensed Agent)">
-                          <Select value={field.value || ""} onValueChange={field.onChange} disabled={!canEdit}>
-                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                              <SelectValue placeholder="Select owner..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="">Unassigned</SelectItem>
-                              {licensedAgents.map((agent) => (
-                                <SelectItem key={agent.value} value={agent.value}>{agent.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <StyledSelect
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            options={[{ value: "", label: "Unassigned" }, ...licensedAgents]}
+                            placeholder="Select owner..."
+                            disabled={!canEdit}
+                          />
                         </FormField>
                       )}
                     />
@@ -950,16 +1027,13 @@ export function LeadEditForm({
                       control={control}
                       render={({ field }) => (
                         <FormField label="Tobacco Use">
-                          <Select value={field.value || ""} onValueChange={field.onChange} disabled={!canEdit}>
-                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                              <SelectValue placeholder="Select..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {yesNoOptions.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <StyledSelect
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            options={yesNoOptions}
+                            placeholder="Select..."
+                            disabled={!canEdit}
+                          />
                         </FormField>
                       )}
                     />
@@ -970,16 +1044,13 @@ export function LeadEditForm({
                       control={control}
                       render={({ field }) => (
                         <FormField label="Existing Coverage (Last 2 Years)">
-                          <Select value={field.value || ""} onValueChange={field.onChange} disabled={!canEdit}>
-                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                              <SelectValue placeholder="Select..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {yesNoOptions.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <StyledSelect
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            options={yesNoOptions}
+                            placeholder="Select..."
+                            disabled={!canEdit}
+                          />
                         </FormField>
                       )}
                     />
@@ -988,16 +1059,13 @@ export function LeadEditForm({
                       control={control}
                       render={({ field }) => (
                         <FormField label="Previous Applications (Last 2 Years)">
-                          <Select value={field.value || ""} onValueChange={field.onChange} disabled={!canEdit}>
-                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                              <SelectValue placeholder="Select..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {yesNoOptions.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <StyledSelect
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            options={yesNoOptions}
+                            placeholder="Select..."
+                            disabled={!canEdit}
+                          />
                         </FormField>
                       )}
                     />
@@ -1125,16 +1193,18 @@ export function LeadEditForm({
                       control={control}
                       render={({ field }) => (
                         <FormField label="Account Type" error={errors.bankAccountType?.message}>
-                          <Select value={field.value || ""} onValueChange={field.onChange} disabled={!canEdit}>
-                            <SelectTrigger style={{ width: "100%", height: 42, borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 14, fontWeight: 600 }}>
-                              <SelectValue placeholder="Select account type..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="">None</SelectItem>
-                              <SelectItem value="checking">Checking</SelectItem>
-                              <SelectItem value="savings">Savings</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <StyledSelect
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            options={[
+                              { value: "", label: "None" },
+                              { value: "checking", label: "Checking" },
+                              { value: "savings", label: "Savings" },
+                            ]}
+                            placeholder="Select account type..."
+                            disabled={!canEdit}
+                            error={!!errors.bankAccountType}
+                          />
                         </FormField>
                       )}
                     />
@@ -1173,10 +1243,7 @@ export function LeadEditForm({
                 <div style={{ maxWidth: 720 }}>
                   {/* Notes Tab Content */}
                   <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 800, color: T.textDark }}>Notes</h3>
-                  <p style={{ margin: "0 0 20px", fontSize: 12, color: T.textMuted, lineHeight: 1.5 }}>
-                    Each note is saved in <strong>lead_notes</strong> (newest first). 
-                    Legacy text may still live in <strong>Opportunity Details → Additional information</strong> until you migrate it.
-                  </p>
+                 
 
                   {notesError && (
                     <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>
@@ -1248,7 +1315,7 @@ export function LeadEditForm({
                               <button
                                 type="button"
                                 title="Delete your note"
-                                onClick={() => void deleteNote(note.id)}
+                                onClick={() => openDeleteNoteModal(note)}
                                 style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 4, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
                               >
                                 <Trash2 size={16} />
@@ -1387,6 +1454,108 @@ export function LeadEditForm({
           </div>
         </div>
       </div>
+
+      {/* Delete Note Confirmation Modal */}
+      {showDeleteNoteModal && deletingNote && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#dc2626" }}>Delete Note</h2>
+              <button
+                onClick={() => setShowDeleteNoteModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
+                <strong>Warning:</strong> This will permanently delete this note. This action cannot be undone.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                Type <strong>delete</strong> to confirm deletion
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && deleteConfirmText.toLowerCase() === 'delete') handleDeleteNote();
+                  if (e.key === 'Escape') setShowDeleteNoteModal(false);
+                }}
+                placeholder="delete"
+                autoFocus
+                style={{
+                  width: "100%",
+                  height: 44,
+                  border: `1.5px solid ${deleteConfirmText.toLowerCase() === 'delete' ? "#dc2626" : T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                  background: T.cardBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = deleteConfirmText.toLowerCase() === 'delete' ? "#dc2626" : "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmText.toLowerCase() === 'delete' ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = deleteConfirmText.toLowerCase() === 'delete' ? "#dc2626" : T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowDeleteNoteModal(false)}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteNote}
+                disabled={deleteConfirmText.toLowerCase() !== 'delete' || deleteInProgress}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: deleteConfirmText.toLowerCase() === 'delete' && !deleteInProgress ? "#dc2626" : T.border,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: deleteConfirmText.toLowerCase() === 'delete' && !deleteInProgress ? "pointer" : "not-allowed",
+                  boxShadow: deleteConfirmText.toLowerCase() === 'delete' && !deleteInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                  transition: "all 0.15s ease-in-out",
+                }}
+              >
+                {deleteInProgress ? "Deleting..." : "Delete Note"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
