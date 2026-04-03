@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { T } from "@/lib/theme";
+import { Card } from "@/components/ui/card";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { PermissionKey } from "@/lib/auth/permissions";
 import { isRoleKey, type RoleKey } from "@/lib/auth/roles";
@@ -13,29 +14,29 @@ const C = {
   border: T.border, arrowUp: T.priorityHigh, arrowDown: T.priorityLow,
 };
 
-// ── Real Data from Database ───────────────────────────────────────────────────
-const ANNOUNCEMENTS = [
-  {
-    id: "3637a7e1-64dd-4164-88a0-b15c629772d3",
-    title: "New Carrier Integration",
-    description: "AMAM carrier has been successfully integrated into the system. All agents can now submit applications for AMAM products."
-  },
-  {
-    id: "2d0e4746-7f64-497f-a979-9acb67ea36bf",
-    title: "System Maintenance Scheduled",
-    description: "The system will undergo maintenance this Sunday from 2 AM to 4 AM EST. Please save your work before this time."
-  },
-  {
-    id: "9e166c9b-5d82-465f-8f08-aa05f5b3ff6e",
-    title: "New Verification Workflow",
-    description: "We have updated the verification process. Buffer agents should now complete additional validation steps before transferring."
-  },
-  {
-    id: "04978e0d-557e-472b-8927-70f7216d47b9",
-    title: "Team Meeting",
-    description: "Monthly team meeting scheduled for Friday at 3 PM. All supervisors and managers are required to attend."
-  }
-];
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface Announcement {
+  id: string;
+  title: string;
+  description: string;
+  created_at: string;
+}
+
+// ── Helper to format relative time ────────────────────────────────────────────
+function getRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
 
 // ── Recent Deals Data for ProjectCard ───────────────────────────────────────────
 const RECENT_DEALS_DATA = [
@@ -212,6 +213,36 @@ function canViewPipeline(role: RoleKey | null, permissions: Set<PermissionKey>):
   return false;
 }
 
+// Hook to fetch announcements from database
+function useAnnouncements() {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAnnouncements() {
+      const supabase = getSupabaseBrowserClient();
+      
+      const { data, error } = await supabase
+        .from("announcements")
+        .select("id, title, description, created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching announcements:", error);
+        setIsLoading(false);
+        return;
+      }
+
+      setAnnouncements(data || []);
+      setIsLoading(false);
+    }
+
+    fetchAnnouncements();
+  }, []);
+
+  return { announcements, isLoading };
+}
+
 // Check if user can view all leads or only their call center
 function getLeadViewScope(role: RoleKey | null, permissions: Set<PermissionKey>): "all" | "call_center" | "own" | "none" {
   if (role === "system_admin") return "all";
@@ -291,7 +322,10 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // User permissions
-  const { userRole, permissions, callCenterId, userId, isLoading } = useUserPermissions();
+  const { userRole, permissions, callCenterId, userId, isLoading: isLoadingPermissions } = useUserPermissions();
+  
+  // Fetch announcements from database
+  const { announcements, isLoading: isLoadingAnnouncements } = useAnnouncements();
 
   // Permission checks
   const canViewDailyDeal = canViewDailyDealFlow(userRole, permissions);
@@ -300,7 +334,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
 
   // For debugging - log permissions
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoadingPermissions) {
       console.log("User Role:", userRole);
       console.log("Permissions:", Array.from(permissions));
       console.log("Call Center ID:", callCenterId);
@@ -308,8 +342,9 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
       console.log("Can View Daily Deal:", canViewDailyDeal);
       console.log("Can View Pipeline:", canViewPipelineStages);
       console.log("Lead View Scope:", leadViewScope);
+      console.log("Announcements:", announcements);
     }
-  }, [isLoading, userRole, permissions, callCenterId, userId, canViewDailyDeal, canViewPipelineStages, leadViewScope]);
+  }, [isLoadingPermissions, userRole, permissions, callCenterId, userId, canViewDailyDeal, canViewPipelineStages, leadViewScope, announcements]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -761,7 +796,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           </div>
         )}
 
-        {/* ── Right column: Announcements ── */}
+        {/* ── Right column: Announcements (from Database) ── */}
         <div style={{ 
           backgroundColor: "#ffffff", 
           borderRadius: T.radiusXl, 
@@ -780,57 +815,33 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
             </button>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {ANNOUNCEMENTS.map((announcement) => (
-              <div 
-                key={announcement.id} 
-                style={{ 
-                  padding: "16px",
-                  backgroundColor: T.pageBg,
-                  borderRadius: 12,
-                  border: `1.5px solid ${T.border}`,
-                  transition: "all 0.2s ease",
-                  cursor: "pointer"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = T.blue;
-                  e.currentTarget.style.backgroundColor = "#fff";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = T.border;
-                  e.currentTarget.style.backgroundColor = T.pageBg;
-                }}
-              >
-                {/* Title */}
-                <p style={{ 
-                  margin: "0 0 8px", 
-                  fontSize: 14, 
-                  fontWeight: 700, 
-                  color: T.textDark, 
-                  lineHeight: 1.4
-                }}>
-                  {announcement.title}
-                </p>
-                
-                {/* Description */}
-                <p style={{ 
-                  margin: 0, 
-                  fontSize: 12, 
-                  color: T.textMuted, 
-                  fontWeight: 500,
-                  lineHeight: 1.5
-                }}>
-                  {announcement.description}
-                </p>
-              </div>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {isLoadingAnnouncements ? (
+              <p style={{ color: T.textMuted, fontSize: 14 }}>Loading...</p>
+            ) : announcements.length === 0 ? (
+              <p style={{ color: T.textMuted, fontSize: 14 }}>No announcements</p>
+            ) : (
+              announcements.map((announcement, idx) => (
+                <div key={announcement.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingLeft: 12, borderLeft: `3px solid ${idx % 2 === 0 ? "#74a557" : "#16a34a"}` }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: T.textDark, lineHeight: 1.3 }}>{announcement.title}</p>
+                    <p style={{ margin: "0 0 6px", fontSize: 12, color: T.textMuted, fontWeight: 500, lineHeight: 1.5 }}>{announcement.description}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>{getRelativeTime(announcement.created_at)}</p>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.textMuted }}>
+                     <span style={{ fontSize: 14 }}>{idx % 2 === 0 ? "📢" : "📣"}</span>
+                     <span style={{ fontSize: 12, fontWeight: 700 }}>New</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
 
       {/* ── Recent Deals Section (Permission Controlled) ── */}
       {canViewDailyDeal && (
-        <div style={{ display: "flex", gap: 24, alignItems: "stretch", maxWidth: 1600, margin: "4px auto 0" }}>
+        <div style={{ display: "flex", gap: 24, alignItems: "stretch", maxWidth: 1600, margin: "24px auto 0" }}>
           <div style={{ 
             width: "calc(70% - 12px)", 
             backgroundColor: "#ffffff", 
@@ -1259,129 +1270,98 @@ function PipelineStagesGrid({
 }
 
 function StageCard({ stage }: { stage: any }) {
+  const [hovered, setHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const color = stage.color;
 
   return (
-    <div
+    <Card
       onClick={() => setIsExpanded(!isExpanded)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
-        backgroundColor: T.pageBg,
         borderRadius: 16,
-        padding: "16px 14px",
+        border: `1px solid ${T.border}`,
+        borderBottom: `4px solid ${color}`,
+        background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+        boxShadow: hovered
+          ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+          : "0 4px 12px rgba(0,0,0,0.03)",
+        transform: hovered ? "translateY(-3px)" : "translateY(0)",
+        transition: "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+        padding: "20px 20px",
         display: "flex",
         flexDirection: "column",
-        gap: 6,
+        gap: 0,
         cursor: "pointer",
-        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-        border: `1.5px solid ${T.border}`,
-        position: "relative",
-        minHeight: isExpanded ? 200 : 140
-      }}
-      onMouseEnter={(e) => { 
-        e.currentTarget.style.borderColor = stage.color; 
-        e.currentTarget.style.transform = "translateY(-2px)"; 
-        e.currentTarget.style.boxShadow = `0 8px 16px -6px ${stage.color}33`; 
-        e.currentTarget.style.backgroundColor = "#fff"; 
-      }}
-      onMouseLeave={(e) => { 
-        e.currentTarget.style.borderColor = T.border; 
-        e.currentTarget.style.transform = "translateY(0)"; 
-        e.currentTarget.style.boxShadow = "none"; 
-        e.currentTarget.style.backgroundColor = T.pageBg; 
       }}
     >
-      {/* Header with icon and count badge */}
+      {/* Top row: label + icon */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{
-          width: 40,
-          height: 40,
-          borderRadius: "50%",
-          border: `2.5px solid ${stage.color}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: stage.color + "10",
-          fontSize: 18
-        }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#233217",
+            letterSpacing: "0.45px",
+            textTransform: "uppercase",
+            lineHeight: 1.25,
+          }}>
+            {stage.pipeline}
+          </span>
+          <div style={{ fontSize: 26, fontWeight: 800, color, lineHeight: 1.05 }}>
+            {stage.leadCount}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark, lineHeight: 1.3 }}>
+            {stage.name}
+          </span>
+        </div>
+        <div
+          style={{
+            color,
+            backgroundColor: hovered
+              ? `color-mix(in srgb, ${color} 24%, transparent)`
+              : `color-mix(in srgb, ${color} 15%, transparent)`,
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            fontSize: 20,
+            transition: "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+            transform: hovered ? "scale(1.04)" : "scale(1)",
+          }}
+        >
           {stage.icon}
         </div>
-        <div style={{
-          backgroundColor: stage.color,
-          color: "#fff",
-          borderRadius: 12,
-          padding: "4px 10px",
-          fontSize: 12,
-          fontWeight: 800
-        }}>
-          {stage.leadCount} lead{stage.leadCount !== 1 ? 's' : ''}
-        </div>
       </div>
 
-      {/* Stage name and pipeline */}
-      <div style={{ marginTop: 4 }}>
-        <p style={{ 
-          margin: 0, 
-          fontSize: 13, 
-          fontWeight: 800, 
-          color: T.textDark, 
-          whiteSpace: "nowrap", 
-          overflow: "hidden", 
-          textOverflow: "ellipsis" 
-        }}>
-          {stage.name}
-        </p>
-        <p style={{ 
-          margin: "4px 0 0", 
-          fontSize: 10, 
-          fontWeight: 600, 
-          color: T.textMuted 
-        }}>
-          {stage.pipeline}
-        </p>
-      </div>
+      {/* Divider */}
+      <div style={{ height: 1, backgroundColor: T.border, margin: "14px 0 10px" }} />
 
-      {/* Value and progress indicator */}
-      <div style={{ marginTop: 4 }}>
-        <div style={{ 
-          width: "100%", 
-          backgroundColor: "#fff", 
-          height: 4, 
-          borderRadius: 2,
-          marginBottom: 6
-        }}>
-          <div style={{ 
-            width: `${Math.min((stage.leadCount / 5) * 100, 100)}%`, 
-            backgroundColor: stage.color, 
-            height: "100%", 
-            borderRadius: 2 
-          }} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: T.textMuted }}>
-            {stage.leadCount} active
-          </span>
-          <span style={{ 
-            fontSize: 11, 
-            fontWeight: 800, 
-            color: stage.totalValue > 0 ? "#638b4b" : T.textMuted 
-          }}>
-            {stage.totalValue > 0 ? `$${stage.totalValue.toFixed(2)}` : 'No value'}
-          </span>
-        </div>
+      {/* Bottom row: lead count label + value */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted }}>
+          {stage.leadCount} lead{stage.leadCount !== 1 ? "s" : ""} active
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 800, color: stage.totalValue > 0 ? color : T.textMuted }}>
+          {stage.totalValue > 0 ? `$${stage.totalValue.toFixed(2)}` : "No value"}
+        </span>
       </div>
 
       {/* Expanded leads list */}
       {isExpanded && (
         <div style={{
-          marginTop: 10,
+          marginTop: 12,
           paddingTop: 10,
           borderTop: `1px solid ${T.border}`,
           display: "flex",
           flexDirection: "column",
           gap: 6,
-          animation: "fadeIn 0.2s ease"
         }}>
-          <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: T.textMuted }}>
+          <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px" }}>
             Recent Leads
           </p>
           {stage.leads.slice(0, 3).map((lead: any, idx: number) => (
@@ -1389,46 +1369,32 @@ function StageCard({ stage }: { stage: any }) {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              padding: "6px 8px",
-              backgroundColor: T.pageBg,
+              padding: "6px 10px",
+              backgroundColor: `color-mix(in srgb, ${color} 8%, transparent)`,
               borderRadius: 8,
-              fontSize: 10
+              fontSize: 11,
             }}>
               <span style={{ fontWeight: 700, color: T.textDark }}>{lead.name}</span>
               {lead.carrier && (
-                <span style={{ fontWeight: 600, color: T.textMuted, fontSize: 9 }}>
+                <span style={{ fontWeight: 600, color: T.textMuted, fontSize: 10 }}>
                   {lead.carrier}
                 </span>
               )}
             </div>
           ))}
           {stage.leads.length > 3 && (
-            <p style={{ margin: "4px 0 0", fontSize: 9, color: T.textMuted, textAlign: "center" }}>
-              +{stage.leads.length - 3} more leads
+            <p style={{ margin: "4px 0 0", fontSize: 10, color: T.textMuted, textAlign: "center", fontWeight: 500 }}>
+              +{stage.leads.length - 3} more
             </p>
           )}
         </div>
       )}
-
-      {/* Click hint */}
-      {!isExpanded && (
-        <p style={{ 
-          margin: "6px 0 0", 
-          fontSize: 9, 
-          color: T.textMuted, 
-          textAlign: "center",
-          fontWeight: 500
-        }}>
-          Click to expand
-        </p>
-      )}
-    </div>
+    </Card>
   );
 }
 
 
 // ── Project Card Component ────────────────────────────────────────────────────
-
 function ProjectCard({ id, name, created, priority, allTasks, activeTasks, assignees, extraAssignees, emoji, color }: any) {
   return (
     <div style={{
