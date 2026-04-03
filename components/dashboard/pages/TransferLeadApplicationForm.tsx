@@ -1011,7 +1011,7 @@ export default function TransferLeadApplicationForm({
   }, [phoneGatePassed, activeTab]);
 
   return (
-    <div style={{ fontFamily: T.font }}>
+    <div style={{ fontFamily: T.font, minHeight: "100vh", paddingBottom: 40 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: 24, gap: 16 }}>
         <button
@@ -1071,7 +1071,7 @@ export default function TransferLeadApplicationForm({
           })}
         </div>
 
-        <div ref={contentRef} style={{ padding: 24, flex: 1, overflowY: "auto", maxHeight: "calc(100vh - 280px)" }}>
+        <div ref={contentRef} style={{ padding: 24, flex: 1 }}>
           {/* Section: Lead Information */}
           <div id="section-lead-info" style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
         <Section title="Lead Information" icon={
