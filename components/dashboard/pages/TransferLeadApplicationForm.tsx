@@ -1832,7 +1832,9 @@ export default function TransferLeadApplicationForm({
               borderBottom: `1px solid ${T.borderLight}`,
               backgroundColor: dncStatus === "tcpa" ? "#fef2f2" : "#fff",
               display: "flex",
-              gap: 16,
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 12,
             }}>
               {/* Icon */}
               <div style={{ 
@@ -1855,12 +1857,12 @@ export default function TransferLeadApplicationForm({
               </div>
               
               {/* Title Section */}
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
                   {dncStatus === "tcpa" ? "CRITICAL ALERT" : "PHONE VERIFICATION"}
                 </p>
                 <h4 style={{ 
-                  margin: "0 0 6px", 
+                  margin: 0, 
                   fontSize: 18, 
                   fontWeight: 800, 
                   color: dncStatus === "tcpa" ? "#dc2626" : (dncStatus === "dnc" ? "#ea580c" : "#233217"),
@@ -1877,9 +1879,9 @@ export default function TransferLeadApplicationForm({
             </div>
 
             {/* Content Section */}
-            <div style={{ padding: "24px" }}>
+            <div style={{ padding: "24px", textAlign: "center" }}>
               {dncStatus === "tcpa" && (
-                <div style={{ padding: "16px 0", textAlign: "center" }}>
+                <div style={{ padding: "16px 0" }}>
                   <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 24, margin: "0 0 12px" }}>
                     This number is flagged as a TCPA Litigator
                   </p>
@@ -1904,7 +1906,7 @@ export default function TransferLeadApplicationForm({
                       </p>
                     </div>
                   )}
-                  <div style={{ backgroundColor: "#f8fafc", padding: 20, borderRadius: 16, border: `1.5px solid ${T.borderLight}` }}>
+                  <div style={{ backgroundColor: "#f8fafc", padding: 20, borderRadius: 16, border: `1.5px solid ${T.borderLight}`, textAlign: "left" }}>
                     <p style={{ fontSize: 16, margin: "0 0 16px", fontWeight: 600, lineHeight: 1.6, color: T.textDark }}>
                       Read this script to the customer:
                     </p>
@@ -1926,7 +1928,7 @@ export default function TransferLeadApplicationForm({
               )}
 
               {dncStatus === "error" && (
-                <div style={{ padding: "16px 0", textAlign: "center" }}>
+                <div style={{ padding: "16px 0" }}>
                   <p style={{ fontSize: 14, color: T.textMid, margin: 0 }}>{dncMessage}</p>
                 </div>
               )}
