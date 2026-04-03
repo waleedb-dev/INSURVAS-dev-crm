@@ -29,6 +29,7 @@ const ALL_PAGES: DashPage[] = [
   "imo-management",
   "upline-carrier-states",
   "product-guide",
+  "announcements",
 ];
 
 function isDashPage(value: string | null): value is DashPage {

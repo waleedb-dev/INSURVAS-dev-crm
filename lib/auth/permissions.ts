@@ -97,7 +97,8 @@ export function canAccessPage(
     | "bpo-centres"
     | "imo-management"
     | "upline-carrier-states"
-    | "product-guide",
+    | "product-guide"
+    | "announcements",
   role: RoleKey | null,
   permissionKeys: Set<PermissionKey>,
 ): boolean {
@@ -145,7 +146,7 @@ export function canAccessPage(
     return role === "system_admin";
   }
 
-  if (page === "upline-carrier-states" || page === "product-guide") {
+  if (page === "upline-carrier-states" || page === "product-guide" || page === "announcements") {
     return role === "system_admin";
   }
 

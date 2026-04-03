@@ -37,7 +37,8 @@ export type DashPage =
   | "commissions" | "policies"
   | "imo-management"
   | "upline-carrier-states"
-  | "product-guide";
+  | "product-guide"
+  | "announcements";
 
 interface Props {
   activePage: DashPage;
@@ -81,6 +82,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "product-guide", label: "Product Guide", icon: <BookOpen size={22} strokeWidth={1.8} /> },
   { id: "imo-management", label: "IMO Management", icon: <Settings size={22} strokeWidth={1.8} /> },
   { id: "upline-carrier-states", label: "Upline States", icon: <MapPin size={22} strokeWidth={1.8} /> },
+  { id: "announcements", label: "Announcements", icon: <Bell size={22} strokeWidth={1.8} /> },
 ];
 
 const PAGE_TITLE: Record<DashPage, string> = {
@@ -98,6 +100,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "imo-management": "IMO Management",
   "upline-carrier-states": "Upline States",
   "product-guide": "Product Guide",
+  "announcements": "Announcements",
 };
 
 const NOTIFICATIONS = [
