@@ -1820,97 +1820,150 @@ export default function TransferLeadApplicationForm({
               width: "100%",
               maxWidth: 760,
               backgroundColor: "#fff",
-              borderRadius: 12,
-              border: dncStatus === "tcpa" ? "2px solid #3b5229" : `1.5px solid ${T.border}`,
-              boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
-              padding: 18,
+              borderRadius: 20,
+              border: dncStatus === "tcpa" ? `2px solid ${T.danger}` : `1.5px solid ${T.border}`,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+              overflow: "hidden",
             }}
           >
-            <h4
-              style={{
-                margin: 0,
-                fontSize: 26,
-                color:
-                  dncStatus === "tcpa"
-                    ? "#dc2626"
-                    : dncStatus === "dnc"
-                      ? "#ea580c"
-                      : dncStatus === "error"
-                        ? "#dc2626"
-                        : T.blue,
-              }}
-            >
-              {dncStatus === "tcpa"
-                ? "TCPA LITIGATOR WARNING"
-                : dncStatus === "dnc"
-                  ? "Do Not Call List"
-                  : dncStatus === "error"
-                    ? "DNC Check Failed"
-                    : "Phone Verification"}
-            </h4>
-            <p style={{ margin: "8px 0 0", fontSize: 16, color: T.textMid, lineHeight: 1.45 }}>
-              {dncStatus === "tcpa"
-                ? "This number is flagged as a TCPA Litigator. Proceeding may result in legal issues."
-                : dncStatus === "error"
-                  ? dncMessage
-                  : "Please read the following script to the customer to obtain verbal consent."}
-            </p>
-
-            {dncStatus === "tcpa" && (
-              <div style={{ padding: "16px 0" }}>
-                <p style={{ color: "#dc2626", fontWeight: 800, textAlign: "center", fontSize: 30, margin: 0 }}>
-                  WARNING: This number is a TCPA LITIGATOR
-                </p>
-                <p style={{ fontSize: 18, color: T.textMid, textAlign: "center", margin: "12px 0 0" }}>
-                  This number has been flagged as a TCPA litigator. It is recommended to NOT proceed with this lead.
-                </p>
+            {/* Header Section */}
+            <div style={{ 
+              padding: "20px 24px", 
+              borderBottom: `1px solid ${T.borderLight}`,
+              backgroundColor: dncStatus === "tcpa" ? "#fef2f2" : "#fff",
+              display: "flex",
+              gap: 16,
+            }}>
+              {/* Icon */}
+              <div style={{ 
+                width: 44, 
+                height: 44, 
+                borderRadius: 12, 
+                backgroundColor: dncStatus === "tcpa" ? "#dc2626" : (dncStatus === "dnc" ? "#ea580c" : "#233217"), 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  {dncStatus === "tcpa" ? (
+                    <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>
+                  ) : (
+                    <><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.86.33 1.7.62 2.5a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.58-1.14a2 2 0 0 1 2.11-.45c.8.29 1.64.5 2.5.62A2 2 0 0 1 22 16.92z"/></>
+                  )}
+                </svg>
               </div>
-            )}
+              
+              {/* Title Section */}
+              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  {dncStatus === "tcpa" ? "CRITICAL ALERT" : "PHONE VERIFICATION"}
+                </p>
+                <h4 style={{ 
+                  margin: "0 0 6px", 
+                  fontSize: 18, 
+                  fontWeight: 800, 
+                  color: dncStatus === "tcpa" ? "#dc2626" : (dncStatus === "dnc" ? "#ea580c" : "#233217"),
+                }}>
+                  {dncStatus === "tcpa"
+                    ? "TCPA LITIGATOR DETECTED"
+                    : dncStatus === "dnc"
+                      ? "DO NOT CALL LIST"
+                      : dncStatus === "error"
+                        ? "VERIFICATION FAILED"
+                        : "CONSENT REQUIRED"}
+                </h4>
+              </div>
+            </div>
 
-            {(dncStatus === "clear" || dncStatus === "dnc") && (
-              <div style={{ padding: "16px 0" }}>
-                {dncStatus === "dnc" && (
-                  <p style={{ color: "#ea580c", fontSize: 20, fontWeight: 800, margin: "0 0 10px" }}>
-                    This number is on the Do Not Call list.
+            {/* Content Section */}
+            <div style={{ padding: "24px" }}>
+              {dncStatus === "tcpa" && (
+                <div style={{ padding: "16px 0", textAlign: "center" }}>
+                  <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 24, margin: "0 0 12px" }}>
+                    This number is flagged as a TCPA Litigator
                   </p>
-                )}
-                <div style={{ backgroundColor: "#f8fafc", padding: 18, borderRadius: 10, border: "2px solid #c8d4bb" }}>
-                  <p style={{ fontSize: 20, margin: "0 0 12px", fontWeight: 600, lineHeight: 1.45 }}>
-                    Is your phone number <span style={{ color: T.blue, fontWeight: 800 }}>{formData.phone || ""}</span> on the
-                    Federal, National or State Do Not Call List?
-                  </p>
-                  <p style={{ color: T.textMuted, fontSize: 13, margin: "0 0 10px" }}>
-                    If a customer says no and we see it is on DNC, we still need verbal consent.
-                  </p>
-                  <p style={{ fontSize: 20, margin: 0, fontWeight: 600, lineHeight: 1.45 }}>
-                    Sir/Ma&apos;am, even if your phone number is on the Federal National or State Do Not Call list, do we still
-                    have your permission to call you and submit your application for insurance to{" "}
-                    <span style={{ color: T.blue, fontWeight: 800 }}>{formData.carrier || "selected carrier"}</span> via your
-                    phone number <span style={{ color: T.blue, fontWeight: 800 }}>{formData.phone || ""}</span>? And do we have
-                    your permission to call you on the same phone number in the future if needed?
-                  </p>
-                  <p style={{ fontSize: 15, color: T.textMid, margin: "12px 0 0", fontWeight: 700 }}>
-                    Make sure you get a clear YES on it.
+                  <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
+                    Proceeding with this lead may result in legal issues. It is strongly recommended to NOT proceed with this submission.
                   </p>
                 </div>
-                {dncMessage ? (
-                  <p style={{ marginTop: 12, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{dncMessage}</p>
-                ) : null}
-              </div>
-            )}
+              )}
 
-            <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              {(dncStatus === "clear" || dncStatus === "dnc") && (
+                <div>
+                  {dncStatus === "dnc" && (
+                    <div style={{ 
+                      backgroundColor: "#fff7ed", 
+                      padding: "12px 16px", 
+                      borderRadius: 12, 
+                      border: "1.5px solid #fdba74",
+                      marginBottom: 16,
+                    }}>
+                      <p style={{ color: "#c2410c", fontSize: 14, fontWeight: 700, margin: 0 }}>
+                        This number appears on the Do Not Call list.
+                      </p>
+                    </div>
+                  )}
+                  <div style={{ backgroundColor: "#f8fafc", padding: 20, borderRadius: 16, border: `1.5px solid ${T.borderLight}` }}>
+                    <p style={{ fontSize: 16, margin: "0 0 16px", fontWeight: 600, lineHeight: 1.6, color: T.textDark }}>
+                      Read this script to the customer:
+                    </p>
+                    <p style={{ fontSize: 15, margin: "0 0 12px", lineHeight: 1.6, color: T.textMid }}>
+                      Is your phone number <span style={{ color: "#233217", fontWeight: 800 }}>{formData.phone || ""}</span> on the Federal, National or State Do Not Call List?
+                    </p>
+                    <p style={{ fontSize: 15, margin: "0 0 12px", lineHeight: 1.6, color: T.textMid }}>
+                      Even if your phone number is on the Do Not Call list, do we still have your permission to call you and submit your application for insurance to{" "}
+                      <span style={{ color: "#233217", fontWeight: 800 }}>{formData.carrier || "selected carrier"}</span>?
+                    </p>
+                    <p style={{ fontSize: 13, color: "#16a34a", margin: "16px 0 0", fontWeight: 700 }}>
+                      Make sure you get a clear YES before proceeding.
+                    </p>
+                  </div>
+                  {dncMessage ? (
+                    <p style={{ marginTop: 12, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{dncMessage}</p>
+                  ) : null}
+                </div>
+              )}
+
+              {dncStatus === "error" && (
+                <div style={{ padding: "16px 0", textAlign: "center" }}>
+                  <p style={{ fontSize: 14, color: T.textMid, margin: 0 }}>{dncMessage}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div style={{ 
+              padding: "16px 24px", 
+              borderTop: `1px solid ${T.borderLight}`,
+              display: "flex", 
+              justifyContent: "flex-end", 
+              gap: 12,
+              backgroundColor: "#fafcff",
+            }}>
               <button
                 type="button"
                 onClick={() => setShowDncModal(false)}
                 style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
                   border: `1px solid ${T.border}`,
                   backgroundColor: "#fff",
                   color: T.textDark,
-                  borderRadius: 8,
-                  padding: "10px 16px",
-                  fontWeight: 700,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
                   cursor: "pointer",
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#233217";
+                  e.currentTarget.style.color = "#233217";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.color = T.textDark;
                 }}
               >
                 {dncStatus === "tcpa" ? "Close" : "Cancel"}
@@ -1920,13 +1973,24 @@ export default function TransferLeadApplicationForm({
                   type="button"
                   onClick={() => setShowDncModal(false)}
                   style={{
+                    height: 42,
+                    padding: "0 24px",
+                    borderRadius: 10,
                     border: "none",
-                    backgroundColor: "#16a34a",
+                    backgroundColor: "#233217",
                     color: "#fff",
-                    borderRadius: 8,
-                    padding: "10px 16px",
-                    fontWeight: 700,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: T.font,
                     cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#1a260f";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#233217";
                   }}
                 >
                   I Got Verbal Consent - Proceed
