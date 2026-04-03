@@ -359,6 +359,7 @@ export default function TransferLeadApplicationForm({
     "Banking Information"
   ];
   const contentRef = useRef<HTMLDivElement>(null);
+  const [hoveredFieldInfo, setHoveredFieldInfo] = useState<string | null>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
   const [conditionInput, setConditionInput] = useState("");
   const [medicationInput, setMedicationInput] = useState("");
@@ -1078,10 +1079,18 @@ export default function TransferLeadApplicationForm({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>
         }>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Date of Submission" required error={getFieldError("submissionDate")}>
+            <Field label="Date of Submission" required error={getFieldError("submissionDate")}
+              info="Date when this lead/application was submitted."
+              fieldKey="submissionDate"
+              hoveredFieldInfo={hoveredFieldInfo}
+              setHoveredFieldInfo={setHoveredFieldInfo}>
               <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyleWithError("submissionDate")} />
             </Field>
-            <Field label="Phone Number" required error={getFieldError("phone")}>
+            <Field label="Phone Number" required error={getFieldError("phone")}
+              info="Lead's contact phone number for verification calls."
+              fieldKey="phone"
+              hoveredFieldInfo={hoveredFieldInfo}
+              setHoveredFieldInfo={setHoveredFieldInfo}>
               <div style={{ position: "relative" }}>
                 <input
                   placeholder="Enter 10 or 11 digits"
@@ -1170,18 +1179,6 @@ export default function TransferLeadApplicationForm({
                 </div>
               )}
             </Field>
-            <Field label="Language" required error={getFieldError("language")}>
-              <StyledSelect
-                value={formData.language}
-                onValueChange={(val) => setFormData((prev) => ({ ...prev, language: val }))}
-                options={[
-                  { value: "English", label: "English" },
-                  { value: "Spanish", label: "Spanish" },
-                ]}
-                placeholder="Select language"
-                error={submitHighlightKeys.has("language")}
-              />
-            </Field>
           </div>
         </Section>
 
@@ -1241,19 +1238,39 @@ export default function TransferLeadApplicationForm({
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             }>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="First Name" required error={getFieldError("firstName")}>
+                <Field label="First Name" required error={getFieldError("firstName")}
+                  info="Lead's first name as it appears on their ID."
+                  fieldKey="firstName"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.firstName} onChange={set("firstName")} style={fieldStyleWithError("firstName")} />
                 </Field>
-                <Field label="Last Name" required error={getFieldError("lastName")}>
+                <Field label="Last Name" required error={getFieldError("lastName")}
+                  info="Lead's last name as it appears on their ID."
+                  fieldKey="lastName"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.lastName} onChange={set("lastName")} style={fieldStyleWithError("lastName")} />
                 </Field>
-                <Field label="Date of Birth" required error={getFieldError("dateOfBirth")}>
+                <Field label="Date of Birth" required error={getFieldError("dateOfBirth")}
+                  info="Lead's date of birth in MM/DD/YYYY format."
+                  fieldKey="dateOfBirth"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyleWithError("dateOfBirth")} />
                 </Field>
-                <Field label="Age" required error={getFieldError("age")}>
+                <Field label="Age" required error={getFieldError("age")}
+                  info="Lead's current age at time of application."
+                  fieldKey="age"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.age} onChange={set("age")} style={fieldStyleWithError("age")} />
                 </Field>
-                <Field label="Social Security Number" required error={getFieldError("social")}>
+                <Field label="Social Security Number" required error={getFieldError("social")}
+                  info="Lead's 9-digit Social Security Number for identity verification."
+                  fieldKey="social"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input
                     value={formData.social}
                     onChange={(e) => {
@@ -1309,8 +1326,28 @@ export default function TransferLeadApplicationForm({
                     </div>
                   )}
                 </Field>
-                <Field label="Driver License Number" required error={getFieldError("driverLicenseNumber")}>
+                <Field label="Driver License Number" required error={getFieldError("driverLicenseNumber")}
+                  info="State-issued driver's license number for identity verification."
+                  fieldKey="driverLicenseNumber"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyleWithError("driverLicenseNumber")} />
+                </Field>
+                <Field label="Language" required error={getFieldError("language")}
+                  info="Select the primary language for communication with this lead."
+                  fieldKey="language"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
+                  <StyledSelect
+                    value={formData.language}
+                    onValueChange={(val) => setFormData((prev) => ({ ...prev, language: val }))}
+                    options={[
+                      { value: "English", label: "English" },
+                      { value: "Spanish", label: "Spanish" },
+                    ]}
+                    placeholder="Select language"
+                    error={submitHighlightKeys.has("language")}
+                  />
                 </Field>
               </div>
               {ssnDupMatch && (
@@ -2195,25 +2232,79 @@ function Field({
   children, 
   full = false, 
   error,
-  required = false 
+  required = false,
+  info,
+  fieldKey,
+  hoveredFieldInfo,
+  setHoveredFieldInfo
 }: { 
   label: string; 
   children: ReactNode; 
   full?: boolean;
   error?: string;
   required?: boolean;
+  info?: string;
+  fieldKey?: string;
+  hoveredFieldInfo?: string | null;
+  setHoveredFieldInfo?: (key: string | null) => void;
 }) {
   return (
     <div style={{ gridColumn: full ? "span 2" : "span 1", display: "flex", flexDirection: "column", gap: 6 }}>
-      <label style={{
-        ...labelStyle,
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-      }}>
-        {label}
-        {required && <span style={{ color: "#dc2626" }}>*</span>}
-      </label>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <label style={{
+          ...labelStyle,
+          marginBottom: 0,
+        }}>
+          {label}
+          {required && <span style={{ color: "#dc2626" }}>*</span>}
+        </label>
+        {info && fieldKey && (
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onMouseEnter={() => setHoveredFieldInfo && setHoveredFieldInfo(fieldKey)}
+              onMouseLeave={() => setHoveredFieldInfo && setHoveredFieldInfo(null)}
+              style={{ 
+                background: "none", 
+                border: "none", 
+                cursor: "pointer", 
+                padding: 0, 
+                color: "#93c5fd", 
+                display: "flex", 
+                alignItems: "center",
+                marginLeft: 2,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 16v-4M12 8h.01"/>
+              </svg>
+            </button>
+            {hoveredFieldInfo === fieldKey && (
+              <div style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                marginTop: 6,
+                backgroundColor: "#233217",
+                color: "#fff",
+                padding: "8px 12px",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 500,
+                maxWidth: 240,
+                width: 240,
+                zIndex: 9999,
+                boxShadow: "0 4px 12px rgba(35, 50, 23, 0.3)",
+                animation: "fadeInUp 0.15s ease-out",
+                lineHeight: 1.5,
+              }}>
+                {info}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {children}
       {error && (
         <span style={{ 
