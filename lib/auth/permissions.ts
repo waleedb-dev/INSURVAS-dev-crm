@@ -95,8 +95,10 @@ export function canAccessPage(
     | "pipeline-management"
     | "carrier-management"
     | "bpo-centres"
+    | "carrier-updates"
     | "imo-management"
     | "upline-carrier-states"
+    | "imo-settings"
     | "product-guide"
     | "announcements",
   role: RoleKey | null,
@@ -134,7 +136,7 @@ export function canAccessPage(
     return role === "system_admin";
   }
 
-  if (page === "carrier-management" || page === "bpo-centres") {
+  if (page === "carrier-management" || page === "bpo-centres" || page === "carrier-updates") {
     return role === "system_admin";
   }
 
@@ -142,7 +144,7 @@ export function canAccessPage(
     return role === "system_admin";
   }
 
-  if (page === "imo-management") {
+  if (page === "imo-management" || page === "imo-settings") {
     return role === "system_admin";
   }
 
