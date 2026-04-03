@@ -25,6 +25,7 @@ import {
   LogOut,
   ChevronDown,
   Menu,
+  BookOpen,
 } from "lucide-react";
 
 export type DashPage =
@@ -35,7 +36,8 @@ export type DashPage =
   | "carrier-management" | "bpo-centres"
   | "commissions" | "policies"
   | "imo-management"
-  | "upline-carrier-states";
+  | "upline-carrier-states"
+  | "product-guide";
 
 interface Props {
   activePage: DashPage;
@@ -76,6 +78,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "pipeline-management", label: "Pipelines", icon: <Layers size={22} strokeWidth={1.8} /> },
   { id: "carrier-management", label: "Carriers", icon: <Building2 size={22} strokeWidth={1.8} /> },
   { id: "bpo-centres", label: "BPO Centres", icon: <Headphones size={22} strokeWidth={1.8} /> },
+  { id: "product-guide", label: "Product Guide", icon: <BookOpen size={22} strokeWidth={1.8} /> },
   { id: "imo-management", label: "IMO Management", icon: <Settings size={22} strokeWidth={1.8} /> },
   { id: "upline-carrier-states", label: "Upline States", icon: <MapPin size={22} strokeWidth={1.8} /> },
 ];
@@ -94,6 +97,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   policies: "Policies",
   "imo-management": "IMO Management",
   "upline-carrier-states": "Upline States",
+  "product-guide": "Product Guide",
 };
 
 const NOTIFICATIONS = [
