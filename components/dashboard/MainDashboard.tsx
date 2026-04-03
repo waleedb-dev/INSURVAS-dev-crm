@@ -78,12 +78,6 @@ const TEXT = {
   dailyDealFlow: "Daily Deal Flow",
   new: "New",
   notInterested: "Not Interested",
-  customDateRangeEllipsis: "Custom Date Range...",
-  backToPresetsEllipsis: "Back to Presets",
-  yourSubmissionsOnly: "Your submissions only",
-  yourCallCenter: "Your call center",
-  recentLeads: "Recent Leads",
-  more: "more",
   transferPipeline: "Transfer Portal",
   customerPipeline: "Customer Pipeline",
   chargebackPipeline: "Chargeback Pipeline",
@@ -683,7 +677,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                         <line x1="3" y1="10" x2="21" y2="10"/>
                         <path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/>
                       </svg>
-                      {TEXT.customDateRangeEllipsis}
+                      {TEXT.customDateRange}
                     </button>
                   </>
                 ) : (
@@ -709,7 +703,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M19 12H5M12 19l-7-7 7-7"/>
                         </svg>
-                        {TEXT.backToPresetsEllipsis}
+                        {TEXT.backToPresets}
                       </button>
 
                       <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: T.textDark }}>
