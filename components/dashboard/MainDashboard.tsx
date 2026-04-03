@@ -12,6 +12,175 @@ const C = {
   bg: T.pageBg, white: T.cardBg, blue: T.blue,
   textDark: T.textDark, textMid: T.textMid, textMuted: T.textMuted,
   border: T.border, arrowUp: T.priorityHigh, arrowDown: T.priorityLow,
+  blueFaint: T.blueFaint,
+  blueHover: T.blueHover,
+  borderLight: T.borderLight,
+  // Status colors
+  statusWarning: "#f59e0b",
+  statusDanger: "#ef4444",
+  statusInfo: "#3b82f6",
+  statusSuccess: "#10b981",
+  // Priority colors
+  priorityHigh: T.priorityHigh,
+  priorityLow: T.priorityLow,
+  // Misc
+  gray100: "#e5e7eb",
+};
+
+// Text constants
+const TEXT = {
+  dashboard: "Dashboard",
+  today: "Today",
+  yesterday: "Yesterday",
+  last7Days: "Last 7 Days",
+  last30Days: "Last 30 Days",
+  last90Days: "Last 90 Days",
+  thisMonth: "This Month",
+  lastMonth: "Last Month",
+  customDateRange: "Custom Date Range...",
+  backToPresets: "Back to Presets",
+  selectDateRange: "Select Date Range",
+  startDate: "Start Date",
+  endDate: "End Date",
+  reset: "Reset",
+  applyRange: "Apply Range",
+  viewAll: "View all",
+  pipelineStages: "Lead Pipelines Overview",
+  announcements: "Announcements",
+  recentDeals: "Recent Deals",
+  yourLeadsOnly: "Your leads only",
+  yourCallCenter: "Your call center",
+  yourSubmissionsOnly: "Your submissions only",
+  noPipelineAccess: "No pipeline access",
+  loading: "Loading...",
+  noAnnouncements: "No announcements",
+  noPipelineStagesFound: "No pipeline stages found",
+  justNow: "Just now",
+  noValue: "No value",
+  leadsActive: "leads active",
+  recentLeads: "Recent Leads",
+  more: "more",
+  projectData: "Project Data",
+  allTasks: "All tasks",
+  activeTasks: "Active tasks",
+  assignees: "Assignees",
+  created: "Created",
+  statusDistribution: "Status Distribution",
+  activeCarriers: "Active Carriers",
+  activeAgents: "Active Agents",
+  totalDeals: "Total Deals",
+  pendingApproval: "Pending Approval",
+  inUnderwriting: "In Underwriting",
+  avgPremium: "Avg Premium",
+  allTime: "All time",
+  activeProcessing: "Active processing",
+  ofTotal: "of total",
+  dailyDealFlow: "Daily Deal Flow",
+  new: "New",
+  notInterested: "Not Interested",
+  customDateRangeEllipsis: "Custom Date Range...",
+  backToPresetsEllipsis: "Back to Presets",
+  yourSubmissionsOnly: "Your submissions only",
+  yourCallCenter: "Your call center",
+  recentLeads: "Recent Leads",
+  more: "more",
+  transferPipeline: "Transfer Portal",
+  customerPipeline: "Customer Pipeline",
+  chargebackPipeline: "Chargeback Pipeline",
+};
+
+// SVG Icons
+const Icons = {
+  calendar: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+  ),
+  chevronDown: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9l6 6 6-6"/>
+    </svg>
+  ),
+  check: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  ),
+  arrowRight: (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+      <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  chart: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+      <polyline points="17 6 23 6 23 12"/>
+    </svg>
+  ),
+  dollar: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="12" y1="1" x2="12" y2="23"/>
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+    </svg>
+  ),
+  clock: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+  ),
+  clipboard: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+    </svg>
+  ),
+  hourglass: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M5 22h14"/>
+      <path d="M5 2h14"/>
+      <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/>
+      <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
+    </svg>
+  ),
+  pencil: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+    </svg>
+  ),
+  xCircle: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="15" y1="9" x2="9" y2="15"/>
+      <line x1="9" y1="9" x2="15" y2="15"/>
+    </svg>
+  ),
+  megaphone: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 11l19-9-9 19-2-8-8-2z"/>
+    </svg>
+  ),
+  megaphoneAlt: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+    </svg>
+  ),
+  refresh: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M23 4v6h-6"/>
+      <path d="M1 20v-6h6"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+  ),
+  x: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="18" y1="6" x2="6" y2="18"/>
+      <line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  ),
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -37,75 +206,6 @@ function getRelativeTime(dateString: string): string {
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString();
 }
-
-// ── Recent Deals Data for ProjectCard ───────────────────────────────────────────
-const RECENT_DEALS_DATA = [
-  {
-    id: "DL-0001",
-    name: "Rizwan Ahmed - AMAM Policy",
-    created: "Apr 3, 2025",
-    priority: "High" as const,
-    allTasks: 5,
-    activeTasks: 2,
-    assignees: ["#638b4b", "#74a557"],
-    extraAssignees: 0,
-    emoji: "💰",
-    color: "#fef3c7",
-    tags: ["AMAM", "Pending"]
-  },
-  {
-    id: "DL-0002", 
-    name: "Waleed Shoaib - Aflac Coverage",
-    created: "Apr 2, 2025",
-    priority: "Medium" as const,
-    allTasks: 4,
-    activeTasks: 1,
-    assignees: ["#638b4b"],
-    extraAssignees: 1,
-    emoji: "🛡️",
-    color: "#dbeafe",
-    tags: ["Aflac", "Active"]
-  },
-  {
-    id: "DL-0003",
-    name: "Kendrick Lamar - Aetna Plan",
-    created: "Mar 30, 2025",
-    priority: "Low" as const,
-    allTasks: 3,
-    activeTasks: 3,
-    assignees: ["#94c278", "#4e6e3a"],
-    extraAssignees: 0,
-    emoji: "📋",
-    color: "#dcfce7",
-    tags: ["Aetna", "Complete"]
-  },
-  {
-    id: "DL-0004",
-    name: "Umar Test - American Home Life",
-    created: "Mar 28, 2025",
-    priority: "Medium" as const,
-    allTasks: 6,
-    activeTasks: 4,
-    assignees: ["#638b4b", "#74a557", "#94c278"],
-    extraAssignees: 2,
-    emoji: "🏠",
-    color: "#e0e7ff",
-    tags: ["AHL", "In Progress"]
-  },
-  {
-    id: "DL-0005",
-    name: "Dan Hooker - SSL Graded",
-    created: "Mar 27, 2025",
-    priority: "High" as const,
-    allTasks: 4,
-    activeTasks: 2,
-    assignees: ["#4e6e3a"],
-    extraAssignees: 0,
-    emoji: "⭐",
-    color: "#fee2e2",
-    tags: ["SSL", "Urgent"]
-  }
-];
 
 interface Props { onViewAllEvents: () => void; searchQuery: string; }
 
@@ -439,8 +539,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
       {/* Welcome + date - Figma Style */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%", maxWidth: 1600, margin: "0 auto 32px" }}>
         <div>
-        
-          <h1 style={{ fontSize: 32, fontWeight: 800, color: T.textDark, margin: 0 }}>Dashboard</h1>
+          <h1 style={{ fontSize: 32, fontWeight: 600, color: T.textDark, margin: 0 }}>Welcome to Insurvas Ecosystem</h1>
         </div>
         
         <div style={{ display: "flex", gap: 12, alignItems: "center", position: "relative" }} ref={dropdownRef}>
@@ -449,19 +548,19 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
             <button 
               onClick={() => setShowDateDropdown(!showDateDropdown)}
               style={{ 
-                backgroundColor: "#f2f8ee", 
+                backgroundColor: T.blueFaint, 
                 borderRadius: T.radiusMd, 
-                padding: "10px 16px", 
+                padding: "12px 16px", 
                 display: "flex", 
                 alignItems: "center", 
-                gap: 10, 
+                gap: 8, 
                 border: `1px solid ${T.blue}22`,
                 cursor: "pointer",
                 fontFamily: "inherit"
               }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>{dateRangeDisplay}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.blue }}>{dateRangeDisplay}</span>
               <svg 
                 width="14" 
                 height="14" 
@@ -471,7 +570,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                 strokeWidth="2.5" 
                 strokeLinecap="round" 
                 strokeLinejoin="round"
-                style={{ transform: showDateDropdown ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}
+                style={{ transform: showDateDropdown ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 150ms' }}
               >
                 <path d="M6 9l6 6 6-6"/>
               </svg>
@@ -483,9 +582,9 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                 position: "absolute",
                 top: "calc(100% + 8px)",
                 right: 0,
-                backgroundColor: "#fff",
-                borderRadius: 16,
-                boxShadow: "0 20px 60px -10px rgba(0,0,0,0.2)",
+                backgroundColor: T.cardBg,
+                borderRadius: T.radiusXl,
+                boxShadow: T.shadowLg,
                 border: `1px solid ${T.border}`,
                 padding: "16px",
                 minWidth: 320,
@@ -496,32 +595,32 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                     {/* Preset Options */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       {[
-                        { value: 'today' as DatePreset, label: 'Today', icon: '📅' },
-                        { value: 'yesterday' as DatePreset, label: 'Yesterday', icon: '📆' },
-                        { value: '7' as DatePreset, label: 'Last 7 Days', icon: '📊' },
-                        { value: '30' as DatePreset, label: 'Last 30 Days', icon: '📈' },
-                        { value: '90' as DatePreset, label: 'Last 90 Days', icon: '📉' },
-                        { value: 'thisMonth' as DatePreset, label: 'This Month', icon: '🗓️' },
-                        { value: 'lastMonth' as DatePreset, label: 'Last Month', icon: '📋' },
+                        { value: 'today' as DatePreset, label: TEXT.today, icon: Icons.calendar },
+                        { value: 'yesterday' as DatePreset, label: TEXT.yesterday, icon: Icons.calendar },
+                        { value: '7' as DatePreset, label: TEXT.last7Days, icon: Icons.chart },
+                        { value: '30' as DatePreset, label: TEXT.last30Days, icon: Icons.chart },
+                        { value: '90' as DatePreset, label: TEXT.last90Days, icon: Icons.chart },
+                        { value: 'thisMonth' as DatePreset, label: TEXT.thisMonth, icon: Icons.calendar },
+                        { value: 'lastMonth' as DatePreset, label: TEXT.lastMonth, icon: Icons.clipboard },
                       ].map((option) => (
                         <button
                           key={option.value}
                           onClick={() => handlePresetSelect(option.value)}
                           style={{
                             width: "100%",
-                            padding: "10px 12px",
+                            padding: "12px",
                             border: "none",
                             backgroundColor: dateFilter === option.value ? T.blueFaint : "transparent",
                             color: dateFilter === option.value ? T.blue : T.textDark,
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: dateFilter === option.value ? 700 : 500,
-                            borderRadius: 10,
+                            borderRadius: T.radiusMd,
                             cursor: "pointer",
                             textAlign: "left",
-                            transition: "all 0.15s",
+                            transition: "all 150ms",
                             display: "flex",
                             alignItems: "center",
-                            gap: 10
+                            gap: 8
                           }}
                           onMouseEnter={(e) => {
                             if (dateFilter !== option.value) {
@@ -534,7 +633,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                             }
                           }}
                         >
-                          <span style={{ fontSize: 14 }}>{option.icon}</span>
+                          <span style={{ display: 'flex', color: T.blue }}>{option.icon}</span>
                           <span>{option.label}</span>
                           {dateFilter === option.value && (
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="3" style={{ marginLeft: 'auto' }}>
@@ -557,12 +656,12 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                         border: `1.5px dashed ${T.border}`,
                         backgroundColor: "transparent",
                         color: T.blue,
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: 600,
-                        borderRadius: 10,
+                        borderRadius: T.radiusMd,
                         cursor: "pointer",
                         textAlign: "center",
-                        transition: "all 0.15s",
+                        transition: "all 150ms",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -584,7 +683,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                         <line x1="3" y1="10" x2="21" y2="10"/>
                         <path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/>
                       </svg>
-                      Custom Date Range...
+                      {TEXT.customDateRangeEllipsis}
                     </button>
                   </>
                 ) : (
@@ -596,7 +695,7 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: 6,
+                          gap: 4,
                           border: "none",
                           background: "none",
                           color: T.textMuted,
@@ -610,17 +709,17 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M19 12H5M12 19l-7-7 7-7"/>
                         </svg>
-                        Back to Presets
+                        {TEXT.backToPresetsEllipsis}
                       </button>
 
                       <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: T.textDark }}>
-                        Select Date Range
+                        {TEXT.selectDateRange}
                       </h4>
 
                       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                         <div>
                           <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 6 }}>
-                            Start Date
+                            {TEXT.startDate}
                           </label>
                           <input
                             type="date"
@@ -629,20 +728,20 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                             max={customEndDate}
                             style={{
                               width: "100%",
-                              padding: "10px 12px",
+                              padding: "12px",
                               border: `1.5px solid ${T.border}`,
-                              borderRadius: 10,
-                              fontSize: 13,
+                              borderRadius: T.radiusMd,
+                              fontSize: 14,
                               fontFamily: "inherit",
                               color: T.textDark,
-                              backgroundColor: "#fff",
+                              backgroundColor: T.cardBg,
                               outline: "none"
                             }}
                           />
                         </div>
                         <div>
                           <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 6 }}>
-                            End Date
+                            {TEXT.endDate}
                           </label>
                           <input
                             type="date"
@@ -652,13 +751,13 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                             max={formatDateForInput(new Date())}
                             style={{
                               width: "100%",
-                              padding: "10px 12px",
+                              padding: "12px",
                               border: `1.5px solid ${T.border}`,
-                              borderRadius: 10,
-                              fontSize: 13,
+                              borderRadius: T.radiusMd,
+                              fontSize: 14,
                               fontFamily: "inherit",
                               color: T.textDark,
-                              backgroundColor: "#fff",
+                              backgroundColor: T.cardBg,
                               outline: "none"
                             }}
                           />
@@ -668,9 +767,9 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                       {/* Quick Select Buttons */}
                       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                         {[
-                          { label: 'Last 7 Days', days: 7 },
-                          { label: 'Last 30 Days', days: 30 },
-                          { label: 'Last 90 Days', days: 90 },
+                          { label: TEXT.last7Days, days: 7 },
+                          { label: TEXT.last30Days, days: 30 },
+                          { label: TEXT.last90Days, days: 90 },
                         ].map((quick) => (
                           <button
                             key={quick.label}
@@ -682,13 +781,13 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                               setCustomEndDate(formatDateForInput(end));
                             }}
                             style={{
-                              padding: "6px 10px",
+                              padding: "8px 12px",
                               border: `1px solid ${T.border}`,
                               backgroundColor: T.pageBg,
                               color: T.textMid,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: 600,
-                              borderRadius: 6,
+                              borderRadius: T.radiusSm,
                               cursor: "pointer"
                             }}
                           >
@@ -704,35 +803,35 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
                         onClick={handleReset}
                         style={{
                           flex: 1,
-                          padding: "10px 16px",
+                          padding: "12px 16px",
                           border: `1.5px solid ${T.border}`,
                           backgroundColor: "transparent",
                           color: T.textMuted,
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: 600,
-                          borderRadius: 10,
+                          borderRadius: T.radiusMd,
                           cursor: "pointer"
                         }}
                       >
-                        Reset
+                        {TEXT.reset}
                       </button>
                       <button
                         onClick={handleApplyCustomRange}
                         disabled={!customStartDate || !customEndDate}
                         style={{
                           flex: 2,
-                          padding: "10px 16px",
+                          padding: "12px 16px",
                           border: "none",
                           backgroundColor: (!customStartDate || !customEndDate) ? T.border : T.blue,
                           color: "#fff",
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: 700,
-                          borderRadius: 10,
+                          borderRadius: T.radiusMd,
                           cursor: (!customStartDate || !customEndDate) ? 'not-allowed' : 'pointer',
                           opacity: (!customStartDate || !customEndDate) ? 0.5 : 1
                         }}
                       >
-                        Apply Range
+                        {TEXT.applyRange}
                       </button>
                     </div>
                   </>
@@ -747,36 +846,36 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
         {/* ── Left/main column: Pipeline Stages (Permission Controlled) ── */}
         {canViewPipelineStages ? (
           <div style={{ 
-            backgroundColor: "#ffffff", 
+            backgroundColor: T.cardBg, 
             borderRadius: T.radiusXl, 
             border: `1.5px solid ${T.border}`, 
             padding: "24px", 
             width: canViewDailyDeal ? "calc(70% - 12px)" : "100%",
             minHeight: 540, 
-            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+            boxShadow: T.shadowMd,
             display: "flex",
             flexDirection: "column"
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
               <div>
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Pipeline Stages</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>{TEXT.pipelineStages}</h2>
                 {leadViewScope === "own" && (
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
-                    Your leads only
+                    {TEXT.yourLeadsOnly}
                   </p>
                 )}
                 {leadViewScope === "call_center" && (
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
-                    Your call center
+                    {TEXT.yourCallCenter}
                   </p>
                 )}
               </div>
-              <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <button style={{ background: "none", border: "none", color: T.blue, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                {TEXT.viewAll} <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
             </div>
 
-            <div style={{ flex: 1, padding: "8px 4px 12px 0" }}>
+            <div style={{ flex: 1, padding: "8px 0 12px 0" }}>
               <PipelineStagesGrid multiplier={multiplier} viewScope={leadViewScope} callCenterId={callCenterId} userId={userId} />
             </div>
           </div>
@@ -792,45 +891,45 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
             borderRadius: T.radiusXl,
             border: `1.5px dashed ${T.border}`
           }}>
-            <p style={{ color: T.textMuted, fontSize: 14 }}>No pipeline access</p>
+            <p style={{ color: T.textMuted, fontSize: 14 }}>{TEXT.noPipelineAccess}</p>
           </div>
         )}
 
         {/* ── Right column: Announcements (from Database) ── */}
         <div style={{ 
-          backgroundColor: "#ffffff", 
+          backgroundColor: T.cardBg, 
           borderRadius: T.radiusXl, 
           border: `1.5px solid ${T.border}`, 
           padding: "24px", 
           width: "calc(30% - 12px)",
           minHeight: 540,
-          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+          boxShadow: T.shadowMd,
           display: "flex",
           flexDirection: "column"
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Announcements</h3>
-            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-              View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>{TEXT.announcements}</h3>
+            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+              {TEXT.viewAll} <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {isLoadingAnnouncements ? (
-              <p style={{ color: T.textMuted, fontSize: 14 }}>Loading...</p>
+              <p style={{ color: T.textMuted, fontSize: 14 }}>{TEXT.loading}</p>
             ) : announcements.length === 0 ? (
-              <p style={{ color: T.textMuted, fontSize: 14 }}>No announcements</p>
+              <p style={{ color: T.textMuted, fontSize: 14 }}>{TEXT.noAnnouncements}</p>
             ) : (
               announcements.map((announcement, idx) => (
-                <div key={announcement.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingLeft: 12, borderLeft: `3px solid ${idx % 2 === 0 ? "#74a557" : "#16a34a"}` }}>
+                <div key={announcement.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingLeft: 12, borderLeft: `4px solid ${idx % 2 === 0 ? T.blue : T.blueHover}` }}>
                   <div style={{ flex: 1 }}>
                     <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: T.textDark, lineHeight: 1.3 }}>{announcement.title}</p>
-                    <p style={{ margin: "0 0 6px", fontSize: 12, color: T.textMuted, fontWeight: 500, lineHeight: 1.5 }}>{announcement.description}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>{getRelativeTime(announcement.created_at)}</p>
+                    <p style={{ margin: "0 0 8px", fontSize: 12, color: T.textMuted, fontWeight: 500, lineHeight: 1.5 }}>{announcement.description}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{getRelativeTime(announcement.created_at)}</p>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.textMuted }}>
-                     <span style={{ fontSize: 14 }}>{idx % 2 === 0 ? "📢" : "📣"}</span>
-                     <span style={{ fontSize: 12, fontWeight: 700 }}>New</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.textMuted }}>
+                     <span style={{ display: 'flex', color: T.blue }}>{idx % 2 === 0 ? Icons.megaphone : Icons.megaphoneAlt}</span>
+                     <span style={{ fontSize: 12, fontWeight: 700 }}>{TEXT.new}</span>
                   </div>
                 </div>
               ))
@@ -838,52 +937,6 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
           </div>
         </div>
       </div>
-
-      {/* ── Recent Deals Section (Permission Controlled) ── */}
-      {canViewDailyDeal && (
-        <div style={{ display: "flex", gap: 24, alignItems: "stretch", maxWidth: 1600, margin: "24px auto 0" }}>
-          <div style={{ 
-            width: "calc(70% - 12px)", 
-            backgroundColor: "#ffffff", 
-            borderRadius: T.radiusXl, 
-            border: `1.5px solid ${T.border}`, 
-            padding: "24px", 
-            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-            minHeight: 400
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Recent Deals</h2>
-                {leadViewScope === "own" && (
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
-                    Your submissions only
-                  </p>
-                )}
-                {leadViewScope === "call_center" && (
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
-                    Your call center
-                  </p>
-                )}
-              </div>
-              <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {RECENT_DEALS_DATA.slice(0, Math.max(1, Math.round(RECENT_DEALS_DATA.length * multiplier))).map((deal) => (
-                <ProjectCard key={deal.id} {...deal} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── Bottom Right: Empty (reserved space) ── */}
-          <div style={{ width: "calc(30% - 12px)" }} />
-        </div>
-      )}
 
     </div>
   );
@@ -927,8 +980,8 @@ function DailyDealFlowStatsCard({
     unique_carriers: 3,
     unique_agents: 3,
     status_breakdown: [
-      { status: "Pending Approval", count: 4, percentage: 80, color: "#f59e0b" },
-      { status: "Not Interested", count: 1, percentage: 20, color: "#ef4444" }
+      { status: TEXT.pendingApproval, count: 4, percentage: 80, color: C.statusWarning },
+      { status: TEXT.notInterested, count: 1, percentage: 20, color: C.statusDanger }
     ]
   };
 
@@ -959,64 +1012,64 @@ function DailyDealFlowStatsCard({
   return (
     <div style={{
       width: "calc(70% - 12px)",
-      backgroundColor: "#fff",
-      borderRadius: 24,
+      backgroundColor: T.cardBg,
+      borderRadius: T.radiusXl,
       border: `1.5px solid ${T.border}`,
-      boxShadow: "0 10px 40px -10px rgba(0,0,0,0.08)",
+      boxShadow: T.shadowLg,
       padding: "24px",
       display: "flex",
       flexDirection: "column",
-      gap: 20,
+      gap: 24,
       minHeight: 540
     }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>{TEXT.dailyDealFlow}</h2>
           {viewScope === "own" && (
             <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
-              Your submissions only
+              {TEXT.yourSubmissionsOnly}
             </p>
           )}
           {viewScope === "call_center" && (
             <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
-              Your call center
+              {TEXT.yourCallCenter}
             </p>
           )}
         </div>
-        <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-          View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        <button style={{ background: "none", border: "none", color: T.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+          {TEXT.viewAll} <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </div>
 
       {/* Top Stats Row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
         <StatBox 
-          label="Total Deals" 
+          label={TEXT.totalDeals} 
           value={stats.total_deals} 
-          icon="📊" 
-          color="#638b4b"
-          subtext="All time"
+          icon={Icons.chart} 
+          color={T.blue}
+          subtext={TEXT.allTime}
         />
         <StatBox 
-          label="Pending Approval" 
+          label={TEXT.pendingApproval} 
           value={stats.pending_approval} 
-          icon="⏳" 
-          color="#f59e0b"
-          subtext={`${Math.round((stats.pending_approval/stats.total_deals)*100)}% of total`}
+          icon={Icons.hourglass} 
+          color={C.statusWarning}
+          subtext={`${Math.round((stats.pending_approval/stats.total_deals)*100)}% ${TEXT.ofTotal}`}
         />
         <StatBox 
-          label="In Underwriting" 
+          label={TEXT.inUnderwriting} 
           value={stats.in_underwriting} 
-          icon="📝" 
-          color="#3b82f6"
-          subtext="Active processing"
+          icon={Icons.pencil} 
+          color={C.statusInfo}
+          subtext={TEXT.activeProcessing}
         />
         <StatBox 
-          label="Avg Premium" 
+          label={TEXT.avgPremium} 
           value={`$${stats.avg_premium.toLocaleString()}`} 
-          icon="💰" 
-          color="#10b981"
+          icon={Icons.dollar} 
+          color={C.statusSuccess}
           subtext={`Total: $${stats.total_premium.toLocaleString()}`}
         />
       </div>
@@ -1026,11 +1079,11 @@ function DailyDealFlowStatsCard({
         {/* Status Distribution */}
         <div style={{
           backgroundColor: T.pageBg,
-          borderRadius: 16,
+          borderRadius: T.radiusLg,
           padding: "24px",
           border: `1px solid ${T.border}`
         }}>
-          <h4 style={{ margin: "0 0 20px", fontSize: 14, fontWeight: 700, color: T.textDark }}>Status Distribution</h4>
+          <h4 style={{ margin: "0 0 24px", fontSize: 14, fontWeight: 700, color: T.textDark }}>{TEXT.statusDistribution}</h4>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {stats.status_breakdown.map((item) => (
               <div key={item.status}>
@@ -1038,13 +1091,13 @@ function DailyDealFlowStatsCard({
                   <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{item.status}</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.count} ({item.percentage}%)</span>
                 </div>
-                <div style={{ width: "100%", height: 8, backgroundColor: "#e5e7eb", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ width: "100%", height: 8, backgroundColor: C.gray100, borderRadius: T.radiusXs, overflow: "hidden" }}>
                   <div style={{ 
                     width: `${item.percentage}%`, 
                     height: "100%", 
                     backgroundColor: item.color,
-                    borderRadius: 4,
-                    transition: "width 0.5s ease"
+                    borderRadius: T.radiusXs,
+                    transition: "width 150ms"
                   }} />
                 </div>
               </div>
@@ -1053,11 +1106,11 @@ function DailyDealFlowStatsCard({
           
           <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>Active Carriers</span>
+              <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{TEXT.activeCarriers}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{stats.unique_carriers}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>Active Agents</span>
+              <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{TEXT.activeAgents}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{stats.unique_agents}</span>
             </div>
           </div>
@@ -1066,21 +1119,21 @@ function DailyDealFlowStatsCard({
         {/* Recent Deals Table */}
         <div style={{
           backgroundColor: T.pageBg,
-          borderRadius: 16,
+          borderRadius: T.radiusLg,
           padding: "24px",
           border: `1px solid ${T.border}`,
           overflow: "hidden"
         }}>
-          <h4 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 700, color: T.textDark }}>Recent Deals</h4>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <h4 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 700, color: T.textDark }}>{TEXT.recentDeals}</h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {recentDeals.map((deal, idx) => (
               <div key={idx} style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "12px 16px",
-                backgroundColor: "#fff",
-                borderRadius: 12,
+                backgroundColor: T.cardBg,
+                borderRadius: T.radiusMd,
                 border: `1px solid ${T.borderLight}`
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1092,18 +1145,18 @@ function DailyDealFlowStatsCard({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 14
+                    color: deal.status === "Pending Approval" ? C.statusWarning : C.statusDanger
                   }}>
-                    {deal.status === "Pending Approval" ? "⏳" : "❌"}
+                    {deal.status === "Pending Approval" ? Icons.hourglass : Icons.xCircle}
                   </div>
                   <div>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.textDark }}>{deal.name}</p>
-                    <p style={{ margin: "2px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 500 }}>{deal.carrier}</p>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textDark }}>{deal.name}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 500 }}>{deal.carrier}</p>
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#638b4b" }}>${deal.premium.toLocaleString()}</p>
-                  <p style={{ margin: "2px 0 0", fontSize: 10, fontWeight: 600, color: deal.status === "Pending Approval" ? "#f59e0b" : "#ef4444" }}>{deal.status}</p>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.blue }}>${deal.premium.toLocaleString()}</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, fontWeight: 600, color: deal.status === "Pending Approval" ? C.statusWarning : C.statusDanger }}>{deal.status}</p>
                 </div>
               </div>
             ))}
@@ -1114,36 +1167,36 @@ function DailyDealFlowStatsCard({
   );
 }
 
-function StatBox({ label, value, icon, color, subtext }: { label: string; value: string | number; icon: string; color: string; subtext: string }) {
+function StatBox({ label, value, icon, color, subtext }: { label: string; value: string | number; icon: React.ReactNode; color: string; subtext: string }) {
   return (
     <div style={{
       backgroundColor: T.pageBg,
-      borderRadius: 16,
+      borderRadius: T.radiusLg,
       padding: "20px",
       border: `1px solid ${T.border}`,
       display: "flex",
       flexDirection: "column",
       gap: 8
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{
           width: 40,
           height: 40,
-          borderRadius: 12,
+          borderRadius: T.radiusMd,
           backgroundColor: color + "15",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: 20
+          color: color
         }}>
           {icon}
         </div>
         <div>
-          <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>{label}</p>
-          <p style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 800, color: T.textDark }}>{value}</p>
+          <p style={{ margin: 0, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{label}</p>
+          <p style={{ margin: "4px 0 0", fontSize: 24, fontWeight: 800, color: T.textDark }}>{value}</p>
         </div>
       </div>
-      <p style={{ margin: "4px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 500 }}>{subtext}</p>
+      <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 500 }}>{subtext}</p>
     </div>
   );
 }
@@ -1154,22 +1207,30 @@ interface PipelineStageData {
   id: number;
   name: string;
   pipeline: string;
+  pipelineId: number;
   leadCount: number;
   totalValue: number;
   color: string;
-  icon: string;
+  icon: React.ReactNode;
   leads: { name: string; carrier: string | null }[];
 }
 
-const STAGE_COLORS = ["#638b4b", "#74a557", "#94c278", "#4e6e3a", "#3b82f6", "#f59e0b"];
-const STAGE_ICONS = ["🔄", "📋", "✅", "📊", "⏳", "💰"];
+const STAGE_COLORS = [T.blue, T.blueHover, T.accentPink, "#94c278", C.statusInfo, C.statusWarning];
+const STAGE_ICONS: React.ReactNode[] = [
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>,
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+];
 
 function usePipelineStages(
   viewScope: "all" | "call_center" | "own" | "none",
   callCenterId: string | null,
   userId: string | null,
 ) {
-  const [stages, setStages] = useState<PipelineStageData[]>([]);
+  const [stagesByPipeline, setStagesByPipeline] = useState<Record<string, PipelineStageData[]>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -1187,9 +1248,7 @@ function usePipelineStages(
         return;
       }
 
-      const shuffled = [...allStages].sort(() => Math.random() - 0.5);
-      const selected = shuffled.slice(0, 6);
-      const stageIds = selected.map((s) => s.id);
+      const stageIds = allStages.map((s) => s.id);
 
       let leadsQuery = supabase
         .from("leads")
@@ -1221,13 +1280,14 @@ function usePipelineStages(
         });
       });
 
-      const formatted: PipelineStageData[] = selected.map((s, i) => {
+      const formatted: PipelineStageData[] = allStages.map((s, i) => {
         const pipelineRaw = s.pipelines as { name: string } | { name: string }[] | null;
         const pipelineName = Array.isArray(pipelineRaw) ? pipelineRaw[0]?.name : pipelineRaw?.name;
         return {
           id: s.id,
           name: s.name,
           pipeline: pipelineName || "Unknown",
+          pipelineId: s.pipeline_id,
           leadCount: countMap[s.id] || 0,
           totalValue: valueMap[s.id] || 0,
           color: STAGE_COLORS[i % STAGE_COLORS.length],
@@ -1236,14 +1296,22 @@ function usePipelineStages(
         };
       });
 
-      setStages(formatted);
+      const grouped: Record<string, PipelineStageData[]> = {};
+      formatted.forEach((stage) => {
+        if (!grouped[stage.pipeline]) {
+          grouped[stage.pipeline] = [];
+        }
+        grouped[stage.pipeline].push(stage);
+      });
+
+      setStagesByPipeline(grouped);
       setIsLoading(false);
     }
 
     fetchStages();
   }, [viewScope, callCenterId, userId]);
 
-  return { stages, isLoading };
+  return { stagesByPipeline, isLoading };
 }
 
 function PipelineStagesGrid({
@@ -1257,50 +1325,80 @@ function PipelineStagesGrid({
   callCenterId: string | null;
   userId: string | null;
 }) {
-  const { stages, isLoading } = usePipelineStages(viewScope, callCenterId, userId);
+  const { stagesByPipeline, isLoading } = usePipelineStages(viewScope, callCenterId, userId);
+
+  const pipelineOrder = [TEXT.transferPipeline, TEXT.customerPipeline, TEXT.chargebackPipeline];
 
   if (isLoading) {
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              borderRadius: 16,
-              border: `1px solid ${T.border}`,
-              background: T.cardBg,
-              padding: "20px",
-              minHeight: 140,
-              animation: "pulse 1.5s ease-in-out infinite",
-              opacity: 0.5,
-            }}
-          />
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {pipelineOrder.map((pipelineName) => (
+          <div key={pipelineName}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    borderRadius: T.radiusLg,
+                    border: `1px solid ${T.border}`,
+                    background: T.cardBg,
+                    padding: "16px",
+                    minHeight: 120,
+                    animation: "pulse 1.5s ease-in-out infinite",
+                    opacity: 0.5,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     );
   }
 
-  if (stages.length === 0) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
-        <p style={{ color: T.textMuted, fontSize: 14 }}>No pipeline stages found</p>
-      </div>
-    );
-  }
+  const TRANSFER_STAGES = ["Needs BPO Callback", "Pending Approval", "DQ'd Can't be sold"];
+  const CUSTOMER_STAGES = ["Issued - Pending First Draft", "ACTIVE PLACED - Paid as Earned", "ACTIVE - 3 Months +"];
+  const CHARGEBACK_STAGES = ["Pending Lapse", "Chargeback Failed Payment", "Chargeback Cancellation"];
+
+  const pipelineColors: Record<string, string> = {
+    [TEXT.transferPipeline]: T.accentPurple,
+    [TEXT.customerPipeline]: T.blue,
+    [TEXT.chargebackPipeline]: T.danger,
+  };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-      {stages.map((stage) => (
-        <StageCard key={stage.id} stage={stage} />
-      ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+      {pipelineOrder.map((pipelineName) => {
+        let stages = stagesByPipeline[pipelineName] || [];
+        if (stages.length === 0) return null;
+        if (pipelineName === TEXT.transferPipeline) {
+          stages = stages.filter((s) => TRANSFER_STAGES.includes(s.name));
+        }
+        if (pipelineName === TEXT.customerPipeline) {
+          stages = stages.filter((s) => CUSTOMER_STAGES.includes(s.name));
+        }
+        if (pipelineName === TEXT.chargebackPipeline) {
+          stages = stages.filter((s) => CHARGEBACK_STAGES.includes(s.name));
+        }
+        const pipelineColor = pipelineColors[pipelineName] || T.blue;
+        return (
+          <div key={pipelineName}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              {stages.map((stage) => (
+                <StageCard key={stage.id} stage={stage} pipelineColor={pipelineColor} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function StageCard({ stage }: { stage: any }) {
+function StageCard({ stage, pipelineColor }: { stage: any; pipelineColor: string }) {
   const [hovered, setHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const color = stage.color;
+  const color = pipelineColor;
 
   return (
     <Card
@@ -1308,16 +1406,16 @@ function StageCard({ stage }: { stage: any }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        borderRadius: 16,
+        borderRadius: T.radiusLg,
         border: `1px solid ${T.border}`,
         borderBottom: `4px solid ${color}`,
         background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
         boxShadow: hovered
-          ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
-          : "0 4px 12px rgba(0,0,0,0.03)",
+          ? T.shadowMd
+          : T.shadowSm,
         transform: hovered ? "translateY(-3px)" : "translateY(0)",
-        transition: "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
-        padding: "20px 20px",
+        transition: "transform 150ms, box-shadow 150ms",
+        padding: "20px",
         display: "flex",
         flexDirection: "column",
         gap: 0,
@@ -1326,21 +1424,11 @@ function StageCard({ stage }: { stage: any }) {
     >
       {/* Top row: label + icon */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
-          <span style={{
-            fontSize: 10,
-            fontWeight: 700,
-            color: "#233217",
-            letterSpacing: "0.45px",
-            textTransform: "uppercase",
-            lineHeight: 1.25,
-          }}>
-            {stage.pipeline}
-          </span>
-          <div style={{ fontSize: 26, fontWeight: 800, color, lineHeight: 1.05 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1.05 }}>
             {stage.leadCount}
           </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark, lineHeight: 1.3 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark, lineHeight: 1.3 }}>
             {stage.name}
           </span>
         </div>
@@ -1352,13 +1440,12 @@ function StageCard({ stage }: { stage: any }) {
               : `color-mix(in srgb, ${color} 15%, transparent)`,
             width: 44,
             height: 44,
-            borderRadius: 12,
+            borderRadius: T.radiusMd,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
-            fontSize: 20,
-            transition: "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+            transition: "background-color 150ms, transform 150ms",
             transform: hovered ? "scale(1.04)" : "scale(1)",
           }}
         >
@@ -1367,15 +1454,15 @@ function StageCard({ stage }: { stage: any }) {
       </div>
 
       {/* Divider */}
-      <div style={{ height: 1, backgroundColor: T.border, margin: "14px 0 10px" }} />
+      <div style={{ height: 1, backgroundColor: T.border, margin: "16px 0 8px" }} />
 
       {/* Bottom row: lead count label + value */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted }}>
-          {stage.leadCount} lead{stage.leadCount !== 1 ? "s" : ""} active
+        <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>
+          {stage.leadCount} {TEXT.leadsActive}
         </span>
         <span style={{ fontSize: 12, fontWeight: 800, color: stage.totalValue > 0 ? color : T.textMuted }}>
-          {stage.totalValue > 0 ? `$${stage.totalValue.toFixed(2)}` : "No value"}
+          {stage.totalValue > 0 ? `$${stage.totalValue.toFixed(2)}` : TEXT.noValue}
         </span>
       </div>
 
@@ -1383,113 +1470,40 @@ function StageCard({ stage }: { stage: any }) {
       {isExpanded && (
         <div style={{
           marginTop: 12,
-          paddingTop: 10,
+          paddingTop: 12,
           borderTop: `1px solid ${T.border}`,
           display: "flex",
           flexDirection: "column",
-          gap: 6,
+          gap: 8,
         }}>
-          <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px" }}>
-            Recent Leads
+          <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            {TEXT.recentLeads}
           </p>
-          {stage.leads.slice(0, 3).map((lead: any, idx: number) => (
+          {stage.leads.slice(0, 5).map((lead: any, idx: number) => (
             <div key={idx} style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              padding: "6px 10px",
+              padding: "8px 12px",
               backgroundColor: `color-mix(in srgb, ${color} 8%, transparent)`,
-              borderRadius: 8,
-              fontSize: 11,
+              borderRadius: T.radiusSm,
+              fontSize: 12,
             }}>
               <span style={{ fontWeight: 700, color: T.textDark }}>{lead.name}</span>
               {lead.carrier && (
-                <span style={{ fontWeight: 600, color: T.textMuted, fontSize: 10 }}>
+                <span style={{ fontWeight: 600, color: T.textMuted, fontSize: 12 }}>
                   {lead.carrier}
                 </span>
               )}
             </div>
           ))}
-          {stage.leads.length > 3 && (
-            <p style={{ margin: "4px 0 0", fontSize: 10, color: T.textMuted, textAlign: "center", fontWeight: 500 }}>
-              +{stage.leads.length - 3} more
+          {stage.leads.length > 5 && (
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted, textAlign: "center", fontWeight: 500 }}>
+              +{stage.leads.length - 5} {TEXT.more}
             </p>
           )}
         </div>
       )}
     </Card>
-  );
-}
-
-
-// ── Project Card Component ────────────────────────────────────────────────────
-function ProjectCard({ id, name, created, priority, allTasks, activeTasks, assignees, extraAssignees, emoji, color }: any) {
-  return (
-    <div style={{
-      backgroundColor: "#fff", borderRadius: 20, overflow: "hidden",
-      border: `1.5px solid ${T.border}`,
-      boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-      display: "grid", gridTemplateColumns: "1.2fr 1fr 0.8fr",
-      alignItems: "stretch"
-    }}>
-      {/* Detail Section */}
-      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", gap: 16 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{emoji}</div>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: T.textMuted }}>{id}</p>
-          <h4 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: T.textDark }}>{name}</h4>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-             <div style={{ display: "flex", alignItems: "center", gap: 4, color: T.textMuted }}>
-               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-               <span style={{ fontSize: 11, fontWeight: 600 }}>Created {created}</span>
-             </div>
-             <div style={{ display: "flex", alignItems: "center", gap: 3, color: priority === "Low" ? "#16a34a" : "#ca8a04" }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d={priority === "Low" ? "M12 19V5M19 12l-7 7-7-7" : "M12 5v14M5 12l7-7 7 7"}/></svg>
-                <span style={{ fontSize: 11, fontWeight: 800 }}>{priority}</span>
-             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Section */}
-      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Project Data</p>
-        <div style={{ display: "flex", gap: 24 }}>
-          <div>
-            <p style={{ margin: "0 0 4px", fontSize: 11, color: T.textMuted, fontWeight: 600 }}>All tasks</p>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{allTasks}</p>
-          </div>
-          <div>
-            <p style={{ margin: "0 0 4px", fontSize: 11, color: T.textMuted, fontWeight: 600 }}>Active tasks</p>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{activeTasks}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Assignees Section */}
-      <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Assignees</p>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          {assignees.map((c: string, i: number) => (
-            <div key={i} style={{ 
-              width: 28, height: 28, borderRadius: "50%", backgroundColor: c, border: "2px solid #fff", 
-              marginLeft: i === 0 ? 0 : -8, zIndex: 10 - i,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#fff"
-            }}>
-              {["SS","RD","ET","LC"][i]}
-            </div>
-          ))}
-          {extraAssignees > 0 && (
-            <div style={{ 
-              width: 28, height: 28, borderRadius: "50%", backgroundColor: T.blueFaint, border: "2px solid #fff", 
-              marginLeft: -8, zIndex: 0, color: T.blue, fontSize: 10, fontWeight: 800,
-              display: "flex", alignItems: "center", justifyContent: "center"
-            }}>
-              +{extraAssignees}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
