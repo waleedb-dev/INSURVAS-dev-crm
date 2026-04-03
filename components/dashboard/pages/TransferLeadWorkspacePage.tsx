@@ -219,20 +219,77 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             <div
               style={{
                 border: `1.5px solid ${T.border}`,
-                backgroundColor: "#fee2e2",
-                color: "#991b1b",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontWeight: 700,
-                minWidth: 160,
+                backgroundColor: verificationProgress.progress >= 100 ? "#dcfce7" : T.pageBg,
+                borderRadius: 12,
+                padding: "12px 16px",
+                minWidth: 200,
               }}
             >
-              <div style={{ fontSize: 11, opacity: 0.9 }}>Progress</div>
-              <div style={{ fontSize: 14, lineHeight: 1.2 }}>
-                {verificationProgress.progress}% - {progressLabel}
+              {/* Field-style label row */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: T.textMid,
+                  }}
+                >
+                  Progress
+                </label>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: verificationProgress.progress >= 100 ? "#16a34a" : T.blue,
+                  }}
+                >
+                  {verificationProgress.progress}%
+                </span>
               </div>
-              <div style={{ fontSize: 11, opacity: 0.9, marginTop: 2 }}>
-                {verificationProgress.verifiedCount}/{verificationProgress.totalCount} verified
+              {/* Progress bar - shadcn style with theme colors */}
+              <div
+                style={{
+                  height: 8,
+                  borderRadius: 999,
+                  backgroundColor: T.rowBg,
+                  overflow: "hidden",
+                  border: `1px solid ${T.borderLight}`,
+                  marginBottom: 8,
+                }}
+              >
+                <div
+                  role="progressbar"
+                  aria-valuenow={verificationProgress.progress}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  style={{
+                    width: `${verificationProgress.progress}%`,
+                    height: "100%",
+                    borderRadius: 999,
+                    backgroundColor: verificationProgress.progress >= 100 ? "#16a34a" : T.blue,
+                    transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                />
+              </div>
+              {/* Status text */}
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: verificationProgress.progress >= 100 ? "#16a34a" : T.textMuted,
+                  textAlign: "center",
+                }}
+              >
+                {verificationProgress.progress >= 100
+                  ? "✓ Verification Complete"
+                  : `${verificationProgress.verifiedCount}/${verificationProgress.totalCount} fields verified`}
               </div>
             </div>
           )}
