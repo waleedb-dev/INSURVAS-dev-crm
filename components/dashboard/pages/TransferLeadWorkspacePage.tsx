@@ -13,6 +13,7 @@ import {
   fetchClaimAgents,
   fetchLatestSessionForSubmission,
   findOrCreateVerificationSession,
+  saveFullRetentionWorkflow,
   type ClaimLeadContext,
   type ClaimSelections,
 } from "./transferLeadParity";
@@ -60,6 +61,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     licensedAgents: { id: string; name: string; roleKey: string }[];
     retentionAgents: { id: string; name: string; roleKey: string }[];
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
+  const [isRetentionOnlyMode, setIsRetentionOnlyMode] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +122,19 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     setClaimLoading(true);
     setError(null);
     try {
+      // For retention-only mode, use the full retention workflow
+      if (isRetentionOnlyMode) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const userId = session?.user?.id || null;
+        await saveFullRetentionWorkflow(supabase, lead, selection, userId);
+        setOpenClaim(false);
+        setError(null);
+        return;
+      }
+
+      // Standard claim workflow
       const found = await findOrCreateVerificationSession(supabase, lead, selection);
       await applyClaimSelectionToSession(supabase, found.sessionId, found.submissionId, selection);
       setSessionId(found.sessionId);
@@ -138,6 +153,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     }
     if (!lead) return;
     setSelection(defaultSelection);
+    setIsRetentionOnlyMode(false);
     setOpenClaim(true);
     setClaimLoading(true);
     setError(null);
@@ -147,6 +163,33 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       setSessionId(found.sessionId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to initialize verification session.");
+    } finally {
+      setClaimLoading(false);
+    }
+  };
+
+  const openRetentionModal = async () => {
+    if (!canViewTransferClaimReclaimVisit) {
+      setError("Missing permission to process retention.");
+      return;
+    }
+    if (!lead) return;
+    const retentionSelection: ClaimSelections = {
+      ...defaultSelection,
+      workflowType: "retention",
+      isRetentionCall: true,
+    };
+    setSelection(retentionSelection);
+    setIsRetentionOnlyMode(true);
+    setOpenClaim(true);
+    setClaimLoading(true);
+    setError(null);
+    try {
+      // Initialize verification session for retention
+      const found = await findOrCreateVerificationSession(supabase, lead, retentionSelection);
+      setSessionId(found.sessionId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to initialize retention session.");
     } finally {
       setClaimLoading(false);
     }
@@ -175,112 +218,266 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     );
   }
 
+  // Determine progress color based on percentage
+  const getProgressColor = (p: number) => {
+    if (p >= 100) return "#16a34a"; // Green
+    if (p >= 31) return "#638b4b"; // Blue/green (in progress)
+    if (p > 0) return "#f97316"; // Orange (just started)
+    return "#dc2626"; // Red (not started)
+  };
+
+  const progressColor = getProgressColor(verificationProgress.progress);
+  const remainingFields = verificationProgress.totalCount - verificationProgress.verifiedCount;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Compact Header Bar */}
       <div
         style={{
           backgroundColor: "#fff",
           border: `1.5px solid ${T.border}`,
           borderRadius: 16,
-          padding: "14px 16px",
+          padding: "16px 20px",
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: "flex-start",
+          position: "relative",
         }}
       >
-        <div>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            style={{
-              border: `1.5px solid ${T.border}`,
-              backgroundColor: "#fff",
-              color: T.textDark,
-              borderRadius: 8,
-              padding: "8px 12px",
-              fontWeight: 700,
-              cursor: "pointer",
-              marginBottom: 8,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
+        {/* Back Button - Minimal, top-left */}
+        <button
+          type="button"
+          onClick={() => router.back()}
+          style={{
+            position: "absolute",
+            top: 12,
+            left: 12,
+            border: "none",
+            backgroundColor: "transparent",
+            color: T.textMuted,
+            padding: 8,
+            fontSize: 20,
+            cursor: "pointer",
+            lineHeight: 1,
+            transition: "all 0.2s",
+            borderRadius: 8,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = T.pageBg;
+            e.currentTarget.style.color = T.textDark;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+            e.currentTarget.style.color = T.textMuted;
+          }}
+          title="Go back"
+        >
+          ←
+        </button>
+
+        {/* Lead Info - Centered, better hierarchy */}
+        <div style={{ flex: 1, paddingLeft: 40, paddingRight: 20 }}>
+          <h1 
+            style={{ 
+              margin: 0, 
+              fontSize: 26, 
+              color: T.textDark, 
+              fontWeight: 800,
+              letterSpacing: "-0.3px",
             }}
           >
-            <span aria-hidden="true">←</span>
-            <span>Back</span>
-          </button>
-          <h2 style={{ margin: 0, fontSize: 22, color: T.textDark }}>{lead.leadName}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted }}>
-            Lead ID: {lead.leadUniqueId} {lead.phone ? `| ${lead.phone}` : ""}
-          </p>
+            {lead.leadName}
+          </h1>
+          
+          {/* Lead metadata row */}
+          <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>ID:</span>
+              <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700, fontFamily: "monospace" }}>
+                {lead.leadUniqueId}
+              </span>
+            </div>
+            
+            {lead.phone && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Phone:</span>
+                <a
+                  href={`tel:${lead.phone.replace(/\D/g, "")}`}
+                  style={{
+                    fontSize: 15,
+                    color: T.blue,
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "2px 8px",
+                    borderRadius: 6,
+                    backgroundColor: T.blueLight,
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = T.blueFaint;
+                    e.currentTarget.style.color = T.blueHover;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = T.blueLight;
+                    e.currentTarget.style.color = T.blue;
+                  }}
+                  title="Click to call"
+                >
+                  📞 {lead.phone}
+                </a>
+              </div>
+            )}
+            
+            {lead.source && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Source:</span>
+                <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700 }}>{lead.source}</span>
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {sessionId && (
+
+        {/* Progress Indicator - Right side */}
+        {sessionId && (
+          <div
+            style={{
+              backgroundColor: verificationProgress.progress >= 100 ? "#f0fdf4" : T.pageBg,
+              borderRadius: 12,
+              padding: "14px 18px",
+              minWidth: 220,
+              border: `1px solid ${verificationProgress.progress >= 100 ? "#86efac" : T.border}`,
+            }}
+          >
+            {/* Label row with dynamic color */}
             <div
               style={{
-                border: `1.5px solid ${T.border}`,
-                backgroundColor: "#fee2e2",
-                color: "#991b1b",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontWeight: 700,
-                minWidth: 160,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 10,
               }}
             >
-              <div style={{ fontSize: 11, opacity: 0.9 }}>Progress</div>
-              <div style={{ fontSize: 14, lineHeight: 1.2 }}>
-                {verificationProgress.progress}% - {progressLabel}
-              </div>
-              <div style={{ fontSize: 11, opacity: 0.9, marginTop: 2 }}>
-                {verificationProgress.verifiedCount}/{verificationProgress.totalCount} verified
-              </div>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: T.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Verification
+              </span>
+              <span
+                style={{
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: progressColor,
+                }}
+              >
+                {verificationProgress.progress}%
+              </span>
             </div>
-          )}
-          {!sessionId && (
-            <>
-              {canViewTransferClaimReclaimVisit ? (
+
+            {/* Color-coded progress bar */}
+            <div
+              style={{
+                height: 6,
+                borderRadius: 999,
+                backgroundColor: T.rowBg,
+                overflow: "hidden",
+                marginBottom: 10,
+              }}
+            >
+              <div
+                role="progressbar"
+                aria-valuenow={verificationProgress.progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                style={{
+                  width: `${verificationProgress.progress}%`,
+                  height: "100%",
+                  borderRadius: 999,
+                  backgroundColor: progressColor,
+                  transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+              />
+            </div>
+
+            {/* Status text - shows remaining fields or completion */}
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: verificationProgress.progress >= 100 ? "#16a34a" : T.textMuted,
+                textAlign: "center",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+              }}
+            >
+              {verificationProgress.progress >= 100 ? (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/dashboard/${role}/retention-flow?leadRowId=${lead.rowId}`)}
-                    style={{
-                      border: `1.5px solid ${T.border}`,
-                      backgroundColor: "#ede9fe",
-                      color: "#5b21b6",
-                      borderRadius: 8,
-                      padding: "9px 12px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Claim Retention
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void openClaimAndInitialize();
-                    }}
-                    style={{
-                      border: "none",
-                      backgroundColor: T.blue,
-                      color: "#fff",
-                      borderRadius: 8,
-                      padding: "9px 12px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Start verification
-                  </button>
+                  <span style={{ fontSize: 14 }}>✓</span> Complete
                 </>
+              ) : verificationProgress.progress === 0 ? (
+                <span style={{ color: "#dc2626" }}>{remainingFields} fields to verify</span>
               ) : (
-                <div style={{ border: `1.5px solid ${T.border}`, backgroundColor: T.pageBg, borderRadius: 8, padding: "8px 12px", color: T.textMuted, fontWeight: 700, fontSize: 12 }}>
-                  You do not have permission to claim/reclaim this lead.
-                </div>
+                <span>{remainingFields} fields remaining</span>
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
+        
+        {/* No session - Show claim buttons */}
+        {!sessionId && (
+          <>
+            {canViewTransferClaimReclaimVisit ? (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => void openRetentionModal()}
+                  style={{
+                    border: `1.5px solid ${T.border}`,
+                    backgroundColor: "#ede9fe",
+                    color: "#5b21b6",
+                    borderRadius: 8,
+                    padding: "9px 12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Claim Retention
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void openClaimAndInitialize();
+                  }}
+                  style={{
+                    border: "none",
+                    backgroundColor: T.blue,
+                    color: "#fff",
+                    borderRadius: 8,
+                    padding: "9px 12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Start verification
+                </button>
+              </div>
+            ) : (
+              <div style={{ border: `1.5px solid ${T.border}`, backgroundColor: T.pageBg, borderRadius: 8, padding: "8px 12px", color: T.textMuted, fontWeight: 700, fontSize: 12 }}>
+                You do not have permission to claim/reclaim this lead.
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {error && (
@@ -289,7 +486,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
         </div>
       )}
 
-      {sessionId ? (
+      {sessionId && canViewTransferClaimReclaimVisit && lead ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
           <TransferLeadVerificationPanel
             sessionId={sessionId}
@@ -313,6 +510,13 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             leadVendor={lead.source}
           />
         </div>
+      ) : sessionId && !canViewTransferClaimReclaimVisit ? (
+        <div style={{ backgroundColor: "#fef2f2", border: `1.5px solid #fecaca`, borderRadius: 14, padding: 18 }}>
+          <h3 style={{ margin: 0, fontSize: 18, color: "#991b1b", fontWeight: 700 }}>Access Restricted</h3>
+          <p style={{ margin: "8px 0 0", fontSize: 13, color: "#7f1d1d" }}>
+            You do not have permission to view the verification panel. This lead has an active verification session that can only be accessed by licensed agents or managers.
+          </p>
+        </div>
       ) : (
         <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 14, padding: 18 }}>
           <h3 style={{ margin: 0, fontSize: 18, color: T.textDark }}>No active verification session</h3>
@@ -325,7 +529,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       <TransferLeadClaimModal
         open={openClaim}
         loading={claimLoading}
-        leadName={lead.leadName}
+        leadName={lead?.leadName || ""}
         agents={agents}
         selection={selection}
         onChange={setSelection}
@@ -333,6 +537,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
         onSubmit={() => {
           void startClaim();
         }}
+        retentionOnly={isRetentionOnlyMode}
       />
     </div>
   );

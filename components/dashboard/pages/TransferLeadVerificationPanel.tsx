@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { T } from "@/lib/theme";
-import { AppSelect } from "@/components/ui/app-select";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import {
@@ -12,6 +11,387 @@ import {
   type VerificationItemRow,
 } from "./transferLeadParity";
 import { useCarrierProductDropdowns, type CarrierProductRow } from "@/lib/useCarrierProductDropdowns";
+import { AppSelect } from "@/components/ui/app-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// StyledSelect component matching LeadEditForm design
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select...",
+  disabled = false,
+  error = false,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")} disabled={disabled}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 42,
+          borderRadius: 10,
+          border: `1.5px solid ${error ? "#dc2626" : T.border}`,
+          backgroundColor: disabled ? T.pageBg : "#fff",
+          color: value ? T.textDark : T.textMuted,
+          fontSize: 14,
+          fontWeight: 600,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          boxShadow: error ? "0 0 0 3px rgba(220, 38, 38, 0.1)" : "none",
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value
+            ? options.find((o) => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: "#fff",
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 14,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// Field component with label and error display
+function FormField({
+  label,
+  error,
+  children,
+  required = false,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <label
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: T.textMid,
+          display: "flex",
+          gap: 4,
+        }}
+      >
+        {label}
+        {required && <span style={{ color: "#dc2626" }}>*</span>}
+      </label>
+      {children}
+      {error && (
+        <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Input component styled for the form
+function FormInput({
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  disabled = false,
+  error,
+  prefix,
+}: {
+  value: string | number;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  disabled?: boolean;
+  error?: boolean;
+  prefix?: string;
+}) {
+  return (
+    <div style={{ position: "relative" }}>
+      {prefix && (
+        <span
+          style={{
+            position: "absolute",
+            left: 14,
+            top: "50%",
+            transform: "translateY(-50%)",
+            fontSize: 14,
+            fontWeight: 600,
+            color: T.textMuted,
+            pointerEvents: "none",
+          }}
+        >
+          {prefix}
+        </span>
+      )}
+      <input
+        type={type}
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        style={{
+          width: "100%",
+          padding: prefix ? "12px 12px 12px 28px" : "12px",
+          borderRadius: 8,
+          border: `1.5px solid ${error ? "#dc2626" : T.border}`,
+          fontSize: 14,
+          fontWeight: 600,
+          color: disabled ? T.textMuted : T.textDark,
+          backgroundColor: disabled ? T.pageBg : "#fff",
+          fontFamily: T.font,
+          outline: "none",
+          transition: "all 0.2s",
+          boxShadow: error ? "0 0 0 3px rgba(220, 38, 38, 0.1)" : "none",
+        }}
+        onFocus={(e) => {
+          if (!disabled && !error) {
+            e.currentTarget.style.borderColor = T.blue;
+            e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.12)";
+          }
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = error ? "#dc2626" : T.border;
+          e.currentTarget.style.boxShadow = "none";
+        }}
+      />
+    </div>
+  );
+}
+
+// Textarea component
+function FormTextarea({
+  value,
+  onChange,
+  placeholder,
+  disabled = false,
+  error,
+  rows = 3,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+  rows?: number;
+}) {
+  return (
+    <textarea
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      disabled={disabled}
+      rows={rows}
+      style={{
+        width: "100%",
+        padding: "12px",
+        borderRadius: 8,
+        border: `1.5px solid ${error ? "#dc2626" : T.border}`,
+        fontSize: 14,
+        fontWeight: 600,
+        color: disabled ? T.textMuted : T.textDark,
+        backgroundColor: disabled ? T.pageBg : "#fff",
+        fontFamily: T.font,
+        outline: "none",
+        resize: "vertical",
+        transition: "all 0.2s",
+        boxShadow: error ? "0 0 0 3px rgba(220, 38, 38, 0.1)" : "none",
+      }}
+      onFocus={(e) => {
+        if (!disabled && !error) {
+          e.currentTarget.style.borderColor = T.blue;
+          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.12)";
+        }
+      }}
+      onBlur={(e) => {
+        e.currentTarget.style.borderColor = error ? "#dc2626" : T.border;
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    />
+  );
+}
+
+// Section header component with collapsible functionality
+function CollapsibleSectionHeader({
+  title,
+  verified,
+  total,
+  progress,
+  isCollapsed,
+  onToggle,
+}: {
+  title: string;
+  verified: number;
+  total: number;
+  progress: number;
+  isCollapsed: boolean;
+  onToggle: () => void;
+}) {
+  const isComplete = progress >= 100;
+  const isInProgress = progress > 0 && progress < 100;
+  
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "12px 0",
+        margin: "16px 0 12px",
+        backgroundColor: "transparent",
+        border: "none",
+        borderBottom: `2px solid ${isComplete ? "#86efac" : T.borderLight}`,
+        cursor: "pointer",
+        transition: "all 0.2s",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Collapse indicator */}
+        <span
+          style={{
+            fontSize: 12,
+            color: T.textMuted,
+            transition: "transform 0.2s",
+            transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+            display: "inline-block",
+          }}
+        >
+          ▼
+        </span>
+        
+        <h3
+          style={{
+            margin: 0,
+            fontSize: 13,
+            fontWeight: 800,
+            color: isComplete ? "#166534" : T.textDark,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+          }}
+        >
+          {title}
+        </h3>
+        
+        {/* Status indicator */}
+        {isComplete && (
+          <span
+            style={{
+              backgroundColor: "#dcfce7",
+              color: "#166534",
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 999,
+            }}
+          >
+            ✓ Complete
+          </span>
+        )}
+        {isInProgress && (
+          <span
+            style={{
+              backgroundColor: T.blueLight,
+              color: T.blue,
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 999,
+            }}
+          >
+            {verified}/{total}
+          </span>
+        )}
+      </div>
+      
+      {/* Mini progress bar */}
+      <div
+        style={{
+          width: 60,
+          height: 4,
+          borderRadius: 999,
+          backgroundColor: T.rowBg,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${progress}%`,
+            height: "100%",
+            borderRadius: 999,
+            backgroundColor: isComplete ? "#16a34a" : T.blue,
+            transition: "width 0.3s ease",
+          }}
+        />
+      </div>
+    </button>
+  );
+}
+
+// Legacy SectionHeader for non-collapsible usage
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <h3
+      style={{
+        margin: "24px 0 16px",
+        fontSize: 14,
+        fontWeight: 800,
+        color: T.textDark,
+        textTransform: "uppercase",
+        letterSpacing: "0.5px",
+        borderBottom: `2px solid ${T.borderLight}`,
+        paddingBottom: 8,
+      }}
+    >
+      {title}
+    </h3>
+  );
+}
 
 type Props = {
   sessionId: string;
@@ -93,6 +473,75 @@ const VERIFICATION_FIELD_LABELS: Record<string, string> = {
 
 const HIDDEN_VERIFICATION_FIELDS = new Set<string>(["lead_vendor"]);
 
+// Field section definitions for better UX organization
+const FIELD_SECTIONS = {
+  "Contact Information": [
+    "customer_full_name",
+    "phone_number",
+    "email",
+    "street_address",
+  ],
+  "Personal Details": [
+    "date_of_birth",
+    "age",
+    "social_security",
+    "driver_license",
+    "birth_state",
+  ],
+  "Health & Underwriting": [
+    "height",
+    "weight",
+    "tobacco_use",
+    "health_conditions",
+    "medications",
+    "doctors_name",
+    "existing_coverage",
+    "previous_applications",
+  ],
+  "Policy Information": [
+    "carrier",
+    "product_type",
+    "coverage_amount",
+    "monthly_premium",
+    "draft_date",
+    "future_draft_date",
+    "beneficiary_information",
+  ],
+  "Banking Details": [
+    "institution_name",
+    "beneficiary_routing",
+    "beneficiary_account",
+    "account_type",
+  ],
+  "Notes & Disposition": [
+    "additional_notes",
+    "la_notes",
+    "call_dropped",
+  ],
+} as const;
+
+type SectionName = keyof typeof FIELD_SECTIONS;
+
+// Fields that work well in a two-column layout
+const TWO_COLUMN_FIELDS = new Set<string>([
+  "date_of_birth",
+  "age",
+  "height",
+  "weight",
+  "tobacco_use",
+  "existing_coverage",
+  "previous_applications",
+  "carrier",
+  "product_type",
+  "coverage_amount",
+  "monthly_premium",
+  "draft_date",
+  "future_draft_date",
+  "institution_name",
+  "account_type",
+  "birth_state",
+]);
+
 export default function TransferLeadVerificationPanel({
   sessionId,
   showProgressSummary = true,
@@ -138,6 +587,42 @@ export default function TransferLeadVerificationPanel({
     coverageAmount: "",
     monthlyPremium: "",
   });
+  
+  // Track collapsed sections - start with Contact and Personal expanded
+  const [collapsedSections, setCollapsedSections] = useState<Set<SectionName>>(() => {
+    const initiallyCollapsed: SectionName[] = [
+      "Health & Underwriting",
+      "Policy Information", 
+      "Banking Details",
+      "Notes & Disposition",
+    ];
+    return new Set(initiallyCollapsed);
+  });
+  
+  // Recently verified items for animation
+  const [recentlyVerified, setRecentlyVerified] = useState<Set<string>>(new Set());
+
+  const toggleSection = (section: SectionName) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) {
+        next.delete(section);
+      } else {
+        next.add(section);
+      }
+      return next;
+    });
+  };
+
+  // Calculate section completion
+  const getSectionStats = (sectionFields: readonly string[]) => {
+    const sectionItems = orderedItems.filter((item) =>
+      sectionFields.includes(item.field_name)
+    );
+    const verified = sectionItems.filter((item) => item.is_verified).length;
+    const total = sectionItems.length;
+    return { verified, total, progress: total > 0 ? Math.round((verified / total) * 100) : 0 };
+  };
 
   const onInvalidateUwProduct = useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
     setUnderwritingData((prev) => {
@@ -157,13 +642,18 @@ export default function TransferLeadVerificationPanel({
 
   const uwFieldStyle: CSSProperties = {
     width: "100%",
-    border: `1px solid ${T.border}`,
-    borderRadius: 8,
-    padding: "9px 10px",
+    height: 42,
+    border: `1.5px solid ${T.border}`,
+    borderRadius: 10,
+    padding: "0 14px",
     boxSizing: "border-box",
     fontSize: 14,
+    fontWeight: 600,
     fontFamily: T.font,
     backgroundColor: "#fff",
+    color: T.textDark,
+    outline: "none",
+    transition: "all 0.2s",
   };
 
   useEffect(() => {
@@ -324,6 +814,18 @@ export default function TransferLeadVerificationPanel({
             : row,
         ),
       );
+      
+      // Trigger animation when verified
+      if (nextIsVerified) {
+        setRecentlyVerified((prev) => new Set(prev).add(item.id));
+        setTimeout(() => {
+          setRecentlyVerified((prev) => {
+            const next = new Set(prev);
+            next.delete(item.id);
+            return next;
+          });
+        }, 800);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save verification update.");
     } finally {
@@ -469,7 +971,11 @@ export default function TransferLeadVerificationPanel({
     void runTransferPhoneCheck(phoneItem, raw, { auto: true });
   }, [sessionId, items, draftValues, runTransferPhoneCheck]);
 
-  const verificationNotStarted = orderedItems.length > 0 && verifiedCount === 0;
+  // Hide "not started" banner once any field has been verified OR any value has been entered
+  const anyFieldHasValue = orderedItems.some(
+    (item) => (draftValues[item.id] ?? "").trim().length > 0
+  );
+  const verificationNotStarted = orderedItems.length > 0 && verifiedCount === 0 && !anyFieldHasValue;
 
   return (
     <div
@@ -493,19 +999,63 @@ export default function TransferLeadVerificationPanel({
         </div>
       </div>
       {showProgressSummary && (
-        <div style={{ marginTop: 10, marginBottom: 14 }}>
-          <div style={{ height: 10, borderRadius: 999, backgroundColor: T.rowBg, overflow: "hidden" }}>
+        <div style={{ marginTop: 14, marginBottom: 18 }}>
+          {/* Field-style label row */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 8,
+            }}
+          >
+            <label
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: T.textMid,
+              }}
+            >
+              Verification Progress
+            </label>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: progress >= 100 ? "#16a34a" : T.blue,
+                marginLeft: "auto",
+              }}
+            >
+              {progress}%
+            </span>
+          </div>
+          {/* Progress bar - shadcn style with theme colors */}
+          <div
+            style={{
+              height: 12,
+              borderRadius: 999,
+              backgroundColor: T.rowBg,
+              overflow: "hidden",
+              border: `1px solid ${T.borderLight}`,
+            }}
+          >
             <div
+              role="progressbar"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
               style={{
                 width: `${progress}%`,
                 height: "100%",
                 borderRadius: 999,
                 backgroundColor: progress >= 100 ? "#16a34a" : T.blue,
-                transition: "width 0.2s ease",
+                transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               }}
             />
           </div>
-          <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted }}>Progress: {progress}%</p>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+            {verifiedCount} of {items.length} fields verified
+          </p>
         </div>
       )}
 
@@ -557,126 +1107,254 @@ export default function TransferLeadVerificationPanel({
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 560, overflowY: "auto", paddingRight: 4 }}>
-        {orderedItems.map((item, itemIndex) => {
-          const isSaving = Boolean(savingIds[item.id]);
-          const isPhoneField = item.field_name === "phone_number";
-          const dncStatus = dncStatusByItem[item.id];
-          const dncMessage = dncMessageByItem[item.id];
-          const dncChecking = Boolean(dncCheckingIds[item.id]);
-          const label = VERIFICATION_FIELD_LABELS[item.field_name] || item.field_name.replaceAll("_", " ");
-          return (
-            <div
-              key={item.id}
-              style={{
-                border: `1px solid ${T.border}`,
-                borderRadius: 10,
-                padding: 10,
-                backgroundColor: item.is_verified ? "#f0fdf4" : "#fff",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>
-                  {isPhoneField && dncStatus ? (
-                    <span style={{ marginRight: 6 }}>
-                      {dncStatus === "clear" ? "✓" : dncStatus === "error" ? "!" : "×"}
-                    </span>
-                  ) : null}
-                  {label}
-                </span>
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.textMid }}>
-                  {isPhoneField && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void checkDncForItem(item);
-                      }}
-                      disabled={dncChecking}
-                      style={{
-                        borderRadius: 8,
-                        border: "none",
-                        padding: "5px 12px",
-                        fontWeight: 700,
-                        cursor: dncChecking ? "not-allowed" : "pointer",
-                        backgroundColor: dncChecking ? "#c8d4bb" : T.blue,
-                        color: "#fff",
-                      }}
-                    >
-                      {dncChecking ? "Checking..." : "Check"}
-                    </button>
-                  )}
-                  <input
-                    type="checkbox"
-                    checked={Boolean(item.is_verified)}
-                    disabled={isSaving}
-                    onChange={(e) => {
-                      void saveOne(item, e.target.checked);
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse-green {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(134, 239, 172, 0.4); }
+          50% { box-shadow: 0 0 0 8px rgba(134, 239, 172, 0); }
+        }
+      `}</style>
+      <div style={{ maxHeight: 560, overflowY: "auto", paddingRight: 4 }}>
+        {(Object.entries(FIELD_SECTIONS) as [SectionName, readonly string[]][]).map(
+          ([sectionName, sectionFields]) => {
+            const stats = getSectionStats(sectionFields);
+            const isCollapsed = collapsedSections.has(sectionName);
+            
+            // Get visible items for this section that are in our ordered list
+            const sectionItems = orderedItems.filter((item) =>
+              sectionFields.includes(item.field_name)
+            );
+            
+            if (sectionItems.length === 0) return null;
+
+            return (
+              <div key={sectionName} style={{ marginBottom: 8 }}>
+                <CollapsibleSectionHeader
+                  title={sectionName}
+                  verified={stats.verified}
+                  total={stats.total}
+                  progress={stats.progress}
+                  isCollapsed={isCollapsed}
+                  onToggle={() => toggleSection(sectionName)}
+                />
+                
+                {!isCollapsed && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr",
+                      gap: 12,
+                      animation: "fadeIn 0.2s ease-out",
                     }}
-                  />
-                  Verified
-                </label>
+                  >
+                    {sectionItems.map((item) => {
+                      const isSaving = Boolean(savingIds[item.id]);
+                      const isPhoneField = item.field_name === "phone_number";
+                      const dncStatus = dncStatusByItem[item.id];
+                      const dncMessage = dncMessageByItem[item.id];
+                      const dncChecking = Boolean(dncCheckingIds[item.id]);
+                      const label =
+                        VERIFICATION_FIELD_LABELS[item.field_name] ||
+                        item.field_name.replaceAll("_", " ");
+                      const isRecentlyVerified = recentlyVerified.has(item.id);
+                      const isTwoColumn = TWO_COLUMN_FIELDS.has(item.field_name);
+
+                      return (
+                        <div
+                          key={item.id}
+                          style={{
+                            border: `1.5px solid ${item.is_verified ? "#86efac" : T.border}`,
+                            borderRadius: 12,
+                            padding: 14,
+                            backgroundColor: item.is_verified ? "#f0fdf4" : "#fff",
+                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                            boxShadow: isRecentlyVerified
+                              ? "0 0 0 4px rgba(134, 239, 172, 0.4)"
+                              : "none",
+                            transform: isRecentlyVerified ? "scale(1.01)" : "scale(1)",
+                            ...(isTwoColumn && { gridColumn: "span 1" }),
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: 10,
+                              marginBottom: 12,
+                              alignItems: "center",
+                            }}
+                          >
+                            <FormField label={label}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                {isPhoneField && dncStatus && (
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      width: 20,
+                                      height: 20,
+                                      borderRadius: "50%",
+                                      fontSize: 12,
+                                      fontWeight: 800,
+                                      backgroundColor:
+                                        dncStatus === "clear"
+                                          ? "#16a34a"
+                                          : dncStatus === "error"
+                                            ? "#dc2626"
+                                            : dncStatus === "tcpa"
+                                              ? "#dc2626"
+                                              : "#b45309",
+                                      color: "#fff",
+                                    }}
+                                  >
+                                    {dncStatus === "clear" ? "✓" : dncStatus === "error" ? "!" : "×"}
+                                  </span>
+                                )}
+                                {isPhoneField && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void checkDncForItem(item);
+                                    }}
+                                    disabled={dncChecking}
+                                    style={{
+                                      borderRadius: 8,
+                                      border: "none",
+                                      padding: "6px 12px",
+                                      fontWeight: 700,
+                                      fontSize: 12,
+                                      cursor: dncChecking ? "not-allowed" : "pointer",
+                                      backgroundColor: dncChecking ? "#c8d4bb" : T.blue,
+                                      color: "#fff",
+                                      transition: "all 0.2s",
+                                    }}
+                                  >
+                                    {dncChecking ? "Checking..." : "Check"}
+                                  </button>
+                                )}
+                              </div>
+                            </FormField>
+                            <label
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: T.textMid,
+                                cursor: "pointer",
+                                padding: "6px 10px",
+                                borderRadius: 8,
+                                backgroundColor: item.is_verified ? "#dcfce7" : T.rowBg,
+                                border: `1.5px solid ${item.is_verified ? "#86efac" : T.border}`,
+                                transition: "all 0.2s",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={Boolean(item.is_verified)}
+                                disabled={isSaving}
+                                onChange={(e) => {
+                                  void saveOne(item, e.target.checked);
+                                }}
+                                style={{
+                                  width: 16,
+                                  height: 16,
+                                  cursor: isSaving ? "not-allowed" : "pointer",
+                                }}
+                              />
+                              <span style={{ color: item.is_verified ? "#166534" : T.textDark }}>
+                                {item.is_verified ? "Verified" : "Verify"}
+                              </span>
+                            </label>
+                          </div>
+
+                          {isPhoneField && dncMessage && (
+                            <div
+                              style={{
+                                marginBottom: 12,
+                                padding: "10px 14px",
+                                borderRadius: 8,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                backgroundColor:
+                                  dncStatus === "error" || dncStatus === "tcpa"
+                                    ? "#fef2f2"
+                                    : dncStatus === "dnc"
+                                      ? "#fffbeb"
+                                      : "#f0fdf4",
+                                color:
+                                  dncStatus === "error" || dncStatus === "tcpa"
+                                    ? "#dc2626"
+                                    : dncStatus === "dnc"
+                                      ? "#b45309"
+                                      : "#166534",
+                                border: `1.5px solid ${
+                                  dncStatus === "error" || dncStatus === "tcpa"
+                                    ? "#fecaca"
+                                    : dncStatus === "dnc"
+                                      ? "#fcd34d"
+                                      : "#86efac"
+                                }`,
+                              }}
+                            >
+                              {dncMessage}
+                            </div>
+                          )}
+
+                          <FormInput
+                            value={draftValues[item.id] ?? ""}
+                            onChange={(val) =>
+                              setDraftValues((prev) => ({ ...prev, [item.id]: val }))
+                            }
+                            placeholder={`Enter ${label.toLowerCase()}...`}
+                          />
+
+                          {isPhoneField && (
+                            <button
+                              type="button"
+                              onClick={openUnderwritingModal}
+                              style={{
+                                width: "100%",
+                                marginTop: 12,
+                                border: "none",
+                                backgroundColor: "#233217",
+                                color: "#fff",
+                                borderRadius: 8,
+                                padding: "12px 16px",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                fontSize: 14,
+                                boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                                transition: "all 0.2s",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = "#1a260f";
+                                e.currentTarget.style.transform = "translateY(-1px)";
+                                e.currentTarget.style.boxShadow = "0 6px 16px rgba(35, 50, 23, 0.3)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = "#233217";
+                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.2)";
+                              }}
+                            >
+                              Underwriting
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-
-              {isPhoneField && dncMessage && (
-                <div
-                  style={{
-                    marginBottom: 8,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color:
-                      dncStatus === "error" || dncStatus === "tcpa"
-                        ? T.danger
-                        : dncStatus === "dnc"
-                          ? "#b45309"
-                          : "#166534",
-                  }}
-                >
-                  {dncMessage}
-                </div>
-              )}
-
-              <input
-                ref={itemIndex === 0 ? firstFieldInputRef : undefined}
-                value={draftValues[item.id] ?? ""}
-                onChange={(e) => setDraftValues((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                onBlur={() => {
-                  const current = draftValues[item.id] ?? "";
-                  if (current === (item.verified_value ?? item.original_value ?? "")) return;
-                  void saveOne(item, Boolean(item.is_verified));
-                }}
-                style={{
-                  width: "100%",
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 8,
-                  padding: "7px 9px",
-                  fontSize: 12,
-                  color: T.textDark,
-                  backgroundColor: "#fff",
-                }}
-              />
-              {isPhoneField && (
-                <button
-                  type="button"
-                  onClick={openUnderwritingModal}
-                  style={{
-                    width: "100%",
-                    marginTop: 10,
-                    border: "none",
-                    backgroundColor: "#4e6e3a",
-                    color: "#fff",
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    fontSize: 14,
-                  }}
-                >
-                  Underwriting
-                </button>
-              )}
-            </div>
-          );
-        })}
+            );
+          }
+        )}
       </div>
 
       <div
