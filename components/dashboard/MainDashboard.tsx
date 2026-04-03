@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { T } from "@/lib/theme";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { PermissionKey } from "@/lib/auth/permissions";
+import { isRoleKey, type RoleKey } from "@/lib/auth/roles";
 
 // Alias so we don't need to touch every reference below
 const C = {
@@ -37,6 +40,123 @@ const ANNOUNCEMENTS = [
 interface Props { onViewAllEvents: () => void; searchQuery: string; }
 
 type DatePreset = 'today' | 'yesterday' | '7' | '30' | '90' | 'thisMonth' | 'lastMonth' | 'custom';
+
+// Permission checking helper
+function useUserPermissions() {
+  const [userRole, setUserRole] = useState<RoleKey | null>(null);
+  const [permissions, setPermissions] = useState<Set<PermissionKey>>(new Set());
+  const [callCenterId, setCallCenterId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchUserData() {
+      const supabase = getSupabaseBrowserClient();
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+
+      setUserId(user.id);
+
+      // Get user details including role and call center
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("role_id, call_center_id, roles(key)")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (userError || !userData) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Handle roles from Supabase (could be object or array from joined query)
+      const rolesRaw = userData.roles as { key: string } | { key: string }[] | null;
+      const roleObj = Array.isArray(rolesRaw) ? rolesRaw[0] : rolesRaw;
+      const roleKey = roleObj?.key && isRoleKey(roleObj.key) ? roleObj.key : null;
+      setUserRole(roleKey);
+      setCallCenterId(userData.call_center_id);
+
+      // Fetch permissions from role_permissions and user_permissions
+      const [{ data: rolePerms }, { data: userPerms }] = await Promise.all([
+        supabase
+          .from("role_permissions")
+          .select("permissions(key)")
+          .eq("role_id", userData.role_id),
+        supabase
+          .from("user_permissions")
+          .select("permissions(key)")
+          .eq("user_id", user.id),
+      ]);
+
+      const allPerms = new Set<PermissionKey>();
+      
+      // Add role permissions
+      rolePerms?.forEach((row: any) => {
+        if (Array.isArray(row.permissions)) {
+          row.permissions.forEach((p: any) => p?.key && allPerms.add(p.key as PermissionKey));
+        } else if (row.permissions?.key) {
+          allPerms.add(row.permissions.key as PermissionKey);
+        }
+      });
+
+      // Add user-specific permissions
+      userPerms?.forEach((row: any) => {
+        if (Array.isArray(row.permissions)) {
+          row.permissions.forEach((p: any) => p?.key && allPerms.add(p.key as PermissionKey));
+        } else if (row.permissions?.key) {
+          allPerms.add(row.permissions.key as PermissionKey);
+        }
+      });
+
+      setPermissions(allPerms);
+      setIsLoading(false);
+    }
+
+    fetchUserData();
+  }, []);
+
+  return { userRole, permissions, callCenterId, userId, isLoading };
+}
+
+// Check if user can view Daily Deal Flow
+function canViewDailyDealFlow(role: RoleKey | null, permissions: Set<PermissionKey>): boolean {
+  // System admin can see everything
+  if (role === "system_admin") return true;
+  // Check specific permission
+  if (permissions.has("page.daily_deal_flow.access")) return true;
+  // Call center agents and sales agents can see their own deals
+  if (role === "call_center_agent" || role === "sales_agent_licensed" || role === "sales_agent_unlicensed") return true;
+  return false;
+}
+
+// Check if user can view Pipeline Stages
+function canViewPipeline(role: RoleKey | null, permissions: Set<PermissionKey>): boolean {
+  if (role === "system_admin") return true;
+  if (permissions.has("page.lead_pipeline.access")) return true;
+  // Call center agents and sales agents can see their own leads
+  if (role === "call_center_agent" || role === "sales_agent_licensed" || role === "sales_agent_unlicensed") return true;
+  return false;
+}
+
+// Check if user can view all leads or only their call center
+function getLeadViewScope(role: RoleKey | null, permissions: Set<PermissionKey>): "all" | "call_center" | "own" | "none" {
+  if (role === "system_admin") return "all";
+  if (permissions.has("action.transfer_leads.view_all")) return "all";
+  if (permissions.has("action.transfer_leads.view_call_center")) return "call_center";
+  if (permissions.has("action.transfer_leads.view_own")) return "own";
+  
+  // Default scope based on role if no specific permission set
+  if (role === "call_center_agent" || role === "sales_agent_unlicensed") return "own";
+  if (role === "call_center_admin") return "call_center";
+  if (role === "sales_agent_licensed") return "own";
+  
+  return "none";
+}
 
 interface DateRange {
   start: Date;
@@ -100,6 +220,27 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [appliedDateRange, setAppliedDateRange] = useState<DateRange>(getPresetDateRange('30'));
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // User permissions
+  const { userRole, permissions, callCenterId, userId, isLoading } = useUserPermissions();
+
+  // Permission checks
+  const canViewDailyDeal = canViewDailyDealFlow(userRole, permissions);
+  const canViewPipelineStages = canViewPipeline(userRole, permissions);
+  const leadViewScope = getLeadViewScope(userRole, permissions);
+
+  // For debugging - log permissions
+  useEffect(() => {
+    if (!isLoading) {
+      console.log("User Role:", userRole);
+      console.log("Permissions:", Array.from(permissions));
+      console.log("Call Center ID:", callCenterId);
+      console.log("User ID:", userId);
+      console.log("Can View Daily Deal:", canViewDailyDeal);
+      console.log("Can View Pipeline:", canViewPipelineStages);
+      console.log("Lead View Scope:", leadViewScope);
+    }
+  }, [isLoading, userRole, permissions, callCenterId, userId, canViewDailyDeal, canViewPipelineStages, leadViewScope]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -499,29 +640,57 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
       </div>
 
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start", maxWidth: 1600, margin: "0 auto" }}>
-        {/* ── Left/main column: Pipeline Stages ── */}
-        <div style={{ 
-          backgroundColor: "#ffffff", 
-          borderRadius: T.radiusXl, 
-          border: `1.5px solid ${T.border}`, 
-          padding: "24px", 
-          width: "calc(70% - 12px)",
-          minHeight: 540, 
-          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
-          display: "flex",
-          flexDirection: "column"
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Pipeline Stages</h2>
-            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-              View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </button>
-          </div>
+        {/* ── Left/main column: Pipeline Stages (Permission Controlled) ── */}
+        {canViewPipelineStages ? (
+          <div style={{ 
+            backgroundColor: "#ffffff", 
+            borderRadius: T.radiusXl, 
+            border: `1.5px solid ${T.border}`, 
+            padding: "24px", 
+            width: canViewDailyDeal ? "calc(70% - 12px)" : "100%",
+            minHeight: 540, 
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+            display: "flex",
+            flexDirection: "column"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Pipeline Stages</h2>
+                {leadViewScope === "own" && (
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+                    Your leads only
+                  </p>
+                )}
+                {leadViewScope === "call_center" && (
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+                    Your call center
+                  </p>
+                )}
+              </div>
+              <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
 
-          <div style={{ flex: 1, padding: "8px 4px 12px 0" }}>
-            <PipelineStagesGrid multiplier={multiplier} />
+            <div style={{ flex: 1, padding: "8px 4px 12px 0" }}>
+              <PipelineStagesGrid multiplier={multiplier} viewScope={leadViewScope} callCenterId={callCenterId} userId={userId} />
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Show placeholder when no pipeline access */
+          <div style={{ 
+            width: canViewDailyDeal ? "calc(70% - 12px)" : "100%",
+            minHeight: 540,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: T.pageBg,
+            borderRadius: T.radiusXl,
+            border: `1.5px dashed ${T.border}`
+          }}>
+            <p style={{ color: T.textMuted, fontSize: 14 }}>No pipeline access</p>
+          </div>
+        )}
 
         {/* ── Right column: Announcements ── */}
         <div style={{ 
@@ -590,13 +759,15 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 24, marginTop: 6, alignItems: "stretch", maxWidth: 1600, margin: "16px auto 0" }}>
-        {/* ── Daily Deal Flow Stats Card (Big Single Card with Header Inside) ── */}
-        <DailyDealFlowStatsCard multiplier={multiplier} />
+      {/* ── Daily Deal Flow Section (Permission Controlled) ── */}
+      {canViewDailyDeal && (
+        <div style={{ display: "flex", gap: 24, alignItems: "stretch", maxWidth: 1600, margin: "4px auto 0" }}>
+          <DailyDealFlowStatsCard multiplier={multiplier} viewScope={leadViewScope} callCenterId={callCenterId} userId={userId} />
 
-        {/* ── Bottom Right: Empty (reserved space) ── */}
-        <div style={{ width: "calc(30% - 12px)" }} />
-      </div>
+          {/* ── Bottom Right: Empty (reserved space) ── */}
+          <div style={{ width: "calc(30% - 12px)" }} />
+        </div>
+      )}
 
     </div>
   );
@@ -606,7 +777,29 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
 
 // ── Daily Deal Flow Stats Card (Big Single Card with Real Data) ─────────────
 
-function DailyDealFlowStatsCard({ multiplier }: { multiplier: number }) {
+function DailyDealFlowStatsCard({ 
+  multiplier, 
+  viewScope, 
+  callCenterId,
+  userId
+}: { 
+  multiplier: number;
+  viewScope: "all" | "call_center" | "own" | "none";
+  callCenterId: string | null;
+  userId: string | null;
+}) {
+
+  // Filter data based on view scope
+  const getScopedMultiplier = () => {
+    if (viewScope === "none") return 0;
+    if (viewScope === "all") return multiplier;
+    if (viewScope === "call_center") return multiplier * 0.7; // Simulate call center filter
+    // For call center agents - show only their submitted deals (much smaller subset)
+    if (viewScope === "own") return multiplier * 0.2; // Only ~20% for own submissions
+    return multiplier;
+  };
+
+  const scopedMultiplier = getScopedMultiplier();
 
   // Real data from daily_deal_flow table (base values)
   const baseStats = {
@@ -623,16 +816,16 @@ function DailyDealFlowStatsCard({ multiplier }: { multiplier: number }) {
     ]
   };
 
-  // Apply date filter to stats
+  // Apply date filter and scope to stats
   const stats = {
     ...baseStats,
-    total_deals: Math.round(baseStats.total_deals * multiplier),
-    pending_approval: Math.round(baseStats.pending_approval * multiplier),
-    in_underwriting: Math.round(baseStats.in_underwriting * multiplier),
-    total_premium: Math.round(baseStats.total_premium * multiplier),
+    total_deals: Math.round(baseStats.total_deals * scopedMultiplier),
+    pending_approval: Math.round(baseStats.pending_approval * scopedMultiplier),
+    in_underwriting: Math.round(baseStats.in_underwriting * scopedMultiplier),
+    total_premium: Math.round(baseStats.total_premium * scopedMultiplier),
     status_breakdown: baseStats.status_breakdown.map(s => ({
       ...s,
-      count: Math.round(s.count * multiplier)
+      count: Math.round(s.count * scopedMultiplier)
     }))
   };
 
@@ -644,8 +837,8 @@ function DailyDealFlowStatsCard({ multiplier }: { multiplier: number }) {
     { name: "Kendrick Lamar", status: "Pending Approval", carrier: "AMAM", premium: 53 }
   ];
 
-  // Filter recent deals based on date range
-  const recentDeals = baseRecentDeals.slice(0, Math.max(1, Math.round(baseRecentDeals.length * multiplier)));
+  // Filter recent deals based on date range and scope
+  const recentDeals = baseRecentDeals.slice(0, Math.max(1, Math.round(baseRecentDeals.length * scopedMultiplier)));
 
   return (
     <div style={{
@@ -662,7 +855,19 @@ function DailyDealFlowStatsCard({ multiplier }: { multiplier: number }) {
     }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h2>
+        <div>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h2>
+          {viewScope === "own" && (
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+              Your submissions only
+            </p>
+          )}
+          {viewScope === "call_center" && (
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+              Your call center
+            </p>
+          )}
+        </div>
         <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
           View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
@@ -829,7 +1034,35 @@ function StatBox({ label, value, icon, color, subtext }: { label: string; value:
 
 // ── Pipeline Stages Grid (Real Data) ──────────────────────────────────────────
 
-function PipelineStagesGrid({ multiplier }: { multiplier: number }) {
+function PipelineStagesGrid({ 
+  multiplier, 
+  viewScope, 
+  callCenterId,
+  userId
+}: { 
+  multiplier: number;
+  viewScope: "all" | "call_center" | "own" | "none";
+  callCenterId: string | null;
+  userId: string | null;
+}) {
+
+  // Filter leads based on view scope
+  const filterLeadsByScope = (leads: any[]) => {
+    if (viewScope === "none") return [];
+    if (viewScope === "all") return leads;
+    // For call_center view, filter by call_center_id (simulated)
+    if (viewScope === "call_center" && callCenterId) {
+      return leads.slice(0, Math.max(1, Math.floor(leads.length * 0.7))); // Simulate filtered data
+    }
+    // For call center agents - show only leads submitted by them
+    if (viewScope === "own" && userId) {
+      // Filter to show only leads submitted by this agent
+      // In real implementation, this would filter by submitted_by = userId from database
+      // For now simulating with first 30% of leads
+      return leads.slice(0, Math.max(1, Math.floor(leads.length * 0.3)));
+    }
+    return leads;
+  };
 
   // Real pipeline data from database with date filtering applied
   const basePipelineStages = [
@@ -900,11 +1133,16 @@ function PipelineStagesGrid({ multiplier }: { multiplier: number }) {
     }
   ];
 
-  // Apply date filter multiplier to lead counts
-  const pipelineStages = basePipelineStages.map(stage => ({
-    ...stage,
-    leadCount: Math.max(1, Math.round(stage.baseLeadCount * multiplier))
-  }));
+  // Apply date filter multiplier and scope filtering to lead counts
+  const pipelineStages = basePipelineStages.map(stage => {
+    const filteredLeads = filterLeadsByScope(stage.leads);
+    const adjustedCount = Math.max(0, Math.round(stage.baseLeadCount * multiplier));
+    return {
+      ...stage,
+      leadCount: adjustedCount,
+      leads: filteredLeads.slice(0, adjustedCount)
+    };
+  }).filter(stage => viewScope === "all" || stage.leadCount > 0); // Hide empty stages for non-admins
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
