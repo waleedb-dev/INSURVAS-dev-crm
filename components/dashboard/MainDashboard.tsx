@@ -37,6 +37,75 @@ const ANNOUNCEMENTS = [
   }
 ];
 
+// ── Recent Deals Data for ProjectCard ───────────────────────────────────────────
+const RECENT_DEALS_DATA = [
+  {
+    id: "DL-0001",
+    name: "Rizwan Ahmed - AMAM Policy",
+    created: "Apr 3, 2025",
+    priority: "High" as const,
+    allTasks: 5,
+    activeTasks: 2,
+    assignees: ["#638b4b", "#74a557"],
+    extraAssignees: 0,
+    emoji: "💰",
+    color: "#fef3c7",
+    tags: ["AMAM", "Pending"]
+  },
+  {
+    id: "DL-0002", 
+    name: "Waleed Shoaib - Aflac Coverage",
+    created: "Apr 2, 2025",
+    priority: "Medium" as const,
+    allTasks: 4,
+    activeTasks: 1,
+    assignees: ["#638b4b"],
+    extraAssignees: 1,
+    emoji: "🛡️",
+    color: "#dbeafe",
+    tags: ["Aflac", "Active"]
+  },
+  {
+    id: "DL-0003",
+    name: "Kendrick Lamar - Aetna Plan",
+    created: "Mar 30, 2025",
+    priority: "Low" as const,
+    allTasks: 3,
+    activeTasks: 3,
+    assignees: ["#94c278", "#4e6e3a"],
+    extraAssignees: 0,
+    emoji: "📋",
+    color: "#dcfce7",
+    tags: ["Aetna", "Complete"]
+  },
+  {
+    id: "DL-0004",
+    name: "Umar Test - American Home Life",
+    created: "Mar 28, 2025",
+    priority: "Medium" as const,
+    allTasks: 6,
+    activeTasks: 4,
+    assignees: ["#638b4b", "#74a557", "#94c278"],
+    extraAssignees: 2,
+    emoji: "🏠",
+    color: "#e0e7ff",
+    tags: ["AHL", "In Progress"]
+  },
+  {
+    id: "DL-0005",
+    name: "Dan Hooker - SSL Graded",
+    created: "Mar 27, 2025",
+    priority: "High" as const,
+    allTasks: 4,
+    activeTasks: 2,
+    assignees: ["#4e6e3a"],
+    extraAssignees: 0,
+    emoji: "⭐",
+    color: "#fee2e2",
+    tags: ["SSL", "Urgent"]
+  }
+];
+
 interface Props { onViewAllEvents: () => void; searchQuery: string; }
 
 type DatePreset = 'today' | 'yesterday' | '7' | '30' | '90' | 'thisMonth' | 'lastMonth' | 'custom';
@@ -759,10 +828,46 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
         </div>
       </div>
 
-      {/* ── Daily Deal Flow Section (Permission Controlled) ── */}
+      {/* ── Recent Deals Section (Permission Controlled) ── */}
       {canViewDailyDeal && (
         <div style={{ display: "flex", gap: 24, alignItems: "stretch", maxWidth: 1600, margin: "4px auto 0" }}>
-          <DailyDealFlowStatsCard multiplier={multiplier} viewScope={leadViewScope} callCenterId={callCenterId} userId={userId} />
+          <div style={{ 
+            width: "calc(70% - 12px)", 
+            backgroundColor: "#ffffff", 
+            borderRadius: T.radiusXl, 
+            border: `1.5px solid ${T.border}`, 
+            padding: "24px", 
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            minHeight: 400
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Recent Deals</h2>
+                {leadViewScope === "own" && (
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+                    Your submissions only
+                  </p>
+                )}
+                {leadViewScope === "call_center" && (
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+                    Your call center
+                  </p>
+                )}
+              </div>
+              <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {RECENT_DEALS_DATA.slice(0, Math.max(1, Math.round(RECENT_DEALS_DATA.length * multiplier))).map((deal) => (
+                <ProjectCard key={deal.id} {...deal} />
+              ))}
+            </div>
+          </div>
 
           {/* ── Bottom Right: Empty (reserved space) ── */}
           <div style={{ width: "calc(30% - 12px)" }} />
@@ -1321,3 +1426,76 @@ function StageCard({ stage }: { stage: any }) {
   );
 }
 
+
+// ── Project Card Component ────────────────────────────────────────────────────
+
+function ProjectCard({ id, name, created, priority, allTasks, activeTasks, assignees, extraAssignees, emoji, color }: any) {
+  return (
+    <div style={{
+      backgroundColor: "#fff", borderRadius: 20, overflow: "hidden",
+      border: `1.5px solid ${T.border}`,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+      display: "grid", gridTemplateColumns: "1.2fr 1fr 0.8fr",
+      alignItems: "stretch"
+    }}>
+      {/* Detail Section */}
+      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", gap: 16 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{emoji}</div>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: T.textMuted }}>{id}</p>
+          <h4 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: T.textDark }}>{name}</h4>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+             <div style={{ display: "flex", alignItems: "center", gap: 4, color: T.textMuted }}>
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+               <span style={{ fontSize: 11, fontWeight: 600 }}>Created {created}</span>
+             </div>
+             <div style={{ display: "flex", alignItems: "center", gap: 3, color: priority === "Low" ? "#16a34a" : "#ca8a04" }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d={priority === "Low" ? "M12 19V5M19 12l-7 7-7-7" : "M12 5v14M5 12l7-7 7 7"}/></svg>
+                <span style={{ fontSize: 11, fontWeight: 800 }}>{priority}</span>
+             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Section */}
+      <div style={{ padding: "20px 24px", borderRight: `1px solid ${T.borderLight}`, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Project Data</p>
+        <div style={{ display: "flex", gap: 24 }}>
+          <div>
+            <p style={{ margin: "0 0 4px", fontSize: 11, color: T.textMuted, fontWeight: 600 }}>All tasks</p>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{allTasks}</p>
+          </div>
+          <div>
+            <p style={{ margin: "0 0 4px", fontSize: 11, color: T.textMuted, fontWeight: 600 }}>Active tasks</p>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>{activeTasks}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Assignees Section */}
+      <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Assignees</p>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          {assignees.map((c: string, i: number) => (
+            <div key={i} style={{ 
+              width: 28, height: 28, borderRadius: "50%", backgroundColor: c, border: "2px solid #fff", 
+              marginLeft: i === 0 ? 0 : -8, zIndex: 10 - i,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#fff"
+            }}>
+              {["SS","RD","ET","LC"][i]}
+            </div>
+          ))}
+          {extraAssignees > 0 && (
+            <div style={{ 
+              width: 28, height: 28, borderRadius: "50%", backgroundColor: T.blueFaint, border: "2px solid #fff", 
+              marginLeft: -8, zIndex: 0, color: T.blue, fontSize: 10, fontWeight: 800,
+              display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              +{extraAssignees}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
