@@ -827,6 +827,7 @@ export default function CallCenterLeadIntakePage({
   const router = useRouter();
   const { permissionKeys, currentRole, setPageHeaderActions } = useDashboardContext();
   const canEditTransferLeads = permissionKeys.has("action.transfer_leads.edit");
+  const canEditLeadPipeline = permissionKeys.has("action.lead_pipeline.update");
   /** Overwrite the matched row: editors always; intake creators only for SSN match (duplicate resolution). */
   const canOverwriteDuplicateMatch = (match: DuplicateLeadMatch | null) =>
     Boolean(
@@ -2199,7 +2200,7 @@ export default function CallCenterLeadIntakePage({
     // Call center admins are explicitly blocked from editing
     const isCallCenterAdmin = currentRole === "call_center_admin";
     const canEditAsCallCenterAgent = isCallCenterAgentOnly; // Only agents, not admins
-    const effectiveCanEdit = canEditTransferLeads && !isCallCenterAdmin || canEditAsCallCenterAgent;
+    const effectiveCanEdit = (canEditTransferLeads || canEditLeadPipeline) && !isCallCenterAdmin || canEditAsCallCenterAgent;
     return (
       <>
         <LeadViewComponent

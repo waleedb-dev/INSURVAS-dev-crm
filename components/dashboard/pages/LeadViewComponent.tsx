@@ -50,14 +50,30 @@ interface LeadViewProps {
 type TabType = "Overview" | "Call updates" | "Notes" | "Policy & coverage";
 type PipelineOption = { id: number; name: string; stages: string[] };
 
-const TAB_CONFIG: { id: TabType; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
-  { id: "Overview", label: "Overview", icon: LayoutDashboard },
-  { id: "Call updates", label: "Call updates", icon: Phone },
-  { id: "Notes", label: "Notes", icon: FileText },
-  { id: "Policy & coverage", label: "Policy & coverage", icon: Shield },
-];
+// Build tab config dynamically based on permissions
+function useTabConfig(showPolicyTab: boolean): { id: TabType; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] {
+  return useMemo(() => {
+    const tabs: { id: TabType; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+      { id: "Overview", label: "Overview", icon: LayoutDashboard },
+      { id: "Call updates", label: "Call updates", icon: Phone },
+      { id: "Notes", label: "Notes", icon: FileText },
+    ];
+    if (showPolicyTab) {
+      tabs.push({ id: "Policy & coverage", label: "Policy & coverage", icon: Shield });
+    }
+    return tabs;
+  }, [showPolicyTab]);
+}
 
-function TabNavigation({ activeTab, onTabChange }: { activeTab: TabType; onTabChange: (tab: TabType) => void }) {
+function TabNavigation({
+  activeTab,
+  onTabChange,
+  tabs,
+}: {
+  activeTab: TabType;
+  onTabChange: (tab: TabType) => void;
+  tabs: { id: TabType; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[];
+}) {
   return (
     <div
       style={{
@@ -69,7 +85,7 @@ function TabNavigation({ activeTab, onTabChange }: { activeTab: TabType; onTabCh
         borderRadius: 10,
       }}
     >
-      {TAB_CONFIG.map((tab) => {
+      {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         const Icon = tab.icon;
         return (
@@ -320,10 +336,24 @@ export default function LeadViewComponent({
     // Use prop value if permissions are still loading
     if (permissionsLoading) return canEditLead ?? true;
     // Check Supabase permissions - has either lead_pipeline.update or transfer_leads.edit
-    const hasEditPermission = userPermissionKeys.has("action.lead_pipeline.update") || 
+    console.log("userPermissionKeys", userPermissionKeys);
+    const hasEditPermission = userPermissionKeys.has("action.lead_pipeline.update") ||
                               userPermissionKeys.has("action.transfer_leads.edit");
     return hasEditPermission;
   }, [permissionsLoading, canEditLead, userPermissionKeys]);
+
+  // Determine if Policy & coverage tab should be shown (requires edit permission)
+  const showPolicyTab = effectiveCanEditLead;
+
+  // Get dynamic tab config based on permissions
+  const tabConfig = useTabConfig(showPolicyTab);
+
+  // If active tab is Policy & coverage but user loses permission, switch to Overview
+  useEffect(() => {
+    if (activeTab === "Policy & coverage" && !showPolicyTab) {
+      setActiveTab("Overview");
+    }
+  }, [activeTab, showPolicyTab]);
 
   // Lead Edit Form hook
   const {
@@ -640,24 +670,21 @@ export default function LeadViewComponent({
   } as const;
 
   const convertToClientDisabled =
-    !effectiveCanEditLead ||
     !leadRow ||
     !rowUuid ||
     previewMode ||
     policyLoading ||
     policyRow != null;
 
-  const convertToClientTitle = !effectiveCanEditLead
-    ? "You do not have permission."
-    : previewMode
-      ? "Not available in preview."
-      : !rowUuid
-        ? "Lead must finish loading."
-        : policyLoading
-          ? "Loading policy…"
-          : policyRow
-            ? "Already converted — a policy is linked. See Policy & coverage."
-            : undefined;
+  const convertToClientTitle = previewMode
+    ? "Not available in preview."
+    : !rowUuid
+      ? "Lead must finish loading."
+      : policyLoading
+        ? "Loading policy…"
+        : policyRow
+          ? "Already converted — a policy is linked. See Policy & coverage."
+          : undefined;
 
   return (
     <div style={{ animation: "fadeIn 0.3s ease-out", color: T.textDark }}>
@@ -685,7 +712,7 @@ export default function LeadViewComponent({
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} tabs={tabConfig} />
         </div>
 
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -700,70 +727,74 @@ export default function LeadViewComponent({
             </>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                disabled={!effectiveCanEditLead || !leadRow}
-                title={!effectiveCanEditLead ? "You do not have permission to edit this lead." : undefined}
-                style={{
-                  border: `1px solid ${T.border}`,
-                  borderRadius: T.radiusMd,
-                  background: T.cardBg,
-                  color: "#233217",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  padding: "10px 20px",
-                  cursor: effectiveCanEditLead && leadRow ? "pointer" : "not-allowed",
-                  opacity: effectiveCanEditLead && leadRow ? 1 : 0.55,
-                  transition: "all 0.15s ease-in-out",
-                }}
-                onMouseEnter={(e) => {
-                  if (effectiveCanEditLead && leadRow) {
-                    e.currentTarget.style.backgroundColor = "#233217";
-                    e.currentTarget.style.color = "#fff";
-                    e.currentTarget.style.borderColor = "#233217";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = T.cardBg;
-                  e.currentTarget.style.color = "#233217";
-                  e.currentTarget.style.borderColor = T.border;
-                }}
-              >
-                Edit Lead
-              </button>
-              <button
-                type="button"
-                onClick={() => setConvertClientModalOpen(true)}
-                disabled={convertToClientDisabled}
-                title={convertToClientTitle}
-                style={{
-                  border: `1px solid ${convertToClientDisabled ? T.border : "#233217"}`,
-                  borderRadius: T.radiusMd,
-                  background: convertToClientDisabled ? T.cardBg : "#233217",
-                  color: convertToClientDisabled ? "#233217" : "#fff",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  padding: "10px 24px",
-                  cursor: convertToClientDisabled ? "not-allowed" : "pointer",
-                  opacity: convertToClientDisabled ? 0.65 : 1,
-                  transition: "all 0.15s ease-in-out",
-                }}
-                onMouseEnter={(e) => {
-                  if (!convertToClientDisabled) {
-                    e.currentTarget.style.backgroundColor = "#1a260f";
-                    e.currentTarget.style.borderColor = "#1a260f";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!convertToClientDisabled) {
-                    e.currentTarget.style.backgroundColor = "#233217";
-                    e.currentTarget.style.borderColor = "#233217";
-                  }
-                }}
-              >
-                Convert to Client
-              </button>
+              {effectiveCanEditLead && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  disabled={!leadRow}
+                  title={!leadRow ? "Lead must finish loading." : undefined}
+                  style={{
+                    border: `1px solid ${T.border}`,
+                    borderRadius: T.radiusMd,
+                    background: T.cardBg,
+                    color: "#233217",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    padding: "10px 20px",
+                    cursor: leadRow ? "pointer" : "not-allowed",
+                    opacity: leadRow ? 1 : 0.55,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (leadRow) {
+                      e.currentTarget.style.backgroundColor = "#233217";
+                      e.currentTarget.style.color = "#fff";
+                      e.currentTarget.style.borderColor = "#233217";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = T.cardBg;
+                    e.currentTarget.style.color = "#233217";
+                    e.currentTarget.style.borderColor = T.border;
+                  }}
+                >
+                  Edit Lead
+                </button>
+              )}
+              {effectiveCanEditLead && (
+                <button
+                  type="button"
+                  onClick={() => setConvertClientModalOpen(true)}
+                  disabled={convertToClientDisabled}
+                  title={convertToClientTitle}
+                  style={{
+                    border: `1px solid ${convertToClientDisabled ? T.border : "#233217"}`,
+                    borderRadius: T.radiusMd,
+                    background: convertToClientDisabled ? T.cardBg : "#233217",
+                    color: convertToClientDisabled ? "#233217" : "#fff",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    padding: "10px 24px",
+                    cursor: convertToClientDisabled ? "not-allowed" : "pointer",
+                    opacity: convertToClientDisabled ? 0.65 : 1,
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!convertToClientDisabled) {
+                      e.currentTarget.style.backgroundColor = "#1a260f";
+                      e.currentTarget.style.borderColor = "#1a260f";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!convertToClientDisabled) {
+                      e.currentTarget.style.backgroundColor = "#233217";
+                      e.currentTarget.style.borderColor = "#233217";
+                    }
+                  }}
+                >
+                  Convert to Client
+                </button>
+              )}
             </>
           )}
         </div>
@@ -776,7 +807,7 @@ export default function LeadViewComponent({
             {loadingLead ? (
               <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading lead data…</div>
             ) : leadRow ? (
-              <LeadSummaryCard lead={leadRow as LeadSummaryCardProps["lead"]} />
+              <LeadSummaryCard lead={leadRow as LeadSummaryCardProps["lead"]} canViewPolicy={effectiveCanEditLead} />
             ) : (
               <EmptyState title="No lead data" description="Unable to load lead information." />
             )}
@@ -1142,6 +1173,16 @@ function PolicyCoverageTab({
     );
   }
 
+  if (!canEditLead) {
+    return (
+      <LeadCard icon="🛡️" title="Policy & Coverage" subtitle="Access denied" collapsible={false}>
+        <div style={{ padding: 20, textAlign: "center", color: T.textMuted }}>
+          You do not have permission to view policy & coverage information.
+        </div>
+      </LeadCard>
+    );
+  }
+
   if (policyLoading) {
     return (
       <LeadCard icon="🛡️" title="Policy & Coverage" subtitle="Loading..." collapsible={false}>
@@ -1294,6 +1335,7 @@ interface LeadSummaryCardProps {
     licensed_agent_account?: string;
     lead_source?: string;
   };
+  canViewPolicy?: boolean;
 }
 
 function SectionHeader({ icon, title, subtitle }: { icon: string; title: string; subtitle?: string }) {
@@ -1316,7 +1358,7 @@ function SectionHeader({ icon, title, subtitle }: { icon: string; title: string;
 }
 
 
-function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
+function LeadSummaryCard({ lead, canViewPolicy = true }: LeadSummaryCardProps) {
   return (
     <div style={{
       display: "flex",
@@ -1375,34 +1417,36 @@ function LeadSummaryCard({ lead }: LeadSummaryCardProps) {
         </InfoGrid>
       </LeadCard>
 
-      {/* Section 3: Policy & Coverage Details */}
-      <LeadCard
-        icon="🛡️"
-        title="Policy & Coverage Details"
-        subtitle="Insurance product and financial information"
-      >
-        <InfoGrid columns={3}>
-          <InfoField label="Carrier" value={lead.carrier} />
-          <InfoField label="Product Type" value={lead.product_type} />
-          <InfoField label="Coverage Amount" value={formatCurrency(lead.coverage_amount)} />
-        </InfoGrid>
+      {/* Section 3: Policy & Coverage Details - only shown if user has permission */}
+      {canViewPolicy && (
+        <LeadCard
+          icon="🛡️"
+          title="Policy & Coverage Details"
+          subtitle="Insurance product and financial information"
+        >
+          <InfoGrid columns={3}>
+            <InfoField label="Carrier" value={lead.carrier} />
+            <InfoField label="Product Type" value={lead.product_type} />
+            <InfoField label="Coverage Amount" value={formatCurrency(lead.coverage_amount)} />
+          </InfoGrid>
 
-        <InfoGrid columns={3}>
-          <InfoField label="Monthly Premium" value={formatCurrency(lead.monthly_premium)} />
-          <InfoField label="Lead Value" value={formatCurrency(lead.lead_value)} />
-          <InfoField label="Beneficiary Info" value={lead.beneficiary_information} />
-        </InfoGrid>
+          <InfoGrid columns={3}>
+            <InfoField label="Monthly Premium" value={formatCurrency(lead.monthly_premium)} />
+            <InfoField label="Lead Value" value={formatCurrency(lead.lead_value)} />
+            <InfoField label="Beneficiary Info" value={lead.beneficiary_information} />
+          </InfoGrid>
 
-        <InfoGrid columns={3}>
-          <InfoField label="Draft Date" value={formatDate(lead.draft_date)} />
-          <InfoField label="Future Draft Date" value={formatDate(lead.future_draft_date)} />
-          <InfoField label="Lead Source" value={lead.lead_source} />
-        </InfoGrid>
+          <InfoGrid columns={3}>
+            <InfoField label="Draft Date" value={formatDate(lead.draft_date)} />
+            <InfoField label="Future Draft Date" value={formatDate(lead.future_draft_date)} />
+            <InfoField label="Lead Source" value={lead.lead_source} />
+          </InfoGrid>
 
-        <InfoGrid columns={1} bordered={false}>
-          <InfoField label="Additional Information" value={lead.additional_information} />
-        </InfoGrid>
-      </LeadCard>
+          <InfoGrid columns={1} bordered={false}>
+            <InfoField label="Additional Information" value={lead.additional_information} />
+          </InfoGrid>
+        </LeadCard>
+      )}
 
       {/* Section 4: Financial & System Metadata */}
       <LeadCard
