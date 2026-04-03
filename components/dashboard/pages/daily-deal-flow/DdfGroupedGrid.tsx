@@ -701,7 +701,7 @@ export function DdfGroupedGrid({
                   <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
                     <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Contact Information</h4>
                     <Input label="Phone Number" value={draft.client_phone_number || ""} disabled={!detailEditing} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} />
-                    <Input label="Lead Vendor" value={draft.lead_vendor || ""} disabled />
+                    <Input label="Lead Vendor" value={draft.lead_vendor || ""} disabled onChange={() => {}} />
                     <Input label="Insured Name" value={draft.insured_name || ""} disabled={!detailEditing} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} />
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 700 }}>Submission ID</label>
