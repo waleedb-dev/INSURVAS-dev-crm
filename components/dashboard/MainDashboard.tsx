@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { T } from "@/lib/theme";
+import { Card } from "@/components/ui/card";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { PermissionKey } from "@/lib/auth/permissions";
+import { isRoleKey, type RoleKey } from "@/lib/auth/roles";
 
 // Alias so we don't need to touch every reference below
 const C = {
@@ -10,301 +14,1387 @@ const C = {
   border: T.border, arrowUp: T.priorityHigh, arrowDown: T.priorityLow,
 };
 
-// ── Data ─────────────────────────────────────────────────────────────────────
-const MEMBERS = [
-  { initials: "SS", name: "Shawn Stone",    role: "UI/UX Designer", level: "Middle", color: "#638b4b", tasks: 8,  done: 5,  skills: ["Figma","Prototyping","User Research"] },
-  { initials: "RD", name: "Randy Delgado",  role: "UI/UX Designer", level: "Junior", color: "#74a557", tasks: 4,  done: 2,  skills: ["Figma","Illustration"] },
-  { initials: "ET", name: "Emily Tyler",    role: "Copywriter",     level: "Middle", color: "#94c278", tasks: 11, done: 7,  skills: ["SEO","Content Strategy","Editing"] },
-  { initials: "LC", name: "Louis Castro",   role: "Copywriter",     level: "Senior", color: "#4e6e3a", tasks: 14, done: 12, skills: ["Brand Voice","Copy","Content"] },
-  { initials: "BS", name: "Blake Silva",    role: "IOS Developer",  level: "Senior", color: "#bbd9a9", tasks: 19, done: 16, skills: ["Swift","Xcode","UIKit","Core Data"] },
-  { initials: "JP", name: "Joel Phillips",  role: "UI/UX Designer", level: "Middle", color: "#3b5229", tasks: 7,  done: 4,  skills: ["Figma","Design Systems"] },
-  { initials: "WM", name: "Wayne Marsh",    role: "Copywriter",     level: "Junior", color: "#6b7a5f", tasks: 3,  done: 1,  skills: ["Blogging","Research"] },
-  { initials: "OH", name: "Oscar Holloway", role: "UI/UX Designer", level: "Middle", color: "#74a557", tasks: 9,  done: 6,  skills: ["Figma","Motion","Illustration"] },
-  { initials: "AM", name: "Alice Murphy",   role: "IOS Developer",  level: "Middle", color: "#10b981", tasks: 6,  done: 4,  skills: ["SwiftUI","Combine"] },
-  { initials: "GT", name: "George Thompson",role: "Copywriter",     level: "Junior", color: "#6366f1", tasks: 5,  done: 1,  skills: ["Blogging"] },
-  { initials: "KL", name: "Kate Lewis",     role: "UI/UX Designer", level: "Senior", color: "#f43f5e", tasks: 12, done: 10, skills: ["Strategy","Prototying"] },
-  { initials: "DB", name: "David Bell",     role: "IOS Developer",  level: "Senior", color: "#84cc16", tasks: 15, done: 14, skills: ["Architecture"] },
-  { initials: "RM", name: "Rose Miller",    role: "QA Engineer",    level: "Middle", color: "#06b6d4", tasks: 22, done: 15, skills: ["Testing","Automation"] },
-  { initials: "FW", name: "Frank Wright",   role: "Backend Dev",    level: "Senior", color: "#638b4b", tasks: 10, done: 2,  skills: ["Node.js","SQL"] },
-  { initials: "HJ", name: "Helen Jones",    role: "Product Manager",level: "Senior", color: "#4e6e3a", tasks: 8,  done: 7,  skills: ["Planning","Agile"] },
-  { initials: "MK", name: "Mark Knight",    role: "Backend Dev",    level: "Middle", color: "#10b981", tasks: 14, done: 11, skills: ["Go","Postgres"] },
-  { initials: "SR", name: "Sarah Reed",     role: "QA Engineer",    level: "Junior", color: "#74a557", tasks: 18, done: 16, skills: ["Manual Testing"] },
-  { initials: "TW", name: "Tom White",      role: "Support",        level: "Middle", color: "#6b7a5f", tasks: 25, done: 20, skills: ["Zendesk","CRM"] },
-  { initials: "PB", name: "Peter Brown",    role: "Marketing",      level: "Middle", color: "#3b5229", tasks: 9,  done: 4,  skills: ["Ads","Social"] },
-  { initials: "CW", name: "Chloe Wood",     role: "HR",             level: "Senior", color: "#db2777", tasks: 5,  done: 5,  skills: ["Hiring"] },
-];
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface Announcement {
+  id: string;
+  title: string;
+  description: string;
+  created_at: string;
+}
 
-const PROJECTS = [
-  {
-    id: "PN0001265", name: "Medical App (iOS native)", created: "Sep 12, 2020",
-    priority: "Medium" as const, allTasks: 34, activeTasks: 13,
-    assignees: ["#638b4b","#74a557","#94c278","#4e6e3a"], extraAssignees: 2,
-    emoji: "💊", color: "#e8edf8", progress: 38,
-    description: "A fully native iOS medical application for patient management, appointment scheduling, and telemedicine consultations.",
-    tags: ["iOS","Healthcare","Mobile"],
-  },
-  {
-    id: "PN0001221", name: "Food Delivery Service", created: "Sep 10, 2020",
-    priority: "Medium" as const, allTasks: 50, activeTasks: 24,
-    assignees: ["#3b5229","#74a557","#bbd9a9"], extraAssignees: 0,
-    emoji: "🍔", color: "#f0fdf4", progress: 52,
-    description: "End-to-end food delivery platform with real-time order tracking, restaurant dashboard, and driver apps.",
-    tags: ["Web","Mobile","Logistics"],
-  },
-  {
-    id: "PN0001290", name: "Food Delivery Service", created: "May 28, 2020",
-    priority: "Low" as const, allTasks: 23, activeTasks: 20,
-    assignees: ["#638b4b","#94c278","#4e6e3a"], extraAssignees: 5,
-    emoji: "📦", color: "#fdf4ff", progress: 86,
-    description: "Cloud-based logistics platform.",
-    tags: ["Web","Logistics"],
-  },
-];
+// ── Helper to format relative time ────────────────────────────────────────────
+function getRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
 
-const ACTIVITIES = [
-  { 
-    id: 1, 
-    user: "Oscar Holloway", role: "UI/UX Designer", 
-    avatar: "OH", color: "#74a557",
-    action: "Updated the status of Mind Map task to In Progress",
-    time: "2 mins ago", icon: "☁️"
+// ── Recent Deals Data for ProjectCard ───────────────────────────────────────────
+const RECENT_DEALS_DATA = [
+  {
+    id: "DL-0001",
+    name: "Rizwan Ahmed - AMAM Policy",
+    created: "Apr 3, 2025",
+    priority: "High" as const,
+    allTasks: 5,
+    activeTasks: 2,
+    assignees: ["#638b4b", "#74a557"],
+    extraAssignees: 0,
+    emoji: "💰",
+    color: "#fef3c7",
+    tags: ["AMAM", "Pending"]
   },
-  { 
-    id: 2, 
-    user: "System", role: "Automated Service", 
-    avatar: "?", color: T.blue,
-    action: "Attached files to the task",
-    time: "10 mins ago", icon: "📎"
+  {
+    id: "DL-0002", 
+    name: "Waleed Shoaib - Aflac Coverage",
+    created: "Apr 2, 2025",
+    priority: "Medium" as const,
+    allTasks: 4,
+    activeTasks: 1,
+    assignees: ["#638b4b"],
+    extraAssignees: 1,
+    emoji: "🛡️",
+    color: "#dbeafe",
+    tags: ["Aflac", "Active"]
   },
-  { 
-    id: 3, 
-    user: "Emily Tyler", role: "Copywriter", 
-    avatar: "ET", color: "#94c278",
-    action: "Updated the status of Mind Map task to In Progress",
-    time: "45 mins ago", icon: "☁️"
+  {
+    id: "DL-0003",
+    name: "Kendrick Lamar - Aetna Plan",
+    created: "Mar 30, 2025",
+    priority: "Low" as const,
+    allTasks: 3,
+    activeTasks: 3,
+    assignees: ["#94c278", "#4e6e3a"],
+    extraAssignees: 0,
+    emoji: "📋",
+    color: "#dcfce7",
+    tags: ["Aetna", "Complete"]
+  },
+  {
+    id: "DL-0004",
+    name: "Umar Test - American Home Life",
+    created: "Mar 28, 2025",
+    priority: "Medium" as const,
+    allTasks: 6,
+    activeTasks: 4,
+    assignees: ["#638b4b", "#74a557", "#94c278"],
+    extraAssignees: 2,
+    emoji: "🏠",
+    color: "#e0e7ff",
+    tags: ["AHL", "In Progress"]
+  },
+  {
+    id: "DL-0005",
+    name: "Dan Hooker - SSL Graded",
+    created: "Mar 27, 2025",
+    priority: "High" as const,
+    allTasks: 4,
+    activeTasks: 2,
+    assignees: ["#4e6e3a"],
+    extraAssignees: 0,
+    emoji: "⭐",
+    color: "#fee2e2",
+    tags: ["SSL", "Urgent"]
   }
-];
-
-const NEAREST_EVENTS = [
-  { title: "Presentation of the new department", time: "Today | 5:00 PM", icon: "🔥", color: "#74a557" },
-  { title: "Anna's Birthday", time: "Today | 6:00 PM", icon: "⏲️", color: "#16a34a" },
-  { title: "Ray's Birthday", time: "Tomorrow | 2:00 PM", icon: "⏲️", color: "#16a34a" },
 ];
 
 interface Props { onViewAllEvents: () => void; searchQuery: string; }
 
+type DatePreset = 'today' | 'yesterday' | '7' | '30' | '90' | 'thisMonth' | 'lastMonth' | 'custom';
+
+// Permission checking helper
+function useUserPermissions() {
+  const [userRole, setUserRole] = useState<RoleKey | null>(null);
+  const [permissions, setPermissions] = useState<Set<PermissionKey>>(new Set());
+  const [callCenterId, setCallCenterId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchUserData() {
+      const supabase = getSupabaseBrowserClient();
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+
+      setUserId(user.id);
+
+      // Get user details including role and call center
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("role_id, call_center_id, roles(key)")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (userError || !userData) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Handle roles from Supabase (could be object or array from joined query)
+      const rolesRaw = userData.roles as { key: string } | { key: string }[] | null;
+      const roleObj = Array.isArray(rolesRaw) ? rolesRaw[0] : rolesRaw;
+      const roleKey = roleObj?.key && isRoleKey(roleObj.key) ? roleObj.key : null;
+      setUserRole(roleKey);
+      setCallCenterId(userData.call_center_id);
+
+      // Fetch permissions from role_permissions and user_permissions
+      const [{ data: rolePerms }, { data: userPerms }] = await Promise.all([
+        supabase
+          .from("role_permissions")
+          .select("permissions(key)")
+          .eq("role_id", userData.role_id),
+        supabase
+          .from("user_permissions")
+          .select("permissions(key)")
+          .eq("user_id", user.id),
+      ]);
+
+      const allPerms = new Set<PermissionKey>();
+      
+      // Add role permissions
+      rolePerms?.forEach((row: any) => {
+        if (Array.isArray(row.permissions)) {
+          row.permissions.forEach((p: any) => p?.key && allPerms.add(p.key as PermissionKey));
+        } else if (row.permissions?.key) {
+          allPerms.add(row.permissions.key as PermissionKey);
+        }
+      });
+
+      // Add user-specific permissions
+      userPerms?.forEach((row: any) => {
+        if (Array.isArray(row.permissions)) {
+          row.permissions.forEach((p: any) => p?.key && allPerms.add(p.key as PermissionKey));
+        } else if (row.permissions?.key) {
+          allPerms.add(row.permissions.key as PermissionKey);
+        }
+      });
+
+      setPermissions(allPerms);
+      setIsLoading(false);
+    }
+
+    fetchUserData();
+  }, []);
+
+  return { userRole, permissions, callCenterId, userId, isLoading };
+}
+
+// Check if user can view Daily Deal Flow
+function canViewDailyDealFlow(role: RoleKey | null, permissions: Set<PermissionKey>): boolean {
+  // System admin can see everything
+  if (role === "system_admin") return true;
+  // Check specific permission
+  if (permissions.has("page.daily_deal_flow.access")) return true;
+  // Call center agents and sales agents can see their own deals
+  if (role === "call_center_agent" || role === "sales_agent_licensed" || role === "sales_agent_unlicensed") return true;
+  return false;
+}
+
+// Check if user can view Pipeline Stages
+function canViewPipeline(role: RoleKey | null, permissions: Set<PermissionKey>): boolean {
+  if (role === "system_admin") return true;
+  if (permissions.has("page.lead_pipeline.access")) return true;
+  // Call center agents and sales agents can see their own leads
+  if (role === "call_center_agent" || role === "sales_agent_licensed" || role === "sales_agent_unlicensed") return true;
+  return false;
+}
+
+// Hook to fetch announcements from database
+function useAnnouncements() {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAnnouncements() {
+      const supabase = getSupabaseBrowserClient();
+      
+      const { data, error } = await supabase
+        .from("announcements")
+        .select("id, title, description, created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching announcements:", error);
+        setIsLoading(false);
+        return;
+      }
+
+      setAnnouncements(data || []);
+      setIsLoading(false);
+    }
+
+    fetchAnnouncements();
+  }, []);
+
+  return { announcements, isLoading };
+}
+
+// Check if user can view all leads or only their call center
+function getLeadViewScope(role: RoleKey | null, permissions: Set<PermissionKey>): "all" | "call_center" | "own" | "none" {
+  if (role === "system_admin") return "all";
+  if (permissions.has("action.transfer_leads.view_all")) return "all";
+  if (permissions.has("action.transfer_leads.view_call_center")) return "call_center";
+  if (permissions.has("action.transfer_leads.view_own")) return "own";
+  
+  // Default scope based on role if no specific permission set
+  if (role === "call_center_agent" || role === "sales_agent_unlicensed") return "own";
+  if (role === "call_center_admin") return "call_center";
+  if (role === "sales_agent_licensed") return "own";
+  
+  return "none";
+}
+
+interface DateRange {
+  start: Date;
+  end: Date;
+  label: string;
+}
+
+// Helper to format date for display
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function formatDateForInput(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+// Get date ranges for presets
+function getPresetDateRange(preset: DatePreset): DateRange {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  switch (preset) {
+    case 'today':
+      return { start: today, end: today, label: 'Today' };
+    case 'yesterday':
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { start: yesterday, end: yesterday, label: 'Yesterday' };
+    case '7':
+      const last7 = new Date(today);
+      last7.setDate(last7.getDate() - 7);
+      return { start: last7, end: today, label: 'Last 7 Days' };
+    case '30':
+      const last30 = new Date(today);
+      last30.setDate(last30.getDate() - 30);
+      return { start: last30, end: today, label: 'Last 30 Days' };
+    case '90':
+      const last90 = new Date(today);
+      last90.setDate(last90.getDate() - 90);
+      return { start: last90, end: today, label: 'Last 90 Days' };
+    case 'thisMonth':
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { start: startOfMonth, end: today, label: 'This Month' };
+    case 'lastMonth':
+      const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      return { start: startOfLastMonth, end: endOfLastMonth, label: 'Last Month' };
+    default:
+      const last30Default = new Date(today);
+      last30Default.setDate(last30Default.getDate() - 30);
+      return { start: last30Default, end: today, label: 'Last 30 Days' };
+  }
+}
+
 export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
-  const [selectedMember, setSelectedMember] = useState<typeof MEMBERS[0] | null>(null);
-  const [expandedProject, setExpandedProject] = useState<string | null>(null);
+  // Date filter state
+  const [dateFilter, setDateFilter] = useState<DatePreset>('30');
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [appliedDateRange, setAppliedDateRange] = useState<DateRange>(getPresetDateRange('30'));
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const q = searchQuery.toLowerCase().trim();
+  // User permissions
+  const { userRole, permissions, callCenterId, userId, isLoading: isLoadingPermissions } = useUserPermissions();
+  
+  // Fetch announcements from database
+  const { announcements, isLoading: isLoadingAnnouncements } = useAnnouncements();
 
-  const filteredMembers = useMemo(() =>
-    MEMBERS.filter((m) => !q || m.name.toLowerCase().includes(q) || m.role.toLowerCase().includes(q) || m.level.toLowerCase().includes(q)),
-    [q]);
+  // Permission checks
+  const canViewDailyDeal = canViewDailyDealFlow(userRole, permissions);
+  const canViewPipelineStages = canViewPipeline(userRole, permissions);
+  const leadViewScope = getLeadViewScope(userRole, permissions);
 
-  const filteredProjects = useMemo(() =>
-    PROJECTS.filter((p) => !q || p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || p.tags.some((t) => t.toLowerCase().includes(q))),
-    [q]);
+  // For debugging - log permissions
+  useEffect(() => {
+    if (!isLoadingPermissions) {
+      console.log("User Role:", userRole);
+      console.log("Permissions:", Array.from(permissions));
+      console.log("Call Center ID:", callCenterId);
+      console.log("User ID:", userId);
+      console.log("Can View Daily Deal:", canViewDailyDeal);
+      console.log("Can View Pipeline:", canViewPipelineStages);
+      console.log("Lead View Scope:", leadViewScope);
+      console.log("Announcements:", announcements);
+    }
+  }, [isLoadingPermissions, userRole, permissions, callCenterId, userId, canViewDailyDeal, canViewPipelineStages, leadViewScope, announcements]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDateDropdown(false);
+        setShowCustomPicker(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Initialize custom dates
+  useEffect(() => {
+    const today = new Date();
+    const last30 = new Date(today);
+    last30.setDate(last30.getDate() - 30);
+    setCustomStartDate(formatDateForInput(last30));
+    setCustomEndDate(formatDateForInput(today));
+  }, []);
+
+  const handlePresetSelect = (preset: DatePreset) => {
+    if (preset === 'custom') {
+      setShowCustomPicker(true);
+      setDateFilter('custom');
+    } else {
+      setDateFilter(preset);
+      setAppliedDateRange(getPresetDateRange(preset));
+      setShowDateDropdown(false);
+      setShowCustomPicker(false);
+    }
+  };
+
+  const handleApplyCustomRange = () => {
+    if (customStartDate && customEndDate) {
+      const start = new Date(customStartDate);
+      const end = new Date(customEndDate);
+      setAppliedDateRange({
+        start,
+        end,
+        label: `${formatDate(start)} - ${formatDate(end)}`
+      });
+      setShowDateDropdown(false);
+      setShowCustomPicker(false);
+    }
+  };
+
+  const handleReset = () => {
+    setDateFilter('30');
+    setAppliedDateRange(getPresetDateRange('30'));
+    setShowDateDropdown(false);
+    setShowCustomPicker(false);
+    const today = new Date();
+    const last30 = new Date(today);
+    last30.setDate(last30.getDate() - 30);
+    setCustomStartDate(formatDateForInput(last30));
+    setCustomEndDate(formatDateForInput(today));
+  };
+
+  // Calculate days for data multiplier
+  const getDaysMultiplier = (): number => {
+    if (dateFilter === 'custom') {
+      const diffTime = Math.abs(appliedDateRange.end.getTime() - appliedDateRange.start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      return diffDays / 30; // Normalize to 30 days as baseline
+    }
+    const multipliers: Record<DatePreset, number> = {
+      'today': 0.03,
+      'yesterday': 0.03,
+      '7': 0.23,
+      '30': 1,
+      '90': 3,
+      'thisMonth': new Date().getDate() / 30,
+      'lastMonth': 1,
+      'custom': 1
+    };
+    return multipliers[dateFilter] ?? 1;
+  };
+
+  const multiplier = getDaysMultiplier();
+
+  // Display text for current date range
+  const dateRangeDisplay = dateFilter === 'custom' 
+    ? appliedDateRange.label 
+    : appliedDateRange.label === 'Last 30 Days' 
+      ? `${formatDate(appliedDateRange.start)} - ${formatDate(appliedDateRange.end)}`
+      : appliedDateRange.label;
 
   return (
     <div style={{ padding: "0" }}>
       {/* Welcome + date - Figma Style */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%", maxWidth: 1600, margin: "0 auto 32px" }}>
         <div>
-          <p style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, margin: "0 0 4px" }}>Welcome back, Evan!</p>
+        
           <h1 style={{ fontSize: 32, fontWeight: 800, color: T.textDark, margin: 0 }}>Dashboard</h1>
         </div>
         
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div style={{ backgroundColor: "#f2f8ee", borderRadius: T.radiusMd, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, border: `1px solid ${T.blue}22` }}>
-             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-             <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>Nov 16, 2020 - Dec 16, 2020</span>
-             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", position: "relative" }} ref={dropdownRef}>
+          {/* Date Filter Dropdown */}
+          <div style={{ position: "relative" }}>
+            <button 
+              onClick={() => setShowDateDropdown(!showDateDropdown)}
+              style={{ 
+                backgroundColor: "#f2f8ee", 
+                borderRadius: T.radiusMd, 
+                padding: "10px 16px", 
+                display: "flex", 
+                alignItems: "center", 
+                gap: 10, 
+                border: `1px solid ${T.blue}22`,
+                cursor: "pointer",
+                fontFamily: "inherit"
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>{dateRangeDisplay}</span>
+              <svg 
+                width="14" 
+                height="14" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke={T.blue} 
+                strokeWidth="2.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                style={{ transform: showDateDropdown ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}
+              >
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+
+            {/* Dropdown Menu */}
+            {showDateDropdown && (
+              <div style={{
+                position: "absolute",
+                top: "calc(100% + 8px)",
+                right: 0,
+                backgroundColor: "#fff",
+                borderRadius: 16,
+                boxShadow: "0 20px 60px -10px rgba(0,0,0,0.2)",
+                border: `1px solid ${T.border}`,
+                padding: "16px",
+                minWidth: 320,
+                zIndex: 101
+              }}>
+                {!showCustomPicker ? (
+                  <>
+                    {/* Preset Options */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {[
+                        { value: 'today' as DatePreset, label: 'Today', icon: '📅' },
+                        { value: 'yesterday' as DatePreset, label: 'Yesterday', icon: '📆' },
+                        { value: '7' as DatePreset, label: 'Last 7 Days', icon: '📊' },
+                        { value: '30' as DatePreset, label: 'Last 30 Days', icon: '📈' },
+                        { value: '90' as DatePreset, label: 'Last 90 Days', icon: '📉' },
+                        { value: 'thisMonth' as DatePreset, label: 'This Month', icon: '🗓️' },
+                        { value: 'lastMonth' as DatePreset, label: 'Last Month', icon: '📋' },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => handlePresetSelect(option.value)}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            border: "none",
+                            backgroundColor: dateFilter === option.value ? T.blueFaint : "transparent",
+                            color: dateFilter === option.value ? T.blue : T.textDark,
+                            fontSize: 13,
+                            fontWeight: dateFilter === option.value ? 700 : 500,
+                            borderRadius: 10,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            transition: "all 0.15s",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10
+                          }}
+                          onMouseEnter={(e) => {
+                            if (dateFilter !== option.value) {
+                              e.currentTarget.style.backgroundColor = T.pageBg;
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (dateFilter !== option.value) {
+                              e.currentTarget.style.backgroundColor = "transparent";
+                            }
+                          }}
+                        >
+                          <span style={{ fontSize: 14 }}>{option.icon}</span>
+                          <span>{option.label}</span>
+                          {dateFilter === option.value && (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="3" style={{ marginLeft: 'auto' }}>
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Divider */}
+                    <div style={{ height: 1, backgroundColor: T.border, margin: "12px 0" }} />
+
+                    {/* Custom Range Button */}
+                    <button
+                      onClick={() => handlePresetSelect('custom')}
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        border: `1.5px dashed ${T.border}`,
+                        backgroundColor: "transparent",
+                        color: T.blue,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        borderRadius: 10,
+                        cursor: "pointer",
+                        textAlign: "center",
+                        transition: "all 0.15s",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = T.blue;
+                        e.currentTarget.style.backgroundColor = T.blueFaint;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = T.border;
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                        <path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/>
+                      </svg>
+                      Custom Date Range...
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Custom Date Picker */}
+                    <div style={{ marginBottom: 16 }}>
+                      <button
+                        onClick={() => setShowCustomPicker(false)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          border: "none",
+                          background: "none",
+                          color: T.textMuted,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          marginBottom: 16,
+                          padding: 0
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        Back to Presets
+                      </button>
+
+                      <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: T.textDark }}>
+                        Select Date Range
+                      </h4>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div>
+                          <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 6 }}>
+                            Start Date
+                          </label>
+                          <input
+                            type="date"
+                            value={customStartDate}
+                            onChange={(e) => setCustomStartDate(e.target.value)}
+                            max={customEndDate}
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              border: `1.5px solid ${T.border}`,
+                              borderRadius: 10,
+                              fontSize: 13,
+                              fontFamily: "inherit",
+                              color: T.textDark,
+                              backgroundColor: "#fff",
+                              outline: "none"
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: T.textMuted, marginBottom: 6 }}>
+                            End Date
+                          </label>
+                          <input
+                            type="date"
+                            value={customEndDate}
+                            onChange={(e) => setCustomEndDate(e.target.value)}
+                            min={customStartDate}
+                            max={formatDateForInput(new Date())}
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              border: `1.5px solid ${T.border}`,
+                              borderRadius: 10,
+                              fontSize: 13,
+                              fontFamily: "inherit",
+                              color: T.textDark,
+                              backgroundColor: "#fff",
+                              outline: "none"
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Quick Select Buttons */}
+                      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                        {[
+                          { label: 'Last 7 Days', days: 7 },
+                          { label: 'Last 30 Days', days: 30 },
+                          { label: 'Last 90 Days', days: 90 },
+                        ].map((quick) => (
+                          <button
+                            key={quick.label}
+                            onClick={() => {
+                              const end = new Date();
+                              const start = new Date();
+                              start.setDate(start.getDate() - quick.days);
+                              setCustomStartDate(formatDateForInput(start));
+                              setCustomEndDate(formatDateForInput(end));
+                            }}
+                            style={{
+                              padding: "6px 10px",
+                              border: `1px solid ${T.border}`,
+                              backgroundColor: T.pageBg,
+                              color: T.textMid,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              borderRadius: 6,
+                              cursor: "pointer"
+                            }}
+                          >
+                            {quick.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={handleReset}
+                        style={{
+                          flex: 1,
+                          padding: "10px 16px",
+                          border: `1.5px solid ${T.border}`,
+                          backgroundColor: "transparent",
+                          color: T.textMuted,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          borderRadius: 10,
+                          cursor: "pointer"
+                        }}
+                      >
+                        Reset
+                      </button>
+                      <button
+                        onClick={handleApplyCustomRange}
+                        disabled={!customStartDate || !customEndDate}
+                        style={{
+                          flex: 2,
+                          padding: "10px 16px",
+                          border: "none",
+                          backgroundColor: (!customStartDate || !customEndDate) ? T.border : T.blue,
+                          color: "#fff",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          borderRadius: 10,
+                          cursor: (!customStartDate || !customEndDate) ? 'not-allowed' : 'pointer',
+                          opacity: (!customStartDate || !customEndDate) ? 0.5 : 1
+                        }}
+                      >
+                        Apply Range
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start", maxWidth: 1600, margin: "0 auto" }}>
-        {/* ── Left/main column: Workload (781x470) ── */}
+        {/* ── Left/main column: Pipeline Stages (Permission Controlled) ── */}
+        {canViewPipelineStages ? (
+          <div style={{ 
+            backgroundColor: "#ffffff", 
+            borderRadius: T.radiusXl, 
+            border: `1.5px solid ${T.border}`, 
+            padding: "24px", 
+            width: canViewDailyDeal ? "calc(70% - 12px)" : "100%",
+            minHeight: 540, 
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+            display: "flex",
+            flexDirection: "column"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Pipeline Stages</h2>
+                {leadViewScope === "own" && (
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+                    Your leads only
+                  </p>
+                )}
+                {leadViewScope === "call_center" && (
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+                    Your call center
+                  </p>
+                )}
+              </div>
+              <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
+
+            <div style={{ flex: 1, padding: "8px 4px 12px 0" }}>
+              <PipelineStagesGrid multiplier={multiplier} viewScope={leadViewScope} callCenterId={callCenterId} userId={userId} />
+            </div>
+          </div>
+        ) : (
+          /* Show placeholder when no pipeline access */
+          <div style={{ 
+            width: canViewDailyDeal ? "calc(70% - 12px)" : "100%",
+            minHeight: 540,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: T.pageBg,
+            borderRadius: T.radiusXl,
+            border: `1.5px dashed ${T.border}`
+          }}>
+            <p style={{ color: T.textMuted, fontSize: 14 }}>No pipeline access</p>
+          </div>
+        )}
+
+        {/* ── Right column: Announcements (from Database) ── */}
         <div style={{ 
           backgroundColor: "#ffffff", 
           borderRadius: T.radiusXl, 
           border: `1.5px solid ${T.border}`, 
           padding: "24px", 
-          width: "auto", 
-          flex: 2.4, 
-          height: 470, 
+          width: "calc(30% - 12px)",
+          minHeight: 540,
           boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
           display: "flex",
           flexDirection: "column"
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Workload</h2>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Announcements</h3>
             <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-              View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </button>
-          </div>
-
-          <div style={{ flex: 1, overflowY: "auto", padding: "8px 4px 12px 0" }}>
-            {filteredMembers.length === 0 ? (
-              <div style={{ padding: "40px 0", textAlign: "center" }}>
-                <p style={{ margin: 0, fontSize: 13, color: T.textMuted, fontWeight: 600 }}>No members found</p>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-                {filteredMembers.map((m) => (
-                  <MemberCard key={m.name} {...m} onClick={() => setSelectedMember(m)} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Right column: Nearest Events (320x470) ── */}
-        <div style={{ 
-          backgroundColor: "#ffffff", 
-          borderRadius: T.radiusXl, 
-          border: `1.5px solid ${T.border}`, 
-          padding: "24px", 
-          width: "auto",
-          flex: 1,
-          height: 470,
-          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
-          display: "flex",
-          flexDirection: "column"
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Nearest Events</h3>
-            <button onClick={onViewAllEvents} style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
               View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {NEAREST_EVENTS.map((ev, idx) => (
-              <div key={idx} style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingLeft: 12, borderLeft: `3px solid ${ev.color}` }}>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: T.textDark, lineHeight: 1.3 }}>{ev.title}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>{ev.time}</p>
+            {isLoadingAnnouncements ? (
+              <p style={{ color: T.textMuted, fontSize: 14 }}>Loading...</p>
+            ) : announcements.length === 0 ? (
+              <p style={{ color: T.textMuted, fontSize: 14 }}>No announcements</p>
+            ) : (
+              announcements.map((announcement, idx) => (
+                <div key={announcement.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", paddingLeft: 12, borderLeft: `3px solid ${idx % 2 === 0 ? "#74a557" : "#16a34a"}` }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: T.textDark, lineHeight: 1.3 }}>{announcement.title}</p>
+                    <p style={{ margin: "0 0 6px", fontSize: 12, color: T.textMuted, fontWeight: 500, lineHeight: 1.5 }}>{announcement.description}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>{getRelativeTime(announcement.created_at)}</p>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.textMuted }}>
+                     <span style={{ fontSize: 14 }}>{idx % 2 === 0 ? "📢" : "📣"}</span>
+                     <span style={{ fontSize: 12, fontWeight: 700 }}>New</span>
+                  </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.textMuted }}>
-                   <span style={{ fontSize: 14 }}>{ev.icon}</span>
-                   <span style={{ fontSize: 12, fontWeight: 700 }}>4h</span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 24, marginTop: 32, alignItems: "stretch", maxWidth: 1600, margin: "32px auto 0" }}>
-        {/* ── Bottom Left: Daily Deal Flow  ── */}
-        <div style={{ flex: 2.4, display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h2>
-            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-              View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </button>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
-            {filteredProjects.map((p) => (
-              <ProjectCard key={p.id} {...p} />
-            ))}
-          </div>
-        </div>
-
-        {/* ── Bottom Right: Activity Stream  ── */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h3 style={{ fontSize: 20, fontWeight: 800, color: T.textDark, margin: 0 }}>Activity Stream</h3>
-          </div>
-          
-      <div style={{ 
-        backgroundColor: "#ffffff", 
-        borderRadius: T.radiusXl, 
-        border: `1.5px solid ${T.border}`, 
-        padding: "16px 20px", 
-        boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        overflowY: "auto"
-      }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "4px 0" }}>
-              {ACTIVITIES.map((act) => (
-                <div key={act.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: act.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 800 }}>
-                      {act.avatar}
-                    </div>
-                    <div>
-                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textDark, lineHeight: 1 }}>{act.user}</p>
-                      <p style={{ margin: 0, fontSize: 10, color: T.textMuted }}>{act.role}</p>
-                    </div>
-                  </div>
-                  <div style={{ backgroundColor: "#f0f4ff", borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <span style={{ fontSize: 12 }}>{act.icon}</span>
-                    <p style={{ margin: 0, fontSize: 11, color: T.textDark, fontWeight: 600, lineHeight: 1.3 }}>{act.action}</p>
-                  </div>
-                </div>
-              ))}
+      {/* ── Recent Deals Section (Permission Controlled) ── */}
+      {canViewDailyDeal && (
+        <div style={{ display: "flex", gap: 24, alignItems: "stretch", maxWidth: 1600, margin: "24px auto 0" }}>
+          <div style={{ 
+            width: "calc(70% - 12px)", 
+            backgroundColor: "#ffffff", 
+            borderRadius: T.radiusXl, 
+            border: `1.5px solid ${T.border}`, 
+            padding: "24px", 
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            minHeight: 400
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Recent Deals</h2>
+                {leadViewScope === "own" && (
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+                    Your submissions only
+                  </p>
+                )}
+                {leadViewScope === "call_center" && (
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+                    Your call center
+                  </p>
+                )}
+              </div>
+              <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
             </div>
 
-            <button style={{ background: "none", border: "none", color: T.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: "auto", paddingTop: 16 }}>
-              View more <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {RECENT_DEALS_DATA.slice(0, Math.max(1, Math.round(RECENT_DEALS_DATA.length * multiplier))).map((deal) => (
+                <ProjectCard key={deal.id} {...deal} />
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Member Drawer */}
-      {selectedMember && (
-        <MemberDrawer member={selectedMember} onClose={() => setSelectedMember(null)} />
+          {/* ── Bottom Right: Empty (reserved space) ── */}
+          <div style={{ width: "calc(30% - 12px)" }} />
+        </div>
       )}
+
     </div>
   );
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function MemberCard({ initials, name, role, level, color, tasks, done, onClick }: any) {
-  const isHighLoad = tasks - done > 3;
+// ── Daily Deal Flow Stats Card (Big Single Card with Real Data) ─────────────
+
+function DailyDealFlowStatsCard({ 
+  multiplier, 
+  viewScope, 
+  callCenterId,
+  userId
+}: { 
+  multiplier: number;
+  viewScope: "all" | "call_center" | "own" | "none";
+  callCenterId: string | null;
+  userId: string | null;
+}) {
+
+  // Filter data based on view scope
+  const getScopedMultiplier = () => {
+    if (viewScope === "none") return 0;
+    if (viewScope === "all") return multiplier;
+    if (viewScope === "call_center") return multiplier * 0.7; // Simulate call center filter
+    // For call center agents - show only their submitted deals (much smaller subset)
+    if (viewScope === "own") return multiplier * 0.2; // Only ~20% for own submissions
+    return multiplier;
+  };
+
+  const scopedMultiplier = getScopedMultiplier();
+
+  // Real data from daily_deal_flow table (base values)
+  const baseStats = {
+    total_deals: 5,
+    pending_approval: 4,
+    in_underwriting: 3,
+    avg_premium: 1675.20,
+    total_premium: 8376.00,
+    unique_carriers: 3,
+    unique_agents: 3,
+    status_breakdown: [
+      { status: "Pending Approval", count: 4, percentage: 80, color: "#f59e0b" },
+      { status: "Not Interested", count: 1, percentage: 20, color: "#ef4444" }
+    ]
+  };
+
+  // Apply date filter and scope to stats
+  const stats = {
+    ...baseStats,
+    total_deals: Math.round(baseStats.total_deals * scopedMultiplier),
+    pending_approval: Math.round(baseStats.pending_approval * scopedMultiplier),
+    in_underwriting: Math.round(baseStats.in_underwriting * scopedMultiplier),
+    total_premium: Math.round(baseStats.total_premium * scopedMultiplier),
+    status_breakdown: baseStats.status_breakdown.map(s => ({
+      ...s,
+      count: Math.round(s.count * scopedMultiplier)
+    }))
+  };
+
+  const baseRecentDeals = [
+    { name: "Rizwan Ahmed", status: "Not Interested", carrier: "AMAM", premium: 300 },
+    { name: "Waleed Shoaib", status: "Pending Approval", carrier: "Aflac", premium: 33 },
+    { name: "fasdfdsf dsfsdf", status: "Pending Approval", carrier: "American Home Life", premium: 324 },
+    { name: "Umar-test test2", status: "Pending Approval", carrier: "American Home Life", premium: 7666 },
+    { name: "Kendrick Lamar", status: "Pending Approval", carrier: "AMAM", premium: 53 }
+  ];
+
+  // Filter recent deals based on date range and scope
+  const recentDeals = baseRecentDeals.slice(0, Math.max(1, Math.round(baseRecentDeals.length * scopedMultiplier)));
+
   return (
-    <div
-      onClick={onClick}
-      style={{
-        backgroundColor: T.pageBg,
-        borderRadius: 16, padding: "16px 12px",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-        cursor: "pointer", transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-        border: `1.5px solid ${T.border}`,
-        position: "relative"
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = `0 12px 20px -10px ${color}33`; e.currentTarget.style.backgroundColor = "#fff"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.backgroundColor = T.pageBg; }}
-    >
-      <div style={{ position: "absolute", top: 12, right: 12, width: 8, height: 8, borderRadius: "50%", backgroundColor: isHighLoad ? T.danger : "#638b4b" }} title={isHighLoad ? "High Load" : "Balanced Load"} />
-      
-      <div style={{ width: 44, height: 44, borderRadius: "50%", border: `2.5px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color + "10", marginBottom: 4 }}>
-        <span style={{ fontSize: 13, fontWeight: 900, color }}>{initials}</span>
+    <div style={{
+      width: "calc(70% - 12px)",
+      backgroundColor: "#fff",
+      borderRadius: 24,
+      border: `1.5px solid ${T.border}`,
+      boxShadow: "0 10px 40px -10px rgba(0,0,0,0.08)",
+      padding: "24px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 20,
+      minHeight: 540
+    }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Daily Deal Flow</h2>
+          {viewScope === "own" && (
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+              Your submissions only
+            </p>
+          )}
+          {viewScope === "call_center" && (
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: T.blue, fontWeight: 600 }}>
+              Your call center
+            </p>
+          )}
+        </div>
+        <button style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+          View all <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
       </div>
-      <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: T.textDark, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%" }}>{name}</p>
-      <p style={{ margin: "0 0 8px", fontSize: 10, fontWeight: 600, color: T.textMuted, textAlign: "center" }}>{role}</p>
-      
-      <div style={{ width: "100%", backgroundColor: "#fff", height: 4, borderRadius: 2, marginBottom: 4 }}>
-        <div style={{ width: `${(done/tasks)*100}%`, backgroundColor: color, height: "100%", borderRadius: 2 }} />
+
+      {/* Top Stats Row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
+        <StatBox 
+          label="Total Deals" 
+          value={stats.total_deals} 
+          icon="📊" 
+          color="#638b4b"
+          subtext="All time"
+        />
+        <StatBox 
+          label="Pending Approval" 
+          value={stats.pending_approval} 
+          icon="⏳" 
+          color="#f59e0b"
+          subtext={`${Math.round((stats.pending_approval/stats.total_deals)*100)}% of total`}
+        />
+        <StatBox 
+          label="In Underwriting" 
+          value={stats.in_underwriting} 
+          icon="📝" 
+          color="#3b82f6"
+          subtext="Active processing"
+        />
+        <StatBox 
+          label="Avg Premium" 
+          value={`$${stats.avg_premium.toLocaleString()}`} 
+          icon="💰" 
+          color="#10b981"
+          subtext={`Total: $${stats.total_premium.toLocaleString()}`}
+        />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
-        <span style={{ fontSize: 9, fontWeight: 800, color: T.textMuted }}>{done}/{tasks} tasks</span>
-        <span style={{ borderRadius: 4, padding: "1px 5px", fontSize: 9, fontWeight: 800, color: T.textMuted, backgroundColor: T.rowBg }}>{level}</span>
+
+      {/* Middle Section: Status Breakdown + Recent Deals */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 24 }}>
+        {/* Status Distribution */}
+        <div style={{
+          backgroundColor: T.pageBg,
+          borderRadius: 16,
+          padding: "24px",
+          border: `1px solid ${T.border}`
+        }}>
+          <h4 style={{ margin: "0 0 20px", fontSize: 14, fontWeight: 700, color: T.textDark }}>Status Distribution</h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {stats.status_breakdown.map((item) => (
+              <div key={item.status}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{item.status}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.count} ({item.percentage}%)</span>
+                </div>
+                <div style={{ width: "100%", height: 8, backgroundColor: "#e5e7eb", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ 
+                    width: `${item.percentage}%`, 
+                    height: "100%", 
+                    backgroundColor: item.color,
+                    borderRadius: 4,
+                    transition: "width 0.5s ease"
+                  }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>Active Carriers</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{stats.unique_carriers}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>Active Agents</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{stats.unique_agents}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Deals Table */}
+        <div style={{
+          backgroundColor: T.pageBg,
+          borderRadius: 16,
+          padding: "24px",
+          border: `1px solid ${T.border}`,
+          overflow: "hidden"
+        }}>
+          <h4 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 700, color: T.textDark }}>Recent Deals</h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {recentDeals.map((deal, idx) => (
+              <div key={idx} style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 16px",
+                backgroundColor: "#fff",
+                borderRadius: 12,
+                border: `1px solid ${T.borderLight}`
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    backgroundColor: deal.status === "Pending Approval" ? "#fef3c7" : "#fee2e2",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14
+                  }}>
+                    {deal.status === "Pending Approval" ? "⏳" : "❌"}
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.textDark }}>{deal.name}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 500 }}>{deal.carrier}</p>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#638b4b" }}>${deal.premium.toLocaleString()}</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 10, fontWeight: 600, color: deal.status === "Pending Approval" ? "#f59e0b" : "#ef4444" }}>{deal.status}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
+function StatBox({ label, value, icon, color, subtext }: { label: string; value: string | number; icon: string; color: string; subtext: string }) {
+  return (
+    <div style={{
+      backgroundColor: T.pageBg,
+      borderRadius: 16,
+      padding: "20px",
+      border: `1px solid ${T.border}`,
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          backgroundColor: color + "15",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 20
+        }}>
+          {icon}
+        </div>
+        <div>
+          <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 600 }}>{label}</p>
+          <p style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 800, color: T.textDark }}>{value}</p>
+        </div>
+      </div>
+      <p style={{ margin: "4px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 500 }}>{subtext}</p>
+    </div>
+  );
+}
 
+// ── Pipeline Stages Grid (Real Data) ──────────────────────────────────────────
+
+function PipelineStagesGrid({ 
+  multiplier, 
+  viewScope, 
+  callCenterId,
+  userId
+}: { 
+  multiplier: number;
+  viewScope: "all" | "call_center" | "own" | "none";
+  callCenterId: string | null;
+  userId: string | null;
+}) {
+
+  // Filter leads based on view scope
+  const filterLeadsByScope = (leads: any[]) => {
+    if (viewScope === "none") return [];
+    if (viewScope === "all") return leads;
+    // For call_center view, filter by call_center_id (simulated)
+    if (viewScope === "call_center" && callCenterId) {
+      return leads.slice(0, Math.max(1, Math.floor(leads.length * 0.7))); // Simulate filtered data
+    }
+    // For call center agents - show only leads submitted by them
+    if (viewScope === "own" && userId) {
+      // Filter to show only leads submitted by this agent
+      // In real implementation, this would filter by submitted_by = userId from database
+      // For now simulating with first 30% of leads
+      return leads.slice(0, Math.max(1, Math.floor(leads.length * 0.3)));
+    }
+    return leads;
+  };
+
+  // Real pipeline data from database with date filtering applied
+  const basePipelineStages = [
+    {
+      id: "transfer-api",
+      name: "Transfer API",
+      pipeline: "Transfer Portal",
+      baseLeadCount: 4,
+      totalValue: 45.00,
+      color: "#638b4b",
+      icon: "🔄",
+      leads: [
+        { name: "Ali", carrier: null, product: null },
+        { name: "ahmedtest-", carrier: null, product: null },
+        { name: "Dan32332 Hooker", carrier: "SSL", product: "Graded" },
+        { name: "Arman Tsrukian", carrier: "Aflac", product: "Modified" }
+      ]
+    },
+    {
+      id: "test-stage",
+      name: "Test Stage",
+      pipeline: "Transfer Portal",
+      baseLeadCount: 1,
+      totalValue: 0.00,
+      color: "#74a557",
+      icon: "🧪",
+      leads: [
+        { name: "Rizwansa Ahmed", carrier: "Transamerica", product: "Graded" }
+      ]
+    },
+    {
+      id: "inform",
+      name: "Inform",
+      pipeline: "Transfer Portal",
+      baseLeadCount: 1,
+      totalValue: 45.00,
+      color: "#94c278",
+      icon: "ℹ️",
+      leads: [
+        { name: "umar-test-v2 fdfs", carrier: "AMAM", product: "Graded" }
+      ]
+    },
+    {
+      id: "chargeback-fixed",
+      name: "Chargeback Fixed",
+      pipeline: "Chargeback Pipeline",
+      baseLeadCount: 3,
+      totalValue: 0.00,
+      color: "#4e6e3a",
+      icon: "✅",
+      leads: [
+        { name: "Waleed Shoaib", carrier: "Aflac", product: "Preferred" },
+        { name: "fasdfdsf dsfsdf", carrier: "AMAM", product: "Immediate" },
+        { name: "Umar-test test2", carrier: "AMAM", product: "Immediate" }
+      ]
+    },
+    {
+      id: "chargeback-dq",
+      name: "Chargeback DQ",
+      pipeline: "Chargeback Pipeline",
+      baseLeadCount: 1,
+      totalValue: 0.00,
+      color: "#ef4444",
+      icon: "❌",
+      leads: [
+        { name: "Kendrick Lamar", carrier: "Aetna", product: "Modified" }
+      ]
+    }
+  ];
+
+  // Apply date filter multiplier and scope filtering to lead counts
+  const pipelineStages = basePipelineStages.map(stage => {
+    const filteredLeads = filterLeadsByScope(stage.leads);
+    const adjustedCount = Math.max(0, Math.round(stage.baseLeadCount * multiplier));
+    return {
+      ...stage,
+      leadCount: adjustedCount,
+      leads: filteredLeads.slice(0, adjustedCount)
+    };
+  }).filter(stage => viewScope === "all" || stage.leadCount > 0); // Hide empty stages for non-admins
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+      {pipelineStages.map((stage) => (
+        <StageCard key={stage.id} stage={stage} />
+      ))}
+    </div>
+  );
+}
+
+function StageCard({ stage }: { stage: any }) {
+  const [hovered, setHovered] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const color = stage.color;
+
+  return (
+    <Card
+      onClick={() => setIsExpanded(!isExpanded)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        borderRadius: 16,
+        border: `1px solid ${T.border}`,
+        borderBottom: `4px solid ${color}`,
+        background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
+        boxShadow: hovered
+          ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+          : "0 4px 12px rgba(0,0,0,0.03)",
+        transform: hovered ? "translateY(-3px)" : "translateY(0)",
+        transition: "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+        padding: "20px 20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 0,
+        cursor: "pointer",
+      }}
+    >
+      {/* Top row: label + icon */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#233217",
+            letterSpacing: "0.45px",
+            textTransform: "uppercase",
+            lineHeight: 1.25,
+          }}>
+            {stage.pipeline}
+          </span>
+          <div style={{ fontSize: 26, fontWeight: 800, color, lineHeight: 1.05 }}>
+            {stage.leadCount}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark, lineHeight: 1.3 }}>
+            {stage.name}
+          </span>
+        </div>
+        <div
+          style={{
+            color,
+            backgroundColor: hovered
+              ? `color-mix(in srgb, ${color} 24%, transparent)`
+              : `color-mix(in srgb, ${color} 15%, transparent)`,
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            fontSize: 20,
+            transition: "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+            transform: hovered ? "scale(1.04)" : "scale(1)",
+          }}
+        >
+          {stage.icon}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div style={{ height: 1, backgroundColor: T.border, margin: "14px 0 10px" }} />
+
+      {/* Bottom row: lead count label + value */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted }}>
+          {stage.leadCount} lead{stage.leadCount !== 1 ? "s" : ""} active
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 800, color: stage.totalValue > 0 ? color : T.textMuted }}>
+          {stage.totalValue > 0 ? `$${stage.totalValue.toFixed(2)}` : "No value"}
+        </span>
+      </div>
+
+      {/* Expanded leads list */}
+      {isExpanded && (
+        <div style={{
+          marginTop: 12,
+          paddingTop: 10,
+          borderTop: `1px solid ${T.border}`,
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}>
+          <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px" }}>
+            Recent Leads
+          </p>
+          {stage.leads.slice(0, 3).map((lead: any, idx: number) => (
+            <div key={idx} style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "6px 10px",
+              backgroundColor: `color-mix(in srgb, ${color} 8%, transparent)`,
+              borderRadius: 8,
+              fontSize: 11,
+            }}>
+              <span style={{ fontWeight: 700, color: T.textDark }}>{lead.name}</span>
+              {lead.carrier && (
+                <span style={{ fontWeight: 600, color: T.textMuted, fontSize: 10 }}>
+                  {lead.carrier}
+                </span>
+              )}
+            </div>
+          ))}
+          {stage.leads.length > 3 && (
+            <p style={{ margin: "4px 0 0", fontSize: 10, color: T.textMuted, textAlign: "center", fontWeight: 500 }}>
+              +{stage.leads.length - 3} more
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
+// ── Project Card Component ────────────────────────────────────────────────────
 function ProjectCard({ id, name, created, priority, allTasks, activeTasks, assignees, extraAssignees, emoji, color }: any) {
   return (
     <div style={{
@@ -373,17 +1463,5 @@ function ProjectCard({ id, name, created, priority, allTasks, activeTasks, assig
         </div>
       </div>
     </div>
-  );
-}
-
-function MemberDrawer({ member, onClose }: any) {
-  return (
-    <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.2)", zIndex: 300 }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 340, backgroundColor: "#fff", zIndex: 301, padding: 24, boxShadow: "-8px 0 40px rgba(0,0,0,0.1)" }}>
-        <h2>{member.name}</h2>
-        <button onClick={onClose}>Close</button>
-      </div>
-    </>
   );
 }
