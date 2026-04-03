@@ -246,8 +246,7 @@ function renderTransferKanbanBoard() {
               border: `1px solid ${T.border}`,
               borderRadius: 14,
               boxShadow: "0 2px 12px rgba(15, 23, 42, 0.05)",
-              overflow: "hidden",
-              minHeight: 720,
+              overflow: "visible",
             }}
           >
             <div
@@ -286,7 +285,6 @@ function renderTransferKanbanBoard() {
 
             <div
               style={{
-                minHeight: 640,
                 padding: 14,
                 display: "flex",
                 alignItems: "center",
