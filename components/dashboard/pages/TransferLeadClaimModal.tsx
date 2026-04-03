@@ -2,13 +2,189 @@
 
 import { useMemo } from "react";
 import { T } from "@/lib/theme";
-import { AppSelect } from "@/components/ui/app-select";
+import { X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type {
   AgentOption,
   ClaimSelections,
   ClaimWorkflowType,
   RetentionType,
 } from "./transferLeadParity";
+
+// StyledSelect component matching LeadEditForm design
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select...",
+  disabled = false,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")} disabled={disabled}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 42,
+          borderRadius: 10,
+          border: `1.5px solid ${T.border}`,
+          backgroundColor: disabled ? T.pageBg : "#fff",
+          color: value ? T.textDark : T.textMuted,
+          fontSize: 14,
+          fontWeight: 600,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value
+            ? options.find((o) => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: "#fff",
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 14,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// FormField component matching LeadEditForm
+function FormField({
+  label,
+  children,
+  required = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <label
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: T.textMid,
+          display: "flex",
+          gap: 4,
+        }}
+      >
+        {label}
+        {required && <span style={{ color: "#dc2626" }}>*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+// FormInput component matching LeadEditForm
+function FormInput({
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  disabled = false,
+}: {
+  value: string | number;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <input
+      type={type}
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      disabled={disabled}
+      style={{
+        width: "100%",
+        padding: "12px",
+        borderRadius: 8,
+        border: `1.5px solid ${T.border}`,
+        fontSize: 14,
+        fontWeight: 600,
+        color: disabled ? T.textMuted : T.textDark,
+        backgroundColor: disabled ? T.pageBg : "#fff",
+        fontFamily: T.font,
+        outline: "none",
+        transition: "all 0.2s",
+      }}
+      onFocus={(e) => {
+        if (!disabled) {
+          e.currentTarget.style.borderColor = T.blue;
+          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.12)";
+        }
+      }}
+      onBlur={(e) => {
+        e.currentTarget.style.borderColor = T.border;
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    />
+  );
+}
+
+// SectionHeader component matching LeadEditForm
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <h3
+      style={{
+        margin: "20px 0 16px",
+        fontSize: 14,
+        fontWeight: 800,
+        color: T.textDark,
+        textTransform: "uppercase",
+        letterSpacing: "0.5px",
+        borderBottom: `2px solid ${T.borderLight}`,
+        paddingBottom: 8,
+      }}
+    >
+      {title}
+    </h3>
+  );
+}
 
 type Props = {
   open: boolean;
@@ -101,36 +277,100 @@ export default function TransferLeadClaimModal({
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0,0,0,0.45)",
+        backgroundColor: "rgba(0,0,0,0.5)",
         zIndex: 3500,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 20,
+        padding: 40,
+        backdropFilter: "blur(4px)",
       }}
     >
       <div
         style={{
+          backgroundColor: "#fff",
+          borderRadius: 12,
           width: "100%",
           maxWidth: 760,
           maxHeight: "90vh",
-          overflowY: "auto",
-          backgroundColor: "#fff",
-          borderRadius: 14,
-          border: `1.5px solid ${T.border}`,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
-          padding: 20,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
         }}
       >
-        <h2 style={{ margin: 0, fontSize: 22, color: T.textDark }}>
-          {retentionOnly ? "Claim Retention" : "Claim Call"}
-        </h2>
-        <p style={{ marginTop: 6, marginBottom: 14, fontSize: 13, color: T.textMid }}>
-          {retentionOnly
-            ? "Process retention workflow for "
-            : "Claim this lead and initialize verification workflow for "}
-          <span style={{ fontWeight: 700, color: T.textDark }}>{leadName || "selected lead"}</span>.
-        </p>
+        {/* Header */}
+        <div
+          style={{
+            padding: "24px 32px",
+            borderBottom: `1px solid ${T.borderLight}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <h2
+              style={{
+                fontSize: 20,
+                fontWeight: 800,
+                margin: "0 0 8px",
+                color: T.textDark,
+              }}
+            >
+              {retentionOnly ? "Claim Retention" : "Claim Call"}
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                color: T.textMuted,
+                fontWeight: 600,
+              }}
+            >
+              {retentionOnly
+                ? "Process retention workflow for "
+                : "Claim this lead and initialize verification workflow for "}
+              <span style={{ fontWeight: 700, color: T.textDark }}>{leadName || "selected lead"}</span>.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: T.textMuted,
+              padding: 8,
+              borderRadius: 8,
+              transition: "all 0.2s",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = T.pageBg;
+              e.currentTarget.style.color = T.textDark;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = T.textMuted;
+            }}
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div
+          style={{
+            flex: 1,
+            padding: "24px 32px",
+            overflowY: "auto",
+            backgroundColor: "#fff",
+          }}
+        >
 
         {!retentionOnly && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
@@ -141,176 +381,189 @@ export default function TransferLeadClaimModal({
         )}
 
         {selection.workflowType === "buffer" && (
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
-              Buffer Agent
-            </label>
-            <AppSelect
-              value={selection.bufferAgentId || ""}
-              onChange={(e) => onChange({ ...selection, bufferAgentId: e.target.value || null })}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
-            >
-              <option value="">Select buffer agent</option>
-              {agents.bufferAgents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </AppSelect>
+          <div style={{ marginBottom: 20 }}>
+            <FormField label="Buffer Agent" required>
+              <StyledSelect
+                value={selection.bufferAgentId || ""}
+                onValueChange={(val) => onChange({ ...selection, bufferAgentId: val || null })}
+                options={[
+                  { value: "", label: "Select buffer agent" },
+                  ...agents.bufferAgents.map((agent) => ({ value: agent.id, label: agent.name })),
+                ]}
+                placeholder="Select buffer agent"
+              />
+            </FormField>
           </div>
         )}
 
         {selection.workflowType === "licensed" && (
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
-              Licensed Agent
-            </label>
-            <AppSelect
-              value={selection.licensedAgentId || ""}
-              onChange={(e) => onChange({ ...selection, licensedAgentId: e.target.value || null })}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
-            >
-              <option value="">Select licensed agent</option>
-              {agents.licensedAgents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </AppSelect>
+          <div style={{ marginBottom: 20 }}>
+            <FormField label="Licensed Agent" required>
+              <StyledSelect
+                value={selection.licensedAgentId || ""}
+                onValueChange={(val) => onChange({ ...selection, licensedAgentId: val || null })}
+                options={[
+                  { value: "", label: "Select licensed agent" },
+                  ...agents.licensedAgents.map((agent) => ({ value: agent.id, label: agent.name })),
+                ]}
+                placeholder="Select licensed agent"
+              />
+            </FormField>
           </div>
         )}
 
         {selection.workflowType === "retention" && (
           <>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
-                Retention Agent
-              </label>
-              <AppSelect
-                value={selection.retentionAgentId || ""}
-                onChange={(e) => onChange({ ...selection, retentionAgentId: e.target.value || null })}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
-              >
-                <option value="">Select retention agent</option>
-                {agents.retentionAgents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </option>
-                ))}
-              </AppSelect>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
-                Retention Type
-              </label>
-              <AppSelect
-                value={selection.retentionType}
-                onChange={(e) => setRetentionType((e.target.value || "") as RetentionType | "")}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
-              >
-                <option value="">Select retention type</option>
-                <option value="new_sale">New Sale</option>
-                <option value="fixed_payment">Fixed Failed Payment</option>
-                <option value="carrier_requirements">Carrier Requirements</option>
-              </AppSelect>
+            <SectionHeader title="Retention Details" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+              <FormField label="Retention Agent" required>
+                <StyledSelect
+                  value={selection.retentionAgentId || ""}
+                  onValueChange={(val) => onChange({ ...selection, retentionAgentId: val || null })}
+                  options={[
+                    { value: "", label: "Select retention agent" },
+                    ...agents.retentionAgents.map((agent) => ({ value: agent.id, label: agent.name })),
+                  ]}
+                  placeholder="Select retention agent"
+                />
+              </FormField>
+              <FormField label="Retention Type" required>
+                <StyledSelect
+                  value={selection.retentionType || ""}
+                  onValueChange={(val) => setRetentionType((val || "") as RetentionType | "")}
+                  options={[
+                    { value: "", label: "Select retention type" },
+                    { value: "new_sale", label: "New Sale" },
+                    { value: "fixed_payment", label: "Fixed Failed Payment" },
+                    { value: "carrier_requirements", label: "Carrier Requirements" },
+                  ]}
+                  placeholder="Select retention type"
+                />
+              </FormField>
             </div>
 
             {selection.retentionType === "new_sale" && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 10,
-                  marginBottom: 12,
-                  backgroundColor: T.blueFaint,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 10,
-                  padding: 10,
-                }}
-              >
-                <input
-                  value={selection.quoteCarrier}
-                  placeholder="Carrier (optional)"
-                  onChange={(e) => onChange({ ...selection, quoteCarrier: e.target.value })}
-                  style={{ width: "100%", padding: "9px 10px", border: `1px solid ${T.border}`, borderRadius: 8 }}
-                />
-                <input
-                  value={selection.quoteProduct}
-                  placeholder="Product (optional)"
-                  onChange={(e) => onChange({ ...selection, quoteProduct: e.target.value })}
-                  style={{ width: "100%", padding: "9px 10px", border: `1px solid ${T.border}`, borderRadius: 8 }}
-                />
-                <input
-                  value={selection.quoteCoverage}
-                  placeholder="Coverage (optional)"
-                  onChange={(e) => onChange({ ...selection, quoteCoverage: e.target.value })}
-                  style={{ width: "100%", padding: "9px 10px", border: `1px solid ${T.border}`, borderRadius: 8 }}
-                />
-                <input
-                  value={selection.quoteMonthlyPremium}
-                  placeholder="Monthly premium (optional)"
-                  onChange={(e) => onChange({ ...selection, quoteMonthlyPremium: e.target.value })}
-                  style={{ width: "100%", padding: "9px 10px", border: `1px solid ${T.border}`, borderRadius: 8 }}
-                />
-              </div>
+              <>
+                <SectionHeader title="Quote Information" />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                  <FormField label="Carrier">
+                    <FormInput
+                      value={selection.quoteCarrier || ""}
+                      onChange={(val) => onChange({ ...selection, quoteCarrier: val })}
+                      placeholder="Carrier (optional)"
+                    />
+                  </FormField>
+                  <FormField label="Product">
+                    <FormInput
+                      value={selection.quoteProduct || ""}
+                      onChange={(val) => onChange({ ...selection, quoteProduct: val })}
+                      placeholder="Product (optional)"
+                    />
+                  </FormField>
+                  <FormField label="Coverage">
+                    <FormInput
+                      value={selection.quoteCoverage || ""}
+                      onChange={(val) => onChange({ ...selection, quoteCoverage: val })}
+                      placeholder="Coverage (optional)"
+                    />
+                  </FormField>
+                  <FormField label="Monthly Premium">
+                    <FormInput
+                      value={selection.quoteMonthlyPremium || ""}
+                      onChange={(val) => onChange({ ...selection, quoteMonthlyPremium: val })}
+                      placeholder="Monthly premium (optional)"
+                    />
+                  </FormField>
+                </div>
+              </>
             )}
 
             {(selection.retentionType === "fixed_payment" || selection.retentionType === "carrier_requirements") && (
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
-                  Retention Notes
-                </label>
-                <textarea
-                  value={selection.retentionNotes}
-                  onChange={(e) => onChange({ ...selection, retentionNotes: e.target.value })}
-                  rows={5}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: `1.5px solid ${T.border}`,
-                    resize: "vertical",
-                    fontFamily: T.font,
-                  }}
-                />
+              <div style={{ marginBottom: 20 }}>
+                <FormField label="Retention Notes" required>
+                  <textarea
+                    value={selection.retentionNotes}
+                    onChange={(e) => onChange({ ...selection, retentionNotes: e.target.value })}
+                    rows={5}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      borderRadius: 8,
+                      border: `1.5px solid ${T.border}`,
+                      resize: "vertical",
+                      fontFamily: T.font,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: T.textDark,
+                      backgroundColor: "#fff",
+                      outline: "none",
+                      transition: "all 0.2s",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = T.blue;
+                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.12)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = T.border;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </FormField>
               </div>
             )}
           </>
         )}
 
+        </div>
+
+        {/* Footer */}
         <div
           style={{
-            marginTop: 10,
-            paddingTop: 12,
-            borderTop: `1px solid ${T.border}`,
+            padding: "16px 32px",
+            borderTop: `1.5px solid ${T.borderLight}`,
+            backgroundColor: "#fff",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: 12,
           }}
         >
           {!retentionOnly && (
-            <label style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 13, color: T.textMid }}>
+            <label style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 13, color: T.textMid, fontWeight: 600 }}>
               <input
                 type="checkbox"
                 checked={selection.isRetentionCall}
                 onChange={(e) => onChange({ ...selection, isRetentionCall: e.target.checked })}
+                style={{ width: 16, height: 16, cursor: "pointer" }}
               />
               Mark as retention call
             </label>
           )}
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 12, marginLeft: "auto" }}>
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
               style={{
+                background: "#fff",
                 border: `1.5px solid ${T.border}`,
-                backgroundColor: "#fff",
-                color: T.textDark,
                 borderRadius: 8,
-                padding: "9px 14px",
+                padding: "0 24px",
+                height: 44,
                 fontWeight: 700,
                 cursor: "pointer",
+                color: T.textDark,
+                fontSize: 14,
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = T.blue;
+                e.currentTarget.style.backgroundColor = T.pageBg;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = T.border;
+                e.currentTarget.style.backgroundColor = "#fff";
               }}
             >
               Cancel
@@ -320,13 +573,30 @@ export default function TransferLeadClaimModal({
               onClick={onSubmit}
               disabled={loading || !valid}
               style={{
-                border: "none",
-                backgroundColor: loading || !valid ? T.border : T.blue,
+                background: loading || !valid ? T.border : "#233217",
                 color: "#fff",
+                border: "none",
                 borderRadius: 8,
-                padding: "9px 14px",
+                padding: "0 32px",
+                height: 44,
+                fontSize: 14,
                 fontWeight: 700,
                 cursor: loading || !valid ? "not-allowed" : "pointer",
+                opacity: loading || !valid ? 0.6 : 1,
+                boxShadow: loading || !valid ? "none" : "0 4px 12px rgba(35, 50, 23, 0.2)",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (!loading && valid) {
+                  e.currentTarget.style.backgroundColor = "#1a260f";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = "0 6px 16px rgba(35, 50, 23, 0.3)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#233217";
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.2)";
               }}
             >
               {loading ? (retentionOnly ? "Processing..." : "Claiming...") : (retentionOnly ? "Process Retention" : "Claim & Open")}
