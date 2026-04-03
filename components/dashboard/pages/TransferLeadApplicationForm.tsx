@@ -1408,16 +1408,24 @@ export default function TransferLeadApplicationForm({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Street Address" required full error={getFieldError("street1")}>
+                  <Field label="Street Address" required full error={getFieldError("street1")}
+                    info="Lead's primary street address for mailing and underwriting purposes."
+                    fieldKey="street1" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyleWithError("street1")} />
                   </Field>
-                  <Field label="Address Line 2" full>
+                  <Field label="Address Line 2" full
+                    info="Apartment, suite, or unit number (optional)."
+                    fieldKey="street2" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input placeholder="Apt, Suite, Unit (optional)" value={formData.street2} onChange={set("street2")} style={fieldStyle} />
                   </Field>
-                  <Field label="City" required error={getFieldError("city")}>
+                  <Field label="City" required error={getFieldError("city")}
+                    info="City of the lead's primary residence."
+                    fieldKey="city" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
                   </Field>
-                  <Field label="State" required error={getFieldError("state")}>
+                  <Field label="State" required error={getFieldError("state")}
+                    info="State of the lead's primary residence."
+                    fieldKey="state" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.state}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, state: val }))}
@@ -1426,10 +1434,14 @@ export default function TransferLeadApplicationForm({
                       error={submitHighlightKeys.has("state")}
                     />
                   </Field>
-                  <Field label="Zip Code" required error={getFieldError("zipCode")}>
+                  <Field label="Zip Code" required error={getFieldError("zipCode")}
+                    info="5-digit ZIP code of the lead's primary residence."
+                    fieldKey="zipCode" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
                   </Field>
-                  <Field label="Birth State" required error={getFieldError("birthState")}>
+                  <Field label="Birth State" required error={getFieldError("birthState")}
+                    info="State where the lead was born (required for underwriting)."
+                    fieldKey="birthState" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.birthState}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, birthState: val }))}
@@ -1471,28 +1483,44 @@ export default function TransferLeadApplicationForm({
               }
             >
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="Any existing / previous coverage in last 2 years?" required error={getFieldError("existingCoverageLast2Years")}>
+                <Field label="Any existing / previous coverage in last 2 years?" required error={getFieldError("existingCoverageLast2Years")}
+                  info="Indicates if the lead has had any life insurance coverage in the past 2 years."
+                  fieldKey="existingCoverageLast2Years" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v }))} hasError={submitHighlightKeys.has("existingCoverageLast2Years")} />
                 </Field>
-                <Field label="Any previous applications in 2 years?" required error={getFieldError("previousApplications2Years")}>
+                <Field label="Any previous applications in 2 years?" required error={getFieldError("previousApplications2Years")}
+                  info="Indicates if the lead has applied for life insurance in the past 2 years."
+                  fieldKey="previousApplications2Years" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <YesNo value={formData.previousApplications2Years} onChange={(v) => setFormData((p) => ({ ...p, previousApplications2Years: v }))} hasError={submitHighlightKeys.has("previousApplications2Years")} />
                 </Field>
-                <Field label="Height" required error={getFieldError("height")}>
+                <Field label="Height" required error={getFieldError("height")}
+                  info="Lead's height in feet and inches (e.g., 5'10\")."
+                  fieldKey="height" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input placeholder='e.g. 5&apos;10"' value={formData.height} onChange={set("height")} style={fieldStyleWithError("height")} />
                 </Field>
-                <Field label="Weight" required error={getFieldError("weight")}>
+                <Field label="Weight" required error={getFieldError("weight")}
+                  info="Lead's current weight in pounds."
+                  fieldKey="weight" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input placeholder="e.g. 175 lbs" value={formData.weight} onChange={set("weight")} style={fieldStyleWithError("weight")} />
                 </Field>
-                <Field label="Doctor's Name" required error={getFieldError("doctorName")}>
+                <Field label="Doctor's Name" required error={getFieldError("doctorName")}
+                  info="Primary care physician's full name for medical history verification."
+                  fieldKey="doctorName" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.doctorName} onChange={set("doctorName")} style={fieldStyleWithError("doctorName")} />
                 </Field>
-                <Field label="Tobacco Use" required error={getFieldError("tobaccoUse")}>
+                <Field label="Tobacco Use" required error={getFieldError("tobaccoUse")}
+                  info="Indicates if the lead currently uses tobacco or nicotine products."
+                  fieldKey="tobaccoUse" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <YesNo value={formData.tobaccoUse} onChange={(v) => setFormData((p) => ({ ...p, tobaccoUse: v }))} hasError={submitHighlightKeys.has("tobaccoUse")} />
                 </Field>
-                <Field label="Health Conditions" required full error={getFieldError("healthConditions")}>
+                <Field label="Health Conditions" required full error={getFieldError("healthConditions")}
+                  info="Any existing medical conditions that may affect underwriting."
+                  fieldKey="healthConditions" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <textarea value={formData.healthConditions} onChange={set("healthConditions")} style={{ ...fieldStyleWithError("healthConditions"), minHeight: 80, resize: "vertical" }} />
                 </Field>
-                <Field label="Medications" required full error={getFieldError("medications")}>
+                <Field label="Medications" required full error={getFieldError("medications")}
+                  info="List of current medications the lead is taking."
+                  fieldKey="medications" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <textarea value={formData.medications} onChange={set("medications")} style={{ ...fieldStyleWithError("medications"), minHeight: 80, resize: "vertical" }} />
                 </Field>
               </div>
@@ -1507,19 +1535,25 @@ export default function TransferLeadApplicationForm({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Monthly Premium" required error={getFieldError("monthlyPremium")}>
+                  <Field label="Monthly Premium" required error={getFieldError("monthlyPremium")}
+                    info="The monthly premium amount for the selected policy."
+                    fieldKey="monthlyPremium" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <div style={{ position: "relative" }}>
                       <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
                       <input value={formData.monthlyPremium} onChange={set("monthlyPremium")} style={fieldStyleWithError("monthlyPremium", { paddingLeft: 28 })} />
                     </div>
                   </Field>
-                  <Field label="Coverage Amount" required error={getFieldError("coverageAmount")}>
+                  <Field label="Coverage Amount" required error={getFieldError("coverageAmount")}
+                    info="The death benefit amount of the policy."
+                    fieldKey="coverageAmount" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <div style={{ position: "relative" }}>
                       <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
                       <input value={formData.coverageAmount} onChange={set("coverageAmount")} style={fieldStyleWithError("coverageAmount", { paddingLeft: 28 })} />
                     </div>
                   </Field>
-                  <Field label="Carrier" required error={getFieldError("carrier")}>
+                  <Field label="Carrier" required error={getFieldError("carrier")}
+                    info="The insurance company providing the policy."
+                    fieldKey="carrier" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.carrier}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, carrier: val, productType: "" }))}
@@ -1528,7 +1562,9 @@ export default function TransferLeadApplicationForm({
                       error={submitHighlightKeys.has("carrier")}
                     />
                   </Field>
-                  <Field label="Product Type" required error={getFieldError("productType")}>
+                  <Field label="Product Type" required error={getFieldError("productType")}
+                    info="The specific type of policy product selected."
+                    fieldKey="productType" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.productType}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, productType: val }))}
@@ -1538,13 +1574,19 @@ export default function TransferLeadApplicationForm({
                       error={submitHighlightKeys.has("productType")}
                     />
                   </Field>
-                <Field label="Draft Date" required error={getFieldError("draftDate")}>
+                <Field label="Draft Date" required error={getFieldError("draftDate")}
+                  info="The date the first premium draft will occur."
+                  fieldKey="draftDate" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyleWithError("draftDate")} />
                 </Field>
-                <Field label="Future Draft Date" required error={getFieldError("futureDraftDate")}>
+                <Field label="Future Draft Date" required error={getFieldError("futureDraftDate")}
+                  info="Scheduled date for a future premium draft if applicable."
+                  fieldKey="futureDraftDate" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input type="date" value={formData.futureDraftDate} onChange={set("futureDraftDate")} style={fieldStyleWithError("futureDraftDate")} />
                 </Field>
-                <Field label="Beneficiary Information" required full error={getFieldError("beneficiaryInformation")}>
+                <Field label="Beneficiary Information" required full error={getFieldError("beneficiaryInformation")}
+                  info="Designated person(s) who will receive the policy benefit."
+                  fieldKey="beneficiaryInformation" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <textarea value={formData.beneficiaryInformation} onChange={set("beneficiaryInformation")} style={{ ...fieldStyleWithError("beneficiaryInformation"), minHeight: 72, resize: "vertical" }} />
                 </Field>
               </div>
@@ -1559,7 +1601,9 @@ export default function TransferLeadApplicationForm({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Bank Account Type">
+                  <Field label="Bank Account Type"
+                    info="Type of bank account for ACH premium drafts."
+                    fieldKey="bankAccountType" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.bankAccountType}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, bankAccountType: val }))}
@@ -1570,13 +1614,19 @@ export default function TransferLeadApplicationForm({
                       placeholder="Please Select"
                     />
                   </Field>
-                  <Field label="Institution Name" required error={getFieldError("institutionName")}>
+                  <Field label="Institution Name" required error={getFieldError("institutionName")}
+                    info="Name of the bank where the account is held."
+                    fieldKey="institutionName" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyleWithError("institutionName")} />
                   </Field>
-                  <Field label="Routing Number" required error={getFieldError("routingNumber")}>
+                  <Field label="Routing Number" required error={getFieldError("routingNumber")}
+                    info="9-digit ABA routing number for the bank."
+                    fieldKey="routingNumber" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.routingNumber} onChange={set("routingNumber")} style={fieldStyleWithError("routingNumber")} />
                   </Field>
-                  <Field label="Account Number" required error={getFieldError("accountNumber")}>
+                  <Field label="Account Number" required error={getFieldError("accountNumber")}
+                    info="Bank account number for ACH transactions."
+                    fieldKey="accountNumber" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.accountNumber} onChange={set("accountNumber")} style={fieldStyleWithError("accountNumber")} />
                   </Field>
                 </div>
@@ -1591,7 +1641,9 @@ export default function TransferLeadApplicationForm({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Additional Notes" full>
+                  <Field label="Additional Notes" full
+                    info="Any supplemental details about the lead or application."
+                    fieldKey="additionalInformation" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <textarea value={formData.additionalInformation} onChange={set("additionalInformation")} style={{ ...fieldStyle, minHeight: 96, resize: "vertical" }} />
                   </Field>
                 </div>
