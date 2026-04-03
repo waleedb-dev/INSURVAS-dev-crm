@@ -65,17 +65,25 @@ export default function TransferLeadClaimModal({
   onChange,
   onClose,
   onSubmit,
+  retentionOnly = false,
 }: Props) {
   const valid = useMemo(() => {
-    if (selection.workflowType === "buffer") return Boolean(selection.bufferAgentId);
-    if (selection.workflowType === "licensed") return Boolean(selection.licensedAgentId);
-    if (selection.workflowType === "retention") {
+    if (retentionOnly || selection.workflowType === "retention") {
       if (!selection.retentionAgentId || !selection.retentionType) return false;
       if (selection.retentionType !== "new_sale" && !selection.retentionNotes.trim()) return false;
       return true;
     }
+    if (selection.workflowType === "buffer") return Boolean(selection.bufferAgentId);
+    if (selection.workflowType === "licensed") return Boolean(selection.licensedAgentId);
     return false;
-  }, [selection]);
+  }, [selection, retentionOnly]);
+
+  // Auto-set workflow to retention when in retention-only mode
+  useMemo(() => {
+    if (retentionOnly && selection.workflowType !== "retention") {
+      onChange({ ...selection, workflowType: "retention" });
+    }
+  }, [retentionOnly, selection, onChange]);
 
   if (!open) return null;
 
@@ -113,17 +121,23 @@ export default function TransferLeadClaimModal({
           padding: 20,
         }}
       >
-        <h2 style={{ margin: 0, fontSize: 22, color: T.textDark }}>Claim Call</h2>
+        <h2 style={{ margin: 0, fontSize: 22, color: T.textDark }}>
+          {retentionOnly ? "Claim Retention" : "Claim Call"}
+        </h2>
         <p style={{ marginTop: 6, marginBottom: 14, fontSize: 13, color: T.textMid }}>
-          Claim this lead and initialize verification workflow for{" "}
+          {retentionOnly
+            ? "Process retention workflow for "
+            : "Claim this lead and initialize verification workflow for "}
           <span style={{ fontWeight: 700, color: T.textDark }}>{leadName || "selected lead"}</span>.
         </p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
-          <RadioTile active={selection.workflowType === "buffer"} label="Buffer to Licensed" onClick={() => setWorkflow("buffer")} />
-          <RadioTile active={selection.workflowType === "licensed"} label="Direct to Licensed" onClick={() => setWorkflow("licensed")} />
-          <RadioTile active={selection.workflowType === "retention"} label="Retention Workflow" onClick={() => setWorkflow("retention")} />
-        </div>
+        {!retentionOnly && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+            <RadioTile active={selection.workflowType === "buffer"} label="Buffer to Licensed" onClick={() => setWorkflow("buffer")} />
+            <RadioTile active={selection.workflowType === "licensed"} label="Direct to Licensed" onClick={() => setWorkflow("licensed")} />
+            <RadioTile active={selection.workflowType === "retention"} label="Retention Workflow" onClick={() => setWorkflow("retention")} />
+          </div>
+        )}
 
         {selection.workflowType === "buffer" && (
           <div style={{ marginBottom: 12 }}>
@@ -273,14 +287,16 @@ export default function TransferLeadClaimModal({
             alignItems: "center",
           }}
         >
-          <label style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 13, color: T.textMid }}>
-            <input
-              type="checkbox"
-              checked={selection.isRetentionCall}
-              onChange={(e) => onChange({ ...selection, isRetentionCall: e.target.checked })}
-            />
-            Mark as retention call
-          </label>
+          {!retentionOnly && (
+            <label style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 13, color: T.textMid }}>
+              <input
+                type="checkbox"
+                checked={selection.isRetentionCall}
+                onChange={(e) => onChange({ ...selection, isRetentionCall: e.target.checked })}
+              />
+              Mark as retention call
+            </label>
+          )}
           <div style={{ display: "flex", gap: 8 }}>
             <button
               type="button"
@@ -312,7 +328,7 @@ export default function TransferLeadClaimModal({
                 cursor: loading || !valid ? "not-allowed" : "pointer",
               }}
             >
-              {loading ? "Claiming..." : "Claim & Open"}
+              {loading ? (retentionOnly ? "Processing..." : "Claiming...") : (retentionOnly ? "Process Retention" : "Claim & Open")}
             </button>
           </div>
         </div>

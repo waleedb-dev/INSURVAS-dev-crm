@@ -162,6 +162,7 @@ import {
   applyClaimSelectionToSession,
   fetchClaimAgents,
   findOrCreateVerificationSession,
+  saveFullRetentionWorkflow,
   type ClaimLeadContext,
   type ClaimSelections,
 } from "./transferLeadParity";
@@ -883,6 +884,7 @@ export default function CallCenterLeadIntakePage({
     retentionAgents: { id: string; name: string; roleKey: string }[];
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
   const [claimSelection, setClaimSelection] = useState<ClaimSelections>(DEFAULT_CLAIM_SELECTION);
+  const [isRetentionOnlyMode, setIsRetentionOnlyMode] = useState(false);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const itemsPerPage = 7;
@@ -1014,6 +1016,7 @@ export default function CallCenterLeadIntakePage({
 
     setClaimLeadContext(context);
     setClaimSelection(initialSelection);
+    setIsRetentionOnlyMode(false);
     setClaimModalOpen(true);
     setClaimModalLoading(true);
     try {
@@ -1033,10 +1036,64 @@ export default function CallCenterLeadIntakePage({
     }
   };
 
+  const openRetentionModalForLead = async (lead: IntakeLead) => {
+    if (!canViewTransferClaimReclaimVisit) {
+      setToast({ message: "Missing permission to process retention.", type: "error" });
+      return;
+    }
+    const context: ClaimLeadContext = {
+      rowId: lead.rowId,
+      leadUniqueId: lead.id,
+      leadName: lead.name,
+      phone: lead.phone,
+      source: lead.source,
+      submissionId: lead.submissionId,
+    };
+    // Pre-select retention workflow
+    const initialSelection: ClaimSelections = {
+      ...DEFAULT_CLAIM_SELECTION,
+      workflowType: "retention",
+      isRetentionCall: true,
+    };
+
+    setClaimLeadContext(context);
+    setClaimSelection(initialSelection);
+    setIsRetentionOnlyMode(true);
+    setClaimModalOpen(true);
+    setClaimModalLoading(true);
+    try {
+      const loaded = await fetchClaimAgents(supabase);
+      setClaimAgents(loaded);
+      // Initialize verification session for retention
+      await findOrCreateVerificationSession(supabase, context, initialSelection);
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : "Failed to load retention agents.",
+        type: "error",
+      });
+    } finally {
+      setClaimModalLoading(false);
+    }
+  };
+
   const handleClaimAndOpenLead = async () => {
     if (!claimLeadContext) return;
     setClaimModalLoading(true);
     try {
+      // For retention-only mode, use the full retention workflow
+      if (isRetentionOnlyMode) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const userId = session?.user?.id || null;
+        await saveFullRetentionWorkflow(supabase, claimLeadContext, claimSelection, userId);
+        setClaimModalOpen(false);
+        await refreshLeads();
+        setToast({ message: "Retention workflow processed successfully.", type: "success" });
+        return;
+      }
+
+      // Standard claim workflow
       const found = await findOrCreateVerificationSession(supabase, claimLeadContext, claimSelection);
       await applyClaimSelectionToSession(supabase, found.sessionId, found.submissionId, claimSelection);
       setClaimModalOpen(false);
@@ -3079,7 +3136,7 @@ export default function CallCenterLeadIntakePage({
                                 <button
                                   className="lead-action-btn"
                                   type="button"
-                                  onClick={() => router.push(`/dashboard/${routeRole}/retention-flow?leadRowId=${lead.rowId}`)}
+                                  onClick={() => void openRetentionModalForLead(lead)}
                                   style={{
                                     border: `1px solid ${T.border}`,
                                     borderRadius: 10,
@@ -3229,6 +3286,7 @@ export default function CallCenterLeadIntakePage({
         onSubmit={() => {
           void handleClaimAndOpenLead();
         }}
+        retentionOnly={isRetentionOnlyMode}
       />
       <style jsx>{`
         .lead-action-btn {

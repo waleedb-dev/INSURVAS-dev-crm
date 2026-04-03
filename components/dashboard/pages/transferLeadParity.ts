@@ -568,3 +568,99 @@ export async function syncVerifiedFieldsToLead(
     throw new Error("Verified fields sync did not update the lead row (possible RLS or row visibility issue).");
   }
 }
+
+/**
+ * Full retention workflow save - handles complex retention operations
+ * This consolidates the logic from TransferLeadRetentionFlowPage into the modal workflow
+ */
+export async function saveFullRetentionWorkflow(
+  supabase: SupabaseClient,
+  context: ClaimLeadContext,
+  selection: ClaimSelections,
+  userId: string | null,
+): Promise<void> {
+  if (!context.submissionId) {
+    throw new Error("Submission ID is required for retention workflow.");
+  }
+
+  const submissionId = context.submissionId;
+  const retentionType = selection.retentionType;
+
+  if (!retentionType) {
+    throw new Error("Retention type is required.");
+  }
+
+  // For new_sale mode, add to daily_deal_flow
+  if (retentionType === "new_sale") {
+    const { data: profile } = userId
+      ? await supabase.from("users").select("call_center_id, call_centers(name)").eq("id", userId).maybeSingle()
+      : { data: null as { call_center_id?: string | null; call_centers?: { name?: string } | null } | null };
+
+    const row = profile as { call_center_id?: string | null; call_centers?: { name?: string } | null } | null;
+    const { error: ddfError } = await supabase.from("daily_deal_flow").insert({
+      lead_id: context.rowId,
+      lead_unique_id: context.leadUniqueId,
+      lead_name: context.leadName,
+      center_name: row?.call_centers?.name || null,
+      call_center_id: row?.call_center_id || null,
+    });
+    if (ddfError) throw ddfError;
+  }
+
+  // Create the retention task
+  const { data: task, error: taskError } = await supabase
+    .from("app_fix_tasks")
+    .insert({
+      submission_id: submissionId,
+      lead_id: context.rowId,
+      task_type: retentionType,
+      status: "open",
+      assigned_to: userId,
+      notes: selection.retentionNotes || null,
+    })
+    .select("id")
+    .single();
+  if (taskError || !task) throw taskError || new Error("Unable to create retention task.");
+
+  // Create specific records based on retention type
+  if (retentionType === "fixed_payment") {
+    const { error } = await supabase.from("app_fix_banking_updates").insert({
+      task_id: task.id,
+      submission_id: submissionId,
+      lead_id: context.rowId,
+      notes: selection.retentionNotes || null,
+    });
+    if (error) throw error;
+  } else if (retentionType === "carrier_requirements") {
+    const { error } = await supabase.from("app_fix_carrier_requirements").insert({
+      task_id: task.id,
+      submission_id: submissionId,
+      lead_id: context.rowId,
+      carrier: selection.quoteCarrier || null,
+      product_type: selection.quoteProduct || null,
+      coverage_amount: selection.quoteCoverage || null,
+      monthly_premium: selection.quoteMonthlyPremium || null,
+      notes: selection.retentionNotes || null,
+    });
+    if (error) throw error;
+  }
+
+  // Update verification session with retention metadata
+  const { error: sessionError } = await supabase
+    .from("verification_sessions")
+    .update({
+      is_retention_call: true,
+      status: "in_progress",
+      retention_notes: {
+        retentionType: retentionType,
+        notes: selection.retentionNotes || null,
+        quoteCarrier: selection.quoteCarrier || null,
+        quoteProduct: selection.quoteProduct || null,
+        quoteCoverage: selection.quoteCoverage || null,
+        quoteMonthlyPremium: selection.quoteMonthlyPremium || null,
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("submission_id", submissionId);
+  if (sessionError) throw sessionError;
+}

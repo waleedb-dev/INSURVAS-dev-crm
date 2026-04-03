@@ -13,6 +13,7 @@ import {
   fetchClaimAgents,
   fetchLatestSessionForSubmission,
   findOrCreateVerificationSession,
+  saveFullRetentionWorkflow,
   type ClaimLeadContext,
   type ClaimSelections,
 } from "./transferLeadParity";
@@ -60,6 +61,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     licensedAgents: { id: string; name: string; roleKey: string }[];
     retentionAgents: { id: string; name: string; roleKey: string }[];
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
+  const [isRetentionOnlyMode, setIsRetentionOnlyMode] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +122,19 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     setClaimLoading(true);
     setError(null);
     try {
+      // For retention-only mode, use the full retention workflow
+      if (isRetentionOnlyMode) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const userId = session?.user?.id || null;
+        await saveFullRetentionWorkflow(supabase, lead, selection, userId);
+        setOpenClaim(false);
+        setError(null);
+        return;
+      }
+
+      // Standard claim workflow
       const found = await findOrCreateVerificationSession(supabase, lead, selection);
       await applyClaimSelectionToSession(supabase, found.sessionId, found.submissionId, selection);
       setSessionId(found.sessionId);
@@ -138,6 +153,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     }
     if (!lead) return;
     setSelection(defaultSelection);
+    setIsRetentionOnlyMode(false);
     setOpenClaim(true);
     setClaimLoading(true);
     setError(null);
@@ -147,6 +163,33 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       setSessionId(found.sessionId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to initialize verification session.");
+    } finally {
+      setClaimLoading(false);
+    }
+  };
+
+  const openRetentionModal = async () => {
+    if (!canViewTransferClaimReclaimVisit) {
+      setError("Missing permission to process retention.");
+      return;
+    }
+    if (!lead) return;
+    const retentionSelection: ClaimSelections = {
+      ...defaultSelection,
+      workflowType: "retention",
+      isRetentionCall: true,
+    };
+    setSelection(retentionSelection);
+    setIsRetentionOnlyMode(true);
+    setOpenClaim(true);
+    setClaimLoading(true);
+    setError(null);
+    try {
+      // Initialize verification session for retention
+      const found = await findOrCreateVerificationSession(supabase, lead, retentionSelection);
+      setSessionId(found.sessionId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to initialize retention session.");
     } finally {
       setClaimLoading(false);
     }
@@ -397,7 +440,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   type="button"
-                  onClick={() => router.push(`/dashboard/${role}/retention-flow?leadRowId=${lead?.rowId}`)}
+                  onClick={() => void openRetentionModal()}
                   style={{
                     border: `1.5px solid ${T.border}`,
                     backgroundColor: "#ede9fe",
@@ -494,6 +537,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
         onSubmit={() => {
           void startClaim();
         }}
+        retentionOnly={isRetentionOnlyMode}
       />
     </div>
   );
