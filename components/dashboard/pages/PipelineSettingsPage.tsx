@@ -20,6 +20,7 @@ interface Stage {
   name: string;
   position: number;
   showInReports: boolean;
+  description?: string;
 }
 
 interface Pipeline {
@@ -181,6 +182,7 @@ export default function PipelineManagementPage() {
   const [loading, setLoading] = useState(true);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [tempStageName, setTempStageName] = useState("");
+  const [tempStageDescription, setTempStageDescription] = useState("");
   const [isEditingPipelineName, setIsEditingPipelineName] = useState(false);
   const [tempPipelineName, setTempPipelineName] = useState("");
   const [search, setSearch] = useState("");
@@ -335,7 +337,7 @@ export default function PipelineManagementPage() {
       .eq("pipeline_id", p.id)
       .order("position");
 
-     if (error) {
+       if (error) {
        console.error("Error fetching stages:", error);
      } else {
        setSelectedPipeline({
@@ -344,7 +346,8 @@ export default function PipelineManagementPage() {
            id: String(s.id),
            name: s.name,
            position: s.position,
-           showInReports: s.show_in_reports
+           showInReports: s.show_in_reports,
+           description: s.description || ""
          }))
        });
        setDeleteError(null);
@@ -382,7 +385,8 @@ export default function PipelineManagementPage() {
          id: String(data.id),
          name: data.name,
          position: data.position,
-         showInReports: data.show_in_reports
+         showInReports: data.show_in_reports,
+         description: data.description || ""
        };
        setSelectedPipeline({
          ...selectedPipeline,
@@ -450,6 +454,7 @@ export default function PipelineManagementPage() {
     const dbUpdates: any = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.showInReports !== undefined) dbUpdates.show_in_reports = updates.showInReports;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
 
     const { error } = await supabase
       .from("pipeline_stages")
@@ -652,6 +657,7 @@ export default function PipelineManagementPage() {
                 <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
                   {[
                     { label: "Stage Name", align: "left" as const },
+                    { label: "Description", align: "left" as const },
                     { label: "Show in Reports", align: "left" as const },
                     { label: "Actions", align: "center" as const },
                   ].map(({ label, align }) => (
@@ -691,12 +697,36 @@ export default function PipelineManagementPage() {
                         />
                       ) : (
                         <span 
-                          onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); }}
+                          onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); setTempStageDescription(stage.description || ""); }}
                           style={{ fontWeight: 500, color: T.textDark, cursor: "text", padding: "4px 8px", borderRadius: 6, transition: "background-color 0.2s" }}
                           onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                         >
                           {stage.name}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      {editingStageId === stage.id ? (
+                        <input 
+                          value={tempStageDescription}
+                          onChange={(e) => setTempStageDescription(e.target.value)}
+                          onBlur={() => handleUpdateStage(stage.id, { description: tempStageDescription })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleUpdateStage(stage.id, { description: tempStageDescription });
+                            if (e.key === 'Escape') setEditingStageId(null);
+                          }}
+                          placeholder="Add description..."
+                          style={{ border: `1.5px solid #233217`, borderRadius: 6, padding: "6px 10px", fontSize: 13, fontWeight: 400, color: T.textDark, outline: "none", width: "100%", maxWidth: 300, backgroundColor: "#fff" }}
+                        />
+                      ) : (
+                        <span 
+                          onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); setTempStageDescription(stage.description || ""); }}
+                          style={{ fontWeight: 400, color: stage.description ? T.textDark : T.textMuted, cursor: "text", padding: "4px 8px", borderRadius: 6, transition: "background-color 0.2s", fontStyle: stage.description ? "normal" : "italic" }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                        >
+                          {stage.description || "Add description..."}
                         </span>
                       )}
                     </TableCell>
