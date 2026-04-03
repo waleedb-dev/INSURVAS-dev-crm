@@ -16,6 +16,13 @@ import {
 import { IconBolt, IconCheck, IconEye, IconPencil, IconPhone, IconTrash, IconX } from "@tabler/icons-react";
 import { duplicateKey, formatDateShort, generatePendingApprovalNotes, getBadgeStyle, getCurrentTimestampEST, getGroupValue } from "./helpers";
 import { Table as ShadcnTable, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/shadcn/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const actionIconBtn: CSSProperties = {
   padding: 6,
@@ -29,6 +36,123 @@ const actionIconBtn: CSSProperties = {
 function dialHref(phone: string | null | undefined): string | null {
   const digits = String(phone || "").replace(/\D/g, "");
   return digits.length > 0 ? `tel:${digits}` : null;
+}
+
+function InlineSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select...",
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 34,
+          borderRadius: 8,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value ? T.textDark : T.textMuted,
+          fontSize: 12,
+          fontWeight: 500,
+          paddingLeft: 10,
+          paddingRight: 10,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value
+            ? options.find((o) => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 250,
+          zIndex: 99999,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontSize: 12,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function InlineInput({
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  style,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  type?: "text" | "number" | "date";
+  placeholder?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{
+        width: "100%",
+        height: 34,
+        borderRadius: 8,
+        border: `1px solid ${T.border}`,
+        backgroundColor: T.cardBg,
+        color: T.textDark,
+        fontSize: 12,
+        fontWeight: 500,
+        paddingLeft: 10,
+        paddingRight: 10,
+        transition: "all 0.15s ease-in-out",
+        outline: "none",
+        ...style,
+      }}
+      onFocus={(e) => {
+        e.currentTarget.style.borderColor = "#233217";
+        e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+      }}
+      onBlur={(e) => {
+        e.currentTarget.style.borderColor = T.border;
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    />
+  );
 }
 
 type Props = {
@@ -56,7 +180,7 @@ type SortConfig = { key: string; direction: "asc" | "desc" } | null;
 
 const columns = [
   "S.No", "Date", "Lead Vendor", "Insured Name", "Phone Number", "Buffer Agent", "Retention Agent", "Agent", "Licensed Account", "Status",
-  "Call Result", "Carrier", "Product Type", "Draft Date", "MP", "Face Amount", "LA Callback", "Notes",
+  "Call Result", "Carrier", "Product Type", "Draft Date", "MP", "Face Amount", "Notes",
 ];
 
 function sortRows(items: DailyDealFlowRow[], sortConfig: SortConfig): DailyDealFlowRow[] {
@@ -121,6 +245,7 @@ export function DdfGroupedGrid({
     user: { name: string } | null;
   }>>([]);
   const [dynamicCarrierOptions, setDynamicCarrierOptions] = useState<string[]>([]);
+  const [notesTooltip, setNotesTooltip] = useState<{ id: string; text: string; x: number; y: number } | null>(null);
   const { carriers, productsForCarrier } = useCarrierProductDropdowns(supabase, {
     open: Boolean(editingId || detailId),
     carrierName: String(draft?.carrier || ""),
@@ -294,28 +419,56 @@ export function DdfGroupedGrid({
     const isEditing = editingId === row.id;
     const isDuplicate = duplicateRows.has(duplicateKey(row));
     const data = isEditing && draft ? draft : row;
+    const hasNotes = Boolean(row.notes && row.notes.trim().length > 0);
     return (
       <TableRow key={row.id} style={{ background: isDuplicate ? "#FEF9E7" : "transparent", borderBottom: `1px solid ${T.border}` }} className="hover:bg-muted/30 transition-colors">
         <TableCell style={rowCellStyle}>{serialNumber}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <Input type="date" value={data.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} /> : formatDateShort(row.date)}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="date" value={data.date || ""} onChange={(v) => patchDraft({ date: v })} /> : formatDateShort(row.date) || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>
-          <span style={getBadgeStyle("vendor", row.lead_vendor)}>{row.lead_vendor || ""}</span>
+          {row.lead_vendor || "N/A"}
         </TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <Input value={data.insured_name || ""} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} /> : row.insured_name}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <Input value={data.client_phone_number || ""} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} /> : row.client_phone_number}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.buffer_agent || ""} onChange={(v) => patchDraft({ buffer_agent: String(v) })} options={bufferAgentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.buffer_agent)}>{row.buffer_agent || ""}</span>}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.retention_agent || ""} onChange={(v) => patchDraft({ retention_agent: String(v) })} options={retentionOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.retention_agent)}>{row.retention_agent || ""}</span>}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.agent || ""} onChange={(v) => patchDraft({ agent: String(v) })} options={agentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("agent", row.agent)}>{row.agent || ""}</span>}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.licensed_agent_account || ""} onChange={(v) => patchDraft({ licensed_agent_account: String(v) })} options={licensedOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("licensed", row.licensed_agent_account)}>{row.licensed_agent_account || ""}</span>}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.status || ""} onChange={(v) => patchDraft({ status: String(v) })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", row.status)}>{row.status || ""}</span>}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.call_result || ""} onChange={(v) => patchDraft({ call_result: String(v) })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("result", row.call_result)}>{row.call_result || ""}</span>}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v), product_type: "" })} options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))} /> : row.carrier}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))} /> : row.product_type}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <Input type="date" value={data.draft_date || ""} onChange={(e) => patchDraft({ draft_date: e.currentTarget.value })} /> : formatDateShort(row.draft_date)}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <Input type="number" value={String(data.monthly_premium ?? "")} onChange={(e) => patchDraft({ monthly_premium: e.currentTarget.value ? Number(e.currentTarget.value) : null })} /> : row.monthly_premium ? `$${row.monthly_premium.toFixed(2)}` : ""}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <Input type="number" value={String(data.face_amount ?? "")} onChange={(e) => patchDraft({ face_amount: e.currentTarget.value ? Number(e.currentTarget.value) : null })} /> : row.face_amount ? `$${row.face_amount.toLocaleString()}` : ""}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <SelectInput value={data.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} /> : row.la_callback}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <textarea value={data.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ minHeight: 54, width: 160 }} /> : row.notes}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineInput value={data.insured_name || ""} onChange={(v) => patchDraft({ insured_name: v })} /> : row.insured_name || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineInput value={data.client_phone_number || ""} onChange={(v) => patchDraft({ client_phone_number: v })} /> : row.client_phone_number || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.buffer_agent || ""} onValueChange={(v) => patchDraft({ buffer_agent: v })} options={bufferAgentOptions.map((v) => ({ value: v, label: v }))} /> : row.buffer_agent || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.retention_agent || ""} onValueChange={(v) => patchDraft({ retention_agent: v })} options={retentionOptions.map((v) => ({ value: v, label: v }))} /> : row.retention_agent || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.agent || ""} onValueChange={(v) => patchDraft({ agent: v })} options={agentOptions.map((v) => ({ value: v, label: v }))} /> : row.agent || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.licensed_agent_account || ""} onValueChange={(v) => patchDraft({ licensed_agent_account: v })} options={licensedOptions.map((v) => ({ value: v, label: v }))} /> : row.licensed_agent_account || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.status || ""} onValueChange={(v) => patchDraft({ status: v })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", row.status)}>{row.status || "N/A"}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.call_result || ""} onValueChange={(v) => patchDraft({ call_result: v })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("result", row.call_result)}>{row.call_result || "N/A"}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.carrier || ""} onValueChange={(v) => patchDraft({ carrier: v, product_type: "" })} options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))} /> : row.carrier || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.product_type || ""} onValueChange={(v) => patchDraft({ product_type: v })} options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))} /> : row.product_type || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="date" value={data.draft_date || ""} onChange={(v) => patchDraft({ draft_date: v })} /> : formatDateShort(row.draft_date) || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="number" value={String(data.monthly_premium ?? "")} onChange={(v) => patchDraft({ monthly_premium: v ? Number(v) : null })} /> : row.monthly_premium ? `$${row.monthly_premium.toFixed(2)}` : "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="number" value={String(data.face_amount ?? "")} onChange={(v) => patchDraft({ face_amount: v ? Number(v) : null })} /> : row.face_amount ? `$${row.face_amount.toLocaleString()}` : "N/A"}</TableCell>
+        <TableCell style={{ ...rowCellStyle, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {isEditing ? (
+            <textarea value={data.notes || ""} onChange={(e) => patchDraft({ notes: e.target.value })} style={{ minHeight: 54, width: 100, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 12, padding: "8px 10px", resize: "vertical", outline: "none", transition: "all 0.15s ease-in-out" }} onFocus={(e) => { e.currentTarget.style.borderColor = "#233217"; e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }} onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }} />
+          ) : hasNotes ? (
+            <div style={{ position: "relative", display: "inline-block" }}>
+              <button
+                onMouseEnter={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setNotesTooltip({ id: row.id, text: row.notes || "", x: rect.left, y: rect.bottom + 8 });
+                }}
+                onMouseLeave={() => setNotesTooltip(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#233217",
+                  padding: "2px 4px",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
+                View Notes
+              </button>
+            </div>
+          ) : (
+            <span style={{ color: T.textMuted, fontStyle: "italic" }}>No notes</span>
+          )}
+        </TableCell>
         {hasWritePermissions && (
           <TableCell style={{ ...rowCellStyle, whiteSpace: "nowrap", minWidth: 210 }}>
             <div
@@ -447,7 +600,7 @@ export function DdfGroupedGrid({
 
   return (
     <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
-      <div style={{ overflow: "auto" }}>
+      <div style={{ overflowX: "auto" }}>
         <ShadcnTable>
           <TableHeader style={{ backgroundColor: "#233217" }}>
             <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
@@ -697,6 +850,27 @@ export function DdfGroupedGrid({
           </div>
         )}
       </Modal>
+      {notesTooltip && (
+        <div
+          style={{
+            position: "fixed",
+            left: notesTooltip.x,
+            top: notesTooltip.y,
+            zIndex: 999999,
+            maxWidth: 400,
+            background: T.cardBg,
+            border: `1px solid ${T.border}`,
+            borderRadius: 12,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+            padding: 16,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#233217", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.3px" }}>Notes</div>
+          <div style={{ fontSize: 13, color: T.textDark, lineHeight: 1.5 }}>{notesTooltip.text}</div>
+        </div>
+      )}
     </div>
   );
 }

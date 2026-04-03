@@ -393,6 +393,7 @@ export default function TransferLeadApplicationForm({
   });
   const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [hoveredFieldInfo, setHoveredFieldInfo] = useState<{ key: string; info: string; x: number; y: number } | null>(null);
   const displayBpoName = (centerName || "").trim() || "BPO";
 
   const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
@@ -1011,7 +1012,7 @@ export default function TransferLeadApplicationForm({
   }, [phoneGatePassed, activeTab]);
 
   return (
-    <div style={{ fontFamily: T.font }}>
+    <div style={{ fontFamily: T.font, minHeight: "100vh", paddingBottom: 40 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: 24, gap: 16 }}>
         <button
@@ -1042,7 +1043,7 @@ export default function TransferLeadApplicationForm({
                 style={{
                   padding: "10px 16px",
                   border: "none",
-                  borderRadius: 10,
+                  borderRadius: 8,
                   backgroundColor: activeTab === tab ? "#233217" : "transparent",
                   cursor: isAccessible ? "pointer" : "not-allowed",
                   fontSize: 12,
@@ -1062,7 +1063,16 @@ export default function TransferLeadApplicationForm({
                   if (activeTab !== tab) {
                     e.currentTarget.style.backgroundColor = "transparent";
                     e.currentTarget.style.color = isAccessible ? T.textMuted : "#a0a0a0";
+                    e.currentTarget.style.transform = "scale(1)";
                   }
+                }}
+                onMouseDown={(e) => {
+                  if (activeTab !== tab && isAccessible) {
+                    e.currentTarget.style.transform = "scale(0.97)";
+                  }
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = activeTab === tab ? "scale(1)" : "scale(1)";
                 }}
               >
                 {tab}
@@ -1071,17 +1081,25 @@ export default function TransferLeadApplicationForm({
           })}
         </div>
 
-        <div ref={contentRef} style={{ padding: 24, flex: 1, overflowY: "auto", maxHeight: "calc(100vh - 280px)" }}>
+        <div ref={contentRef} style={{ padding: 24, flex: 1 }}>
           {/* Section: Lead Information */}
           <div id="section-lead-info" style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
         <Section title="Lead Information" icon={
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>
         }>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Date of Submission" required error={getFieldError("submissionDate")}>
+            <Field label="Date of Submission" required error={getFieldError("submissionDate")}
+              info="Date when this lead/application was submitted."
+              fieldKey="submissionDate"
+              hoveredFieldInfo={hoveredFieldInfo}
+              setHoveredFieldInfo={setHoveredFieldInfo}>
               <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyleWithError("submissionDate")} />
             </Field>
-            <Field label="Phone Number" required error={getFieldError("phone")}>
+            <Field label="Phone Number" required error={getFieldError("phone")}
+              info="Lead contact phone number for verification calls. Enter 10 digits, or 11 digits if it starts with 1. Run phone check first to unlock the full application form."
+              fieldKey="phone"
+              hoveredFieldInfo={hoveredFieldInfo}
+              setHoveredFieldInfo={setHoveredFieldInfo}>
               <div style={{ position: "relative" }}>
                 <input
                   placeholder="Enter 10 or 11 digits"
@@ -1161,26 +1179,6 @@ export default function TransferLeadApplicationForm({
                   {dncMessage}
                 </div>
               )}
-              <div style={{ fontSize: 11, color: phoneError ? T.danger : T.textMuted, marginTop: 4 }}>
-                {phoneError ? "Please enter a valid phone number (10 digits or 11 digits starting with 1)." : "Enter 10 digits, or 11 digits if it starts with 1."}
-              </div>
-              {!isEditMode && !phoneGatePassed && (
-                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
-                  Run phone check first to unlock the full application form.
-                </div>
-              )}
-            </Field>
-            <Field label="Language" required error={getFieldError("language")}>
-              <StyledSelect
-                value={formData.language}
-                onValueChange={(val) => setFormData((prev) => ({ ...prev, language: val }))}
-                options={[
-                  { value: "English", label: "English" },
-                  { value: "Spanish", label: "Spanish" },
-                ]}
-                placeholder="Select language"
-                error={submitHighlightKeys.has("language")}
-              />
             </Field>
           </div>
         </Section>
@@ -1241,19 +1239,39 @@ export default function TransferLeadApplicationForm({
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             }>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="First Name" required error={getFieldError("firstName")}>
+                <Field label="First Name" required error={getFieldError("firstName")}
+                  info="First name as it appears on the lead ID."
+                  fieldKey="firstName"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.firstName} onChange={set("firstName")} style={fieldStyleWithError("firstName")} />
                 </Field>
-                <Field label="Last Name" required error={getFieldError("lastName")}>
+                <Field label="Last Name" required error={getFieldError("lastName")}
+                  info="Last name as it appears on the lead ID."
+                  fieldKey="lastName"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.lastName} onChange={set("lastName")} style={fieldStyleWithError("lastName")} />
                 </Field>
-                <Field label="Date of Birth" required error={getFieldError("dateOfBirth")}>
+                <Field label="Date of Birth" required error={getFieldError("dateOfBirth")}
+                  info="Date of birth in MM/DD/YYYY format."
+                  fieldKey="dateOfBirth"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyleWithError("dateOfBirth")} />
                 </Field>
-                <Field label="Age" required error={getFieldError("age")}>
+                <Field label="Age" required error={getFieldError("age")}
+                  info="Current age at time of application."
+                  fieldKey="age"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.age} onChange={set("age")} style={fieldStyleWithError("age")} />
                 </Field>
-                <Field label="Social Security Number" required error={getFieldError("social")}>
+                <Field label="Social Security Number" required error={getFieldError("social")}
+                  info="9-digit Social Security Number for identity verification."
+                  fieldKey="social"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input
                     value={formData.social}
                     onChange={(e) => {
@@ -1309,8 +1327,28 @@ export default function TransferLeadApplicationForm({
                     </div>
                   )}
                 </Field>
-                <Field label="Driver License Number" required error={getFieldError("driverLicenseNumber")}>
+                <Field label="Driver License Number" required error={getFieldError("driverLicenseNumber")}
+                  info="State-issued driver license number for identity verification."
+                  fieldKey="driverLicenseNumber"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.driverLicenseNumber} onChange={set("driverLicenseNumber")} style={fieldStyleWithError("driverLicenseNumber")} />
+                </Field>
+                <Field label="Language" required error={getFieldError("language")}
+                  info="Select the primary language for communication with this lead."
+                  fieldKey="language"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}>
+                  <StyledSelect
+                    value={formData.language}
+                    onValueChange={(val) => setFormData((prev) => ({ ...prev, language: val }))}
+                    options={[
+                      { value: "English", label: "English" },
+                      { value: "Spanish", label: "Spanish" },
+                    ]}
+                    placeholder="Select language"
+                    error={submitHighlightKeys.has("language")}
+                  />
                 </Field>
               </div>
               {ssnDupMatch && (
@@ -1371,16 +1409,24 @@ export default function TransferLeadApplicationForm({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Street Address" required full error={getFieldError("street1")}>
+                  <Field label="Street Address" required full error={getFieldError("street1")}
+                    info="Primary street address for mailing and underwriting purposes."
+                    fieldKey="street1" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyleWithError("street1")} />
                   </Field>
-                  <Field label="Address Line 2" full>
+                  <Field label="Address Line 2" full
+                    info="Apartment, suite, or unit number (optional)."
+                    fieldKey="street2" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input placeholder="Apt, Suite, Unit (optional)" value={formData.street2} onChange={set("street2")} style={fieldStyle} />
                   </Field>
-                  <Field label="City" required error={getFieldError("city")}>
+                  <Field label="City" required error={getFieldError("city")}
+                    info="City of the primary residence."
+                    fieldKey="city" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
                   </Field>
-                  <Field label="State" required error={getFieldError("state")}>
+                  <Field label="State" required error={getFieldError("state")}
+                    info="State of the primary residence."
+                    fieldKey="state" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.state}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, state: val }))}
@@ -1389,10 +1435,14 @@ export default function TransferLeadApplicationForm({
                       error={submitHighlightKeys.has("state")}
                     />
                   </Field>
-                  <Field label="Zip Code" required error={getFieldError("zipCode")}>
+                  <Field label="Zip Code" required error={getFieldError("zipCode")}
+                    info="5-digit ZIP code of the primary residence."
+                    fieldKey="zipCode" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
                   </Field>
-                  <Field label="Birth State" required error={getFieldError("birthState")}>
+                  <Field label="Birth State" required error={getFieldError("birthState")}
+                    info="State where the lead was born (required for underwriting)."
+                    fieldKey="birthState" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.birthState}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, birthState: val }))}
@@ -1434,28 +1484,44 @@ export default function TransferLeadApplicationForm({
               }
             >
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="Any existing / previous coverage in last 2 years?" required error={getFieldError("existingCoverageLast2Years")}>
+                <Field label="Any existing / previous coverage in last 2 years?" required error={getFieldError("existingCoverageLast2Years")}
+                  info="Indicates if the lead has had any life insurance coverage in the past 2 years."
+                  fieldKey="existingCoverageLast2Years" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v }))} hasError={submitHighlightKeys.has("existingCoverageLast2Years")} />
                 </Field>
-                <Field label="Any previous applications in 2 years?" required error={getFieldError("previousApplications2Years")}>
+                <Field label="Any previous applications in 2 years?" required error={getFieldError("previousApplications2Years")}
+                  info="Indicates if the lead has applied for life insurance in the past 2 years."
+                  fieldKey="previousApplications2Years" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <YesNo value={formData.previousApplications2Years} onChange={(v) => setFormData((p) => ({ ...p, previousApplications2Years: v }))} hasError={submitHighlightKeys.has("previousApplications2Years")} />
                 </Field>
-                <Field label="Height" required error={getFieldError("height")}>
+                <Field label="Height" required error={getFieldError("height")}
+                  info="Lead height in feet and inches (e.g., 5 ft 10 in)."
+                  fieldKey="height" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input placeholder='e.g. 5&apos;10"' value={formData.height} onChange={set("height")} style={fieldStyleWithError("height")} />
                 </Field>
-                <Field label="Weight" required error={getFieldError("weight")}>
+                <Field label="Weight" required error={getFieldError("weight")}
+                  info="Lead current weight in pounds."
+                  fieldKey="weight" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input placeholder="e.g. 175 lbs" value={formData.weight} onChange={set("weight")} style={fieldStyleWithError("weight")} />
                 </Field>
-                <Field label="Doctor's Name" required error={getFieldError("doctorName")}>
+                <Field label="Doctor's Name" required error={getFieldError("doctorName")}
+                  info="Primary care physician full name for medical history verification."
+                  fieldKey="doctorName" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.doctorName} onChange={set("doctorName")} style={fieldStyleWithError("doctorName")} />
                 </Field>
-                <Field label="Tobacco Use" required error={getFieldError("tobaccoUse")}>
+                <Field label="Tobacco Use" required error={getFieldError("tobaccoUse")}
+                  info="Indicates if the lead currently uses tobacco or nicotine products."
+                  fieldKey="tobaccoUse" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <YesNo value={formData.tobaccoUse} onChange={(v) => setFormData((p) => ({ ...p, tobaccoUse: v }))} hasError={submitHighlightKeys.has("tobaccoUse")} />
                 </Field>
-                <Field label="Health Conditions" required full error={getFieldError("healthConditions")}>
+                <Field label="Health Conditions" required full error={getFieldError("healthConditions")}
+                  info="Any existing medical conditions that may affect underwriting."
+                  fieldKey="healthConditions" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <textarea value={formData.healthConditions} onChange={set("healthConditions")} style={{ ...fieldStyleWithError("healthConditions"), minHeight: 80, resize: "vertical" }} />
                 </Field>
-                <Field label="Medications" required full error={getFieldError("medications")}>
+                <Field label="Medications" required full error={getFieldError("medications")}
+                  info="List of current medications the lead is taking."
+                  fieldKey="medications" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <textarea value={formData.medications} onChange={set("medications")} style={{ ...fieldStyleWithError("medications"), minHeight: 80, resize: "vertical" }} />
                 </Field>
               </div>
@@ -1470,19 +1536,25 @@ export default function TransferLeadApplicationForm({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Monthly Premium" required error={getFieldError("monthlyPremium")}>
+                  <Field label="Monthly Premium" required error={getFieldError("monthlyPremium")}
+                    info="The monthly premium amount for the selected policy."
+                    fieldKey="monthlyPremium" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <div style={{ position: "relative" }}>
                       <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
                       <input value={formData.monthlyPremium} onChange={set("monthlyPremium")} style={fieldStyleWithError("monthlyPremium", { paddingLeft: 28 })} />
                     </div>
                   </Field>
-                  <Field label="Coverage Amount" required error={getFieldError("coverageAmount")}>
+                  <Field label="Coverage Amount" required error={getFieldError("coverageAmount")}
+                    info="The death benefit amount of the policy."
+                    fieldKey="coverageAmount" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <div style={{ position: "relative" }}>
                       <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
                       <input value={formData.coverageAmount} onChange={set("coverageAmount")} style={fieldStyleWithError("coverageAmount", { paddingLeft: 28 })} />
                     </div>
                   </Field>
-                  <Field label="Carrier" required error={getFieldError("carrier")}>
+                  <Field label="Carrier" required error={getFieldError("carrier")}
+                    info="The insurance company providing the policy."
+                    fieldKey="carrier" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.carrier}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, carrier: val, productType: "" }))}
@@ -1491,7 +1563,9 @@ export default function TransferLeadApplicationForm({
                       error={submitHighlightKeys.has("carrier")}
                     />
                   </Field>
-                  <Field label="Product Type" required error={getFieldError("productType")}>
+                  <Field label="Product Type" required error={getFieldError("productType")}
+                    info="The specific type of policy product selected."
+                    fieldKey="productType" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.productType}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, productType: val }))}
@@ -1501,13 +1575,19 @@ export default function TransferLeadApplicationForm({
                       error={submitHighlightKeys.has("productType")}
                     />
                   </Field>
-                <Field label="Draft Date" required error={getFieldError("draftDate")}>
+                <Field label="Draft Date" required error={getFieldError("draftDate")}
+                  info="The date the first premium draft will occur."
+                  fieldKey="draftDate" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input type="date" value={formData.draftDate} onChange={set("draftDate")} style={fieldStyleWithError("draftDate")} />
                 </Field>
-                <Field label="Future Draft Date" required error={getFieldError("futureDraftDate")}>
+                <Field label="Future Draft Date" required error={getFieldError("futureDraftDate")}
+                  info="Scheduled date for a future premium draft if applicable."
+                  fieldKey="futureDraftDate" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input type="date" value={formData.futureDraftDate} onChange={set("futureDraftDate")} style={fieldStyleWithError("futureDraftDate")} />
                 </Field>
-                <Field label="Beneficiary Information" required full error={getFieldError("beneficiaryInformation")}>
+                <Field label="Beneficiary Information" required full error={getFieldError("beneficiaryInformation")}
+                  info="Designated person(s) who will receive the policy benefit."
+                  fieldKey="beneficiaryInformation" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <textarea value={formData.beneficiaryInformation} onChange={set("beneficiaryInformation")} style={{ ...fieldStyleWithError("beneficiaryInformation"), minHeight: 72, resize: "vertical" }} />
                 </Field>
               </div>
@@ -1522,7 +1602,9 @@ export default function TransferLeadApplicationForm({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Bank Account Type">
+                  <Field label="Bank Account Type"
+                    info="Type of bank account for ACH premium drafts."
+                    fieldKey="bankAccountType" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.bankAccountType}
                       onValueChange={(val) => setFormData((prev) => ({ ...prev, bankAccountType: val }))}
@@ -1533,13 +1615,19 @@ export default function TransferLeadApplicationForm({
                       placeholder="Please Select"
                     />
                   </Field>
-                  <Field label="Institution Name" required error={getFieldError("institutionName")}>
+                  <Field label="Institution Name" required error={getFieldError("institutionName")}
+                    info="Name of the bank where the account is held."
+                    fieldKey="institutionName" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.institutionName} onChange={set("institutionName")} style={fieldStyleWithError("institutionName")} />
                   </Field>
-                  <Field label="Routing Number" required error={getFieldError("routingNumber")}>
+                  <Field label="Routing Number" required error={getFieldError("routingNumber")}
+                    info="9-digit ABA routing number for the bank."
+                    fieldKey="routingNumber" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.routingNumber} onChange={set("routingNumber")} style={fieldStyleWithError("routingNumber")} />
                   </Field>
-                  <Field label="Account Number" required error={getFieldError("accountNumber")}>
+                  <Field label="Account Number" required error={getFieldError("accountNumber")}
+                    info="Bank account number for ACH transactions."
+                    fieldKey="accountNumber" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.accountNumber} onChange={set("accountNumber")} style={fieldStyleWithError("accountNumber")} />
                   </Field>
                 </div>
@@ -1554,7 +1642,9 @@ export default function TransferLeadApplicationForm({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Additional Notes" full>
+                  <Field label="Additional Notes" full
+                    info="Any supplemental details about the lead or application."
+                    fieldKey="additionalInformation" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <textarea value={formData.additionalInformation} onChange={set("additionalInformation")} style={{ ...fieldStyle, minHeight: 96, resize: "vertical" }} />
                   </Field>
                 </div>
@@ -2003,11 +2093,12 @@ export default function TransferLeadApplicationForm({
         </div>
       )}
 
-      {/* Footer Actions */}
+{/* Footer Actions */}
       <div style={{
         marginTop: 24,
         display: "flex",
-        justifyContent: "flex-end",
+        justifyContent: "center",
+        alignItems: "center",
         gap: 12,
         flexWrap: "wrap",
       }}>
@@ -2016,7 +2107,7 @@ export default function TransferLeadApplicationForm({
           style={{
             height: 42,
             padding: "0 20px",
-            borderRadius: 10,
+            borderRadius: 8,
             border: `1px solid ${T.border}`,
             backgroundColor: "#fff",
             color: T.textDark,
@@ -2034,65 +2125,11 @@ export default function TransferLeadApplicationForm({
             e.currentTarget.style.borderColor = T.border;
             e.currentTarget.style.color = T.textDark;
           }}
+          onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.97)"; }}
+          onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
         >
           Cancel
         </button>
-
-        {phoneGatePassed && activeTab !== "Lead Information" && (
-          <button
-            onClick={handleBack}
-            style={{
-              height: 42,
-              padding: "0 20px",
-              borderRadius: 10,
-              border: `1px solid ${T.border}`,
-              backgroundColor: "#fff",
-              color: T.textDark,
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: T.font,
-              cursor: "pointer",
-              transition: "all 0.15s ease-in-out",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "#233217";
-              e.currentTarget.style.color = "#233217";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = T.border;
-              e.currentTarget.style.color = T.textDark;
-            }}
-          >
-            Back
-          </button>
-        )}
-
-        {phoneGatePassed && onSaveDraft && (
-          <button
-            onClick={() => onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true })}
-            style={{
-              height: 42,
-              padding: "0 20px",
-              borderRadius: 10,
-              border: `1px solid ${T.blue}`,
-              backgroundColor: "#fff",
-              color: T.blue,
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: T.font,
-              cursor: "pointer",
-              transition: "all 0.15s ease-in-out",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#EEF5EE";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#fff";
-            }}
-          >
-            Save Draft
-          </button>
-        )}
 
         {phoneGatePassed && (
           <button
@@ -2126,14 +2163,14 @@ export default function TransferLeadApplicationForm({
             }}
             disabled={submitDisabled}
             style={{
-              height: 42,
-              padding: "0 24px",
-              borderRadius: 10,
+              height: 48,
+              padding: "0 48px",
+              borderRadius: 8,
               border: "none",
               backgroundColor: submitDisabled ? T.border : "#233217",
               color: "#fff",
-              fontSize: 14,
-              fontWeight: 600,
+              fontSize: 15,
+              fontWeight: 700,
               fontFamily: T.font,
               cursor: submitDisabled ? "not-allowed" : "pointer",
               boxShadow: submitDisabled ? "none" : "0 4px 12px rgba(35, 50, 23, 0.2)",
@@ -2142,6 +2179,7 @@ export default function TransferLeadApplicationForm({
               display: "flex",
               alignItems: "center",
               gap: 8,
+              minWidth: 220,
             }}
             onMouseEnter={(e) => {
               if (!submitDisabled) {
@@ -2153,8 +2191,39 @@ export default function TransferLeadApplicationForm({
                 e.currentTarget.style.backgroundColor = "#233217";
               }
             }}
+            onMouseDown={(e) => { if (!submitDisabled) e.currentTarget.style.transform = "scale(0.97)"; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
           >
-            {submitButtonLabel || "Submit"}
+            Submit Application
+          </button>
+        )}
+
+        {phoneGatePassed && onSaveDraft && (
+          <button
+            onClick={() => onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true })}
+            style={{
+              height: 42,
+              padding: "0 20px",
+              borderRadius: 8,
+              border: `1px solid #233217`,
+              backgroundColor: "#fff",
+              color: "#233217",
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: T.font,
+              cursor: "pointer",
+              transition: "all 0.15s ease-in-out",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#EEF5EE";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#fff";
+            }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.97)"; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+          >
+            Save Draft
           </button>
         )}
       </div>
@@ -2166,6 +2235,29 @@ export default function TransferLeadApplicationForm({
       {toast ? (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       ) : null}
+      {hoveredFieldInfo && (
+        <div
+          style={{
+            position: "fixed",
+            top: hoveredFieldInfo.y,
+            left: hoveredFieldInfo.x,
+            backgroundColor: "#233217",
+            color: "#fff",
+            padding: "10px 14px",
+            borderRadius: 10,
+            fontSize: 12,
+            fontWeight: 500,
+            maxWidth: 320,
+            width: 320,
+            zIndex: 999999,
+            boxShadow: "0 12px 32px rgba(35, 50, 23, 0.4)",
+            animation: "fadeInUp 0.15s ease-out",
+            lineHeight: 1.6,
+          }}
+        >
+          {hoveredFieldInfo.info}
+        </div>
+      )}
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -2178,9 +2270,9 @@ export default function TransferLeadApplicationForm({
 function Section({ title, icon, action, children }: { title: string; icon: ReactNode; action?: ReactNode; children: ReactNode }) {
   return (
     <div style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusLg, overflow: "hidden" }}>
-      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: "#fafcff" }}>
+      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: "#DCEBDC" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: T.blue }}>{icon}</span>
+          <span style={{ color: "#233217" }}>{icon}</span>
           <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.textDark }}>{title}</h2>
         </div>
         {action}
@@ -2195,25 +2287,62 @@ function Field({
   children, 
   full = false, 
   error,
-  required = false 
+  required = false,
+  info,
+  fieldKey,
+  hoveredFieldInfo,
+  setHoveredFieldInfo,
 }: { 
   label: string; 
   children: ReactNode; 
   full?: boolean;
   error?: string;
   required?: boolean;
+  info?: string;
+  fieldKey?: string;
+  hoveredFieldInfo?: { key: string; info: string; x: number; y: number } | null;
+  setHoveredFieldInfo?: (info: { key: string; info: string; x: number; y: number } | null) => void;
 }) {
   return (
-    <div style={{ gridColumn: full ? "span 2" : "span 1", display: "flex", flexDirection: "column", gap: 6 }}>
-      <label style={{
-        ...labelStyle,
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-      }}>
-        {label}
-        {required && <span style={{ color: "#dc2626" }}>*</span>}
-      </label>
+    <div style={{ gridColumn: full ? "span 2" : "span 1", display: "flex", flexDirection: "column", gap: 6 }} data-field-key={fieldKey} data-info={info}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <label style={{
+          ...labelStyle,
+          marginBottom: 0,
+        }}>
+          {label}
+          {required && <span style={{ color: "#dc2626" }}>*</span>}
+        </label>
+        {info && fieldKey && (
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredFieldInfo && setHoveredFieldInfo({ key: fieldKey, info, x: rect.left, y: rect.bottom + 8 });
+              }}
+              onMouseLeave={() => {
+                setHoveredFieldInfo && setHoveredFieldInfo(null);
+              }}
+              style={{ 
+                background: "none", 
+                border: "none", 
+                cursor: "pointer", 
+                padding: 0, 
+                color: "#93c5fd", 
+                display: "flex", 
+                alignItems: "center",
+                marginLeft: 2,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 16v-4M12 8h.01"/>
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
       {children}
       {error && (
         <span style={{ 
