@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { T } from "@/lib/theme";
 import { ActionMenu, DataGrid, FilterChip, Input, Pagination, Table, Toast, EmptyState } from "@/components/ui";
 import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
@@ -207,129 +207,288 @@ const TRANSFER_KANBAN_COLUMNS: Array<{
   { id: "not-submitted", label: "Not Submitted", accent: "#b91c1c", bg: "#fef2f2" },
 ];
 
-function renderTransferKanbanBoard() {
+function getTransferColumnForLead(lead: IntakeLead): TransferKanbanColumnId {
+  if (lead.isDraft) return "new-lead-in";
+  if (lead.stage === "Transfer API") return "new-transfer-enqueue";
+  return "pending-disposition";
+}
+
+function formatPhoneDisplay(phone: string | null | undefined) {
+  const raw = String(phone ?? "").replace(/\D/g, "");
+  if (raw.length === 10) {
+    return `+1 (${raw.slice(0, 3)}) ${raw.slice(3, 6)}-${raw.slice(6)}`;
+  }
+  return phone || "";
+}
+
+const KANBAN_ITEMS_PER_PAGE = 20;
+
+function renderTransferKanbanBoard({ leads, collapsedColumns, toggleColumnCollapse, openLeadFromGrid, openLeadInForm, kanbanPage, setKanbanPage }: {
+  leads: IntakeLead[];
+  collapsedColumns: Record<string, boolean>;
+  toggleColumnCollapse: (id: string) => void;
+  openLeadFromGrid: (lead: IntakeLead) => void;
+  openLeadInForm: (rowId: string) => void;
+  kanbanPage: Record<string, number>;
+  setKanbanPage: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+}) {
+  const leadsByColumn: Record<TransferKanbanColumnId, IntakeLead[]> = {
+    "new-lead-in": [],
+    "new-transfer-enqueue": [],
+    "pending-disposition": [],
+    "submitted": [],
+    "not-submitted": [],
+  };
+
+  leads.forEach((lead) => {
+    const columnId = getTransferColumnForLead(lead);
+    leadsByColumn[columnId].push(lead);
+  });
+
   return (
-    <div
-      style={{
-        background: T.cardBg,
-        borderRadius: 28,
-        padding: "22px 8px 10px",
-        boxShadow: T.shadowSm,
-        border: `1px solid ${T.borderLight}`,
-      }}
-    >
+    <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
       <style>{`
+        .transfer-kanban-container {
+          background-color: transparent;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+        }
         .transfer-kanban-board {
           display: flex;
           gap: 16px;
           overflow-x: auto;
           overflow-y: hidden;
-          padding: 0 0 12px;
+          padding: 8px 4px;
           align-items: stretch;
+          flex: 1;
+          min-height: 0;
           scrollbar-width: thin;
           scrollbar-color: ${T.border} transparent;
         }
-        .transfer-kanban-board::-webkit-scrollbar { height: 7px; }
+        .transfer-kanban-board::-webkit-scrollbar { height: 6px; }
         .transfer-kanban-board::-webkit-scrollbar-track { background: transparent; }
-        .transfer-kanban-board::-webkit-scrollbar-thumb { background: #c8d4bb; border-radius: 999px; }
+        .transfer-kanban-board::-webkit-scrollbar-thumb { background-color: #c8d4bb; border-radius: 10px; }
+        
+        .transfer-kanban-column-wrapper {
+          min-width: 320px;
+          width: 320px;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          background-color: #fff;
+          border: 1px solid ${T.border};
+          border-radius: 12px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+          overflow: hidden;
+          transition: min-width 0.2s ease, width 0.2s ease;
+          height: 100%;
+        }
+        
+        .transfer-kanban-column-body {
+          overflow-y: auto;
+          flex: 1;
+          min-height: 0;
+          padding: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .transfer-kanban-column-body::-webkit-scrollbar { width: 6px; }
+        .transfer-kanban-column-body::-webkit-scrollbar-track { background: transparent; }
+        .transfer-kanban-column-body::-webkit-scrollbar-thumb { background-color: #b8c9a8; border-radius: 6px; }
+        .transfer-kanban-column-body::-webkit-scrollbar-thumb:hover { background-color: #233217; }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
-
-      <div className="transfer-kanban-board">
-        {TRANSFER_KANBAN_COLUMNS.map((column) => (
-          <div
-            key={column.id}
-            style={{
-              minWidth: 316,
-              width: 316,
-              flexShrink: 0,
-              background: "#fff",
-              border: `1px solid ${T.border}`,
-              borderRadius: 14,
-              boxShadow: "0 2px 12px rgba(15, 23, 42, 0.05)",
-              overflow: "visible",
-            }}
-          >
-            <div
-              style={{
-                background: `linear-gradient(180deg, ${column.bg} 0%, #ffffff 88%)`,
-                borderTop: `4px solid ${column.accent}`,
-                borderBottom: `1px solid ${T.borderLight}`,
-                padding: "14px 16px 12px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{column.label}</span>
-                <span
-                  style={{
-                    minWidth: 28,
-                    height: 28,
-                    borderRadius: 999,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#fff",
-                    border: `1px solid ${T.borderLight}`,
-                    color: column.accent,
-                    fontSize: 12,
-                    fontWeight: 800,
-                    padding: "0 8px",
-                  }}
-                >
-                  0
-                </span>
-              </div>
-              <div style={{ marginTop: 6, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
-                No leads yet
-              </div>
-            </div>
-
-            <div
-              style={{
-                padding: 14,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "#fff",
-              }}
-            >
+      
+      <div className="transfer-kanban-container">
+        <div className="transfer-kanban-board">
+          {TRANSFER_KANBAN_COLUMNS.map((column) => {
+            const columnLeads = leadsByColumn[column.id] || [];
+            const isCollapsed = collapsedColumns[column.id];
+            const columnValue = columnLeads.reduce((s, l) => s + l.premium, 0);
+            const currentPage = kanbanPage[column.id] || 1;
+            const totalPages = Math.ceil(columnLeads.length / KANBAN_ITEMS_PER_PAGE);
+            const paginatedLeads = columnLeads.slice((currentPage - 1) * KANBAN_ITEMS_PER_PAGE, currentPage * KANBAN_ITEMS_PER_PAGE);
+            
+            return (
               <div
-                style={{
-                  width: "100%",
-                  border: `1px dashed ${T.border}`,
-                  borderRadius: 12,
-                  padding: "22px 16px",
-                  textAlign: "center",
-                  background: "#fff",
+                key={column.id}
+                className="transfer-kanban-column-wrapper"
+                style={{ 
+                  minWidth: isCollapsed ? 50 : 320,
+                  width: isCollapsed ? 50 : 320,
                 }}
               >
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    margin: "0 auto 12px",
-                    borderRadius: 12,
-                    background: column.bg,
-                    color: column.accent,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="16" rx="2" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>No cards in this stage</div>
-                <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, color: T.textMuted }}>
-                  Kanban layout is enabled, but cards are intentionally hidden for now.
-                </div>
+                {isCollapsed ? (
+                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "16px 0", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" }} onClick={() => toggleColumnCollapse(column.id)}>
+                    <div style={{ backgroundColor: column.accent, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, fontWeight: 800, marginBottom: 16 }}>
+                      {columnLeads.length}
+                    </div>
+                    <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: 13, fontWeight: 800, color: column.accent, textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" }}>
+                      {column.label}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        background: `linear-gradient(180deg, ${column.bg} 0%, #ffffff 88%)`,
+                        padding: "10px 14px",
+                        borderTop: `4px solid ${column.accent}`,
+                        borderBottom: `1px solid ${T.borderLight}`,
+                        borderRadius: "12px 12px 0 0",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{column.label}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <button onClick={() => toggleColumnCollapse(column.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: T.textMuted }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 4, display: "flex", gap: 12, fontSize: 11 }}>
+                        <span style={{ color: T.textMuted, fontWeight: 600 }}>{columnLeads.length} Leads</span>
+                        <span style={{ color: T.textDark, fontWeight: 800 }}>${columnValue.toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="transfer-kanban-column-body" style={{ backgroundColor: "#fafcf8" }}>
+                      {columnLeads.length === 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, padding: 20 }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 10, background: column.bg, color: column.accent, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="4" width="18" height="16" rx="2" />
+                              <line x1="8" y1="2" x2="8" y2="6" />
+                              <line x1="16" y1="2" x2="16" y2="6" />
+                              <line x1="3" y1="10" x2="21" y2="10" />
+                            </svg>
+                          </div>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, textAlign: "center", margin: 0 }}>No leads in this stage</p>
+                        </div>
+                      ) : (
+                        <>
+                          {paginatedLeads.map((lead) => (
+                            <div
+                              key={lead.rowId}
+                              onClick={() => openLeadFromGrid(lead)}
+                              style={{
+                                backgroundColor: "#fff",
+                                borderRadius: 8,
+                                padding: "10px 12px",
+                                boxShadow: "0 1px 4px rgba(35, 50, 23, 0.06)",
+                                border: `1px solid ${T.border}`,
+                                borderLeft: `3px solid ${column.accent}`,
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                                position: "relative",
+                                animation: "fadeInUp 0.15s ease-out",
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = "#233217"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.12)"; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "0 1px 4px rgba(35, 50, 23, 0.06)"; e.currentTarget.style.borderLeftColor = column.accent; }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                                <div style={{ flex: 1, marginRight: 8 }}>
+                                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textDark, lineHeight: 1.3 }}>
+                                    {lead.name}
+                                  </p>
+                                  <p style={{ margin: "2px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 500 }}>
+                                    {formatPhoneDisplay(lead.phone)}
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openLeadInForm(lead.rowId);
+                                  }}
+                                  style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", padding: 2 }}
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                </button>
+                              </div>
+
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginBottom: 6 }}>
+                                <span style={{ fontSize: 11, color: T.textMuted }}><span style={{ fontWeight: 600 }}>Carrier:</span> {lead.carrier}</span>
+                                <span style={{ fontSize: 11, color: T.textMuted }}><span style={{ fontWeight: 600 }}>State:</span> {lead.state}</span>
+                              </div>
+
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 6, borderTop: `1px solid ${T.borderLight}` }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 500 }}>{lead.centerName}</span>
+                                  {lead.isDraft && (
+                                    <span style={{ fontSize: 9, fontWeight: 700, backgroundColor: "#fef3c7", color: "#92400e", padding: "1px 5px", borderRadius: 3 }}>
+                                      DRAFT
+                                    </span>
+                                  )}
+                                </div>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: T.textDark }}>${lead.premium.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          ))}
+
+                          {totalPages > 1 && (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 2px", borderTop: `1px solid ${T.borderLight}`, marginTop: 4 }}>
+                              <button
+                                onClick={() => setKanbanPage((prev) => ({ ...prev, [column.id]: Math.max(1, (prev[column.id] || 1) - 1) }) as Record<string, number>)}
+                                disabled={currentPage === 1}
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 6,
+                                  border: `1px solid ${T.border}`,
+                                  background: "#fff",
+                                  color: currentPage === 1 ? T.textMuted : "#233217",
+                                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  opacity: currentPage === 1 ? 0.5 : 1,
+                                }}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+                              </button>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: T.textDark }}>
+                                {currentPage} / {totalPages}
+                              </span>
+                              <button
+                                onClick={() => setKanbanPage((prev) => ({ ...prev, [column.id]: Math.min(totalPages, (prev[column.id] || 1) + 1) }) as Record<string, number>)}
+                                disabled={currentPage === totalPages}
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 6,
+                                  border: `1px solid ${T.border}`,
+                                  background: "#fff",
+                                  color: currentPage === totalPages ? T.textMuted : "#233217",
+                                  cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  opacity: currentPage === totalPages ? 0.5 : 1,
+                                }}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-          </div>
-        ))}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -696,6 +855,8 @@ export default function CallCenterLeadIntakePage({
   /** Detailed filters (dates, dropdowns, premium) — search + chips stay usable when false */
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
+  const [collapsedColumns, setCollapsedColumns] = useState<Record<string, boolean>>({});
+  const [kanbanPage, setKanbanPage] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -827,6 +988,10 @@ export default function CallCenterLeadIntakePage({
 
     setLeads(mapped);
     setIsLoading(false);
+  };
+
+  const toggleColumnCollapse = (columnId: string) => {
+    setCollapsedColumns((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
   };
 
   const openClaimModalForLead = async (lead: IntakeLead) => {
@@ -2935,7 +3100,15 @@ export default function CallCenterLeadIntakePage({
         </DataGrid>
       )
       ) : (
-        renderTransferKanbanBoard()
+        renderTransferKanbanBoard({
+          leads: filtered,
+          collapsedColumns,
+          toggleColumnCollapse,
+          openLeadFromGrid,
+          openLeadInForm,
+          kanbanPage,
+          setKanbanPage,
+        })
       )}
 
       <div style={{ height: 8 }} />

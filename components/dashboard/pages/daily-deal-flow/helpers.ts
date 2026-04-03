@@ -50,27 +50,26 @@ export function duplicateKey(row: DailyDealFlowRow): string {
 export function getBadgeStyle(kind: "vendor" | "status" | "result" | "agent" | "licensed", value?: string | null): CSSProperties {
   const v = (value || "").toLowerCase();
   const map: Record<string, { backgroundColor: string; color: string }> = {
-    "pending approval": { backgroundColor: T.success, color: "#fff" },
-    "needs bpo callback": { backgroundColor: T.warning, color: "#fff" },
-    "returned to center - dq": { backgroundColor: T.priorityLow, color: "#fff" },
-    "dq'd can't be sold": { backgroundColor: T.memberSlate, color: "#fff" },
-    "application withdrawn": { backgroundColor: T.priorityHigh, color: "#fff" },
-    "call back fix": { backgroundColor: T.accentPink, color: T.textDark },
-    "incomplete transfer": { backgroundColor: T.blueLight, color: T.textDark },
-    submitted: { backgroundColor: T.success, color: "#fff" },
-    underwriting: { backgroundColor: T.warning, color: "#fff" },
-    "not submitted": { backgroundColor: T.priorityHigh, color: "#fff" },
+    "pending approval": { backgroundColor: "#22c55e", color: "#fff" },
+    "needs bpo callback": { backgroundColor: "#f59e0b", color: "#fff" },
+    "returned to center - dq": { backgroundColor: "#6b7280", color: "#fff" },
+    "dq'd can't be sold": { backgroundColor: "#6b7280", color: "#fff" },
+    "application withdrawn": { backgroundColor: "#ef4444", color: "#fff" },
+    "call back fix": { backgroundColor: "#f59e0b", color: "#fff" },
+    "incomplete transfer": { backgroundColor: "#3b82f6", color: "#fff" },
+    submitted: { backgroundColor: "#22c55e", color: "#fff" },
+    underwriting: { backgroundColor: "#f59e0b", color: "#fff" },
+    "not submitted": { backgroundColor: "#ef4444", color: "#fff" },
+    "previously sold bpo": { backgroundColor: "#6b7280", color: "#fff" },
+    "fulfilled carrier requirements": { backgroundColor: "#22c55e", color: "#fff" },
+    "not interested": { backgroundColor: "#ef4444", color: "#fff" },
   };
 
-  let colors: { backgroundColor: string; color: string } = { backgroundColor: T.memberSlate, color: "#fff" };
+  let colors: { backgroundColor: string; color: string } = { backgroundColor: "#233217", color: "#fff" };
   if (kind === "status" || kind === "result") {
     colors = map[v] || colors;
-  } else if (kind === "vendor") {
-    colors = { backgroundColor: T.memberBlue, color: "#fff" };
-  } else if (kind === "agent") {
-    colors = { backgroundColor: T.memberSky, color: T.textDark };
-  } else if (kind === "licensed") {
-    colors = { backgroundColor: T.memberViolet, color: "#fff" };
+  } else {
+    colors = { backgroundColor: "#233217", color: "#fff" };
   }
 
   return {

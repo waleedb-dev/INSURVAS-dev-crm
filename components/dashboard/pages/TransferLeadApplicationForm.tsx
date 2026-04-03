@@ -359,7 +359,6 @@ export default function TransferLeadApplicationForm({
     "Banking Information"
   ];
   const contentRef = useRef<HTMLDivElement>(null);
-  const [hoveredFieldInfo, setHoveredFieldInfo] = useState<string | null>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
   const [conditionInput, setConditionInput] = useState("");
   const [medicationInput, setMedicationInput] = useState("");
@@ -394,6 +393,7 @@ export default function TransferLeadApplicationForm({
   });
   const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [hoveredFieldInfo, setHoveredFieldInfo] = useState<{ key: string; info: string; x: number; y: number } | null>(null);
   const displayBpoName = (centerName || "").trim() || "BPO";
 
   const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
@@ -1043,7 +1043,7 @@ export default function TransferLeadApplicationForm({
                 style={{
                   padding: "10px 16px",
                   border: "none",
-                  borderRadius: 10,
+                  borderRadius: 8,
                   backgroundColor: activeTab === tab ? "#233217" : "transparent",
                   cursor: isAccessible ? "pointer" : "not-allowed",
                   fontSize: 12,
@@ -1063,7 +1063,16 @@ export default function TransferLeadApplicationForm({
                   if (activeTab !== tab) {
                     e.currentTarget.style.backgroundColor = "transparent";
                     e.currentTarget.style.color = isAccessible ? T.textMuted : "#a0a0a0";
+                    e.currentTarget.style.transform = "scale(1)";
                   }
+                }}
+                onMouseDown={(e) => {
+                  if (activeTab !== tab && isAccessible) {
+                    e.currentTarget.style.transform = "scale(0.97)";
+                  }
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = activeTab === tab ? "scale(1)" : "scale(1)";
                 }}
               >
                 {tab}
@@ -1087,7 +1096,7 @@ export default function TransferLeadApplicationForm({
               <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyleWithError("submissionDate")} />
             </Field>
             <Field label="Phone Number" required error={getFieldError("phone")}
-              info="Lead contact phone number for verification calls."
+              info="Lead contact phone number for verification calls. Enter 10 digits, or 11 digits if it starts with 1. Run phone check first to unlock the full application form."
               fieldKey="phone"
               hoveredFieldInfo={hoveredFieldInfo}
               setHoveredFieldInfo={setHoveredFieldInfo}>
@@ -1168,14 +1177,6 @@ export default function TransferLeadApplicationForm({
                   }}
                 >
                   {dncMessage}
-                </div>
-              )}
-              <div style={{ fontSize: 11, color: phoneError ? T.danger : T.textMuted, marginTop: 4 }}>
-                {phoneError ? "Please enter a valid phone number (10 digits or 11 digits starting with 1)." : "Enter 10 digits, or 11 digits if it starts with 1."}
-              </div>
-              {!isEditMode && !phoneGatePassed && (
-                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
-                  Run phone check first to unlock the full application form.
                 </div>
               )}
             </Field>
@@ -2092,11 +2093,12 @@ export default function TransferLeadApplicationForm({
         </div>
       )}
 
-      {/* Footer Actions */}
+{/* Footer Actions */}
       <div style={{
         marginTop: 24,
         display: "flex",
-        justifyContent: "flex-end",
+        justifyContent: "center",
+        alignItems: "center",
         gap: 12,
         flexWrap: "wrap",
       }}>
@@ -2105,7 +2107,7 @@ export default function TransferLeadApplicationForm({
           style={{
             height: 42,
             padding: "0 20px",
-            borderRadius: 10,
+            borderRadius: 8,
             border: `1px solid ${T.border}`,
             backgroundColor: "#fff",
             color: T.textDark,
@@ -2123,65 +2125,11 @@ export default function TransferLeadApplicationForm({
             e.currentTarget.style.borderColor = T.border;
             e.currentTarget.style.color = T.textDark;
           }}
+          onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.97)"; }}
+          onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
         >
           Cancel
         </button>
-
-        {phoneGatePassed && activeTab !== "Lead Information" && (
-          <button
-            onClick={handleBack}
-            style={{
-              height: 42,
-              padding: "0 20px",
-              borderRadius: 10,
-              border: `1px solid ${T.border}`,
-              backgroundColor: "#fff",
-              color: T.textDark,
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: T.font,
-              cursor: "pointer",
-              transition: "all 0.15s ease-in-out",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "#233217";
-              e.currentTarget.style.color = "#233217";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = T.border;
-              e.currentTarget.style.color = T.textDark;
-            }}
-          >
-            Back
-          </button>
-        )}
-
-        {phoneGatePassed && onSaveDraft && (
-          <button
-            onClick={() => onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true })}
-            style={{
-              height: 42,
-              padding: "0 20px",
-              borderRadius: 10,
-              border: `1px solid ${T.blue}`,
-              backgroundColor: "#fff",
-              color: T.blue,
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: T.font,
-              cursor: "pointer",
-              transition: "all 0.15s ease-in-out",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#EEF5EE";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#fff";
-            }}
-          >
-            Save Draft
-          </button>
-        )}
 
         {phoneGatePassed && (
           <button
@@ -2215,14 +2163,14 @@ export default function TransferLeadApplicationForm({
             }}
             disabled={submitDisabled}
             style={{
-              height: 42,
-              padding: "0 24px",
-              borderRadius: 10,
+              height: 48,
+              padding: "0 48px",
+              borderRadius: 8,
               border: "none",
               backgroundColor: submitDisabled ? T.border : "#233217",
               color: "#fff",
-              fontSize: 14,
-              fontWeight: 600,
+              fontSize: 15,
+              fontWeight: 700,
               fontFamily: T.font,
               cursor: submitDisabled ? "not-allowed" : "pointer",
               boxShadow: submitDisabled ? "none" : "0 4px 12px rgba(35, 50, 23, 0.2)",
@@ -2231,6 +2179,7 @@ export default function TransferLeadApplicationForm({
               display: "flex",
               alignItems: "center",
               gap: 8,
+              minWidth: 220,
             }}
             onMouseEnter={(e) => {
               if (!submitDisabled) {
@@ -2242,8 +2191,39 @@ export default function TransferLeadApplicationForm({
                 e.currentTarget.style.backgroundColor = "#233217";
               }
             }}
+            onMouseDown={(e) => { if (!submitDisabled) e.currentTarget.style.transform = "scale(0.97)"; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
           >
-            {submitButtonLabel || "Submit"}
+            Submit Application
+          </button>
+        )}
+
+        {phoneGatePassed && onSaveDraft && (
+          <button
+            onClick={() => onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true })}
+            style={{
+              height: 42,
+              padding: "0 20px",
+              borderRadius: 8,
+              border: `1px solid #233217`,
+              backgroundColor: "#fff",
+              color: "#233217",
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: T.font,
+              cursor: "pointer",
+              transition: "all 0.15s ease-in-out",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#EEF5EE";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#fff";
+            }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.97)"; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+          >
+            Save Draft
           </button>
         )}
       </div>
@@ -2255,6 +2235,29 @@ export default function TransferLeadApplicationForm({
       {toast ? (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       ) : null}
+      {hoveredFieldInfo && (
+        <div
+          style={{
+            position: "fixed",
+            top: hoveredFieldInfo.y,
+            left: hoveredFieldInfo.x,
+            backgroundColor: "#233217",
+            color: "#fff",
+            padding: "10px 14px",
+            borderRadius: 10,
+            fontSize: 12,
+            fontWeight: 500,
+            maxWidth: 320,
+            width: 320,
+            zIndex: 999999,
+            boxShadow: "0 12px 32px rgba(35, 50, 23, 0.4)",
+            animation: "fadeInUp 0.15s ease-out",
+            lineHeight: 1.6,
+          }}
+        >
+          {hoveredFieldInfo.info}
+        </div>
+      )}
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -2267,9 +2270,9 @@ export default function TransferLeadApplicationForm({
 function Section({ title, icon, action, children }: { title: string; icon: ReactNode; action?: ReactNode; children: ReactNode }) {
   return (
     <div style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusLg, overflow: "hidden" }}>
-      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: "#fafcff" }}>
+      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: "#DCEBDC" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: T.blue }}>{icon}</span>
+          <span style={{ color: "#233217" }}>{icon}</span>
           <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.textDark }}>{title}</h2>
         </div>
         {action}
@@ -2288,7 +2291,7 @@ function Field({
   info,
   fieldKey,
   hoveredFieldInfo,
-  setHoveredFieldInfo
+  setHoveredFieldInfo,
 }: { 
   label: string; 
   children: ReactNode; 
@@ -2297,11 +2300,11 @@ function Field({
   required?: boolean;
   info?: string;
   fieldKey?: string;
-  hoveredFieldInfo?: string | null;
-  setHoveredFieldInfo?: (key: string | null) => void;
+  hoveredFieldInfo?: { key: string; info: string; x: number; y: number } | null;
+  setHoveredFieldInfo?: (info: { key: string; info: string; x: number; y: number } | null) => void;
 }) {
   return (
-    <div style={{ gridColumn: full ? "span 2" : "span 1", display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ gridColumn: full ? "span 2" : "span 1", display: "flex", flexDirection: "column", gap: 6 }} data-field-key={fieldKey} data-info={info}>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
         <label style={{
           ...labelStyle,
@@ -2314,8 +2317,13 @@ function Field({
           <div style={{ position: "relative" }}>
             <button
               type="button"
-              onMouseEnter={() => setHoveredFieldInfo && setHoveredFieldInfo(fieldKey)}
-              onMouseLeave={() => setHoveredFieldInfo && setHoveredFieldInfo(null)}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredFieldInfo && setHoveredFieldInfo({ key: fieldKey, info, x: rect.left, y: rect.bottom + 8 });
+              }}
+              onMouseLeave={() => {
+                setHoveredFieldInfo && setHoveredFieldInfo(null);
+              }}
               style={{ 
                 background: "none", 
                 border: "none", 
@@ -2332,28 +2340,6 @@ function Field({
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
             </button>
-            {hoveredFieldInfo === fieldKey && (
-              <div style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                marginTop: 6,
-                backgroundColor: "#233217",
-                color: "#fff",
-                padding: "8px 12px",
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 500,
-                maxWidth: 240,
-                width: 240,
-                zIndex: 9999,
-                boxShadow: "0 4px 12px rgba(35, 50, 23, 0.3)",
-                animation: "fadeInUp 0.15s ease-out",
-                lineHeight: 1.5,
-              }}>
-                {info}
-              </div>
-            )}
           </div>
         )}
       </div>
