@@ -15,6 +15,7 @@ import {
 } from "./constants";
 import { IconBolt, IconCheck, IconEye, IconPencil, IconPhone, IconTrash, IconX } from "@tabler/icons-react";
 import { duplicateKey, formatDateShort, generatePendingApprovalNotes, getBadgeStyle, getCurrentTimestampEST, getGroupValue } from "./helpers";
+import { LeadCard, InfoField, InfoGrid, formatCurrency, formatBool, formatDate } from "../LeadCard";
 import { Table as ShadcnTable, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/shadcn/table";
 import {
   Select,
@@ -155,6 +156,77 @@ function InlineInput({
   );
 }
 
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select...",
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          height: 38,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value ? T.textDark : T.textMuted,
+          fontSize: 13,
+          fontWeight: 500,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value
+            ? options.find((o) => o.value === value)?.label || value
+            : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 99999,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 type Props = {
   rows: DailyDealFlowRow[];
   currentPage: number;
@@ -246,6 +318,10 @@ export function DdfGroupedGrid({
   }>>([]);
   const [dynamicCarrierOptions, setDynamicCarrierOptions] = useState<string[]>([]);
   const [notesTooltip, setNotesTooltip] = useState<{ id: string; text: string; x: number; y: number } | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingRow, setDeletingRow] = useState<DailyDealFlowRow | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deletingInProgress, setDeletingInProgress] = useState(false);
   const { carriers, productsForCarrier } = useCarrierProductDropdowns(supabase, {
     open: Boolean(editingId || detailId),
     carrierName: String(draft?.carrier || ""),
@@ -393,11 +469,31 @@ export function DdfGroupedGrid({
     onRefresh();
   };
 
-  const deleteRow = async (row: DailyDealFlowRow) => {
-    if (!window.confirm(`Delete row for ${row.insured_name || "this customer"}?`)) return;
-    const { error } = await supabase.from("daily_deal_flow").delete().eq("id", row.id);
-    if (error) return onError(error.message || "Failed to delete row.");
+  const openDeleteModal = (row: DailyDealFlowRow) => {
+    setDeletingRow(row);
+    setDeleteConfirmName("");
+    setShowDeleteModal(true);
+  };
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setDeletingRow(null);
+    setDeleteConfirmName("");
+    setDeletingInProgress(false);
+  };
+
+  const handleDeleteRow = async () => {
+    if (!deletingRow) return;
+    setDeletingInProgress(true);
+    const { error } = await supabase.from("daily_deal_flow").delete().eq("id", deletingRow.id);
+    setDeletingInProgress(false);
+    if (error) {
+      onError(error.message || "Failed to delete row.");
+      closeDeleteModal();
+      return;
+    }
     onSuccess("Row deleted.");
+    closeDeleteModal();
     onRefresh();
   };
 
@@ -582,7 +678,7 @@ export function DdfGroupedGrid({
                     size="sm"
                     variant="ghost"
                     type="button"
-                    onClick={() => deleteRow(row)}
+                    onClick={() => openDeleteModal(row)}
                     aria-label="Delete row"
                     title="Delete"
                     style={{ ...actionIconBtn, color: T.priorityHigh, borderColor: T.border }}
@@ -675,145 +771,384 @@ export function DdfGroupedGrid({
         onPageChange={onPageChange}
       />
 
-      <Modal open={Boolean(detailId) && Boolean(draft)} title={`Lead Details - ${draft?.insured_name || ""}`} onClose={() => { setDetailId(null); setDetailEditing(false); }}>
+      <Modal open={Boolean(detailId) && Boolean(draft)} title={`Daily Deal Flow - ${draft?.insured_name || ""}`} onClose={() => { setDetailId(null); setDetailEditing(false); setDetailTab("details"); }}>
         {draft && (
-          <div style={{ display: "grid", gap: 12 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Button
-                variant={detailTab === "recordings" ? "default" : "ghost"}
-                onClick={() => void loadCallRecordings(draft.client_phone_number)}
-              >
-                Call Records
-              </Button>
-              <Button
-                variant={detailEditing ? "default" : "ghost"}
-                onClick={() => {
-                  setDetailTab("details");
-                  setDetailEditing(true);
-                }}
-              >
-                Edit
-              </Button>
-            </div>
-            {detailTab === "details" ? (
-              <div style={{ display: "grid", gap: 16 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(220px, 1fr))", gap: 14 }}>
-                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
-                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Contact Information</h4>
-                    <Input label="Phone Number" value={draft.client_phone_number || ""} disabled={!detailEditing} onChange={(e) => patchDraft({ client_phone_number: e.currentTarget.value })} />
-                    <Input label="Lead Vendor" value={draft.lead_vendor || ""} disabled onChange={() => {}} />
-                    <Input label="Insured Name" value={draft.insured_name || ""} disabled={!detailEditing} onChange={(e) => patchDraft({ insured_name: e.currentTarget.value })} />
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 700 }}>Submission ID</label>
-                      <div
-                        style={{
-                          marginTop: 6,
-                          border: `1px solid ${T.border}`,
-                          borderRadius: 8,
-                          padding: "9px 10px",
-                          background: T.pageBg,
-                          color: T.textMid,
-                          fontSize: 13,
-                          cursor: "default",
-                          userSelect: "text",
-                        }}
-                      >
-                        {draft.submission_id || "N/A"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
-                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Agent Information</h4>
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Buffer Agent</label><SelectInput disabled={!detailEditing} value={draft.buffer_agent || ""} onChange={(v) => patchDraft({ buffer_agent: String(v) })} options={bufferAgentOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Retention Agent</label><SelectInput disabled={!detailEditing} value={draft.retention_agent || ""} onChange={(v) => patchDraft({ retention_agent: String(v) })} options={retentionOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Agent</label><SelectInput disabled={!detailEditing} value={draft.agent || ""} onChange={(v) => patchDraft({ agent: String(v) })} options={agentOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Licensed Agent Account</label><SelectInput disabled={!detailEditing} value={draft.licensed_agent_account || ""} onChange={(v) => patchDraft({ licensed_agent_account: String(v) })} options={licensedOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
-                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Application Information</h4>
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Status</label><SelectInput disabled={!detailEditing} value={draft.status || ""} onChange={(v) => patchDraft({ status: String(v) })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Call Result</label><SelectInput disabled={!detailEditing} value={draft.call_result || ""} onChange={(v) => patchDraft({ call_result: String(v) })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Carrier</label><SelectInput disabled={!detailEditing} value={draft.carrier || ""} onChange={(v) => patchDraft({ carrier: String(v), product_type: "" })} options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>Product Type</label><SelectInput disabled={!detailEditing || !draft.carrier} value={draft.product_type || ""} onChange={(v) => patchDraft({ product_type: String(v) })} options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))} style={{ width: "100%" }} /></div>
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(240px, 1fr))", gap: 14 }}>
-                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
-                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Financial Information</h4>
-                    <Input label="Monthly Premium" type="number" disabled={!detailEditing} value={String(draft.monthly_premium ?? "")} onChange={(e) => patchDraft({ monthly_premium: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
-                    <Input label="Face Amount" type="number" disabled={!detailEditing} value={String(draft.face_amount ?? "")} onChange={(e) => patchDraft({ face_amount: e.currentTarget.value ? Number(e.currentTarget.value) : null })} />
-                    <Input label="Draft Date" type="date" disabled={!detailEditing} value={draft.draft_date || ""} onChange={(e) => patchDraft({ draft_date: e.currentTarget.value })} />
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>From Callback</label><SelectInput disabled={!detailEditing} value={draft.from_callback ? "Yes" : "No"} onChange={(v) => patchDraft({ from_callback: String(v) === "Yes" })} options={[{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }]} style={{ width: "100%" }} /></div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 10, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
-                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Additional Information</h4>
-                    <Input label="Date" type="date" disabled={!detailEditing} value={draft.date || ""} onChange={(e) => patchDraft({ date: e.currentTarget.value })} />
-                    <Input label="Policy Number" disabled={!detailEditing} value={draft.policy_number || ""} onChange={(e) => patchDraft({ policy_number: e.currentTarget.value })} />
-                    <Input label="Carrier Audit" disabled={!detailEditing} value={draft.carrier_audit || ""} onChange={(e) => patchDraft({ carrier_audit: e.currentTarget.value })} />
-                    <Input label="Product Type Carrier" disabled={!detailEditing} value={draft.product_type_carrier || ""} onChange={(e) => patchDraft({ product_type_carrier: e.currentTarget.value })} />
-                    <Input label="Level or GI" disabled={!detailEditing} value={draft.level_or_gi || ""} onChange={(e) => patchDraft({ level_or_gi: e.currentTarget.value })} />
-                    <div><label style={{ fontSize: 12, fontWeight: 700 }}>LA Callback</label><SelectInput disabled={!detailEditing} value={draft.la_callback || ""} onChange={(v) => patchDraft({ la_callback: String(v) })} options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))} style={{ width: "100%" }} /></div>
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 700 }}>Created At</label>
-                      <div style={{ marginTop: 6, border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px", background: T.pageBg, color: T.textMid, fontSize: 13 }}>
-                        {draft.created_at || "N/A"}
-                      </div>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 700 }}>Updated At</label>
-                      <div style={{ marginTop: 6, border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px", background: T.pageBg, color: T.textMid, fontSize: 13 }}>
-                        {draft.updated_at || "N/A"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gap: 8, border: `1px solid ${T.borderLight}`, borderRadius: 12, background: T.pageBg, padding: 12 }}>
-                  <h4 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 8 }}>Notes</h4>
-                  <textarea disabled={!detailEditing} value={draft.notes || ""} onChange={(e) => patchDraft({ notes: e.currentTarget.value })} style={{ width: "100%", minHeight: 110, borderRadius: 8, border: `1px solid ${T.border}`, background: detailEditing ? T.cardBg : T.pageBg, color: T.textMid, padding: 10 }} />
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: `1px solid ${T.borderLight}`, paddingTop: 12 }}>
-                  <Button variant="ghost" onClick={() => { setDetailId(null); setDetailEditing(false); }}>Close</Button>
-                  {detailEditing && (
-                    <Button onClick={() => {
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", gap: 4, padding: 4, backgroundColor: T.sidebarBg, borderRadius: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => { setDetailTab("details"); setDetailEditing(false); }}
+                  style={{
+                    height: 34,
+                    padding: "0 14px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: detailTab === "details" && !detailEditing ? "#233217" : "transparent",
+                    color: detailTab === "details" && !detailEditing ? "#fff" : T.textMuted,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDetailTab("details"); setDetailEditing(true); }}
+                  style={{
+                    height: 34,
+                    padding: "0 14px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: detailTab === "details" && detailEditing ? "#233217" : "transparent",
+                    color: detailTab === "details" && detailEditing ? "#fff" : T.textMuted,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void loadCallRecordings(draft.client_phone_number)}
+                  style={{
+                    height: 34,
+                    padding: "0 14px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: detailTab === "recordings" ? "#233217" : "transparent",
+                    color: detailTab === "recordings" ? "#fff" : T.textMuted,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                >
+                  Call Records
+                </button>
+              </div>
+              {detailEditing && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setDetailEditing(false); }}
+                    style={{
+                      height: 38,
+                      padding: "0 16px",
+                      borderRadius: 10,
+                      border: `1px solid ${T.border}`,
+                      background: "#fff",
+                      color: T.textDark,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       const source = rows.find((r) => r.id === detailId);
                       if (source) void saveRow(source);
-                    }} disabled={saving}>Save Changes</Button>
-                  )}
+                    }}
+                    disabled={saving}
+                    style={{
+                      height: 38,
+                      padding: "0 16px",
+                      borderRadius: 10,
+                      border: "none",
+                      background: "#233217",
+                      color: "#fff",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: saving ? "not-allowed" : "pointer",
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  >
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
                 </div>
+              )}
+            </div>
+
+            {detailTab === "details" && !detailEditing ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <LeadCard icon="👤" title="Contact Information" subtitle="Lead contact and identification details">
+                  <InfoGrid columns={3}>
+                    <InfoField label="Insured Name" value={draft.insured_name} />
+                    <InfoField label="Phone Number" value={draft.client_phone_number} />
+                    <InfoField label="Lead Vendor" value={draft.lead_vendor} />
+                  </InfoGrid>
+                  <InfoGrid columns={3} bordered={false}>
+                    <InfoField label="Submission ID" value={draft.submission_id} />
+                    <InfoField label="Date" value={formatDate(draft.date || undefined)} />
+                    <InfoField label="Status" value={<span style={{ ...getBadgeStyle("status", draft.status) }}>{draft.status || "—"}</span>} />
+                  </InfoGrid>
+                </LeadCard>
+
+                <LeadCard icon="👥" title="Agent Information" subtitle="Agent assignments and account details">
+                  <InfoGrid columns={2}>
+                    <InfoField label="Buffer Agent" value={draft.buffer_agent} />
+                    <InfoField label="Retention Agent" value={draft.retention_agent} />
+                  </InfoGrid>
+                  <InfoGrid columns={2}>
+                    <InfoField label="Agent" value={draft.agent} />
+                    <InfoField label="Licensed Agent Account" value={draft.licensed_agent_account} />
+                  </InfoGrid>
+                </LeadCard>
+
+                <LeadCard icon="📋" title="Application Information" subtitle="Application status and details">
+                  <InfoGrid columns={3}>
+                    <InfoField label="Call Result" value={<span style={{ ...getBadgeStyle("result", draft.call_result) }}>{draft.call_result || "—"}</span>} />
+                    <InfoField label="Carrier" value={draft.carrier} />
+                    <InfoField label="Product Type" value={draft.product_type} />
+                  </InfoGrid>
+                  <InfoGrid columns={3} bordered={false}>
+                    <InfoField label="LA Callback" value={draft.la_callback} />
+                    <InfoField label="Policy Number" value={draft.policy_number} />
+                    <InfoField label="Draft Date" value={formatDate(draft.draft_date || undefined)} />
+                  </InfoGrid>
+                </LeadCard>
+
+                <LeadCard icon="💰" title="Financial Information" subtitle="Premium and coverage amounts">
+                  <InfoGrid columns={3}>
+                    <InfoField label="Monthly Premium" value={draft.monthly_premium ? formatCurrency(draft.monthly_premium) : "—"} />
+                    <InfoField label="Face Amount" value={draft.face_amount ? formatCurrency(draft.face_amount) : "—"} />
+                    <InfoField label="From Callback" value={formatBool(draft.from_callback ?? undefined)} />
+                  </InfoGrid>
+                </LeadCard>
+
+                <LeadCard icon="📝" title="Additional Information" subtitle="Audit and system metadata">
+                  <InfoGrid columns={2}>
+                    <InfoField label="Carrier Audit" value={draft.carrier_audit} />
+                    <InfoField label="Product Type Carrier" value={draft.product_type_carrier} />
+                  </InfoGrid>
+                  <InfoGrid columns={2}>
+                    <InfoField label="Level or GI" value={draft.level_or_gi} />
+                    <InfoField label="Created At" value={formatDate(draft.created_at || undefined)} />
+                  </InfoGrid>
+                  <InfoGrid columns={1} bordered={false}>
+                    <InfoField label="Notes" value={draft.notes || "No notes"} />
+                  </InfoGrid>
+                </LeadCard>
+              </div>
+            ) : detailTab === "details" && detailEditing ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <LeadCard icon="👤" title="Contact Information" subtitle="Lead contact and identification details" collapsible={false}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Insured Name</label>
+                      <input
+                        type="text"
+                        value={draft.insured_name || ""}
+                        onChange={(e) => patchDraft({ insured_name: e.target.value })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                        onFocus={(e) => { e.target.style.borderColor = "#233217"; e.target.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }}
+                        onBlur={(e) => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Phone Number</label>
+                      <input
+                        type="text"
+                        value={draft.client_phone_number || ""}
+                        onChange={(e) => patchDraft({ client_phone_number: e.target.value })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                        onFocus={(e) => { e.target.style.borderColor = "#233217"; e.target.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }}
+                        onBlur={(e) => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Lead Vendor</label>
+                      <StyledSelect
+                        value={draft.lead_vendor || ""}
+                        onValueChange={(v) => patchDraft({ lead_vendor: v })}
+                        options={leadVendorOptions.map((v) => ({ value: v, label: v }))}
+                        placeholder="Select vendor"
+                      />
+                    </div>
+                  </div>
+                </LeadCard>
+
+                <LeadCard icon="👥" title="Agent Information" subtitle="Agent assignments and account details" collapsible={false}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Buffer Agent</label>
+                      <StyledSelect
+                        value={draft.buffer_agent || ""}
+                        onValueChange={(v) => patchDraft({ buffer_agent: v })}
+                        options={bufferAgentOptions.map((v) => ({ value: v, label: v }))}
+                        placeholder="Select buffer agent"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Retention Agent</label>
+                      <StyledSelect
+                        value={draft.retention_agent || ""}
+                        onValueChange={(v) => patchDraft({ retention_agent: v })}
+                        options={retentionOptions.map((v) => ({ value: v, label: v }))}
+                        placeholder="Select retention agent"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Agent</label>
+                      <StyledSelect
+                        value={draft.agent || ""}
+                        onValueChange={(v) => patchDraft({ agent: v })}
+                        options={agentOptions.map((v) => ({ value: v, label: v }))}
+                        placeholder="Select agent"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Licensed Agent Account</label>
+                      <StyledSelect
+                        value={draft.licensed_agent_account || ""}
+                        onValueChange={(v) => patchDraft({ licensed_agent_account: v })}
+                        options={licensedOptions.map((v) => ({ value: v, label: v }))}
+                        placeholder="Select licensed agent"
+                      />
+                    </div>
+                  </div>
+                </LeadCard>
+
+                <LeadCard icon="📋" title="Application Information" subtitle="Application status and details" collapsible={false}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Status</label>
+                      <StyledSelect
+                        value={draft.status || ""}
+                        onValueChange={(v) => patchDraft({ status: v })}
+                        options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))}
+                        placeholder="Select status"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Call Result</label>
+                      <StyledSelect
+                        value={draft.call_result || ""}
+                        onValueChange={(v) => patchDraft({ call_result: v })}
+                        options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))}
+                        placeholder="Select call result"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Carrier</label>
+                      <StyledSelect
+                        value={draft.carrier || ""}
+                        onValueChange={(v) => patchDraft({ carrier: v, product_type: "" })}
+                        options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))}
+                        placeholder="Select carrier"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Product Type</label>
+                      <StyledSelect
+                        value={draft.product_type || ""}
+                        onValueChange={(v) => patchDraft({ product_type: v })}
+                        options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))}
+                        placeholder="Select product type"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>LA Callback</label>
+                      <StyledSelect
+                        value={draft.la_callback || ""}
+                        onValueChange={(v) => patchDraft({ la_callback: v })}
+                        options={LA_CALLBACK_OPTIONS.map((v) => ({ value: v, label: v }))}
+                        placeholder="Select callback"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Draft Date</label>
+                      <input
+                        type="date"
+                        value={draft.draft_date || ""}
+                        onChange={(e) => patchDraft({ draft_date: e.target.value })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                        onFocus={(e) => { e.target.style.borderColor = "#233217"; e.target.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }}
+                        onBlur={(e) => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                  </div>
+                </LeadCard>
+
+                <LeadCard icon="💰" title="Financial Information" subtitle="Premium and coverage amounts" collapsible={false}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Monthly Premium</label>
+                      <input
+                        type="number"
+                        value={String(draft.monthly_premium ?? "")}
+                        onChange={(e) => patchDraft({ monthly_premium: e.target.value ? Number(e.target.value) : null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                        onFocus={(e) => { e.target.style.borderColor = "#233217"; e.target.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }}
+                        onBlur={(e) => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Face Amount</label>
+                      <input
+                        type="number"
+                        value={String(draft.face_amount ?? "")}
+                        onChange={(e) => patchDraft({ face_amount: e.target.value ? Number(e.target.value) : null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                        onFocus={(e) => { e.target.style.borderColor = "#233217"; e.target.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }}
+                        onBlur={(e) => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>From Callback</label>
+                      <StyledSelect
+                        value={draft.from_callback ? "Yes" : "No"}
+                        onValueChange={(v) => patchDraft({ from_callback: v === "Yes" })}
+                        options={[{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }]}
+                        placeholder="Select"
+                      />
+                    </div>
+                  </div>
+                </LeadCard>
+
+                <LeadCard icon="📝" title="Notes" subtitle="Additional notes" collapsible={false}>
+                  <textarea
+                    value={draft.notes || ""}
+                    onChange={(e) => patchDraft({ notes: e.target.value })}
+                    style={{ width: "100%", minHeight: 100, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "12px", resize: "vertical", outline: "none" }}
+                    onFocus={(e) => { e.target.style.borderColor = "#233217"; e.target.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }}
+                    onBlur={(e) => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                  />
+                </LeadCard>
               </div>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: 10, background: T.pageBg }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>Notes</div>
-                  <div style={{ fontSize: 13, color: T.textMid, whiteSpace: "pre-wrap" }}>{draft.notes || "No notes available for this lead."}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ padding: "16px 20px", background: T.pageBg, borderRadius: 12, border: `1px solid ${T.borderLight}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.3px" }}>Notes</div>
+                  <div style={{ fontSize: 14, color: T.textDark, whiteSpace: "pre-wrap" }}>{draft.notes || "No notes available for this lead."}</div>
                 </div>
                 {callsLoading ? (
-                  <div style={{ padding: "14px 8px", color: T.textMuted, fontWeight: 600 }}>Loading call recordings...</div>
+                  <div style={{ padding: "20px", textAlign: "center", color: T.textMuted, fontWeight: 600 }}>Loading call recordings...</div>
                 ) : callRecordings.length === 0 ? (
-                  <div style={{ padding: "14px 8px", color: T.textMuted, fontWeight: 600 }}>No call recordings found for this phone number.</div>
+                  <div style={{ padding: "20px", textAlign: "center", color: T.textMuted, fontWeight: 600 }}>No call recordings found for this phone number.</div>
                 ) : (
-                  <div style={{ display: "grid", gap: 8, maxHeight: 420, overflowY: "auto" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 400, overflowY: "auto" }}>
                     {callRecordings.map((call) => (
-                      <div key={call.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: `1px solid ${T.borderLight}`, borderRadius: 10, padding: 10, background: T.pageBg }}>
+                      <div key={call.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: `1px solid ${T.borderLight}`, borderRadius: 12, padding: 16, background: T.pageBg }}>
                         <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                            <span style={{ fontSize: 11, borderRadius: 999, padding: "2px 8px", background: call.direction === "inbound" ? "#dcfce7" : "#dbeafe", color: call.direction === "inbound" ? "#166534" : "#1d4ed8", fontWeight: 800 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                            <span style={{ fontSize: 11, borderRadius: 999, padding: "3px 10px", background: call.direction === "inbound" ? "#dcfce7" : "#dbeafe", color: call.direction === "inbound" ? "#166534" : "#1d4ed8", fontWeight: 800 }}>
                               {call.direction === "inbound" ? "In" : "Out"}
                             </span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{formatDuration(call.duration)}</span>
-                            <span style={{ fontSize: 11, borderRadius: 999, padding: "2px 8px", background: "#f3f4f6", color: T.textMid, fontWeight: 700 }}>{call.status}</span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{formatDuration(call.duration)}</span>
+                            <span style={{ fontSize: 11, borderRadius: 999, padding: "3px 10px", background: "#f3f4f6", color: T.textMid, fontWeight: 700 }}>{call.status}</span>
                           </div>
-                          <div style={{ fontSize: 12, color: T.textMuted }}>{formatTimestamp(call.started_at)} - {call.user?.name || "Unknown Agent"}</div>
+                          <div style={{ fontSize: 13, color: T.textMuted }}>{formatTimestamp(call.started_at)} - {call.user?.name || "Unknown Agent"}</div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
+                        <button
+                          type="button"
                           disabled={loadingRecordingId === call.id}
                           onClick={async () => {
                             if (playingRecording === call.id) {
@@ -835,21 +1170,132 @@ export function DdfGroupedGrid({
                             void audio.play();
                             audio.onended = () => setPlayingRecording(null);
                           }}
+                          style={{
+                            height: 36,
+                            padding: "0 14px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: playingRecording === call.id ? "#233217" : "#DCEBDC",
+                            color: playingRecording === call.id ? "#fff" : "#233217",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: loadingRecordingId === call.id ? "not-allowed" : "pointer",
+                            opacity: loadingRecordingId === call.id ? 0.7 : 1,
+                          }}
                         >
-                          {playingRecording === call.id ? "Pause" : "Play"}
-                        </Button>
+                          {loadingRecordingId === call.id ? "Loading..." : playingRecording === call.id ? "Pause" : "Play"}
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <Button variant="ghost" onClick={() => setDetailId(null)}>Close</Button>
-                </div>
               </div>
             )}
           </div>
         )}
       </Modal>
+
+      {showDeleteModal && deletingRow && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#dc2626" }}>Delete Row</h2>
+              <button
+                onClick={closeDeleteModal}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
+                <strong>Warning:</strong> This will permanently delete the row for <strong>{`&quot;${deletingRow.insured_name || "this customer"}&quot;`}</strong>. This action cannot be undone.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                Type <strong>{deletingRow.insured_name || "this customer"}</strong> to confirm deletion
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && deleteConfirmName === deletingRow.insured_name) void handleDeleteRow();
+                  if (e.key === "Escape") closeDeleteModal();
+                }}
+                placeholder={deletingRow.insured_name || "this customer"}
+                autoFocus
+                style={{
+                  width: "100%",
+                  height: 44,
+                  border: `1.5px solid ${deleteConfirmName === deletingRow.insured_name ? "#dc2626" : T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                  background: T.cardBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = deleteConfirmName === deletingRow.insured_name ? "#dc2626" : "#233217";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmName === deletingRow.insured_name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = deleteConfirmName === deletingRow.insured_name ? "#dc2626" : T.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={closeDeleteModal}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteRow}
+                disabled={deleteConfirmName !== deletingRow.insured_name || deletingInProgress}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: deleteConfirmName === deletingRow.insured_name && !deletingInProgress ? "#dc2626" : T.border,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: deleteConfirmName === deletingRow.insured_name && !deletingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: deleteConfirmName === deletingRow.insured_name && !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                  transition: "all 0.15s ease-in-out",
+                }}
+              >
+                {deletingInProgress ? "Deleting..." : "Delete Row"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {notesTooltip && (
         <div
           style={{
