@@ -464,8 +464,11 @@ export default function PipelineManagementPage() {
     if (error) {
       console.error("Error updating stage:", error);
     }
-    setEditingStageId(null);
   }
+
+  const exitEditMode = () => {
+    setEditingStageId(null);
+  };
 
   async function handleUpdatePipelineName() {
     if (!selectedPipeline || !tempPipelineName) return;
@@ -691,13 +694,19 @@ export default function PipelineManagementPage() {
                           onBlur={() => handleUpdateStage(stage.id, { name: tempStageName })}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleUpdateStage(stage.id, { name: tempStageName });
-                            if (e.key === 'Escape') setEditingStageId(null);
+                            if (e.key === 'Escape') exitEditMode();
                           }}
                           style={{ border: `1.5px solid #233217`, borderRadius: 6, padding: "6px 10px", fontSize: 13, fontWeight: 500, color: T.textDark, outline: "none", width: "100%", maxWidth: 300 }}
                         />
                       ) : (
                         <span 
-                          onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); setTempStageDescription(stage.description || ""); }}
+                          onClick={() => { 
+                            if (editingStageId !== stage.id) {
+                              setEditingStageId(stage.id); 
+                              setTempStageName(stage.name); 
+                              setTempStageDescription(stage.description || ""); 
+                            }
+                          }}
                           style={{ fontWeight: 500, color: T.textDark, cursor: "text", padding: "4px 8px", borderRadius: 6, transition: "background-color 0.2s" }}
                           onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
@@ -714,14 +723,20 @@ export default function PipelineManagementPage() {
                           onBlur={() => handleUpdateStage(stage.id, { description: tempStageDescription })}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleUpdateStage(stage.id, { description: tempStageDescription });
-                            if (e.key === 'Escape') setEditingStageId(null);
+                            if (e.key === 'Escape') exitEditMode();
                           }}
                           placeholder="Add description..."
                           style={{ border: `1.5px solid #233217`, borderRadius: 6, padding: "6px 10px", fontSize: 13, fontWeight: 400, color: T.textDark, outline: "none", width: "100%", maxWidth: 300, backgroundColor: "#fff" }}
                         />
                       ) : (
                         <span 
-                          onClick={() => { setEditingStageId(stage.id); setTempStageName(stage.name); setTempStageDescription(stage.description || ""); }}
+                          onClick={() => { 
+                            if (editingStageId !== stage.id) {
+                              setEditingStageId(stage.id); 
+                              setTempStageName(stage.name); 
+                              setTempStageDescription(stage.description || ""); 
+                            }
+                          }}
                           style={{ fontWeight: 400, color: stage.description ? T.textDark : T.textMuted, cursor: "text", padding: "4px 8px", borderRadius: 6, transition: "background-color 0.2s", fontStyle: stage.description ? "normal" : "italic" }}
                           onMouseEnter={e => e.currentTarget.style.backgroundColor = T.rowBg}
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
