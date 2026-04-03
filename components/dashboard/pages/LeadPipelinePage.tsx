@@ -271,6 +271,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [dragOver, setDragOver] = useState<Stage | null>(null);
   const [kanbanPage, setKanbanPage] = useState<Record<string, number>>({});
   const [hoveredStageTooltip, setHoveredStageTooltip] = useState<string | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   const KANBAN_ITEMS_PER_PAGE = 25;
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [filterStage, setFilterStage] = useState<Stage | "All">("All");
@@ -1026,8 +1027,15 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                           {stageDescriptions[stage] && (
                             <div style={{ position: "relative" }}>
                               <button
-                                onMouseEnter={() => setHoveredStageTooltip(stage)}
-                                onMouseLeave={() => setHoveredStageTooltip(null)}
+                                onMouseEnter={(e) => {
+                                  setHoveredStageTooltip(stage);
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setTooltipPosition({ x: rect.left, y: rect.bottom + 8 });
+                                }}
+                                onMouseLeave={() => {
+                                  setHoveredStageTooltip(null);
+                                  setTooltipPosition(null);
+                                }}
                                 style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%" }}
                               >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1036,29 +1044,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                                   <line x1="12" y1="8" x2="12.01" y2="8"/>
                                 </svg>
                               </button>
-                              {hoveredStageTooltip === stage && (
-                                <div style={{
-                                  position: "absolute",
-                                  top: "100%",
-                                  left: 0,
-                                  marginTop: 8,
-                                  backgroundColor: "#fff",
-                                  color: "#233217",
-                                  padding: "12px 16px",
-                                  borderRadius: 8,
-                                  fontSize: 13,
-                                  fontWeight: 500,
-                                  maxWidth: 400,
-                                  width: 400,
-                                  zIndex: 1000,
-                                  boxShadow: "0 8px 24px rgba(35, 50, 23, 0.2)",
-                                  animation: "fadeInUp 0.2s ease-out",
-                                  lineHeight: 1.5,
-                                  border: "1.5px solid #233217",
-                                }}>
-                                  {stageDescriptions[stage]}
-                                </div>
-                              )}
                             </div>
                           )}
                         </div>
@@ -2144,6 +2129,29 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {hoveredStageTooltip && tooltipPosition && (
+        <div style={{
+          position: "fixed",
+          top: tooltipPosition.y,
+          left: tooltipPosition.x,
+          backgroundColor: "#fff",
+          color: "#233217",
+          padding: "12px 16px",
+          borderRadius: 8,
+          fontSize: 13,
+          fontWeight: 500,
+          maxWidth: 400,
+          width: 400,
+          zIndex: 9999,
+          boxShadow: "0 8px 24px rgba(35, 50, 23, 0.2)",
+          animation: "fadeInUp 0.2s ease-out",
+          lineHeight: 1.5,
+          border: "1.5px solid #233217",
+        }}>
+          {stageDescriptions[hoveredStageTooltip]}
         </div>
       )}
     </div>
