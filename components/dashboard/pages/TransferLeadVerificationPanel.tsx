@@ -254,7 +254,126 @@ function FormTextarea({
   );
 }
 
-// Section header component
+// Section header component with collapsible functionality
+function CollapsibleSectionHeader({
+  title,
+  verified,
+  total,
+  progress,
+  isCollapsed,
+  onToggle,
+}: {
+  title: string;
+  verified: number;
+  total: number;
+  progress: number;
+  isCollapsed: boolean;
+  onToggle: () => void;
+}) {
+  const isComplete = progress >= 100;
+  const isInProgress = progress > 0 && progress < 100;
+  
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "12px 0",
+        margin: "16px 0 12px",
+        backgroundColor: "transparent",
+        border: "none",
+        borderBottom: `2px solid ${isComplete ? "#86efac" : T.borderLight}`,
+        cursor: "pointer",
+        transition: "all 0.2s",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Collapse indicator */}
+        <span
+          style={{
+            fontSize: 12,
+            color: T.textMuted,
+            transition: "transform 0.2s",
+            transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+            display: "inline-block",
+          }}
+        >
+          ▼
+        </span>
+        
+        <h3
+          style={{
+            margin: 0,
+            fontSize: 13,
+            fontWeight: 800,
+            color: isComplete ? "#166534" : T.textDark,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+          }}
+        >
+          {title}
+        </h3>
+        
+        {/* Status indicator */}
+        {isComplete && (
+          <span
+            style={{
+              backgroundColor: "#dcfce7",
+              color: "#166534",
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 999,
+            }}
+          >
+            ✓ Complete
+          </span>
+        )}
+        {isInProgress && (
+          <span
+            style={{
+              backgroundColor: T.blueLight,
+              color: T.blue,
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 999,
+            }}
+          >
+            {verified}/{total}
+          </span>
+        )}
+      </div>
+      
+      {/* Mini progress bar */}
+      <div
+        style={{
+          width: 60,
+          height: 4,
+          borderRadius: 999,
+          backgroundColor: T.rowBg,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${progress}%`,
+            height: "100%",
+            borderRadius: 999,
+            backgroundColor: isComplete ? "#16a34a" : T.blue,
+            transition: "width 0.3s ease",
+          }}
+        />
+      </div>
+    </button>
+  );
+}
+
+// Legacy SectionHeader for non-collapsible usage
 function SectionHeader({ title }: { title: string }) {
   return (
     <h3
@@ -354,6 +473,75 @@ const VERIFICATION_FIELD_LABELS: Record<string, string> = {
 
 const HIDDEN_VERIFICATION_FIELDS = new Set<string>(["lead_vendor"]);
 
+// Field section definitions for better UX organization
+const FIELD_SECTIONS = {
+  "Contact Information": [
+    "customer_full_name",
+    "phone_number",
+    "email",
+    "street_address",
+  ],
+  "Personal Details": [
+    "date_of_birth",
+    "age",
+    "social_security",
+    "driver_license",
+    "birth_state",
+  ],
+  "Health & Underwriting": [
+    "height",
+    "weight",
+    "tobacco_use",
+    "health_conditions",
+    "medications",
+    "doctors_name",
+    "existing_coverage",
+    "previous_applications",
+  ],
+  "Policy Information": [
+    "carrier",
+    "product_type",
+    "coverage_amount",
+    "monthly_premium",
+    "draft_date",
+    "future_draft_date",
+    "beneficiary_information",
+  ],
+  "Banking Details": [
+    "institution_name",
+    "beneficiary_routing",
+    "beneficiary_account",
+    "account_type",
+  ],
+  "Notes & Disposition": [
+    "additional_notes",
+    "la_notes",
+    "call_dropped",
+  ],
+} as const;
+
+type SectionName = keyof typeof FIELD_SECTIONS;
+
+// Fields that work well in a two-column layout
+const TWO_COLUMN_FIELDS = new Set<string>([
+  "date_of_birth",
+  "age",
+  "height",
+  "weight",
+  "tobacco_use",
+  "existing_coverage",
+  "previous_applications",
+  "carrier",
+  "product_type",
+  "coverage_amount",
+  "monthly_premium",
+  "draft_date",
+  "future_draft_date",
+  "institution_name",
+  "account_type",
+  "birth_state",
+]);
+
 export default function TransferLeadVerificationPanel({
   sessionId,
   showProgressSummary = true,
@@ -399,6 +587,42 @@ export default function TransferLeadVerificationPanel({
     coverageAmount: "",
     monthlyPremium: "",
   });
+  
+  // Track collapsed sections - start with Contact and Personal expanded
+  const [collapsedSections, setCollapsedSections] = useState<Set<SectionName>>(() => {
+    const initiallyCollapsed: SectionName[] = [
+      "Health & Underwriting",
+      "Policy Information", 
+      "Banking Details",
+      "Notes & Disposition",
+    ];
+    return new Set(initiallyCollapsed);
+  });
+  
+  // Recently verified items for animation
+  const [recentlyVerified, setRecentlyVerified] = useState<Set<string>>(new Set());
+
+  const toggleSection = (section: SectionName) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) {
+        next.delete(section);
+      } else {
+        next.add(section);
+      }
+      return next;
+    });
+  };
+
+  // Calculate section completion
+  const getSectionStats = (sectionFields: readonly string[]) => {
+    const sectionItems = orderedItems.filter((item) =>
+      sectionFields.includes(item.field_name)
+    );
+    const verified = sectionItems.filter((item) => item.is_verified).length;
+    const total = sectionItems.length;
+    return { verified, total, progress: total > 0 ? Math.round((verified / total) * 100) : 0 };
+  };
 
   const onInvalidateUwProduct = useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
     setUnderwritingData((prev) => {
@@ -590,6 +814,18 @@ export default function TransferLeadVerificationPanel({
             : row,
         ),
       );
+      
+      // Trigger animation when verified
+      if (nextIsVerified) {
+        setRecentlyVerified((prev) => new Set(prev).add(item.id));
+        setTimeout(() => {
+          setRecentlyVerified((prev) => {
+            const next = new Set(prev);
+            next.delete(item.id);
+            return next;
+          });
+        }, 800);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save verification update.");
     } finally {
@@ -871,186 +1107,254 @@ export default function TransferLeadVerificationPanel({
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: 560, overflowY: "auto", paddingRight: 4 }}>
-        {orderedItems.map((item, itemIndex) => {
-          const isSaving = Boolean(savingIds[item.id]);
-          const isPhoneField = item.field_name === "phone_number";
-          const dncStatus = dncStatusByItem[item.id];
-          const dncMessage = dncMessageByItem[item.id];
-          const dncChecking = Boolean(dncCheckingIds[item.id]);
-          const label = VERIFICATION_FIELD_LABELS[item.field_name] || item.field_name.replaceAll("_", " ");
-          return (
-            <div
-              key={item.id}
-              style={{
-                border: `1.5px solid ${item.is_verified ? "#86efac" : T.border}`,
-                borderRadius: 12,
-                padding: 14,
-                backgroundColor: item.is_verified ? "#f0fdf4" : "#fff",
-                transition: "all 0.2s ease",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 12, alignItems: "center" }}>
-                <FormField label={label}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {isPhoneField && dncStatus && (
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          width: 20,
-                          height: 20,
-                          borderRadius: "50%",
-                          fontSize: 12,
-                          fontWeight: 800,
-                          backgroundColor:
-                            dncStatus === "clear"
-                              ? "#16a34a"
-                              : dncStatus === "error"
-                                ? "#dc2626"
-                                : dncStatus === "tcpa"
-                                  ? "#dc2626"
-                                  : "#b45309",
-                          color: "#fff",
-                        }}
-                      >
-                        {dncStatus === "clear" ? "✓" : dncStatus === "error" ? "!" : "×"}
-                      </span>
-                    )}
-                    {isPhoneField && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void checkDncForItem(item);
-                        }}
-                        disabled={dncChecking}
-                        style={{
-                          borderRadius: 8,
-                          border: "none",
-                          padding: "6px 12px",
-                          fontWeight: 700,
-                          fontSize: 12,
-                          cursor: dncChecking ? "not-allowed" : "pointer",
-                          backgroundColor: dncChecking ? "#c8d4bb" : T.blue,
-                          color: "#fff",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        {dncChecking ? "Checking..." : "Check"}
-                      </button>
-                    )}
-                  </div>
-                </FormField>
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: T.textMid,
-                    cursor: "pointer",
-                    padding: "6px 10px",
-                    borderRadius: 8,
-                    backgroundColor: item.is_verified ? "#dcfce7" : T.rowBg,
-                    border: `1.5px solid ${item.is_verified ? "#86efac" : T.border}`,
-                    transition: "all 0.2s",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={Boolean(item.is_verified)}
-                    disabled={isSaving}
-                    onChange={(e) => {
-                      void saveOne(item, e.target.checked);
-                    }}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse-green {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(134, 239, 172, 0.4); }
+          50% { box-shadow: 0 0 0 8px rgba(134, 239, 172, 0); }
+        }
+      `}</style>
+      <div style={{ maxHeight: 560, overflowY: "auto", paddingRight: 4 }}>
+        {(Object.entries(FIELD_SECTIONS) as [SectionName, readonly string[]][]).map(
+          ([sectionName, sectionFields]) => {
+            const stats = getSectionStats(sectionFields);
+            const isCollapsed = collapsedSections.has(sectionName);
+            
+            // Get visible items for this section that are in our ordered list
+            const sectionItems = orderedItems.filter((item) =>
+              sectionFields.includes(item.field_name)
+            );
+            
+            if (sectionItems.length === 0) return null;
+
+            return (
+              <div key={sectionName} style={{ marginBottom: 8 }}>
+                <CollapsibleSectionHeader
+                  title={sectionName}
+                  verified={stats.verified}
+                  total={stats.total}
+                  progress={stats.progress}
+                  isCollapsed={isCollapsed}
+                  onToggle={() => toggleSection(sectionName)}
+                />
+                
+                {!isCollapsed && (
+                  <div
                     style={{
-                      width: 16,
-                      height: 16,
-                      cursor: isSaving ? "not-allowed" : "pointer",
+                      display: "grid",
+                      gridTemplateColumns: "1fr",
+                      gap: 12,
+                      animation: "fadeIn 0.2s ease-out",
                     }}
-                  />
-                  <span style={{ color: item.is_verified ? "#166534" : T.textDark }}>
-                    {item.is_verified ? "Verified" : "Verify"}
-                  </span>
-                </label>
+                  >
+                    {sectionItems.map((item) => {
+                      const isSaving = Boolean(savingIds[item.id]);
+                      const isPhoneField = item.field_name === "phone_number";
+                      const dncStatus = dncStatusByItem[item.id];
+                      const dncMessage = dncMessageByItem[item.id];
+                      const dncChecking = Boolean(dncCheckingIds[item.id]);
+                      const label =
+                        VERIFICATION_FIELD_LABELS[item.field_name] ||
+                        item.field_name.replaceAll("_", " ");
+                      const isRecentlyVerified = recentlyVerified.has(item.id);
+                      const isTwoColumn = TWO_COLUMN_FIELDS.has(item.field_name);
+
+                      return (
+                        <div
+                          key={item.id}
+                          style={{
+                            border: `1.5px solid ${item.is_verified ? "#86efac" : T.border}`,
+                            borderRadius: 12,
+                            padding: 14,
+                            backgroundColor: item.is_verified ? "#f0fdf4" : "#fff",
+                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                            boxShadow: isRecentlyVerified
+                              ? "0 0 0 4px rgba(134, 239, 172, 0.4)"
+                              : "none",
+                            transform: isRecentlyVerified ? "scale(1.01)" : "scale(1)",
+                            ...(isTwoColumn && { gridColumn: "span 1" }),
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: 10,
+                              marginBottom: 12,
+                              alignItems: "center",
+                            }}
+                          >
+                            <FormField label={label}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                {isPhoneField && dncStatus && (
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      width: 20,
+                                      height: 20,
+                                      borderRadius: "50%",
+                                      fontSize: 12,
+                                      fontWeight: 800,
+                                      backgroundColor:
+                                        dncStatus === "clear"
+                                          ? "#16a34a"
+                                          : dncStatus === "error"
+                                            ? "#dc2626"
+                                            : dncStatus === "tcpa"
+                                              ? "#dc2626"
+                                              : "#b45309",
+                                      color: "#fff",
+                                    }}
+                                  >
+                                    {dncStatus === "clear" ? "✓" : dncStatus === "error" ? "!" : "×"}
+                                  </span>
+                                )}
+                                {isPhoneField && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void checkDncForItem(item);
+                                    }}
+                                    disabled={dncChecking}
+                                    style={{
+                                      borderRadius: 8,
+                                      border: "none",
+                                      padding: "6px 12px",
+                                      fontWeight: 700,
+                                      fontSize: 12,
+                                      cursor: dncChecking ? "not-allowed" : "pointer",
+                                      backgroundColor: dncChecking ? "#c8d4bb" : T.blue,
+                                      color: "#fff",
+                                      transition: "all 0.2s",
+                                    }}
+                                  >
+                                    {dncChecking ? "Checking..." : "Check"}
+                                  </button>
+                                )}
+                              </div>
+                            </FormField>
+                            <label
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: T.textMid,
+                                cursor: "pointer",
+                                padding: "6px 10px",
+                                borderRadius: 8,
+                                backgroundColor: item.is_verified ? "#dcfce7" : T.rowBg,
+                                border: `1.5px solid ${item.is_verified ? "#86efac" : T.border}`,
+                                transition: "all 0.2s",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={Boolean(item.is_verified)}
+                                disabled={isSaving}
+                                onChange={(e) => {
+                                  void saveOne(item, e.target.checked);
+                                }}
+                                style={{
+                                  width: 16,
+                                  height: 16,
+                                  cursor: isSaving ? "not-allowed" : "pointer",
+                                }}
+                              />
+                              <span style={{ color: item.is_verified ? "#166534" : T.textDark }}>
+                                {item.is_verified ? "Verified" : "Verify"}
+                              </span>
+                            </label>
+                          </div>
+
+                          {isPhoneField && dncMessage && (
+                            <div
+                              style={{
+                                marginBottom: 12,
+                                padding: "10px 14px",
+                                borderRadius: 8,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                backgroundColor:
+                                  dncStatus === "error" || dncStatus === "tcpa"
+                                    ? "#fef2f2"
+                                    : dncStatus === "dnc"
+                                      ? "#fffbeb"
+                                      : "#f0fdf4",
+                                color:
+                                  dncStatus === "error" || dncStatus === "tcpa"
+                                    ? "#dc2626"
+                                    : dncStatus === "dnc"
+                                      ? "#b45309"
+                                      : "#166534",
+                                border: `1.5px solid ${
+                                  dncStatus === "error" || dncStatus === "tcpa"
+                                    ? "#fecaca"
+                                    : dncStatus === "dnc"
+                                      ? "#fcd34d"
+                                      : "#86efac"
+                                }`,
+                              }}
+                            >
+                              {dncMessage}
+                            </div>
+                          )}
+
+                          <FormInput
+                            value={draftValues[item.id] ?? ""}
+                            onChange={(val) =>
+                              setDraftValues((prev) => ({ ...prev, [item.id]: val }))
+                            }
+                            placeholder={`Enter ${label.toLowerCase()}...`}
+                          />
+
+                          {isPhoneField && (
+                            <button
+                              type="button"
+                              onClick={openUnderwritingModal}
+                              style={{
+                                width: "100%",
+                                marginTop: 12,
+                                border: "none",
+                                backgroundColor: "#233217",
+                                color: "#fff",
+                                borderRadius: 8,
+                                padding: "12px 16px",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                fontSize: 14,
+                                boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                                transition: "all 0.2s",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = "#1a260f";
+                                e.currentTarget.style.transform = "translateY(-1px)";
+                                e.currentTarget.style.boxShadow = "0 6px 16px rgba(35, 50, 23, 0.3)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = "#233217";
+                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.2)";
+                              }}
+                            >
+                              Underwriting
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-
-              {isPhoneField && dncMessage && (
-                <div
-                  style={{
-                    marginBottom: 12,
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    backgroundColor:
-                      dncStatus === "error" || dncStatus === "tcpa"
-                        ? "#fef2f2"
-                        : dncStatus === "dnc"
-                          ? "#fffbeb"
-                          : "#f0fdf4",
-                    color:
-                      dncStatus === "error" || dncStatus === "tcpa"
-                        ? "#dc2626"
-                        : dncStatus === "dnc"
-                          ? "#b45309"
-                          : "#166534",
-                    border: `1.5px solid ${
-                      dncStatus === "error" || dncStatus === "tcpa"
-                        ? "#fecaca"
-                        : dncStatus === "dnc"
-                          ? "#fcd34d"
-                          : "#86efac"
-                    }`,
-                  }}
-                >
-                  {dncMessage}
-                </div>
-              )}
-
-              <FormInput
-                value={draftValues[item.id] ?? ""}
-                onChange={(val) => setDraftValues((prev) => ({ ...prev, [item.id]: val }))}
-                placeholder={`Enter ${label.toLowerCase()}...`}
-              />
-
-              {isPhoneField && (
-                <button
-                  type="button"
-                  onClick={openUnderwritingModal}
-                  style={{
-                    width: "100%",
-                    marginTop: 12,
-                    border: "none",
-                    backgroundColor: "#233217",
-                    color: "#fff",
-                    borderRadius: 8,
-                    padding: "12px 16px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    fontSize: 14,
-                    boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#1a260f";
-                    e.currentTarget.style.transform = "translateY(-1px)";
-                    e.currentTarget.style.boxShadow = "0 6px 16px rgba(35, 50, 23, 0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#233217";
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.2)";
-                  }}
-                >
-                  Underwriting
-                </button>
-              )}
-            </div>
-          );
-        })}
+            );
+          }
+        )}
       </div>
 
       <div
