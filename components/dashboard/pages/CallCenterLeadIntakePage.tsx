@@ -678,6 +678,8 @@ export default function CallCenterLeadIntakePage({
     );
   const isCallCenterTransferRole =
     currentRole === "call_center_agent" || currentRole === "call_center_admin";
+  // Only call center agents (not admins) can update their own drafts
+  const isCallCenterAgentOnly = currentRole === "call_center_agent";
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
   const [leads, setLeads] = useState<IntakeLead[]>([]);
@@ -1663,7 +1665,8 @@ export default function CallCenterLeadIntakePage({
   };
 
   const openLeadFromGrid = async (lead: IntakeLead) => {
-    if (lead.isDraft && isCallCenterTransferRole) {
+    // Only call center agents (not admins) can open their own drafts for editing
+    if (lead.isDraft && isCallCenterAgentOnly) {
       await openLeadInForm(lead.rowId);
       return;
     }
@@ -1672,7 +1675,8 @@ export default function CallCenterLeadIntakePage({
 
   const handleUpdateLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
-    const canResumeDraftAsCallCenter = Boolean(isCallCenterTransferRole && editingLead.formData.isDraft);
+    // Only call center agents (not admins) can resume/update their own drafts
+    const canResumeDraftAsCallCenter = Boolean(isCallCenterAgentOnly && editingLead.formData.isDraft);
     const wasDraftBeforeUpdate = Boolean(editingLead.formData.isDraft);
     if (!canEditTransferLeads && !canResumeDraftAsCallCenter) {
       setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
@@ -1692,7 +1696,9 @@ export default function CallCenterLeadIntakePage({
       : { data: null as { call_center_id?: string | null } | null };
 
     const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
-    const { data: updatedLead, error } = await supabase
+
+    // Build the query with ownership check for call center agents
+    let updateQuery = supabase
       .from("leads")
       .update({
         lead_unique_id: leadUniqueId,
@@ -1739,7 +1745,14 @@ export default function CallCenterLeadIntakePage({
         is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
       })
-      .eq("id", editingLead.rowId)
+      .eq("id", editingLead.rowId);
+
+    // Add ownership filter for call center agents (not admins) to ensure they can only update their own drafts
+    if (isCallCenterAgentOnly && !canEditTransferLeads && session?.user?.id) {
+      updateQuery = updateQuery.eq("submitted_by", session.user.id);
+    }
+
+    const { data: updatedLead, error } = await updateQuery
       .select("id, submission_id")
       .single();
 
@@ -1775,7 +1788,8 @@ export default function CallCenterLeadIntakePage({
 
   const handleUpdateDraftLead = async (payload: TransferLeadFormData) => {
     if (!editingLead?.rowId) return;
-    const canResumeDraftAsCallCenter = Boolean(isCallCenterTransferRole && editingLead.formData.isDraft);
+    // Only call center agents (not admins) can update their own drafts
+    const canResumeDraftAsCallCenter = Boolean(isCallCenterAgentOnly && editingLead.formData.isDraft);
     if (!canEditTransferLeads && !canResumeDraftAsCallCenter) {
       setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
       return;
@@ -1785,15 +1799,19 @@ export default function CallCenterLeadIntakePage({
       data: { session },
     } = await supabase.auth.getSession();
 
-    const { data: userProfile } = session?.user?.id
-      ? await supabase
-          .from("users")
-          .select("call_center_id")
-          .eq("id", session.user.id)
-          .maybeSingle()
-      : { data: null as { call_center_id?: string | null } | null };
+    if (!session?.user?.id) {
+      setToast({ message: "Authentication required", type: "error" });
+      return;
+    }
 
-    const { error } = await supabase
+    const { data: userProfile } = await supabase
+      .from("users")
+      .select("call_center_id")
+      .eq("id", session.user.id)
+      .maybeSingle();
+
+    // Build the query with ownership check for call center agents
+    let query = supabase
       .from("leads")
       .update({
         lead_unique_id: normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload),
@@ -1841,6 +1859,13 @@ export default function CallCenterLeadIntakePage({
         call_center_id: userProfile?.call_center_id || null,
       })
       .eq("id", editingLead.rowId);
+
+    // Add ownership filter for call center agents (not admins) to ensure they can only update their own drafts
+    if (isCallCenterAgentOnly && !canEditTransferLeads && session?.user?.id) {
+      query = query.eq("submitted_by", session.user.id);
+    }
+
+    const { error } = await query;
 
     if (error) {
       setToast({ message: error.message || "Failed to save draft", type: "error" });
@@ -2007,13 +2032,18 @@ export default function CallCenterLeadIntakePage({
   }
 
   if (viewingLead) {
+    // Only users with edit permission OR call center agents (not admins) can edit
+    // Call center admins are explicitly blocked from editing
+    const isCallCenterAdmin = currentRole === "call_center_admin";
+    const canEditAsCallCenterAgent = isCallCenterAgentOnly; // Only agents, not admins
+    const effectiveCanEdit = canEditTransferLeads && !isCallCenterAdmin || canEditAsCallCenterAgent;
     return (
       <>
         <LeadViewComponent
           leadId={viewingLead.id}
           leadRowUuid={viewingLead.rowUuid}
           leadName={viewingLead.name}
-          canEditLead={canEditTransferLeads}
+          canEditLead={effectiveCanEdit}
           onBack={() => setViewingLead(null)}
         />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -2750,25 +2780,31 @@ export default function CallCenterLeadIntakePage({
                           className="hover:bg-muted/30 transition-all duration-150"
                         >
                           <TableCell style={{ padding: "14px 20px" }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
-                              }}
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 700,
-                                color: "#233217",
-                                textDecoration: "underline",
-                                background: "none",
-                                border: "none",
-                                cursor: "pointer",
-                                padding: 0,
-                                fontFamily: T.font,
-                              }}
-                            >
-                              {lead.id}
-                            </button>
+                            {canViewTransferClaimReclaimVisit ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
+                                }}
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  color: "#233217",
+                                  textDecoration: "underline",
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  padding: 0,
+                                  fontFamily: T.font,
+                                }}
+                              >
+                                {lead.id}
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>
+                                {lead.id}
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell style={{ padding: "14px 20px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -2917,7 +2953,7 @@ export default function CallCenterLeadIntakePage({
                                       { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
                                       { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
                                     ]
-                                  : isCallCenterTransferRole && lead.isDraft
+                                  : isCallCenterAgentOnly && lead.isDraft
                                     ? [
                                         { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
                                         { label: "Update Lead", onClick: () => void openLeadInForm(lead.rowId) },

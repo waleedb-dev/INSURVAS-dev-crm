@@ -315,8 +315,10 @@ export default function LeadViewComponent({
 
   // Check edit permission from Supabase (falls back to prop if permissions still loading)
   const effectiveCanEditLead = useMemo(() => {
+    // If prop is explicitly false, respect it (e.g., for call center admins)
+    if (canEditLead === false) return false;
     // Use prop value if permissions are still loading
-    if (permissionsLoading) return canEditLead;
+    if (permissionsLoading) return canEditLead ?? true;
     // Check Supabase permissions - has either lead_pipeline.update or transfer_leads.edit
     const hasEditPermission = userPermissionKeys.has("action.lead_pipeline.update") || 
                               userPermissionKeys.has("action.transfer_leads.edit");

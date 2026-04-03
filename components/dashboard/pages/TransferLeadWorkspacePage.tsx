@@ -289,7 +289,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
         </div>
       )}
 
-      {sessionId ? (
+      {sessionId && canViewTransferClaimReclaimVisit ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
           <TransferLeadVerificationPanel
             sessionId={sessionId}
@@ -312,6 +312,13 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             leadPhone={lead.phone}
             leadVendor={lead.source}
           />
+        </div>
+      ) : sessionId && !canViewTransferClaimReclaimVisit ? (
+        <div style={{ backgroundColor: "#fef2f2", border: `1.5px solid #fecaca`, borderRadius: 14, padding: 18 }}>
+          <h3 style={{ margin: 0, fontSize: 18, color: "#991b1b", fontWeight: 700 }}>Access Restricted</h3>
+          <p style={{ margin: "8px 0 0", fontSize: 13, color: "#7f1d1d" }}>
+            You do not have permission to view the verification panel. This lead has an active verification session that can only be accessed by licensed agents or managers.
+          </p>
         </div>
       ) : (
         <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 14, padding: 18 }}>
