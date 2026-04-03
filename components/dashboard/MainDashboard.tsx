@@ -1150,119 +1150,147 @@ function StatBox({ label, value, icon, color, subtext }: { label: string; value:
 
 // ── Pipeline Stages Grid (Real Data) ──────────────────────────────────────────
 
-function PipelineStagesGrid({ 
-  multiplier, 
-  viewScope, 
+interface PipelineStageData {
+  id: number;
+  name: string;
+  pipeline: string;
+  leadCount: number;
+  totalValue: number;
+  color: string;
+  icon: string;
+  leads: { name: string; carrier: string | null }[];
+}
+
+const STAGE_COLORS = ["#638b4b", "#74a557", "#94c278", "#4e6e3a", "#3b82f6", "#f59e0b"];
+const STAGE_ICONS = ["🔄", "📋", "✅", "📊", "⏳", "💰"];
+
+function usePipelineStages(
+  viewScope: "all" | "call_center" | "own" | "none",
+  callCenterId: string | null,
+  userId: string | null,
+) {
+  const [stages, setStages] = useState<PipelineStageData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStages() {
+      const supabase = getSupabaseBrowserClient();
+
+      const { data: allStages, error } = await supabase
+        .from("pipeline_stages")
+        .select("id, name, position, pipeline_id, pipelines(name)")
+        .order("pipeline_id")
+        .order("position");
+
+      if (error || !allStages || allStages.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+
+      const shuffled = [...allStages].sort(() => Math.random() - 0.5);
+      const selected = shuffled.slice(0, 6);
+      const stageIds = selected.map((s) => s.id);
+
+      let leadsQuery = supabase
+        .from("leads")
+        .select("stage_id, lead_value, first_name, last_name, carrier")
+        .in("stage_id", stageIds);
+
+      if (viewScope === "call_center" && callCenterId) {
+        leadsQuery = leadsQuery.eq("call_center_id", callCenterId);
+      } else if (viewScope === "own" && userId) {
+        leadsQuery = leadsQuery.eq("submitted_by", userId);
+      }
+
+      const { data: leadsData } = viewScope === "none"
+        ? { data: [] as any[] }
+        : await leadsQuery;
+
+      const countMap: Record<number, number> = {};
+      const valueMap: Record<number, number> = {};
+      const leadsByStage: Record<number, { name: string; carrier: string | null }[]> = {};
+
+      (leadsData || []).forEach((lead: any) => {
+        const sid = lead.stage_id as number;
+        countMap[sid] = (countMap[sid] || 0) + 1;
+        valueMap[sid] = (valueMap[sid] || 0) + (parseFloat(lead.lead_value) || 0);
+        if (!leadsByStage[sid]) leadsByStage[sid] = [];
+        leadsByStage[sid].push({
+          name: [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unknown",
+          carrier: lead.carrier ?? null,
+        });
+      });
+
+      const formatted: PipelineStageData[] = selected.map((s, i) => {
+        const pipelineRaw = s.pipelines as { name: string } | { name: string }[] | null;
+        const pipelineName = Array.isArray(pipelineRaw) ? pipelineRaw[0]?.name : pipelineRaw?.name;
+        return {
+          id: s.id,
+          name: s.name,
+          pipeline: pipelineName || "Unknown",
+          leadCount: countMap[s.id] || 0,
+          totalValue: valueMap[s.id] || 0,
+          color: STAGE_COLORS[i % STAGE_COLORS.length],
+          icon: STAGE_ICONS[i % STAGE_ICONS.length],
+          leads: leadsByStage[s.id] || [],
+        };
+      });
+
+      setStages(formatted);
+      setIsLoading(false);
+    }
+
+    fetchStages();
+  }, [viewScope, callCenterId, userId]);
+
+  return { stages, isLoading };
+}
+
+function PipelineStagesGrid({
+  multiplier,
+  viewScope,
   callCenterId,
-  userId
-}: { 
+  userId,
+}: {
   multiplier: number;
   viewScope: "all" | "call_center" | "own" | "none";
   callCenterId: string | null;
   userId: string | null;
 }) {
+  const { stages, isLoading } = usePipelineStages(viewScope, callCenterId, userId);
 
-  // Filter leads based on view scope
-  const filterLeadsByScope = (leads: any[]) => {
-    if (viewScope === "none") return [];
-    if (viewScope === "all") return leads;
-    // For call_center view, filter by call_center_id (simulated)
-    if (viewScope === "call_center" && callCenterId) {
-      return leads.slice(0, Math.max(1, Math.floor(leads.length * 0.7))); // Simulate filtered data
-    }
-    // For call center agents - show only leads submitted by them
-    if (viewScope === "own" && userId) {
-      // Filter to show only leads submitted by this agent
-      // In real implementation, this would filter by submitted_by = userId from database
-      // For now simulating with first 30% of leads
-      return leads.slice(0, Math.max(1, Math.floor(leads.length * 0.3)));
-    }
-    return leads;
-  };
+  if (isLoading) {
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              borderRadius: 16,
+              border: `1px solid ${T.border}`,
+              background: T.cardBg,
+              padding: "20px",
+              minHeight: 140,
+              animation: "pulse 1.5s ease-in-out infinite",
+              opacity: 0.5,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
 
-  // Real pipeline data from database with date filtering applied
-  const basePipelineStages = [
-    {
-      id: "transfer-api",
-      name: "Transfer API",
-      pipeline: "Transfer Portal",
-      baseLeadCount: 4,
-      totalValue: 45.00,
-      color: "#638b4b",
-      icon: "🔄",
-      leads: [
-        { name: "Ali", carrier: null, product: null },
-        { name: "ahmedtest-", carrier: null, product: null },
-        { name: "Dan32332 Hooker", carrier: "SSL", product: "Graded" },
-        { name: "Arman Tsrukian", carrier: "Aflac", product: "Modified" }
-      ]
-    },
-    {
-      id: "test-stage",
-      name: "Test Stage",
-      pipeline: "Transfer Portal",
-      baseLeadCount: 1,
-      totalValue: 0.00,
-      color: "#74a557",
-      icon: "🧪",
-      leads: [
-        { name: "Rizwansa Ahmed", carrier: "Transamerica", product: "Graded" }
-      ]
-    },
-    {
-      id: "inform",
-      name: "Inform",
-      pipeline: "Transfer Portal",
-      baseLeadCount: 1,
-      totalValue: 45.00,
-      color: "#94c278",
-      icon: "ℹ️",
-      leads: [
-        { name: "umar-test-v2 fdfs", carrier: "AMAM", product: "Graded" }
-      ]
-    },
-    {
-      id: "chargeback-fixed",
-      name: "Chargeback Fixed",
-      pipeline: "Chargeback Pipeline",
-      baseLeadCount: 3,
-      totalValue: 0.00,
-      color: "#4e6e3a",
-      icon: "✅",
-      leads: [
-        { name: "Waleed Shoaib", carrier: "Aflac", product: "Preferred" },
-        { name: "fasdfdsf dsfsdf", carrier: "AMAM", product: "Immediate" },
-        { name: "Umar-test test2", carrier: "AMAM", product: "Immediate" }
-      ]
-    },
-    {
-      id: "chargeback-dq",
-      name: "Chargeback DQ",
-      pipeline: "Chargeback Pipeline",
-      baseLeadCount: 1,
-      totalValue: 0.00,
-      color: "#ef4444",
-      icon: "❌",
-      leads: [
-        { name: "Kendrick Lamar", carrier: "Aetna", product: "Modified" }
-      ]
-    }
-  ];
-
-  // Apply date filter multiplier and scope filtering to lead counts
-  const pipelineStages = basePipelineStages.map(stage => {
-    const filteredLeads = filterLeadsByScope(stage.leads);
-    const adjustedCount = Math.max(0, Math.round(stage.baseLeadCount * multiplier));
-    return {
-      ...stage,
-      leadCount: adjustedCount,
-      leads: filteredLeads.slice(0, adjustedCount)
-    };
-  }).filter(stage => viewScope === "all" || stage.leadCount > 0); // Hide empty stages for non-admins
+  if (stages.length === 0) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+        <p style={{ color: T.textMuted, fontSize: 14 }}>No pipeline stages found</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-      {pipelineStages.map((stage) => (
+      {stages.map((stage) => (
         <StageCard key={stage.id} stage={stage} />
       ))}
     </div>
