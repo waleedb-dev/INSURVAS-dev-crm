@@ -1030,7 +1030,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                                 onMouseLeave={() => setHoveredStageTooltip(null)}
                                 style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%" }}
                               >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <circle cx="12" cy="12" r="10"/>
                                   <line x1="12" y1="16" x2="12" y2="12"/>
                                   <line x1="12" y1="8" x2="12.01" y2="8"/>
@@ -1042,20 +1042,21 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                                   top: "100%",
                                   left: 0,
                                   marginTop: 8,
-                                  backgroundColor: "#233217",
-                                  color: "#fff",
-                                  padding: "10px 14px",
-                                  borderRadius: 10,
+                                  backgroundColor: "#fff",
+                                  color: "#233217",
+                                  padding: "12px 16px",
+                                  borderRadius: 8,
                                   fontSize: 13,
                                   fontWeight: 500,
-                                  maxWidth: 280,
+                                  maxWidth: 400,
+                                  width: 400,
                                   zIndex: 1000,
-                                  boxShadow: "0 8px 24px rgba(35, 50, 23, 0.25)",
+                                  boxShadow: "0 8px 24px rgba(35, 50, 23, 0.2)",
                                   animation: "fadeInUp 0.2s ease-out",
                                   lineHeight: 1.5,
+                                  border: "1.5px solid #233217",
                                 }}>
                                   {stageDescriptions[stage]}
-                                  <div style={{ position: "absolute", top: -6, left: 12, width: 12, height: 12, backgroundColor: "#233217", transform: "rotate(45deg)", borderRadius: 2 }} />
                                 </div>
                               )}
                             </div>
