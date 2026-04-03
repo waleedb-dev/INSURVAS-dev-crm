@@ -1087,7 +1087,7 @@ export default function TransferLeadApplicationForm({
               <input type="date" value={formData.submissionDate} onChange={set("submissionDate")} style={fieldStyleWithError("submissionDate")} />
             </Field>
             <Field label="Phone Number" required error={getFieldError("phone")}
-              info="Lead's contact phone number for verification calls."
+              info="Lead contact phone number for verification calls."
               fieldKey="phone"
               hoveredFieldInfo={hoveredFieldInfo}
               setHoveredFieldInfo={setHoveredFieldInfo}>
@@ -1239,35 +1239,35 @@ export default function TransferLeadApplicationForm({
             }>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <Field label="First Name" required error={getFieldError("firstName")}
-                  info="Lead's first name as it appears on their ID."
+                  info="First name as it appears on the lead ID."
                   fieldKey="firstName"
                   hoveredFieldInfo={hoveredFieldInfo}
                   setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.firstName} onChange={set("firstName")} style={fieldStyleWithError("firstName")} />
                 </Field>
                 <Field label="Last Name" required error={getFieldError("lastName")}
-                  info="Lead's last name as it appears on their ID."
+                  info="Last name as it appears on the lead ID."
                   fieldKey="lastName"
                   hoveredFieldInfo={hoveredFieldInfo}
                   setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.lastName} onChange={set("lastName")} style={fieldStyleWithError("lastName")} />
                 </Field>
                 <Field label="Date of Birth" required error={getFieldError("dateOfBirth")}
-                  info="Lead's date of birth in MM/DD/YYYY format."
+                  info="Date of birth in MM/DD/YYYY format."
                   fieldKey="dateOfBirth"
                   hoveredFieldInfo={hoveredFieldInfo}
                   setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyleWithError("dateOfBirth")} />
                 </Field>
                 <Field label="Age" required error={getFieldError("age")}
-                  info="Lead's current age at time of application."
+                  info="Current age at time of application."
                   fieldKey="age"
                   hoveredFieldInfo={hoveredFieldInfo}
                   setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.age} onChange={set("age")} style={fieldStyleWithError("age")} />
                 </Field>
                 <Field label="Social Security Number" required error={getFieldError("social")}
-                  info="Lead's 9-digit Social Security Number for identity verification."
+                  info="9-digit Social Security Number for identity verification."
                   fieldKey="social"
                   hoveredFieldInfo={hoveredFieldInfo}
                   setHoveredFieldInfo={setHoveredFieldInfo}>
@@ -1327,7 +1327,7 @@ export default function TransferLeadApplicationForm({
                   )}
                 </Field>
                 <Field label="Driver License Number" required error={getFieldError("driverLicenseNumber")}
-                  info="State-issued driver's license number for identity verification."
+                  info="State-issued driver license number for identity verification."
                   fieldKey="driverLicenseNumber"
                   hoveredFieldInfo={hoveredFieldInfo}
                   setHoveredFieldInfo={setHoveredFieldInfo}>
@@ -1409,7 +1409,7 @@ export default function TransferLeadApplicationForm({
               }>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <Field label="Street Address" required full error={getFieldError("street1")}
-                    info="Lead's primary street address for mailing and underwriting purposes."
+                    info="Primary street address for mailing and underwriting purposes."
                     fieldKey="street1" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input placeholder="Street Address" value={formData.street1} onChange={set("street1")} style={fieldStyleWithError("street1")} />
                   </Field>
@@ -1419,12 +1419,12 @@ export default function TransferLeadApplicationForm({
                     <input placeholder="Apt, Suite, Unit (optional)" value={formData.street2} onChange={set("street2")} style={fieldStyle} />
                   </Field>
                   <Field label="City" required error={getFieldError("city")}
-                    info="City of the lead's primary residence."
+                    info="City of the primary residence."
                     fieldKey="city" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.city} onChange={set("city")} style={fieldStyleWithError("city")} />
                   </Field>
                   <Field label="State" required error={getFieldError("state")}
-                    info="State of the lead's primary residence."
+                    info="State of the primary residence."
                     fieldKey="state" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <StyledSelect
                       value={formData.state}
@@ -1435,7 +1435,7 @@ export default function TransferLeadApplicationForm({
                     />
                   </Field>
                   <Field label="Zip Code" required error={getFieldError("zipCode")}
-                    info="5-digit ZIP code of the lead's primary residence."
+                    info="5-digit ZIP code of the primary residence."
                     fieldKey="zipCode" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                     <input value={formData.zipCode} onChange={set("zipCode")} style={fieldStyleWithError("zipCode")} />
                   </Field>
@@ -1494,17 +1494,17 @@ export default function TransferLeadApplicationForm({
                   <YesNo value={formData.previousApplications2Years} onChange={(v) => setFormData((p) => ({ ...p, previousApplications2Years: v }))} hasError={submitHighlightKeys.has("previousApplications2Years")} />
                 </Field>
                 <Field label="Height" required error={getFieldError("height")}
-                  info="Lead's height in feet and inches (e.g., 5'10\")."
+                  info="Lead height in feet and inches (e.g., 5 ft 10 in)."
                   fieldKey="height" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input placeholder='e.g. 5&apos;10"' value={formData.height} onChange={set("height")} style={fieldStyleWithError("height")} />
                 </Field>
                 <Field label="Weight" required error={getFieldError("weight")}
-                  info="Lead's current weight in pounds."
+                  info="Lead current weight in pounds."
                   fieldKey="weight" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input placeholder="e.g. 175 lbs" value={formData.weight} onChange={set("weight")} style={fieldStyleWithError("weight")} />
                 </Field>
                 <Field label="Doctor's Name" required error={getFieldError("doctorName")}
-                  info="Primary care physician's full name for medical history verification."
+                  info="Primary care physician full name for medical history verification."
                   fieldKey="doctorName" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <input value={formData.doctorName} onChange={set("doctorName")} style={fieldStyleWithError("doctorName")} />
                 </Field>
