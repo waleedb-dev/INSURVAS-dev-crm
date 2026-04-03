@@ -1085,12 +1085,12 @@ function DailyDealFlowStatsCard({
                   <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{item.status}</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.count} ({item.percentage}%)</span>
                 </div>
-                <div style={{ width: "100%", height: 8, backgroundColor: C.gray100, borderRadius: T.radiusXs, overflow: "hidden" }}>
+                <div style={{ width: "100%", height: 8, backgroundColor: C.gray100, borderRadius: T.radiusSm, overflow: "hidden" }}>
                   <div style={{ 
                     width: `${item.percentage}%`, 
                     height: "100%", 
                     backgroundColor: item.color,
-                    borderRadius: T.radiusXs,
+                    borderRadius: T.radiusSm,
                     transition: "width 150ms"
                   }} />
                 </div>
