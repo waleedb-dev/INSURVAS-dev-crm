@@ -23,6 +23,7 @@ type Props = {
   onChange: (next: ClaimSelections) => void;
   onClose: () => void;
   onSubmit: () => void;
+  retentionOnly?: boolean;
 };
 
 function RadioTile({
