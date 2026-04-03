@@ -1074,21 +1074,6 @@ export default function ProductGuidePage() {
             </div>
           </div>
 
-          {/* Screenshots Section */}
-          {selectedGuide.screenshots && selectedGuide.screenshots.length > 0 && (
-            <div style={{
-              backgroundColor: T.cardBg,
-              border: `1px solid ${T.border}`,
-              borderRadius: 16,
-              padding: 20,
-            }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: "#233217", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 8 }}>
-                <Maximize2 size={16} /> Screenshots
-              </h3>
-              <ImageGallery images={selectedGuide.screenshots} title={selectedGuide.title} />
-            </div>
-          )}
-
         </div>
       </div>
     );

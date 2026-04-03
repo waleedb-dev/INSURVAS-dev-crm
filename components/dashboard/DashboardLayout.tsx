@@ -34,9 +34,8 @@ export type DashPage =
   | "call-center-lead-intake"
   | "users-access" | "pipeline-management"
   | "carrier-management" | "bpo-centres"
-  | "commissions" | "policies"
-  | "imo-management"
-  | "upline-carrier-states"
+  | "commissions" | "policies" | "carrier-updates"
+  | "imo-management" | "upline-carrier-states" | "imo-settings"
   | "product-guide"
   | "announcements";
 
@@ -66,6 +65,7 @@ interface NavItem {
   id: DashPage;
   label: string;
   icon: React.ReactNode;
+  children?: NavItem[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -73,15 +73,29 @@ const NAV_ITEMS: NavItem[] = [
   { id: "daily-deal-flow", label: "Daily Deal Flow", icon: <Briefcase size={22} strokeWidth={1.8} /> },
   { id: "lead-pipeline", label: "Lead Pipeline", icon: <GitBranch size={22} strokeWidth={1.8} /> },
   { id: "call-center-lead-intake", label: "Transfer Leads", icon: <ArrowLeftRight size={22} strokeWidth={1.8} /> },
-  { id: "commissions", label: "Commissions", icon: <DollarSign size={22} strokeWidth={1.8} /> },
-  { id: "policies", label: "Policies", icon: <ScrollText size={22} strokeWidth={1.8} /> },
+  {
+    id: "carrier-updates",
+    label: "Carrier Updates",
+    icon: <DollarSign size={22} strokeWidth={1.8} />,
+    children: [
+      { id: "commissions", label: "Commissions", icon: <DollarSign size={18} strokeWidth={1.8} /> },
+      { id: "policies", label: "Policies", icon: <ScrollText size={18} strokeWidth={1.8} /> },
+    ],
+  },
   { id: "users-access", label: "Users & Access", icon: <Users size={22} strokeWidth={1.8} /> },
   { id: "pipeline-management", label: "Pipelines", icon: <Layers size={22} strokeWidth={1.8} /> },
-  { id: "carrier-management", label: "Carriers", icon: <Building2 size={22} strokeWidth={1.8} /> },
   { id: "bpo-centres", label: "BPO Centres", icon: <Headphones size={22} strokeWidth={1.8} /> },
   { id: "product-guide", label: "Product Guide", icon: <BookOpen size={22} strokeWidth={1.8} /> },
-  { id: "imo-management", label: "IMO Management", icon: <Settings size={22} strokeWidth={1.8} /> },
-  { id: "upline-carrier-states", label: "Upline States", icon: <MapPin size={22} strokeWidth={1.8} /> },
+  {
+    id: "imo-settings",
+    label: "IMO Settings",
+    icon: <Settings size={22} strokeWidth={1.8} />,
+    children: [
+      { id: "carrier-management", label: "Carriers", icon: <Building2 size={18} strokeWidth={1.8} /> },
+      { id: "imo-management", label: "IMO Management", icon: <Settings size={18} strokeWidth={1.8} /> },
+      { id: "upline-carrier-states", label: "Upline States", icon: <MapPin size={18} strokeWidth={1.8} /> },
+    ],
+  },
   { id: "announcements", label: "Announcements", icon: <Bell size={22} strokeWidth={1.8} /> },
 ];
 
@@ -97,6 +111,8 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "bpo-centres": "BPO Centres",
   commissions: "Commissions",
   policies: "Policies",
+  "carrier-updates": "Carrier Updates",
+  "imo-settings": "IMO Settings",
   "imo-management": "IMO Management",
   "upline-carrier-states": "Upline States",
   "product-guide": "Product Guide",
@@ -124,6 +140,7 @@ export default function DashboardLayout({
   const [hoveredNav, setHoveredNav]           = useState<string | null>(null);
   const [notifs,     setNotifs]               = useState(NOTIFICATIONS);
   const [isDark,     setIsDark]               = useState(false);
+  const [expandedSubs, setExpandedSubs]        = useState<Set<string>>(new Set());
 
   // Read initial theme from HTML class or localStorage on mount
   useEffect(() => {
@@ -329,8 +346,135 @@ export default function DashboardLayout({
               Menu
             </div>
           )}
-          {NAV_ITEMS.filter((item) => visiblePageSet.has(item.id)).map((item) => {
+          {NAV_ITEMS.filter((item) => visiblePageSet.has(item.id) || (item.children && item.children.some(c => visiblePageSet.has(c.id)))).map((item) => {
             const isActive = item.id === activeNav;
+            const hasChildren = !!item.children && item.children.length > 0;
+            const isExpanded = expandedSubs.has(item.id);
+            const childIds = item.children?.map(c => c.id) || [];
+            const isChildActive = childIds.includes(activeNav);
+
+            if (hasChildren) {
+              return (
+                <div key={item.id}>
+                  <button
+                    id={`nav-${item.id}`}
+                    onClick={() => {
+                      if (collapsed) {
+                        onNavigate(item.children![0].id);
+                      } else {
+                        setExpandedSubs(prev => {
+                          const next = new Set(prev);
+                          if (next.has(item.id)) next.delete(item.id);
+                          else next.add(item.id);
+                          return next;
+                        });
+                      }
+                    }}
+                    title={collapsed ? item.label : undefined}
+                    style={{
+                      display: "flex", alignItems: "center",
+                      gap: collapsed ? 0 : 14,
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      width: "100%",
+                      padding: collapsed ? "14px 0" : "14px 16px",
+                      borderRadius: 12, border: "none", cursor: "pointer",
+                      backgroundColor: isActive || isChildActive ? INSURVAS_ACCENT : "transparent",
+                      color: isActive || isChildActive ? INSURVAS_SIDEBAR_BG : (hoveredNav === item.id ? INSURVAS_TEXT_WHITE : INSURVAS_TEXT_MUTED),
+                      fontSize: 15, fontWeight: isActive || isChildActive ? 700 : 600,
+                      marginBottom: 4, fontFamily: T.font,
+                      transition: "all 0.15s ease-in-out",
+                      overflow: "hidden", whiteSpace: "nowrap",
+                      textAlign: "left",
+                      transform: hoveredNav === item.id && !isActive ? "scale(1.01)" : "scale(1)",
+                      position: "relative",
+                    }}
+                    onMouseEnter={() => setHoveredNav(item.id)}
+                    onMouseLeave={() => setHoveredNav(null)}
+                  >
+                    {isChildActive && !isActive && (
+                      <span style={{
+                        position: "absolute",
+                        left: 0,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 3,
+                        height: 20,
+                        backgroundColor: INSURVAS_SIDEBAR_BG,
+                        borderRadius: "0 3px 3px 0",
+                      }} />
+                    )}
+                    <span style={{ flexShrink: 0, display: "flex" }}>{item.icon}</span>
+                    {!collapsed && (
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span>{item.label}</span>
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          style={{
+                            transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                            transition: "transform 0.2s ease",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                  {!collapsed && isExpanded && item.children && (
+                    <div style={{ marginLeft: 20, marginBottom: 8 }}>
+                      {item.children.filter(c => visiblePageSet.has(c.id)).map(child => {
+                        const isChildActive = child.id === activeNav;
+                        return (
+                          <button
+                            key={child.id}
+                            id={`nav-${child.id}`}
+                            onClick={() => onNavigate(child.id)}
+                            style={{
+                              display: "flex", alignItems: "center",
+                              gap: 14,
+                              width: "100%",
+                              padding: "10px 16px",
+                              borderRadius: 10, border: "none", cursor: "pointer",
+                              backgroundColor: isChildActive ? INSURVAS_ACCENT : "transparent",
+                              color: isChildActive ? INSURVAS_SIDEBAR_BG : (hoveredNav === child.id ? INSURVAS_TEXT_WHITE : INSURVAS_TEXT_MUTED),
+                              fontSize: 14, fontWeight: isChildActive ? 700 : 500,
+                              marginBottom: 2, fontFamily: T.font,
+                              transition: "all 0.15s ease-in-out",
+                              overflow: "hidden", whiteSpace: "nowrap",
+                              textAlign: "left",
+                              position: "relative",
+                            }}
+                            onMouseEnter={() => setHoveredNav(child.id)}
+                            onMouseLeave={() => setHoveredNav(null)}
+                          >
+                            {isChildActive && (
+                              <span style={{
+                                position: "absolute",
+                                left: 0,
+                                top: "50%",
+                                transform: "translateY(-50%)",
+                                width: 3,
+                                height: 16,
+                                backgroundColor: INSURVAS_SIDEBAR_BG,
+                                borderRadius: "0 3px 3px 0",
+                              }} />
+                            )}
+                            <span style={{ flexShrink: 0, display: "flex" }}>{child.icon}</span>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{child.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <button
                 key={item.id}
