@@ -251,7 +251,7 @@ type Props = {
 type SortConfig = { key: string; direction: "asc" | "desc" } | null;
 
 const columns = [
-  "S.No", "Date", "Lead Vendor", "Insured Name", "Phone Number", "Buffer Agent", "Retention Agent", "Agent", "Licensed Account", "Status",
+  "S.No", "Date", "Lead Vendor", "Insured Name", "Phone Number", "B.A", "R.A", "Agent", "L.A", "Status",
   "Call Result", "Carrier", "Product Type", "Draft Date", "MP", "Face Amount", "Notes",
 ];
 
@@ -716,7 +716,7 @@ export function DdfGroupedGrid({
                 >
                   <button
                     onClick={() => {
-                      const keyMap: Record<string, string> = { Date: "date", "Lead Vendor": "lead_vendor", "Insured Name": "insured_name", "Phone Number": "client_phone_number", "Buffer Agent": "buffer_agent", Agent: "agent", "Licensed Account": "licensed_agent_account", Status: "status", "Call Result": "call_result", Carrier: "carrier", "Product Type": "product_type", "Draft Date": "draft_date", MP: "monthly_premium", "Face Amount": "face_amount", "LA Callback": "la_callback", Notes: "notes" };
+                      const keyMap: Record<string, string> = { Date: "date", "Lead Vendor": "lead_vendor", "Insured Name": "insured_name", "Phone Number": "client_phone_number", "B.A": "buffer_agent", Agent: "agent", "L.A": "licensed_agent_account", Status: "status", "Call Result": "call_result", Carrier: "carrier", "Product Type": "product_type", "Draft Date": "draft_date", MP: "monthly_premium", "Face Amount": "face_amount", "LA Callback": "la_callback", Notes: "notes", "R.A": "retention_agent" };
                       const key = keyMap[col];
                       if (!key || groupBy === "none") return;
                       setSortConfig((prev) => (prev?.key === key ? { key, direction: prev.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" }));
