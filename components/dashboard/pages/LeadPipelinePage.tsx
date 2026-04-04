@@ -975,7 +975,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         <div className="kanban-board">
           {stages.map((stage, index) => {
             const cfg = getStageConfig(stage, index);
-            const stageLeads = byStage(stage).filter(l => filteredLeads.includes(l));
+            const filteredLeadUuids = new Set(filteredLeads.map(l => l.rowUuid));
+            const stageLeads = byStage(stage).filter(l => filteredLeadUuids.has(l.rowUuid));
             const isCollapsed = collapsedStages[stage];
             const isOver = dragOver === stage;
             const currentPage = kanbanPage[stage] || 1;
