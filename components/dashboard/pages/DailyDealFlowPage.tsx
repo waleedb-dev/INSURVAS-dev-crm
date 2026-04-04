@@ -202,10 +202,10 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
   const groupByOptions = [
     { value: "none", label: "No Grouping" },
     { value: "lead_vendor", label: "Lead Vendor" },
-    { value: "buffer_agent", label: "B.A" },
-    { value: "retention_agent", label: "R.A" },
+    { value: "buffer_agent", label: "Buffer Agent" },
+    { value: "retention_agent", label: "Retention Agent" },
     { value: "agent", label: "Agent" },
-    { value: "licensed_agent_account", label: "L.A" },
+    { value: "licensed_agent_account", label: "Licensed Agent" },
     { value: "status", label: "Status" },
     { value: "call_result", label: "Call Result" },
     { value: "carrier", label: "Carrier" },
