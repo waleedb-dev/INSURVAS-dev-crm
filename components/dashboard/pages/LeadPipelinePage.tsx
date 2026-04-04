@@ -312,9 +312,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     return leads.filter(l => {
       const matchesSearch = !query ||
         l.name.toLowerCase().includes(query) ||
-        l.phone.includes(numericQuery) ||
-        l.type.toLowerCase().includes(query) ||
-        l.source.toLowerCase().includes(query);
+        l.phone.includes(numericQuery);
       const matchesStage = filterStage === "All" || l.stage === filterStage;
       const matchesType = filterType === "All" || l.type === filterType;
       const matchesAgent = filterAgent === "All" || l.agent === filterAgent;
