@@ -309,10 +309,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     const query = search.toLowerCase().trim();
     const numericQuery = query.replace(/\D/g, "");
 
-    return leads.filter(l => {
+    const result = leads.filter(l => {
       const matchesSearch = !query ||
         l.name.toLowerCase().includes(query) ||
-        l.phone.includes(numericQuery);
+        (numericQuery && l.phone.includes(numericQuery));
       const matchesStage = filterStage === "All" || l.stage === filterStage;
       const matchesType = filterType === "All" || l.type === filterType;
       const matchesAgent = filterAgent === "All" || l.agent === filterAgent;
@@ -323,6 +323,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       const validMax = maxPremium == null || Number.isNaN(maxPremium) ? true : l.premium <= maxPremium;
       return matchesSearch && matchesStage && matchesType && matchesAgent && matchesSource && validMin && validMax;
     });
+    
+    return result;
   }, [leads, search, filterStage, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
 
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
@@ -1068,15 +1070,16 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                           onDragEnd={() => { setDragRowUuid(null); setDragOver(null); }}
                           style={{
                             backgroundColor: "#fff", borderRadius: 10, padding: "16px",
-                            boxShadow: "0 2px 8px rgba(35, 50, 23, 0.08)", border: `1px solid ${T.border}`,
-                            borderLeft: `4px solid ${cfg.color}`,
+                            boxShadow: "0 2px 8px rgba(35, 50, 23, 0.08)",
+                            borderWidth: 1, borderStyle: "solid", borderColor: T.border,
+                            borderLeftWidth: 4, borderLeftStyle: "solid", borderLeftColor: cfg.color,
                             cursor: canEditLeadPipeline ? "grab" : "pointer",
                             opacity: dragRowUuid === lead.rowUuid ? 0.5 : 1,
                             transition: "all 0.2s ease",
                             position: "relative"
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = "#233217"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(35, 50, 23, 0.15)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "0 2px 8px rgba(35, 50, 23, 0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = "#233217"; e.currentTarget.style.borderLeftColor = cfg.color; e.currentTarget.style.boxShadow = "0 6px 20px rgba(35, 50, 23, 0.15)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.borderLeftColor = cfg.color; e.currentTarget.style.boxShadow = "0 2px 8px rgba(35, 50, 23, 0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, alignItems: "flex-start" }}>
                             <div style={{ flex: 1, marginRight: 8 }}>
