@@ -36,6 +36,7 @@ export type TransferLeadFormData = {
   social: string;
   driverLicenseNumber: string;
   existingCoverageLast2Years: string;
+  existingCoverageDetails: string;
   previousApplications2Years: string;
   height: string;
   weight: string;
@@ -262,6 +263,7 @@ function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFo
     social: "",
     driverLicenseNumber: "",
     existingCoverageLast2Years: "",
+    existingCoverageDetails: "",
     previousApplications2Years: "",
     height: "",
     weight: "",
@@ -394,6 +396,8 @@ export default function TransferLeadApplicationForm({
   const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [hoveredFieldInfo, setHoveredFieldInfo] = useState<{ key: string; info: string; x: number; y: number } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionComplete, setSubmissionComplete] = useState(false);
   const displayBpoName = (centerName || "").trim() || "BPO";
 
   const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
@@ -431,24 +435,16 @@ export default function TransferLeadApplicationForm({
   }, []);
 
   const { carriers, productsForCarrier, loadingProducts: policyCarrierProductsLoading } =
-    useCarrierProductDropdowns(
-      supabase,
-      {
-        open: true,
-        carrierName: formData.carrier,
-        onInvalidateProduct: onInvalidatePolicyProduct,
-      },
-    );
+    useCarrierProductDropdowns(supabase, {
+      carrierName: formData.carrier,
+      onInvalidateProduct: onInvalidatePolicyProduct,
+    });
 
   const { productsForCarrier: uwProductsForCarrier, loadingProducts: uwCarrierProductsLoading } =
-    useCarrierProductDropdowns(
-    supabase,
-    {
-      open: showUnderwritingModal,
+    useCarrierProductDropdowns(supabase, {
       carrierName: underwritingData.carrier,
       onInvalidateProduct: onInvalidateUwProduct,
-    },
-    );
+    });
 
   const phoneError = formData.phone.length > 0 && !getUsPhone10Digits(formData.phone);
   const ssnDigits = normalizeSsnDigits(formData.social);
@@ -1487,8 +1483,15 @@ export default function TransferLeadApplicationForm({
                 <Field label="Any existing / previous coverage in last 2 years?" required error={getFieldError("existingCoverageLast2Years")}
                   info="Indicates if the lead has had any life insurance coverage in the past 2 years."
                   fieldKey="existingCoverageLast2Years" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
-                  <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v }))} hasError={submitHighlightKeys.has("existingCoverageLast2Years")} />
+                  <YesNo value={formData.existingCoverageLast2Years} onChange={(v) => setFormData((p) => ({ ...p, existingCoverageLast2Years: v, existingCoverageDetails: v === "Yes" ? p.existingCoverageDetails : "" }))} hasError={submitHighlightKeys.has("existingCoverageLast2Years")} />
                 </Field>
+                {formData.existingCoverageLast2Years === "Yes" && (
+                  <Field label="Existing Coverage Details"
+                    info="Details about any existing or previous life insurance coverage."
+                    fieldKey="existingCoverageDetails" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
+                    <textarea value={formData.existingCoverageDetails} onChange={set("existingCoverageDetails")} style={{ ...fieldStyle, minHeight: 80, resize: "vertical" }} placeholder="Describe the existing coverage details..." />
+                  </Field>
+                )}
                 <Field label="Any previous applications in 2 years?" required error={getFieldError("previousApplications2Years")}
                   info="Indicates if the lead has applied for life insurance in the past 2 years."
                   fieldKey="previousApplications2Years" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
@@ -1566,14 +1569,50 @@ export default function TransferLeadApplicationForm({
                   <Field label="Product Type" required error={getFieldError("productType")}
                     info="The specific type of policy product selected."
                     fieldKey="productType" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
-                    <StyledSelect
-                      value={formData.productType}
-                      onValueChange={(val) => setFormData((prev) => ({ ...prev, productType: val }))}
-                      options={productsForCarrier.map((p) => ({ value: p.name, label: p.name }))}
-                      placeholder={!formData.carrier.trim() ? "Select carrier first" : (policyCarrierProductsLoading ? "Loading..." : "Please Select")}
-                      disabled={!formData.carrier.trim() || policyCarrierProductsLoading}
-                      error={submitHighlightKeys.has("productType")}
-                    />
+                    {!formData.carrier.trim() ? (
+                      <div style={{ ...fieldStyle, color: T.textMuted, display: "flex", alignItems: "center" }}>
+                        Select carrier first
+                      </div>
+                    ) : policyCarrierProductsLoading ? (
+                      <div style={{ ...fieldStyle, color: T.textMuted, display: "flex", alignItems: "center" }}>
+                        Loading products...
+                      </div>
+                    ) : productsForCarrier.length === 0 ? (
+                      <div style={{ ...fieldStyle, color: T.textMuted, display: "flex", alignItems: "center" }}>
+                        No products available for this carrier
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {productsForCarrier.map((product) => (
+                          <label
+                            key={product.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "10px 14px",
+                              borderRadius: 8,
+                              border: `1.5px solid ${formData.productType === product.name ? "#233217" : T.border}`,
+                              backgroundColor: formData.productType === product.name ? "#EEF5EE" : "#fff",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease-in-out",
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="productType"
+                              value={product.name}
+                              checked={formData.productType === product.name}
+                              onChange={() => setFormData((prev) => ({ ...prev, productType: product.name }))}
+                              style={{ width: 18, height: 18, cursor: "pointer" }}
+                            />
+                            <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>
+                              {product.name}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </Field>
                 <Field label="Draft Date" required error={getFieldError("draftDate")}
                   info="The date the first premium draft will occur."
@@ -2159,42 +2198,60 @@ export default function TransferLeadApplicationForm({
               if (dup.match && !dup.isAddable) return;
               const dncResult = await checkDnc();
               if (dncResult === "tcpa") return;
-              onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
+              
+              setIsSubmitting(true);
+              try {
+                onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
+                setSubmissionComplete(true);
+              } catch (error) {
+                setToast({ message: error instanceof Error ? error.message : "Submission failed. Please try again.", type: "error" });
+              } finally {
+                setIsSubmitting(false);
+              }
             }}
-            disabled={submitDisabled}
+            disabled={submitDisabled || isSubmitting}
             style={{
               height: 48,
               padding: "0 48px",
               borderRadius: 8,
               border: "none",
-              backgroundColor: submitDisabled ? T.border : "#233217",
+              backgroundColor: submitDisabled || isSubmitting ? T.border : "#233217",
               color: "#fff",
               fontSize: 15,
               fontWeight: 700,
               fontFamily: T.font,
-              cursor: submitDisabled ? "not-allowed" : "pointer",
-              boxShadow: submitDisabled ? "none" : "0 4px 12px rgba(35, 50, 23, 0.2)",
-              opacity: submitDisabled ? 0.6 : 1,
+              cursor: submitDisabled || isSubmitting ? "not-allowed" : "pointer",
+              boxShadow: submitDisabled || isSubmitting ? "none" : "0 4px 12px rgba(35, 50, 23, 0.2)",
+              opacity: submitDisabled || isSubmitting ? 0.6 : 1,
               transition: "all 0.15s ease-in-out",
               display: "flex",
               alignItems: "center",
+              justifyContent: "center",
               gap: 8,
               minWidth: 220,
             }}
             onMouseEnter={(e) => {
-              if (!submitDisabled) {
+              if (!submitDisabled && !isSubmitting) {
                 e.currentTarget.style.backgroundColor = "#1a260f";
               }
             }}
             onMouseLeave={(e) => {
-              if (!submitDisabled) {
+              if (!submitDisabled && !isSubmitting) {
                 e.currentTarget.style.backgroundColor = "#233217";
               }
             }}
-            onMouseDown={(e) => { if (!submitDisabled) e.currentTarget.style.transform = "scale(0.97)"; }}
+            onMouseDown={(e) => { if (!submitDisabled && !isSubmitting) e.currentTarget.style.transform = "scale(0.97)"; }}
             onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
           >
-            Submit Application
+            {isSubmitting ? (
+              <>
+                <div style={{ width: 18, height: 18, border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                <span>Submitting...</span>
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              </>
+            ) : (
+              "Submit Application"
+            )}
           </button>
         )}
 
@@ -2258,6 +2315,60 @@ export default function TransferLeadApplicationForm({
           {hoveredFieldInfo.info}
         </div>
       )}
+
+      {isSubmitting && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(255,255,255,0.95)", zIndex: 9999, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+          <div style={{ width: 48, height: 48, border: `3px solid ${T.border}`, borderTopColor: "#233217", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.textDark }}>Submitting Application...</div>
+          <div style={{ fontSize: 14, color: T.textMuted }}>Please wait while we process your submission</div>
+        </div>
+      )}
+
+      {submissionComplete && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ width: "100%", maxWidth: 420, backgroundColor: "#fff", borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.15)", overflow: "hidden" }}>
+            <div style={{ padding: "32px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", backgroundColor: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: T.textDark, marginBottom: 8 }}>
+                Application Submitted
+              </h2>
+              <p style={{ margin: 0, fontSize: 14, color: T.textMuted, lineHeight: 1.5, marginBottom: 24 }}>
+                The application has been successfully submitted and saved to the system.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubmissionComplete(false);
+                  onBack();
+                }}
+                style={{
+                  width: "100%",
+                  height: 48,
+                  borderRadius: 10,
+                  border: "none",
+                  backgroundColor: "#233217",
+                  color: "#fff",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease-in-out",
+                  boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#1a260f"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#233217"; }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

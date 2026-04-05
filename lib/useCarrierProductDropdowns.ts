@@ -1,96 +1,139 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type CarrierProductRow = { id: number; name: string };
 
 export type CarrierProductDropdownsOptions = {
-  /** When false, product list is cleared and loading stops. */
-  open: boolean;
   carrierName: string;
-  /** After products load for a carrier, clear invalid product selection (optional). */
   onInvalidateProduct?: (list: CarrierProductRow[], carrierNameSnapshot: string) => void;
 };
 
-/**
- * Carriers from `carriers`; products for the selected carrier from `carrier_products` + `products`.
- */
+const PRODUCT_ORDER: Record<string, string[]> = {
+  "Aetna": ["Preferred", "Standard", "Modified"],
+  "Mutual of Omaha": ["Level", "Graded"],
+  "AMAM": ["Immediate", "Graded", "ROP"],
+  "Pioneer": ["Immediate", "Graded", "ROP"],
+  "Occidental": ["Immediate", "Graded", "ROP"],
+  "Aflac": ["Preferred", "Standard", "Modified"],
+  "American Home Life": ["Preferred", "Standard", "Modified"],
+  "Transamerica": ["Preferred", "Standard", "Graded"],
+  "SSL": ["New Vantage I", "New Vantage II", "New Vantage III"],
+};
+
+function sortProductsByCarrierOrder(products: CarrierProductRow[], carrierName: string): CarrierProductRow[] {
+  const order = PRODUCT_ORDER[carrierName];
+  if (!order) {
+    return [...products].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  
+  const orderMap = new Map(order.map((name, idx) => [name, idx]));
+  return [...products].sort((a, b) => {
+    const aIdx = orderMap.get(a.name) ?? Infinity;
+    const bIdx = orderMap.get(b.name) ?? Infinity;
+    if (aIdx === Infinity && bIdx === Infinity) {
+      return a.name.localeCompare(b.name);
+    }
+    return aIdx - bIdx;
+  });
+}
+
+type CarrierProductQueryRow = {
+  carrier_id: number;
+  products: { id: number; name: string } | null;
+};
+
 export function useCarrierProductDropdowns(
   supabase: SupabaseClient,
   options: CarrierProductDropdownsOptions,
 ) {
   const [carriers, setCarriers] = useState<CarrierProductRow[]>([]);
-  const [productsForCarrier, setProductsForCarrier] = useState<CarrierProductRow[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productsByCarrier, setProductsByCarrier] = useState<Map<number, CarrierProductRow[]>>(new Map());
+  const [loadingAll, setLoadingAll] = useState(true);
 
   const onInvalidateRef = useRef(options.onInvalidateProduct);
-  onInvalidateRef.current = options.onInvalidateProduct;
+  useEffect(() => {
+    onInvalidateRef.current = options.onInvalidateProduct;
+  });
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase.from("carriers").select("id, name").order("name");
-      if (!cancelled && !error && data) setCarriers(data);
+      setLoadingAll(true);
+      const { data: carrierData, error: carrierError } = await supabase
+        .from("carriers")
+        .select("id, name")
+        .order("name");
+      
+      if (cancelled) return;
+      if (carrierError || !carrierData) {
+        setLoadingAll(false);
+        return;
+      }
+
+      setCarriers(carrierData);
+
+      const { data: cpData, error: cpError } = await supabase
+        .from("carrier_products")
+        .select("carrier_id, products(id, name)");
+
+      if (cancelled) return;
+      if (cpError || !cpData) {
+        setLoadingAll(false);
+        return;
+      }
+
+      const productsMap = new Map<number, CarrierProductRow[]>();
+      for (const carrier of carrierData) {
+        const productsForThisCarrier: CarrierProductRow[] = [];
+        const seen = new Set<string>();
+        
+        for (const row of (cpData as unknown as CarrierProductQueryRow[])) {
+          if (row.carrier_id !== carrier.id) continue;
+          const p = row.products;
+          if (!p || p.name == null) continue;
+          const nm = String(p.name);
+          if (seen.has(nm)) continue;
+          seen.add(nm);
+          productsForThisCarrier.push({ id: Number(p.id), name: nm });
+        }
+        
+        const sorted = sortProductsByCarrierOrder(productsForThisCarrier, carrier.name);
+        productsMap.set(carrier.id, sorted);
+      }
+
+      if (!cancelled) {
+        setProductsByCarrier(productsMap);
+        setLoadingAll(false);
+      }
     })();
+    
     return () => {
       cancelled = true;
     };
   }, [supabase]);
 
-  useEffect(() => {
-    if (!options.open) {
-      setProductsForCarrier([]);
-      setLoadingProducts(false);
-      return;
-    }
+  const productsForCarrier = useMemo(() => {
     const carrierName = options.carrierName.trim();
-    if (!carrierName) {
-      setProductsForCarrier([]);
-      setLoadingProducts(false);
-      return;
-    }
+    if (!carrierName) return [];
     const carrierRow = carriers.find((c) => c.name === carrierName);
-    if (!carrierRow) {
-      setProductsForCarrier([]);
-      setLoadingProducts(false);
-      return;
+    if (!carrierRow) return [];
+    return productsByCarrier.get(carrierRow.id) ?? [];
+  }, [options.carrierName, carriers, productsByCarrier]);
+
+  const prevCarrierNameRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (prevCarrierNameRef.current !== options.carrierName && productsForCarrier.length > 0) {
+      onInvalidateRef.current?.(productsForCarrier, options.carrierName);
     }
+    prevCarrierNameRef.current = options.carrierName;
+  }, [options.carrierName, productsForCarrier]);
 
-    let cancelled = false;
-    setLoadingProducts(true);
-    void (async () => {
-      const { data, error } = await supabase
-        .from("carrier_products")
-        .select("products(id, name)")
-        .eq("carrier_id", carrierRow.id);
-      if (cancelled) return;
-      if (error) {
-        setProductsForCarrier([]);
-        setLoadingProducts(false);
-        return;
-      }
-      const list: CarrierProductRow[] = [];
-      const seen = new Set<string>();
-      for (const row of data ?? []) {
-        const p = (row as { products?: { id?: number; name?: string } | null }).products;
-        if (!p || p.name == null) continue;
-        const nm = String(p.name);
-        if (seen.has(nm)) continue;
-        seen.add(nm);
-        list.push({ id: Number(p.id), name: nm });
-      }
-      list.sort((a, b) => a.name.localeCompare(b.name));
-      if (cancelled) return;
-      setProductsForCarrier(list);
-      setLoadingProducts(false);
-      onInvalidateRef.current?.(list, carrierName);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [options.open, options.carrierName, carriers, supabase]);
-
-  return { carriers, productsForCarrier, loadingProducts };
+  return { 
+    carriers, 
+    productsForCarrier, 
+    loadingProducts: loadingAll 
+  };
 }
