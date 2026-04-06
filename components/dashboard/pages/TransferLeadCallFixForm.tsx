@@ -105,7 +105,6 @@ export default function TransferLeadCallFixForm({
   const [hydrating, setHydrating] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const { carriers, productsForCarrier, loadingProducts } = useCarrierProductDropdowns(supabase, {
-    open: true,
     carrierName: carrier,
     onInvalidateProduct: (list, carrierNameSnapshot) => {
       if (carrierNameSnapshot !== carrier.trim()) return;

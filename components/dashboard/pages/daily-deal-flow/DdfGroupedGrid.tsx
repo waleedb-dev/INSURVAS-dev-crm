@@ -323,7 +323,6 @@ export function DdfGroupedGrid({
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   const { carriers, productsForCarrier } = useCarrierProductDropdowns(supabase, {
-    open: Boolean(editingId || detailId),
     carrierName: String(draft?.carrier || ""),
     onInvalidateProduct: (list) => {
       if (!draft) return;
