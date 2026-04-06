@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
+import { buildFeCreateLeadBodyFromIntakePayload, postFeCreateLeadAtFixedUrl } from "./feCreateLead";
 import LeadViewComponent from "./LeadViewComponent";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -536,13 +537,14 @@ function mapSelectOptions(values: string[], allLabel: string) {
   return [{ value: "All", label: allLabel }, ...sorted.map((v) => ({ value: v, label: v }))];
 }
 
-/** BPO name for Slack vendor channel mapping (must match `leadVendorChannelMapping` keys in `slack-notification`). */
-const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
-
-/** Must match deployed Edge Function names. */
-const FE_SLACK_NOTIFICATION_EDGE_FUNCTION = "fe-slack-notification" as const;
-const FE_GHL_CREATE_CONTACT_EDGE_FUNCTION = "fe-ghl-create-contact" as const;
-const TEST_BPO_CHANNEL = "#test-bpo" as const;
+/*
+ * Unused while post-create Slack / GHL / notify-eligible-agents are disabled (fe-create-lead only).
+ * See commented body of `notifySlackTransferPortalLead`.
+ */
+// const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
+// const FE_SLACK_NOTIFICATION_EDGE_FUNCTION = "fe-slack-notification" as const;
+// const FE_GHL_CREATE_CONTACT_EDGE_FUNCTION = "fe-ghl-create-contact" as const;
+// const TEST_BPO_CHANNEL = "#test-bpo" as const;
 
 type SsnDuplicateRule = {
   stage_name: string;
@@ -696,6 +698,11 @@ async function notifySlackTransferPortalLead(
     callCenterId?: string | null;
   }
 ) {
+  // Outbound edge calls disabled: use `fe-create-lead` only (`postFeCreateLeadAtFixedUrl` after insert/update).
+  void supabase;
+  void params;
+
+  /*
   const { leadId, submissionId, leadUniqueId, payload, callCenterName, callCenterId } = params;
   try {
     const customerName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
@@ -815,6 +822,7 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
   } catch (e) {
     console.warn("post-create notifications failed", e);
   }
+  */
 }
 
 export default function CallCenterLeadIntakePage({
@@ -1517,6 +1525,7 @@ export default function CallCenterLeadIntakePage({
       return;
     }
 
+    let feCreateLeadSyncError: string | null = null;
     if (insertedLead?.id) {
       const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
       await insertDailyDealFlowEntry(supabase, {
@@ -1534,9 +1543,27 @@ export default function CallCenterLeadIntakePage({
         callCenterName,
         callCenterId: userProfile?.call_center_id || null,
       });
+      try {
+        await postFeCreateLeadAtFixedUrl(
+          supabase,
+          buildFeCreateLeadBodyFromIntakePayload(payload, {
+            submissionId: generatedSubmissionId,
+            leadVendor: callCenterName,
+          }),
+          "[CallCenterLeadIntake]",
+        );
+      } catch (feErr) {
+        feCreateLeadSyncError = feErr instanceof Error ? feErr.message : String(feErr);
+        console.warn("[CallCenterLeadIntake] fe-create-lead failed after insert", feErr);
+      }
     }
 
-    setToast({ message: "Lead saved successfully", type: "success" });
+    setToast({
+      message: feCreateLeadSyncError
+        ? `Lead saved. fe-create-lead sync failed: ${feCreateLeadSyncError}`
+        : "Lead saved successfully",
+      type: feCreateLeadSyncError ? "error" : "success",
+    });
     setShowCreateLead(false);
     setPage(1);
     await refreshLeads();
@@ -1627,6 +1654,7 @@ export default function CallCenterLeadIntakePage({
       return;
     }
 
+    let feCreateLeadDupSyncError: string | null = null;
     if (dupInserted?.id) {
       const leadName = `${pendingCreatePayload.firstName} ${pendingCreatePayload.lastName}`.trim() || "Unnamed Lead";
       await insertDailyDealFlowEntry(supabase, {
@@ -1644,12 +1672,30 @@ export default function CallCenterLeadIntakePage({
         callCenterName,
         callCenterId: userProfile?.call_center_id || null,
       });
+      try {
+        await postFeCreateLeadAtFixedUrl(
+          supabase,
+          buildFeCreateLeadBodyFromIntakePayload(pendingCreatePayload, {
+            submissionId: generatedSubmissionId,
+            leadVendor: callCenterName,
+          }),
+          "[CallCenterLeadIntake:duplicate]",
+        );
+      } catch (feErr) {
+        feCreateLeadDupSyncError = feErr instanceof Error ? feErr.message : String(feErr);
+        console.warn("[CallCenterLeadIntake] fe-create-lead failed after duplicate insert", feErr);
+      }
     }
 
     setShowDuplicateDialog(false);
     setPendingCreatePayload(null);
     setDuplicateLeadMatch(null);
-    setToast({ message: "Duplicate lead saved with duplicate tag", type: "success" });
+    setToast({
+      message: feCreateLeadDupSyncError
+        ? `Duplicate lead saved. fe-create-lead sync failed: ${feCreateLeadDupSyncError}`
+        : "Duplicate lead saved with duplicate tag",
+      type: feCreateLeadDupSyncError ? "error" : "success",
+    });
     setShowCreateLead(false);
     setPage(1);
     await refreshLeads();
@@ -1988,6 +2034,7 @@ export default function CallCenterLeadIntakePage({
       return;
     }
 
+    let feCreateLeadDraftSubmitSyncError: string | null = null;
     if (wasDraftBeforeUpdate && updatedLead?.id) {
       const submissionId = String(updatedLead.submission_id || "").trim() || buildSubmissionId(callCenterName);
       const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
@@ -2006,9 +2053,27 @@ export default function CallCenterLeadIntakePage({
         callCenterName,
         callCenterId: userProfile?.call_center_id || null,
       });
+      try {
+        await postFeCreateLeadAtFixedUrl(
+          supabase,
+          buildFeCreateLeadBodyFromIntakePayload(payload, {
+            submissionId,
+            leadVendor: callCenterName,
+          }),
+          "[CallCenterLeadIntake:draft-submit]",
+        );
+      } catch (feErr) {
+        feCreateLeadDraftSubmitSyncError = feErr instanceof Error ? feErr.message : String(feErr);
+        console.warn("[CallCenterLeadIntake] fe-create-lead failed after draft submit", feErr);
+      }
     }
 
-    setToast({ message: "Lead updated successfully", type: "success" });
+    setToast({
+      message: feCreateLeadDraftSubmitSyncError
+        ? `Lead updated. fe-create-lead sync failed: ${feCreateLeadDraftSubmitSyncError}`
+        : "Lead updated successfully",
+      type: feCreateLeadDraftSubmitSyncError ? "error" : "success",
+    });
     setEditingLead(null);
     await refreshLeads();
   };
