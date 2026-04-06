@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { runBlacklistDncPhoneCheck } from "@/lib/dncCheck";
 import { useCarrierProductDropdowns, type CarrierProductRow } from "@/lib/useCarrierProductDropdowns";
 import { Toast, type ToastType } from "@/components/ui/Toast";
 import { AppSelect } from "@/components/ui/app-select";
@@ -62,7 +61,7 @@ export type TransferLeadFormData = {
 };
 
 type SsnCheckState = "idle" | "checking" | "blocked" | "warning" | "clear" | "error";
-type DncStatus = "clear" | "dnc" | "tcpa" | "error" | "idle";
+type DncStatus = "clear" | "dnc" | "tcpa" | "agency_dq" | "error" | "idle";
 type SsnDuplicateRule = {
   stage_name: string;
   ghl_stage: string | null;
@@ -104,6 +103,28 @@ const usStates = [
 ];
 
 const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
+
+const TRANSFER_CHECK_API_URL = "https://livetransferchecker.vercel.app/api/transfer-check";
+
+type TransferCheckApiResponse = {
+  data?: Record<string, unknown>;
+  dnc?: { message?: string };
+  warnings?: { policy?: boolean };
+  warningMessage?: string;
+  message?: string;
+};
+
+function formatTransferCheckValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+}
+
+/** Omit `dnc` from API `data` in the modal — DNC is used only for TCPA logic, not shown to agents. */
+function transferCheckDataEntriesForModal(data: Record<string, unknown> | undefined): [string, unknown][] {
+  if (!data || typeof data !== "object") return [];
+  return Object.entries(data).filter(([k]) => k.toLowerCase() !== "dnc");
+}
 
 // Styled Select component matching UserEditorComponent design
 function StyledSelect({
@@ -370,6 +391,11 @@ export default function TransferLeadApplicationForm({
   const [dncMessage, setDncMessage] = useState("");
   /** Same DNC/TCPA modal as verification panel (Call Center Lead Intake + transfer flows). */
   const [showDncModal, setShowDncModal] = useState(false);
+  const [transferCheckData, setTransferCheckData] = useState<TransferCheckApiResponse | null>(null);
+  const [transferCheckError, setTransferCheckError] = useState<string | null>(null);
+  const [transferCheckCompleted, setTransferCheckCompleted] = useState(false);
+  const [isCustomerBlocked, setIsCustomerBlocked] = useState(false);
+  const [blockReason, setBlockReason] = useState("");
   const [phoneDupChecking, setPhoneDupChecking] = useState(false);
   const [showPhoneDupDetails, setShowPhoneDupDetails] = useState(false);
   const [phoneDupMatch, setPhoneDupMatch] = useState<PhoneDuplicateMatch | null>(null);
@@ -620,25 +646,126 @@ export default function TransferLeadApplicationForm({
     if (!cleanPhone) {
       setDncStatus("error");
       setDncMessage("Please enter a valid 10-digit number or 11 digits starting with 1.");
+      setTransferCheckData(null);
+      setTransferCheckError(null);
+      setTransferCheckCompleted(false);
+      setIsCustomerBlocked(false);
+      setBlockReason("");
+      setShowDncModal(true);
       return "error";
     }
 
     setDncChecking(true);
     setDncStatus("idle");
     setDncMessage("");
+    setTransferCheckError(null);
+    setTransferCheckData(null);
+    setTransferCheckCompleted(false);
+    setIsCustomerBlocked(false);
+    setBlockReason("");
 
     try {
       const dup = await checkPhoneDuplicate();
       if (dup.match) setShowPhoneDupDetails(true);
 
-      const { status: resolvedStatus, message } = await runBlacklistDncPhoneCheck(supabase, cleanPhone);
+      const response = await fetch(TRANSFER_CHECK_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanPhone }),
+      });
 
-      setDncStatus(resolvedStatus);
-      setDncMessage(message);
+      let data: TransferCheckApiResponse = {};
+      try {
+        data = (await response.json()) as TransferCheckApiResponse;
+      } catch {
+        data = { message: "Invalid response from transfer check service." };
+      }
+
+      setIsCustomerBlocked(false);
+      setBlockReason("");
+
+      if (response.ok) {
+        setTransferCheckData(data);
+        setTransferCheckCompleted(true);
+
+        const policyStatus = String(data.data?.["Policy Status"] ?? "");
+        const dncApiMessage = String(data.dnc?.message ?? "");
+
+        const isDQ =
+          policyStatus.toLowerCase().includes("dq") ||
+          policyStatus.toLowerCase().includes("disqualified") ||
+          policyStatus.toLowerCase().includes("already been dq");
+
+        const isTCPA =
+          dncApiMessage.toLowerCase().includes("tcpa litigator") ||
+          dncApiMessage.toLowerCase().includes("no contact permitted");
+
+        if (isDQ) {
+          setIsCustomerBlocked(true);
+          setBlockReason("Customer has already been DQ from our agency");
+          setDncStatus("agency_dq");
+          setDncMessage("We cannot accept this customer as they have been DQ from our agency.");
+          setShowDncModal(true);
+          setToast({
+            message: "We cannot accept this customer as they have been DQ from our agency.",
+            type: "error",
+          });
+          return "agency_dq";
+        }
+
+        if (isTCPA) {
+          setIsCustomerBlocked(true);
+          setBlockReason("TCPA Litigator Detected - No Contact Permitted");
+          setDncStatus("tcpa");
+          setDncMessage(
+            "This number is flagged as a TCPA litigator. All transfers and contact attempts are strictly prohibited.",
+          );
+          setShowDncModal(true);
+          setToast({
+            message:
+              "This number is flagged as a TCPA litigator. All transfers and contact attempts are strictly prohibited.",
+            type: "error",
+          });
+          return "tcpa";
+        }
+
+        if (data.warnings?.policy) {
+          setToast({
+            message: data.warningMessage || "Customer has existing policies.",
+            type: "warning",
+          });
+        }
+
+        setDncStatus("clear");
+        // Do not surface `dnc.message` in the modal (still used above for TCPA detection only).
+        const modalDataRows = transferCheckDataEntriesForModal(data.data);
+        const rootMessage = String(data.message ?? "").trim();
+        if (data.warnings?.policy) {
+          setDncMessage(
+            data.warningMessage || rootMessage || "Policy warning — see details below.",
+          );
+        } else if (modalDataRows.length > 0) {
+          setDncMessage("Transfer check passed.");
+        } else {
+          setDncMessage(rootMessage || "Transfer check passed.");
+        }
+        setShowDncModal(true);
+        return "clear";
+      }
+
+      const errText = data.message || `Failed to check phone number (${response.status})`;
+      setTransferCheckError(errText);
+      setDncStatus("error");
+      setDncMessage(errText);
       setShowDncModal(true);
-      return resolvedStatus;
+      return "error";
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to check DNC status.";
+      console.error("Transfer check error:", error);
+      let message = "Failed to connect to transfer check service.";
+      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        message = "Cannot connect to transfer check service. Please try again later.";
+      }
+      setTransferCheckError(message);
       setDncStatus("error");
       setDncMessage(message);
       setShowDncModal(true);
@@ -667,15 +794,21 @@ export default function TransferLeadApplicationForm({
   }, [isEditMode]);
 
   const duplicateBlocked = Boolean(phoneDupMatch && !phoneDupIsAddable);
+  const transferCheckBlocksSubmit =
+    isCustomerBlocked || dncStatus === "tcpa" || dncStatus === "agency_dq";
   const submitBlockMessage =
     ssnCheckState === "blocked"
       ? ssnCheckMessage
-      : dncStatus === "tcpa"
-        ? (dncMessage || "This number is flagged as TCPA/blacklisted. Submission is disabled.")
+      : transferCheckBlocksSubmit
+        ? blockReason || dncMessage || "This customer cannot be submitted."
         : duplicateBlocked
           ? (phoneDupRuleMessage || "A matching lead exists and duplicate creation is not allowed.")
           : "";
-  const submitDisabled = Boolean(submitBlockMessage);
+  const submitDisabled =
+    Boolean(submitBlockMessage) ||
+    (!isEditMode && (!transferCheckCompleted || transferCheckBlocksSubmit));
+
+  const dncModalCritical = dncStatus === "tcpa" || dncStatus === "agency_dq";
 
   const checkSsnRules = async (rawSsn: string): Promise<{ blocked: boolean; warning: boolean }> => {
     const ssnDigits = normalizeSsnDigits(rawSsn);
@@ -1106,6 +1239,11 @@ export default function TransferLeadApplicationForm({
                     setDncStatus("idle");
                     setDncMessage("");
                     setShowDncModal(false);
+                    setTransferCheckData(null);
+                    setTransferCheckError(null);
+                    setTransferCheckCompleted(false);
+                    setIsCustomerBlocked(false);
+                    setBlockReason("");
                     setPhoneDupMatch(null);
                     setPhoneDupRuleMessage("");
                     setPhoneDupIsAddable(true);
@@ -1128,7 +1266,7 @@ export default function TransferLeadApplicationForm({
                       return;
                     }
                     const dncResult = await checkDnc();
-                    setPhoneGatePassed(dncResult !== "tcpa");
+                    setPhoneGatePassed(dncResult === "clear");
                   }}
                   disabled={dncChecking || phoneDupChecking}
                   style={{
@@ -1169,7 +1307,11 @@ export default function TransferLeadApplicationForm({
                     fontSize: 11,
                     fontWeight: 700,
                     color:
-                      dncStatus === "error" || dncStatus === "tcpa" ? T.danger : dncStatus === "dnc" ? "#b45309" : "#166534",
+                      dncStatus === "error" || dncStatus === "tcpa" || dncStatus === "agency_dq"
+                        ? T.danger
+                        : dncStatus === "dnc"
+                          ? "#b45309"
+                          : "#166534",
                   }}
                 >
                   {dncMessage}
@@ -1948,130 +2090,203 @@ export default function TransferLeadApplicationForm({
             style={{
               width: "100%",
               maxWidth: 760,
+              maxHeight: "90vh",
+              overflow: "auto",
               backgroundColor: "#fff",
               borderRadius: 20,
-              border: dncStatus === "tcpa" ? `2px solid ${T.danger}` : `1.5px solid ${T.border}`,
+              border: dncModalCritical ? `2px solid ${T.danger}` : `1.5px solid ${T.border}`,
               boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
-              overflow: "hidden",
             }}
           >
-            {/* Header Section */}
-            <div style={{ 
-              padding: "20px 24px", 
-              borderBottom: `1px solid ${T.borderLight}`,
-              backgroundColor: dncStatus === "tcpa" ? "#fef2f2" : "#fff",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 12,
-            }}>
-              {/* Icon */}
-              <div style={{ 
-                width: 44, 
-                height: 44, 
-                borderRadius: 12, 
-                backgroundColor: dncStatus === "tcpa" ? "#dc2626" : (dncStatus === "dnc" ? "#ea580c" : "#233217"), 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                flexShrink: 0,
-              }}>
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: `1px solid ${T.borderLight}`,
+                backgroundColor: dncModalCritical ? "#fef2f2" : "#fff",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  backgroundColor: dncModalCritical ? "#dc2626" : dncStatus === "error" ? "#b45309" : "#233217",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  {dncStatus === "tcpa" ? (
-                    <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>
+                  {dncModalCritical ? (
+                    <>
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </>
                   ) : (
-                    <><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.86.33 1.7.62 2.5a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.58-1.14a2 2 0 0 1 2.11-.45c.8.29 1.64.5 2.5.62A2 2 0 0 1 22 16.92z"/></>
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.86.33 1.7.62 2.5a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.58-1.14a2 2 0 0 1 2.11-.45c.8.29 1.64.5 2.5.62A2 2 0 0 1 22 16.92z" />
                   )}
                 </svg>
               </div>
-              
-              {/* Title Section */}
+
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  {dncStatus === "tcpa" ? "CRITICAL ALERT" : "PHONE VERIFICATION"}
+                <p
+                  style={{
+                    margin: "0 0 4px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: T.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  {dncModalCritical ? "CRITICAL ALERT" : dncStatus === "error" ? "CHECK FAILED" : "TRANSFER CHECK"}
                 </p>
-                <h4 style={{ 
-                  margin: 0, 
-                  fontSize: 18, 
-                  fontWeight: 800, 
-                  color: dncStatus === "tcpa" ? "#dc2626" : (dncStatus === "dnc" ? "#ea580c" : "#233217"),
-                }}>
+                <h4
+                  style={{
+                    margin: 0,
+                    fontSize: 18,
+                    fontWeight: 800,
+                    color: dncModalCritical ? "#dc2626" : dncStatus === "error" ? "#b45309" : "#233217",
+                  }}
+                >
                   {dncStatus === "tcpa"
                     ? "TCPA LITIGATOR DETECTED"
-                    : dncStatus === "dnc"
-                      ? "DO NOT CALL LIST"
+                    : dncStatus === "agency_dq"
+                      ? "CUSTOMER NOT ELIGIBLE (DQ)"
                       : dncStatus === "error"
-                        ? "VERIFICATION FAILED"
-                        : "CONSENT REQUIRED"}
+                        ? "TRANSFER CHECK FAILED"
+                        : "CHECK PASSED"}
                 </h4>
               </div>
             </div>
 
-            {/* Content Section */}
             <div style={{ padding: "24px", textAlign: "center" }}>
               {dncStatus === "tcpa" && (
                 <div style={{ padding: "16px 0" }}>
-                  <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 24, margin: "0 0 12px" }}>
-                    This number is flagged as a TCPA Litigator
+                  <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
+                    This number is flagged as a TCPA litigator
                   </p>
                   <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
-                    Proceeding with this lead may result in legal issues. It is strongly recommended to NOT proceed with this submission.
+                    Proceeding with this lead may result in legal issues. Transfers and contact attempts are prohibited.
                   </p>
+                  {dncMessage ? (
+                    <p style={{ marginTop: 14, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{dncMessage}</p>
+                  ) : null}
                 </div>
               )}
 
-              {(dncStatus === "clear" || dncStatus === "dnc") && (
-                <div>
-                  {dncStatus === "dnc" && (
-                    <div style={{ 
-                      backgroundColor: "#fff7ed", 
-                      padding: "12px 16px", 
-                      borderRadius: 12, 
-                      border: "1.5px solid #fdba74",
-                      marginBottom: 16,
-                    }}>
-                      <p style={{ color: "#c2410c", fontSize: 14, fontWeight: 700, margin: 0 }}>
-                        This number appears on the Do Not Call list.
-                      </p>
+              {dncStatus === "agency_dq" && (
+                <div style={{ padding: "16px 0" }}>
+                  <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
+                    {blockReason || "Customer has already been DQ from our agency"}
+                  </p>
+                  <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
+                    This submission cannot proceed for this phone number.
+                  </p>
+                  {transferCheckData?.data && transferCheckDataEntriesForModal(transferCheckData.data).length > 0 ? (
+                    <div
+                      style={{
+                        marginTop: 16,
+                        padding: 14,
+                        backgroundColor: "#f8fafc",
+                        borderRadius: 12,
+                        border: `1px solid ${T.borderLight}`,
+                        textAlign: "left",
+                      }}
+                    >
+                      <p style={{ fontWeight: 800, fontSize: 12, color: T.textMuted, margin: "0 0 8px" }}>API details</p>
+                      {transferCheckDataEntriesForModal(transferCheckData.data).map(([k, v]) => (
+                        <div
+                          key={k}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "minmax(100px, 38%) 1fr",
+                            gap: 8,
+                            fontSize: 13,
+                            marginBottom: 6,
+                          }}
+                        >
+                          <span style={{ color: T.textMuted, fontWeight: 700 }}>{k}</span>
+                          <span style={{ color: T.textDark, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                            {formatTransferCheckValue(v)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                  <div style={{ backgroundColor: "#f8fafc", padding: 20, borderRadius: 16, border: `1.5px solid ${T.borderLight}`, textAlign: "left" }}>
-                    <p style={{ fontSize: 16, margin: "0 0 16px", fontWeight: 600, lineHeight: 1.6, color: T.textDark }}>
-                      Read this script to the customer:
+                  ) : null}
+                </div>
+              )}
+
+              {dncStatus === "clear" && (
+                <div style={{ textAlign: "left" }}>
+                  <p style={{ fontSize: 15, color: T.textMid, margin: "0 0 16px", lineHeight: 1.55 }}>{dncMessage}</p>
+                  {transferCheckData?.data && transferCheckDataEntriesForModal(transferCheckData.data).length > 0 ? (
+                    <div
+                      style={{
+                        backgroundColor: "#f8fafc",
+                        padding: 16,
+                        borderRadius: 12,
+                        border: `1px solid ${T.borderLight}`,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <p style={{ fontWeight: 800, fontSize: 13, color: T.textDark, margin: "0 0 12px" }}>
+                        Policy / transfer details
+                      </p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {transferCheckDataEntriesForModal(transferCheckData.data).map(([k, v]) => (
+                          <div
+                            key={k}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "minmax(120px, 40%) 1fr",
+                              gap: 8,
+                              fontSize: 13,
+                            }}
+                          >
+                            <span style={{ color: T.textMuted, fontWeight: 700 }}>{k}</span>
+                            <span style={{ color: T.textDark, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                              {formatTransferCheckValue(v)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {transferCheckData?.warnings?.policy ? (
+                    <p style={{ fontSize: 13, color: "#b45309", fontWeight: 700, margin: 0 }}>
+                      {transferCheckData.warningMessage || "Policy warning — review details above."}
                     </p>
-                    <p style={{ fontSize: 15, margin: "0 0 12px", lineHeight: 1.6, color: T.textMid }}>
-                      Is your phone number <span style={{ color: "#233217", fontWeight: 800 }}>{formData.phone || ""}</span> on the Federal, National or State Do Not Call List?
-                    </p>
-                    <p style={{ fontSize: 15, margin: "0 0 12px", lineHeight: 1.6, color: T.textMid }}>
-                      Even if your phone number is on the Do Not Call list, do we still have your permission to call you and submit your application for insurance to{" "}
-                      <span style={{ color: "#233217", fontWeight: 800 }}>{formData.carrier || "selected carrier"}</span>?
-                    </p>
-                    <p style={{ fontSize: 13, color: "#16a34a", margin: "16px 0 0", fontWeight: 700 }}>
-                      Make sure you get a clear YES before proceeding.
-                    </p>
-                  </div>
-                  {dncMessage ? (
-                    <p style={{ marginTop: 12, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{dncMessage}</p>
                   ) : null}
                 </div>
               )}
 
               {dncStatus === "error" && (
-                <div style={{ padding: "16px 0" }}>
+                <div style={{ padding: "16px 0", textAlign: "left" }}>
                   <p style={{ fontSize: 14, color: T.textMid, margin: 0 }}>{dncMessage}</p>
+                  {transferCheckError && transferCheckError !== dncMessage ? (
+                    <p style={{ fontSize: 13, color: T.textMuted, marginTop: 10 }}>{transferCheckError}</p>
+                  ) : null}
                 </div>
               )}
             </div>
 
-            {/* Footer Actions */}
-            <div style={{ 
-              padding: "16px 24px", 
-              borderTop: `1px solid ${T.borderLight}`,
-              display: "flex", 
-              justifyContent: "flex-end", 
-              gap: 12,
-              backgroundColor: "#fafcff",
-            }}>
+            <div
+              style={{
+                padding: "16px 24px",
+                borderTop: `1px solid ${T.borderLight}`,
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 12,
+                backgroundColor: "#fafcff",
+              }}
+            >
               <button
                 type="button"
                 onClick={() => setShowDncModal(false)}
@@ -2097,9 +2312,9 @@ export default function TransferLeadApplicationForm({
                   e.currentTarget.style.color = T.textDark;
                 }}
               >
-                {dncStatus === "tcpa" ? "Close" : "Cancel"}
+                {dncModalCritical || dncStatus === "error" ? "Close" : "Cancel"}
               </button>
-              {dncStatus !== "tcpa" && dncStatus !== "error" && (
+              {dncStatus === "clear" && (
                 <button
                   type="button"
                   onClick={() => setShowDncModal(false)}
@@ -2124,7 +2339,7 @@ export default function TransferLeadApplicationForm({
                     e.currentTarget.style.backgroundColor = "#233217";
                   }}
                 >
-                  I Got Verbal Consent - Proceed
+                  Continue
                 </button>
               )}
             </div>
@@ -2197,7 +2412,7 @@ export default function TransferLeadApplicationForm({
               if (dup.match) setShowPhoneDupDetails(true);
               if (dup.match && !dup.isAddable) return;
               const dncResult = await checkDnc();
-              if (dncResult === "tcpa") return;
+              if (dncResult === "tcpa" || dncResult === "agency_dq" || dncResult === "error") return;
               
               setIsSubmitting(true);
               try {
