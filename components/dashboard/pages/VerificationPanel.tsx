@@ -223,7 +223,6 @@ export function VerificationPanel({
 
   const { carriers: uwCarriers, productsForCarrier: uwProducts, loadingProducts: uwProductsLoading } =
     useCarrierProductDropdowns(supabase, {
-      open: showUnderwritingModal,
       carrierName: underwritingData.carrier,
       onInvalidateProduct: onInvalidateUwProduct,
     });
