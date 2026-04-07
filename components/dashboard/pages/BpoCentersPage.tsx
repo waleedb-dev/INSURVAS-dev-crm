@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Search, Filter, Plus, Eye, Edit2, Trash2 } from "lucide-react";
+import UserEditorComponent from "./UserEditorComponent";
 import {
   Select,
   SelectContent,
@@ -236,10 +237,11 @@ export default function BpoCentersPage() {
     email: false,
   });
   
-  const [activeTab, setActiveTab] = useState<"info" | "thresholds">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "thresholds" | "team">("info");
   const [thresholdData, setThresholdData] = useState<CenterThreshold | null>(null);
   const [thresholdLoading, setThresholdLoading] = useState(false);
   const [thresholdSaving, setThresholdSaving] = useState(false);
+  const [inlineCreateRole, setInlineCreateRole] = useState<"admin" | "agent">("admin");
 
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -511,13 +513,13 @@ export default function BpoCentersPage() {
     const trimmed = editingCenterName.trim();
     if (!trimmed) return;
 
-    const { error } = await supabase.from("call_centers").insert([{
+    const { data, error } = await supabase.from("call_centers").insert([{
       name: trimmed,
       did: selectedCenter?.did?.trim() || null,
       slack_channel: selectedCenter?.slack_channel?.trim() || null,
       email: selectedCenter?.email?.trim() || null,
       logo_url: logoUrl || selectedCenter?.logo_url || null,
-    }]);
+    }]).select("id, name, created_at, did, slack_channel, email, logo_url").single();
     if (error) {
       console.error("Error creating center:", error);
       setToast({ message: `Failed to create centre: ${error.message}`, type: "error" });
@@ -528,10 +530,30 @@ export default function BpoCentersPage() {
       message: "Centre created successfully.",
       type: "success",
     });
-    setEditingCenterName("");
-    setLogoUrl(null);
-    setSelectedCenter(null);
-    setView("list");
+    if (data?.id) {
+      const createdCenter: CenterDetail = {
+        id: data.id,
+        name: data.name,
+        createdAt: data.created_at ? new Date(data.created_at).toLocaleString() : new Date().toLocaleString(),
+        did: data.did ?? null,
+        slack_channel: data.slack_channel ?? null,
+        email: data.email ?? null,
+        logo_url: data.logo_url ?? null,
+        admin: null,
+        agentCount: 0,
+        agents: [],
+      };
+      setSelectedCenter(createdCenter);
+      setEditingCenterName(createdCenter.name);
+      setLogoUrl(createdCenter.logo_url);
+      setActiveTab("team");
+      setView("edit");
+    } else {
+      setEditingCenterName("");
+      setLogoUrl(null);
+      setSelectedCenter(null);
+      setView("list");
+    }
     await fetchDirectory();
   }
 
@@ -843,15 +865,16 @@ export default function BpoCentersPage() {
               {[
                 { id: "info", label: "Centre Info" },
                 { id: "thresholds", label: "Threshold Settings" },
+                { id: "team", label: "Team Setup" },
               ].map((tab) => {
                 const isThresholdsTab = tab.id === "thresholds";
                 const isNew = selectedCenter?.id === 'new';
-                const isDisabled = isThresholdsTab && isNew;
+                const isDisabled = (isThresholdsTab || tab.id === "team") && isNew;
                 
                 return (
                   <div 
                     key={tab.id} 
-                    onClick={() => !isDisabled && setActiveTab(tab.id as "info" | "thresholds")}
+                    onClick={() => !isDisabled && setActiveTab(tab.id as "info" | "thresholds" | "team")}
                     style={{ 
                       padding: "20px 24px", 
                       fontSize: 14, 
@@ -940,7 +963,7 @@ export default function BpoCentersPage() {
                     </div>
                   </div>
                 </>
-              ) : (
+              ) : activeTab === "thresholds" ? (
                 <>
                   {thresholdLoading ? (
                     <div style={{ padding: 60, textAlign: "center", color: T.textMuted }}>
@@ -1301,6 +1324,42 @@ export default function BpoCentersPage() {
                       No threshold data available.
                     </div>
                   )}
+                </>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 28 }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, marginBottom: 12 }}>Centre Team Setup</h3>
+                    <div style={{ fontSize: 14, color: T.textMid }}>
+                      Create new team members directly in this section and attach them to this centre.
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 28, border: `1.5px solid ${T.border}`, borderRadius: 14, overflow: "hidden", backgroundColor: "#fff" }}>
+                    <UserEditorComponent
+                      onClose={() => setView("list")}
+                      onSubmit={async () => {
+                        const createdRole = inlineCreateRole;
+                        await fetchDirectory();
+                        if (selectedCenter) {
+                          const refreshed = buildCenterDetail(selectedCenter.id);
+                          if (refreshed) {
+                            setSelectedCenter(refreshed);
+                            setEditingCenterName(refreshed.name);
+                            setLogoUrl(refreshed.logo_url ?? null);
+                          }
+                        }
+                        setToast({
+                          message: createdRole === "admin" ? "Admin created and assigned to centre." : "Agent created and assigned to centre.",
+                          type: "success",
+                        });
+                      }}
+                      presetRoleKey={inlineCreateRole === "admin" ? "call_center_admin" : "call_center_agent"}
+                      presetCenterId={selectedCenter.id}
+                      lockRole
+                      lockCenter
+                    />
+                  </div>
+
                 </>
               )}
             </div>

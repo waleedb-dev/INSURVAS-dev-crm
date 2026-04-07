@@ -32,6 +32,10 @@ interface UserEditorProps {
   };
   onClose: () => void;
   onSubmit: (data: any) => void;
+  presetRoleKey?: "call_center_admin" | "call_center_agent";
+  presetCenterId?: string;
+  lockRole?: boolean;
+  lockCenter?: boolean;
 }
 
 type TabType = "User Info" | "Roles & Permissions";
@@ -110,7 +114,15 @@ function StyledSelect({
   );
 }
 
-export default function UserEditorComponent({ user, onClose, onSubmit }: UserEditorProps) {
+export default function UserEditorComponent({
+  user,
+  onClose,
+  onSubmit,
+  presetRoleKey,
+  presetCenterId,
+  lockRole = false,
+  lockCenter = false,
+}: UserEditorProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [activeTab, setActiveTab] = useState<TabType>("User Info");
   
@@ -200,6 +212,21 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
     }
     fetchData();
   }, [supabase, user?.id, user?.roleId, selectedRoleId]);
+
+  useEffect(() => {
+    if (!presetRoleKey || roles.length === 0 || user?.id) return;
+    const presetRole = roles.find((role) => role.key === presetRoleKey);
+    if (presetRole && presetRole.id !== selectedRoleId) {
+      setSelectedRoleId(presetRole.id);
+    }
+  }, [presetRoleKey, roles, selectedRoleId, user?.id]);
+
+  useEffect(() => {
+    if (!presetCenterId || user?.id) return;
+    if (selectedCenterId !== presetCenterId) {
+      setSelectedCenterId(presetCenterId);
+    }
+  }, [presetCenterId, selectedCenterId, user?.id]);
 
   useEffect(() => {
     async function fetchEffectivePermissions() {
@@ -574,6 +601,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                       <StyledSelect
                         value={selectedRoleId}
                         onValueChange={(v) => {
+                          if (lockRole) return;
                           setSelectedRoleId(v);
                           const rk = roles.find((r) => r.id === v)?.key;
                           if (rk !== "sales_agent_unlicensed") setUnlicensedSalesSubtype("");
@@ -581,6 +609,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                         }}
                         options={roles.map(r => ({ value: r.id, label: r.name }))}
                         placeholder="Select a role..."
+                        disabled={lockRole}
                       />
                     </div>
                     {isCallCenterRole && (
@@ -591,6 +620,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                           onValueChange={setSelectedCenterId}
                           options={centers.map(c => ({ value: c.id, label: c.name }))}
                           placeholder="Select a centre..."
+                          disabled={lockCenter}
                         />
                       </div>
                     )}
