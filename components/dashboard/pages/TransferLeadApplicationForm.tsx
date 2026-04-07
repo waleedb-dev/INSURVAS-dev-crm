@@ -371,6 +371,185 @@ const labelStyle: CSSProperties = {
   letterSpacing: "0.4px",
 };
 
+function toTagParts(raw: string): string[] {
+  return String(raw || "")
+    .split(/[\n,]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function mergeUniqueTags(existing: string[], incoming: string[]): string[] {
+  const seen = new Set(existing.map((item) => item.toLowerCase()));
+  const merged = [...existing];
+  for (const item of incoming) {
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+  return merged;
+}
+
+type HoveredFieldInfo = { key: string; info: string; x: number; y: number } | null;
+
+/** Tag + Enter chips for health conditions / medications (main form + matches underwriting behavior). */
+function TransferTagListBlock({
+  label,
+  required = false,
+  info,
+  fieldKey,
+  error,
+  tags,
+  onRemoveTag,
+  draftValue,
+  onDraftChange,
+  onCommitDraft,
+  placeholder,
+  helperText,
+  setHoveredFieldInfo,
+  inputStyle,
+}: {
+  label: string;
+  required?: boolean;
+  info?: string;
+  fieldKey: string;
+  error?: string;
+  tags: string[];
+  onRemoveTag: (index: number) => void;
+  draftValue: string;
+  onDraftChange: (value: string) => void;
+  onCommitDraft: () => void;
+  placeholder: string;
+  helperText?: string;
+  setHoveredFieldInfo?: (info: HoveredFieldInfo) => void;
+  inputStyle: CSSProperties;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }} data-field-key={fieldKey} data-info={info}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+        <label
+          style={{
+            ...labelStyle,
+            marginBottom: 0,
+          }}
+        >
+          {label}
+          {required ? <span style={{ color: "#dc2626" }}> *</span> : null}
+        </label>
+        {info ? (
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredFieldInfo?.({ key: fieldKey, info, x: rect.left, y: rect.bottom + 8 });
+              }}
+              onMouseLeave={() => setHoveredFieldInfo?.(null)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                color: "#93c5fd",
+                display: "flex",
+                alignItems: "center",
+                marginLeft: 2,
+              }}
+              aria-label={`${label} field help`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          minHeight: tags.length ? undefined : 0,
+        }}
+      >
+        {tags.map((tag, i) => (
+          <span
+            key={`${fieldKey}-${i}-${tag}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "5px 10px",
+              borderRadius: 8,
+              backgroundColor: "#EEF5EE",
+              border: `1px solid ${T.borderLight}`,
+              fontSize: 13,
+              fontWeight: 600,
+              color: T.textDark,
+              fontFamily: T.font,
+            }}
+          >
+            {tag}
+            <button
+              type="button"
+              aria-label={`Remove ${tag}`}
+              onClick={() => onRemoveTag(i)}
+              style={{
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                padding: 0,
+                margin: 0,
+                lineHeight: 1,
+                fontSize: 15,
+                fontWeight: 800,
+                color: T.textMuted,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        value={draftValue}
+        onChange={(e) => onDraftChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          onCommitDraft();
+        }}
+        placeholder={placeholder}
+        style={inputStyle}
+      />
+      {helperText ? (
+        <p style={{ margin: 0, fontSize: 12, color: T.textMuted, fontWeight: 500, lineHeight: 1.4 }}>{helperText}</p>
+      ) : null}
+      {error ? (
+        <span
+          style={{
+            fontSize: 12,
+            color: "#dc2626",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+          {error}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 type TabType = 
   | "Lead Information"
   | "Personal Information"
@@ -425,8 +604,6 @@ export default function TransferLeadApplicationForm({
   ];
   const contentRef = useRef<HTMLDivElement>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
-  const [underwritingHealthConditionsText, setUnderwritingHealthConditionsText] = useState("");
-  const [underwritingMedicationsText, setUnderwritingMedicationsText] = useState("");
   const [toolkitUrl, setToolkitUrl] = useState("https://insurancetoolkits.com/login");
   const [dncChecking, setDncChecking] = useState(false);
   const [dncStatus, setDncStatus] = useState<DncStatus>("idle");
@@ -452,8 +629,6 @@ export default function TransferLeadApplicationForm({
   const [ssnDupIsAddable, setSsnDupIsAddable] = useState(true);
   const [underwritingData, setUnderwritingData] = useState({
     tobaccoLast12Months: "",
-    healthConditions: [] as string[],
-    medications: [] as string[],
     height: "",
     weight: "",
     carrier: "",
@@ -461,6 +636,12 @@ export default function TransferLeadApplicationForm({
     coverageAmount: "",
     monthlyPremium: "",
   });
+  const [underwritingHealthTags, setUnderwritingHealthTags] = useState<string[]>([]);
+  const [underwritingMedicationTags, setUnderwritingMedicationTags] = useState<string[]>([]);
+  const [underwritingHealthInput, setUnderwritingHealthInput] = useState("");
+  const [underwritingMedicationInput, setUnderwritingMedicationInput] = useState("");
+  const [healthConditionsTagInput, setHealthConditionsTagInput] = useState("");
+  const [medicationsTagInput, setMedicationsTagInput] = useState("");
   const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [hoveredFieldInfo, setHoveredFieldInfo] = useState<{ key: string; info: string; x: number; y: number } | null>(null);
@@ -1030,40 +1211,13 @@ export default function TransferLeadApplicationForm({
     }
   };
 
-  const toTagParts = (raw: string) =>
-    String(raw || "")
-      .split(/[\n,]/)
-      .map((part) => part.trim())
-      .filter(Boolean);
-
-  const mergeUniqueTags = (existing: string[], incoming: string[]) => {
-    const seen = new Set(existing.map((item) => item.toLowerCase()));
-    const merged = [...existing];
-    incoming.forEach((item) => {
-      const key = item.toLowerCase();
-      if (seen.has(key)) return;
-      seen.add(key);
-      merged.push(item);
-    });
-    return merged;
-  };
-
   const openUnderwritingModal = () => {
-    const healthConditions = formData.healthConditions
-      ? formData.healthConditions.split(",").map((item) => item.trim()).filter(Boolean)
-      : [];
-    const medications = formData.medications
-      ? formData.medications.split(",").map((item) => item.trim()).filter(Boolean)
-      : [];
-
     setUnderwritingData({
       tobaccoLast12Months: formData.tobaccoUse.toLowerCase().includes("yes")
         ? "yes"
         : formData.tobaccoUse.toLowerCase().includes("no")
           ? "no"
           : "",
-      healthConditions,
-      medications,
       height: formData.height,
       weight: formData.weight,
       carrier: formData.carrier,
@@ -1071,14 +1225,16 @@ export default function TransferLeadApplicationForm({
       coverageAmount: formData.coverageAmount,
       monthlyPremium: formData.monthlyPremium,
     });
-    setUnderwritingHealthConditionsText(formData.healthConditions || "");
-    setUnderwritingMedicationsText(formData.medications || "");
+    setUnderwritingHealthTags(mergeUniqueTags([], toTagParts(formData.healthConditions || "")));
+    setUnderwritingMedicationTags(mergeUniqueTags([], toTagParts(formData.medications || "")));
+    setUnderwritingHealthInput("");
+    setUnderwritingMedicationInput("");
     setShowUnderwritingModal(true);
   };
 
   const saveUnderwritingToForm = () => {
-    const normalizedHealthConditions = mergeUniqueTags([], toTagParts(underwritingHealthConditionsText));
-    const normalizedMedications = mergeUniqueTags([], toTagParts(underwritingMedicationsText));
+    const normalizedHealthConditions = mergeUniqueTags(underwritingHealthTags, toTagParts(underwritingHealthInput));
+    const normalizedMedications = mergeUniqueTags(underwritingMedicationTags, toTagParts(underwritingMedicationInput));
     setFormData((prev) => ({
       ...prev,
       tobaccoUse: underwritingData.tobaccoLast12Months
@@ -1772,26 +1928,80 @@ export default function TransferLeadApplicationForm({
                   fieldKey="tobaccoUse" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
                   <YesNo value={formData.tobaccoUse} onChange={(v) => setFormData((p) => ({ ...p, tobaccoUse: v }))} hasError={submitHighlightKeys.has("tobaccoUse")} />
                 </Field>
-                <Field label="Health Conditions" required full error={getFieldError("healthConditions")}
-                  info="Any existing medical conditions that may affect underwriting."
-                  fieldKey="healthConditions" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
-                  <input
-                    value={formData.healthConditions}
-                    onChange={set("healthConditions")}
-                    placeholder="e.g. Diabetes, High blood pressure"
-                    style={fieldStyleWithError("healthConditions")}
+                <div
+                  style={{
+                    gridColumn: "span 2",
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 12,
+                    padding: 16,
+                    backgroundColor: "#f9fafb",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 20,
+                  }}
+                >
+                  <TransferTagListBlock
+                    label="Health Conditions"
+                    required
+                    info="Any existing medical conditions that may affect underwriting."
+                    fieldKey="healthConditions"
+                    error={getFieldError("healthConditions")}
+                    tags={mergeUniqueTags([], toTagParts(formData.healthConditions))}
+                    onRemoveTag={(index) => {
+                      setFormData((prev) => {
+                        const tags = mergeUniqueTags([], toTagParts(prev.healthConditions));
+                        const next = tags.filter((_, j) => j !== index);
+                        return { ...prev, healthConditions: next.join(", ") };
+                      });
+                    }}
+                    draftValue={healthConditionsTagInput}
+                    onDraftChange={setHealthConditionsTagInput}
+                    onCommitDraft={() => {
+                      const parts = toTagParts(healthConditionsTagInput);
+                      if (!parts.length) return;
+                      setFormData((prev) => ({
+                        ...prev,
+                        healthConditions: mergeUniqueTags(mergeUniqueTags([], toTagParts(prev.healthConditions)), parts).join(
+                          ", ",
+                        ),
+                      }));
+                      setHealthConditionsTagInput("");
+                    }}
+                    placeholder="Type and press Enter to add conditions..."
+                    helperText="Click on conditions above to add them, or type custom conditions."
+                    setHoveredFieldInfo={setHoveredFieldInfo}
+                    inputStyle={{ ...fieldStyleWithError("healthConditions"), width: "100%", fontSize: 14, minHeight: 44 }}
                   />
-                </Field>
-                <Field label="Medications" required full error={getFieldError("medications")}
-                  info="List of current medications the lead is taking."
-                  fieldKey="medications" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
-                  <input
-                    value={formData.medications}
-                    onChange={set("medications")}
-                    placeholder="e.g. Metformin, Lisinopril"
-                    style={fieldStyleWithError("medications")}
+                  <TransferTagListBlock
+                    label="Medications"
+                    required
+                    info="List of current medications the lead is taking."
+                    fieldKey="medications"
+                    error={getFieldError("medications")}
+                    tags={mergeUniqueTags([], toTagParts(formData.medications))}
+                    onRemoveTag={(index) => {
+                      setFormData((prev) => {
+                        const tags = mergeUniqueTags([], toTagParts(prev.medications));
+                        const next = tags.filter((_, j) => j !== index);
+                        return { ...prev, medications: next.join(", ") };
+                      });
+                    }}
+                    draftValue={medicationsTagInput}
+                    onDraftChange={setMedicationsTagInput}
+                    onCommitDraft={() => {
+                      const parts = toTagParts(medicationsTagInput);
+                      if (!parts.length) return;
+                      setFormData((prev) => ({
+                        ...prev,
+                        medications: mergeUniqueTags(mergeUniqueTags([], toTagParts(prev.medications)), parts).join(", "),
+                      }));
+                      setMedicationsTagInput("");
+                    }}
+                    placeholder="Type and press Enter to add medications..."
+                    setHoveredFieldInfo={setHoveredFieldInfo}
+                    inputStyle={{ ...fieldStyleWithError("medications"), width: "100%", fontSize: 14, minHeight: 44 }}
                   />
-                </Field>
+                </div>
               </div>
             </Section>
             </div>
@@ -2219,21 +2429,147 @@ export default function TransferLeadApplicationForm({
 
             <div style={{ marginTop: 24 }}>
               <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Health Conditions:</label>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginBottom: 10,
+                  minHeight: underwritingHealthTags.length ? undefined : 0,
+                }}
+              >
+                {underwritingHealthTags.map((tag, i) => (
+                  <span
+                    key={`h-${i}-${tag}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      backgroundColor: "#EEF5EE",
+                      border: `1px solid ${T.borderLight}`,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: T.textDark,
+                      fontFamily: T.font,
+                    }}
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${tag}`}
+                      onClick={() =>
+                        setUnderwritingHealthTags((prev) => prev.filter((_, j) => j !== i))
+                      }
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        padding: 0,
+                        margin: 0,
+                        lineHeight: 1,
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: T.textMuted,
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
               <input
-                value={underwritingHealthConditionsText}
-                onChange={(e) => setUnderwritingHealthConditionsText(e.target.value)}
-                placeholder="e.g., Diabetes, High blood pressure"
-                style={{ ...fieldStyle, fontSize: 24, height: 48 }}
+                value={underwritingHealthInput}
+                onChange={(e) => setUnderwritingHealthInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const parts = toTagParts(underwritingHealthInput);
+                  if (!parts.length) return;
+                  setUnderwritingHealthTags((prev) => mergeUniqueTags(prev, parts));
+                  setUnderwritingHealthInput("");
+                }}
+                placeholder="Type and press Enter to add conditions..."
+                style={{ ...fieldStyle, fontSize: 18, height: 48, width: "100%", boxSizing: "border-box" }}
               />
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: T.textMuted, fontWeight: 500 }}>
+                Click on conditions above to add them, or type custom conditions.
+              </p>
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Medications:</label>
+              <label
+                style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8, color: "#2563eb" }}
+              >
+                Medications:
+              </label>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginBottom: 10,
+                }}
+              >
+                {underwritingMedicationTags.map((tag, i) => (
+                  <span
+                    key={`m-${i}-${tag}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      backgroundColor: "#EEF5EE",
+                      border: `1px solid ${T.borderLight}`,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: T.textDark,
+                      fontFamily: T.font,
+                    }}
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${tag}`}
+                      onClick={() =>
+                        setUnderwritingMedicationTags((prev) => prev.filter((_, j) => j !== i))
+                      }
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        padding: 0,
+                        margin: 0,
+                        lineHeight: 1,
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: T.textMuted,
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
               <input
-                value={underwritingMedicationsText}
-                onChange={(e) => setUnderwritingMedicationsText(e.target.value)}
-                placeholder="e.g., Metformin, Lisinopril"
-                style={{ ...fieldStyle, fontSize: 24, height: 48 }}
+                value={underwritingMedicationInput}
+                onChange={(e) => setUnderwritingMedicationInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const parts = toTagParts(underwritingMedicationInput);
+                  if (!parts.length) return;
+                  setUnderwritingMedicationTags((prev) => mergeUniqueTags(prev, parts));
+                  setUnderwritingMedicationInput("");
+                }}
+                placeholder="Type and press Enter to add medications..."
+                style={{ ...fieldStyle, fontSize: 18, height: 48, width: "100%", boxSizing: "border-box" }}
               />
             </div>
 
