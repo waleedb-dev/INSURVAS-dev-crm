@@ -262,6 +262,25 @@ function formatUsPhone(digits: string) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
+function calculateAgeFromDob(dateInput: string): string {
+  const value = String(dateInput || "").trim();
+  if (!value) return "";
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return "";
+  if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const hasHadBirthdayThisYear =
+    today.getMonth() + 1 > month ||
+    (today.getMonth() + 1 === month && today.getDate() >= day);
+  if (!hasHadBirthdayThisYear) age -= 1;
+  return age >= 0 ? String(age) : "";
+}
+
 function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFormData {
   const { leadSource: _ls, isDraft: draftFlag, ...fromInitial } = initial ?? {};
   const hasSubmission =
@@ -437,6 +456,15 @@ export default function TransferLeadApplicationForm({
     if (!initialData) return;
     setFormData(buildFormState(initialData));
   }, [initialData]);
+
+  useEffect(() => {
+    if (!formData.dateOfBirth || formData.age.trim()) return;
+    const computedAge = calculateAgeFromDob(formData.dateOfBirth);
+    if (!computedAge) return;
+    setFormData((prev) => ({ ...prev, age: computedAge }));
+    // Only backfill once when DOB exists and age is empty.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.dateOfBirth, formData.age]);
 
   useEffect(() => {
     setSubmitHighlightKeys(new Set());
@@ -1233,6 +1261,7 @@ export default function TransferLeadApplicationForm({
                 <input
                   placeholder="Enter 10 or 11 digits"
                   value={formData.phone}
+                  readOnly={!isEditMode && phoneGatePassed}
                   onChange={(e) => {
                     set("phone")(e);
                     if (!isEditMode) setPhoneGatePassed(false);
@@ -1252,6 +1281,7 @@ export default function TransferLeadApplicationForm({
                   style={{
                     ...fieldStyle,
                     ...(submitHighlightKeys.has("phone") || phoneError ? { border: `2px solid ${T.danger}` } : {}),
+                    ...(!isEditMode && phoneGatePassed ? { backgroundColor: "#f4f7f2", cursor: "not-allowed" } : {}),
                     paddingRight: 120,
                     width: "100%",
                   }}
@@ -1315,6 +1345,11 @@ export default function TransferLeadApplicationForm({
                   }}
                 >
                   {dncMessage}
+                </div>
+              )}
+              {!isEditMode && phoneGatePassed && (
+                <div style={{ marginTop: 6, fontSize: 11, fontWeight: 700, color: "#166534" }}>
+                  Phone number locked after successful check.
                 </div>
               )}
             </Field>
@@ -1396,7 +1431,19 @@ export default function TransferLeadApplicationForm({
                   fieldKey="dateOfBirth"
                   hoveredFieldInfo={hoveredFieldInfo}
                   setHoveredFieldInfo={setHoveredFieldInfo}>
-                  <input type="date" value={formData.dateOfBirth} onChange={set("dateOfBirth")} style={fieldStyleWithError("dateOfBirth")} />
+                  <input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => {
+                      const nextDob = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        dateOfBirth: nextDob,
+                        age: calculateAgeFromDob(nextDob),
+                      }));
+                    }}
+                    style={fieldStyleWithError("dateOfBirth")}
+                  />
                 </Field>
                 <Field label="Age" required error={getFieldError("age")}
                   info="Current age at time of application."
@@ -2411,9 +2458,6 @@ export default function TransferLeadApplicationForm({
               const dup = await checkPhoneDuplicate();
               if (dup.match) setShowPhoneDupDetails(true);
               if (dup.match && !dup.isAddable) return;
-              const dncResult = await checkDnc();
-              if (dncResult === "tcpa" || dncResult === "agency_dq" || dncResult === "error") return;
-              
               setIsSubmitting(true);
               try {
                 onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
