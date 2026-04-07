@@ -54,6 +54,10 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
   const [userDisplayName, setUserDisplayName] = useState("User");
   const [userEmail, setUserEmail] = useState("");
   const [userInitials, setUserInitials] = useState("U");
+  const [callCenterBranding, setCallCenterBranding] = useState<{
+    name: string;
+    logoUrl: string | null;
+  } | null>(null);
   const [pageHeaderTitle, setPageHeaderTitle] = useState<ReactNode | null>(null);
   const [pageHeaderActions, setPageHeaderActions] = useState<ReactNode | null>(null);
 
@@ -93,9 +97,25 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
 
       const { data: profile } = await supabase
         .from("users")
-        .select("full_name")
+        .select("full_name, call_center_id")
         .eq("id", session.user.id)
         .maybeSingle();
+
+      let centerMeta: { name: string; logoUrl: string | null } | null = null;
+      const ccId = profile?.call_center_id;
+      if (ccId) {
+        const { data: ccRow } = await supabase
+          .from("call_centers")
+          .select("name, logo_url")
+          .eq("id", ccId)
+          .maybeSingle();
+        if (ccRow) {
+          centerMeta = {
+            name: String(ccRow.name ?? "").trim(),
+            logoUrl: ccRow.logo_url != null && String(ccRow.logo_url).trim() !== "" ? String(ccRow.logo_url).trim() : null,
+          };
+        }
+      }
 
       const email = session.user.email ?? "";
       const displayName = profile?.full_name?.trim() || email.split("@")[0] || "User";
@@ -114,6 +134,7 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
       setUserDisplayName(displayName);
       setUserEmail(email);
       setUserInitials(initials);
+      setCallCenterBranding(centerMeta);
       setIsLoading(false);
     };
 
@@ -196,6 +217,7 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
         userDisplayName={userDisplayName}
         userEmail={userEmail}
         userInitials={userInitials}
+        callCenter={callCenterBranding}
       >
         {children}
       </DashboardLayout>

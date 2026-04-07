@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import { T } from "@/lib/theme";
+import { callCenterNameInitials as centreNameInitials } from "@/lib/callCenterBranding";
 import { Card } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -60,16 +61,6 @@ interface CenterThreshold {
   underwritingThreshold: number;
   createdAt: string;
   updatedAt: string;
-}
-
-function centreNameInitials(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return "?";
-  const firstWord = (trimmed.split(/[\s\-–—]+/)[0] ?? trimmed).replace(/[^a-zA-Z0-9]/g, "");
-  if (firstWord.length > 0) {
-    return firstWord.slice(0, 3).toUpperCase();
-  }
-  return trimmed.charAt(0).toUpperCase();
 }
 
 function StyledSelect({

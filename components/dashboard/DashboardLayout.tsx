@@ -27,6 +27,7 @@ import {
   Menu,
   BookOpen,
 } from "lucide-react";
+import { callCenterNameInitials, displayCallCenterName } from "@/lib/callCenterBranding";
 
 export type DashPage =
   | "dashboard" | "nearest-events"
@@ -51,6 +52,8 @@ interface Props {
   userDisplayName?: string;
   userEmail?: string;
   userInitials?: string;
+  /** Logged-in user's call centre (when `call_center_id` is set). Shown in header instead of theme toggle. */
+  callCenter?: { name: string; logoUrl: string | null } | null;
 }
 
 const SIDEBAR_W  = 260;
@@ -132,6 +135,7 @@ export default function DashboardLayout({
   userDisplayName = "User",
   userEmail = "",
   userInitials = "U",
+  callCenter = null,
 }: Props) {
   const { pageHeaderTitle, pageHeaderActions } = useDashboardContext();
   const [collapsed, setCollapsed]             = useState(false);
@@ -166,6 +170,13 @@ export default function DashboardLayout({
   const activeNav  = activePage === "nearest-events" ? "dashboard" : activePage;
   const visiblePageSet = new Set<DashPage>(visiblePages ?? NAV_ITEMS.map((item) => item.id));
   const headerTitle = pageHeaderTitle ?? PAGE_TITLE[activePage];
+  const centerLogoOk = Boolean(callCenter?.logoUrl && callCenter.logoUrl.trim() !== "");
+  const centerDisplayName =
+    callCenter?.name != null && String(callCenter.name).trim() !== ""
+      ? displayCallCenterName(String(callCenter.name))
+      : "";
+  const showCallCenterHeader = Boolean(callCenter && (centerLogoOk || centerDisplayName.length > 0));
+  const centerInitials = callCenterNameInitials(callCenter?.name?.trim() ? callCenter.name : centerDisplayName || "Centre");
 
   // close dropdowns on outside click
   useEffect(() => {
@@ -605,33 +616,72 @@ export default function DashboardLayout({
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsDark(!isDark)}
-              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              style={{
-                height: 40,
-                padding: "0 12px",
-                borderRadius: 12,
-                border: `1px solid ${T.border}`,
-                background: T.pageBg,
-                color: T.textMid,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                cursor: "pointer",
-                fontFamily: T.font,
-                fontSize: 13,
-                fontWeight: 700,
-              }}
-            >
-              {isDark ? (
-                <Sun size={18} />
-              ) : (
-                <Moon size={18} />
-              )}
-              Appearance
-            </button>
+            {showCallCenterHeader && (
+              <div
+                title={centerDisplayName}
+                style={{
+                  height: 40,
+                  maxWidth: 280,
+                  padding: "0 12px 0 6px",
+                  borderRadius: 12,
+                  border: `1px solid ${T.border}`,
+                  background: T.pageBg,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 10,
+                  fontFamily: T.font,
+                  minWidth: 0,
+                }}
+              >
+                {callCenter?.logoUrl && callCenter.logoUrl.trim() !== "" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={callCenter.logoUrl.trim()}
+                    alt=""
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      objectFit: "cover",
+                      flexShrink: 0,
+                      border: `1px solid ${T.borderLight}`,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      backgroundColor: INSURVAS_SIDEBAR_BG,
+                      color: INSURVAS_ACCENT,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 10,
+                      fontWeight: 800,
+                      flexShrink: 0,
+                      letterSpacing: "-0.02em",
+                    }}
+                  >
+                    {centerInitials}
+                  </div>
+                )}
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 800,
+                    color: T.textDark,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    minWidth: 0,
+                  }}
+                >
+                  {centerDisplayName || "Call centre"}
+                </span>
+              </div>
+            )}
 
             <div ref={userRef} style={{ position: "relative" }}>
               <button
@@ -669,6 +719,16 @@ export default function DashboardLayout({
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                     >{label}</button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setIsDark((v) => !v)}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                  >
+                    {isDark ? <Sun size={16} style={{ flexShrink: 0 }} /> : <Moon size={16} style={{ flexShrink: 0 }} />}
+                    {isDark ? "Light mode" : "Dark mode"}
+                  </button>
                   <button type="button" onClick={() => { onSupportClick(); setShowUser(false); }} style={{ width: "100%", display: "block", padding: "10px 16px", border: "none", background: "none", cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.textMid, textAlign: "left", transition: "background-color 0.15s" }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.rowBg; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
