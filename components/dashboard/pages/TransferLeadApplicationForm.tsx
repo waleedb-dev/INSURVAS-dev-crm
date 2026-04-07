@@ -408,6 +408,8 @@ export default function TransferLeadApplicationForm({
   ];
   const contentRef = useRef<HTMLDivElement>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
+  const [underwritingHealthConditionsText, setUnderwritingHealthConditionsText] = useState("");
+  const [underwritingMedicationsText, setUnderwritingMedicationsText] = useState("");
   const [toolkitUrl, setToolkitUrl] = useState("https://insurancetoolkits.com/login");
   const [dncChecking, setDncChecking] = useState(false);
   const [dncStatus, setDncStatus] = useState<DncStatus>("idle");
@@ -1030,10 +1032,14 @@ export default function TransferLeadApplicationForm({
       coverageAmount: formData.coverageAmount,
       monthlyPremium: formData.monthlyPremium,
     });
+    setUnderwritingHealthConditionsText(formData.healthConditions || "");
+    setUnderwritingMedicationsText(formData.medications || "");
     setShowUnderwritingModal(true);
   };
 
   const saveUnderwritingToForm = () => {
+    const normalizedHealthConditions = mergeUniqueTags([], toTagParts(underwritingHealthConditionsText));
+    const normalizedMedications = mergeUniqueTags([], toTagParts(underwritingMedicationsText));
     setFormData((prev) => ({
       ...prev,
       tobaccoUse: underwritingData.tobaccoLast12Months
@@ -1041,8 +1047,8 @@ export default function TransferLeadApplicationForm({
           ? "Yes"
           : "No"
         : prev.tobaccoUse,
-      healthConditions: underwritingData.healthConditions.join(", "),
-      medications: underwritingData.medications.join(", "),
+      healthConditions: normalizedHealthConditions.join(", "),
+      medications: normalizedMedications.join(", "),
       height: underwritingData.height,
       weight: underwritingData.weight,
       carrier: underwritingData.carrier,
@@ -2012,8 +2018,8 @@ export default function TransferLeadApplicationForm({
             <div style={{ marginTop: 24 }}>
               <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Health Conditions:</label>
               <input
-                value={underwritingData.healthConditions.join(", ")}
-                onChange={(e) => setUnderwritingData((prev) => ({ ...prev, healthConditions: toTagParts(e.target.value) }))}
+                value={underwritingHealthConditionsText}
+                onChange={(e) => setUnderwritingHealthConditionsText(e.target.value)}
                 placeholder="e.g., Diabetes, High blood pressure"
                 style={{ ...fieldStyle, fontSize: 24, height: 48 }}
               />
@@ -2022,8 +2028,8 @@ export default function TransferLeadApplicationForm({
             <div style={{ marginTop: 16 }}>
               <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Medications:</label>
               <input
-                value={underwritingData.medications.join(", ")}
-                onChange={(e) => setUnderwritingData((prev) => ({ ...prev, medications: toTagParts(e.target.value) }))}
+                value={underwritingMedicationsText}
+                onChange={(e) => setUnderwritingMedicationsText(e.target.value)}
                 placeholder="e.g., Metformin, Lisinopril"
                 style={{ ...fieldStyle, fontSize: 24, height: 48 }}
               />
