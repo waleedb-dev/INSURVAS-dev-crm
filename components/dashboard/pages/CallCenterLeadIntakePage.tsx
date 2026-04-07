@@ -962,7 +962,7 @@ export default function CallCenterLeadIntakePage({
         ? baseQuery.eq("call_center_id", userProfile.call_center_id)
         : canViewOwn
           ? baseQuery.eq("submitted_by", session.user.id)
-          : baseQuery.eq("id", "__no_access__");
+          : baseQuery.eq("id", "00000000-0000-0000-0000-000000000000");
     const query = hideDraftsForSalesRole ? scopedQuery.eq("is_draft", false) : scopedQuery;
 
     const { data, error } = await query;

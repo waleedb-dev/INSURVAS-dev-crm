@@ -241,7 +241,6 @@ export default function BpoCentersPage() {
   const [thresholdData, setThresholdData] = useState<CenterThreshold | null>(null);
   const [thresholdLoading, setThresholdLoading] = useState(false);
   const [thresholdSaving, setThresholdSaving] = useState(false);
-  const [inlineCreateRole, setInlineCreateRole] = useState<"admin" | "agent">("admin");
 
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -249,6 +248,10 @@ export default function BpoCentersPage() {
   const [deletingCenter, setDeletingCenter] = useState<CenterRow | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingInProgress, setDeletingInProgress] = useState(false);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivatingCenter, setDeactivatingCenter] = useState<CenterRow | null>(null);
+  const [deactivateConfirmName, setDeactivateConfirmName] = useState("");
+  const [deactivatingInProgress, setDeactivatingInProgress] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingCenter, setCreatingCenter] = useState(false);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
@@ -708,6 +711,108 @@ export default function BpoCentersPage() {
     await fetchDirectory();
   }
 
+  async function deactivateCenterById(centerId: string, centerName: string) {
+    const baseName = centerName.replace(/^Inactive:/i, "").trim();
+    const inactiveName = `Inactive:${baseName}`;
+
+    const { error: usersError } = await supabase
+      .from("users")
+      .update({
+        status: "inactive",
+      })
+      .eq("call_center_id", centerId);
+
+    if (usersError) {
+      console.error("Error deactivating center users:", usersError);
+      setToast({ message: `Failed to deactivate centre users: ${usersError.message}`, type: "error" });
+      return false;
+    }
+
+    const { error: centerError } = await supabase
+      .from("call_centers")
+      .update({
+        name: inactiveName,
+        status: "inactive",
+      })
+      .eq("id", centerId);
+
+    if (centerError) {
+      const { error: fallbackCenterError } = await supabase
+        .from("call_centers")
+        .update({
+          name: inactiveName,
+        })
+        .eq("id", centerId);
+
+      if (fallbackCenterError) {
+        console.error("Error deactivating center:", fallbackCenterError);
+        setToast({ message: `Failed to deactivate centre: ${fallbackCenterError.message}`, type: "error" });
+        return false;
+      }
+    }
+
+    setToast({ message: "Centre marked inactive and linked users were deactivated.", type: "success" });
+    await fetchDirectory();
+    return true;
+  }
+
+  async function handleDeactivateCenter() {
+    if (!selectedCenter || selectedCenter.id === "new") return;
+    setDeactivatingCenter(selectedCenter);
+    setDeactivateConfirmName("");
+    setShowDeactivateModal(true);
+  }
+
+  async function handleDeactivateCenterFromRow(center: CenterRow) {
+    setDeactivatingCenter(center);
+    setDeactivateConfirmName("");
+    setShowDeactivateModal(true);
+  }
+
+  async function handleDeactivateCenterConfirm() {
+    if (!deactivatingCenter) return;
+    if (deactivateConfirmName !== deactivatingCenter.name) return;
+    setDeactivatingInProgress(true);
+    const ok = await deactivateCenterById(deactivatingCenter.id, deactivatingCenter.name);
+    setDeactivatingInProgress(false);
+    if (!ok) return;
+    setShowDeactivateModal(false);
+    setDeactivatingCenter(null);
+    setDeactivateConfirmName("");
+  }
+
+  async function reactivateCenterById(centerId: string, centerName: string) {
+    const activeName = centerName.replace(/^Inactive:/i, "").trim() || centerName;
+    const { error: centerError } = await supabase
+      .from("call_centers")
+      .update({
+        name: activeName,
+        status: "active",
+      })
+      .eq("id", centerId);
+
+    if (centerError) {
+      const { error: fallbackCenterError } = await supabase
+        .from("call_centers")
+        .update({
+          name: activeName,
+        })
+        .eq("id", centerId);
+      if (fallbackCenterError) {
+        setToast({ message: `Failed to reactivate centre: ${fallbackCenterError.message}`, type: "error" });
+        return;
+      }
+    }
+
+    setToast({ message: "Centre reactivated successfully.", type: "success" });
+    await fetchDirectory();
+  }
+
+  async function handleReactivateCenterFromRow(center: CenterRow) {
+    await reactivateCenterById(center.id, center.name);
+  }
+
+
   const adminOptions = users
     .filter((user) => user.id !== selectedCenter?.admin?.id)
     .map((user) => ({
@@ -948,6 +1053,24 @@ export default function BpoCentersPage() {
                       </div>
                     </div>
                     <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
+                      {!isNew && (
+                        <button
+                          onClick={handleDeactivateCenter}
+                          style={{
+                            marginRight: "auto",
+                            padding: "12px 20px",
+                            borderRadius: 10,
+                            border: "none",
+                            backgroundColor: "#991b1b",
+                            color: "#fff",
+                            fontSize: 14,
+                            fontWeight: 800,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Mark Centre Inactive
+                        </button>
+                      )}
                       <button 
                         onClick={() => setView("list")}
                         style={{ marginRight: 16, padding: "12px 32px", borderRadius: 10, border: `1.5px solid ${T.border}`, backgroundColor: "#fff", color: T.textDark, fontSize: 14, fontWeight: 800, cursor: "pointer" }}
@@ -1328,7 +1451,24 @@ export default function BpoCentersPage() {
               ) : (
                 <>
                   <div style={{ marginBottom: 28 }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, marginBottom: 12 }}>Centre Team Setup</h3>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+                      <h3 style={{ fontSize: 18, fontWeight: 800, color: T.textDark, margin: 0 }}>Centre Team Setup</h3>
+                      <button
+                        onClick={() => setView("list")}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: 10,
+                          border: `1px solid ${T.border}`,
+                          backgroundColor: "#fff",
+                          color: T.textDark,
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Done
+                      </button>
+                    </div>
                     <div style={{ fontSize: 14, color: T.textMid }}>
                       Create new team members directly in this section and attach them to this centre.
                     </div>
@@ -1336,9 +1476,10 @@ export default function BpoCentersPage() {
 
                   <div style={{ marginBottom: 28, border: `1.5px solid ${T.border}`, borderRadius: 14, overflow: "hidden", backgroundColor: "#fff" }}>
                     <UserEditorComponent
-                      onClose={() => setView("list")}
+                      onClose={() => {
+                        // Keep onboarding context on Team Setup; do not bounce to centre list.
+                      }}
                       onSubmit={async () => {
-                        const createdRole = inlineCreateRole;
                         await fetchDirectory();
                         if (selectedCenter) {
                           const refreshed = buildCenterDetail(selectedCenter.id);
@@ -1349,15 +1490,68 @@ export default function BpoCentersPage() {
                           }
                         }
                         setToast({
-                          message: createdRole === "admin" ? "Admin created and assigned to centre." : "Agent created and assigned to centre.",
+                          message: "Team member created and assigned to centre.",
                           type: "success",
                         });
                       }}
-                      presetRoleKey={inlineCreateRole === "admin" ? "call_center_admin" : "call_center_agent"}
+                      presetRoleKey="call_center_admin"
+                      allowedRoleKeys={["call_center_admin", "call_center_agent"]}
                       presetCenterId={selectedCenter.id}
-                      lockRole
                       lockCenter
                     />
+                  </div>
+
+                  <div style={{ border: `1.5px solid ${T.border}`, borderRadius: 14, overflow: "hidden", backgroundColor: "#fff" }}>
+                    <div style={{ padding: "12px 16px", backgroundColor: "#EEF5EE", borderBottom: `1px solid ${T.border}`, fontSize: 13, fontWeight: 800, color: "#233217" }}>
+                      Current Team Members
+                    </div>
+                    {users.filter((u) => u.callCenterId === selectedCenter.id).length === 0 ? (
+                      <div style={{ padding: "16px", fontSize: 13, color: T.textMuted }}>No team members attached yet.</div>
+                    ) : (
+                      users
+                        .filter((u) => u.callCenterId === selectedCenter.id)
+                        .map((member) => (
+                          <div
+                            key={member.id}
+                            style={{
+                              padding: "12px 16px",
+                              borderBottom: `1px solid ${T.borderLight}`,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 10,
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: 13, color: T.textDark, fontWeight: 700 }}>{member.name}</div>
+                              <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                                {member.roleKey === "call_center_admin" ? "Call Center Admin" : member.roleKey === "call_center_agent" ? "Call Center Agent" : (member.roleKey || "Role not set")}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (member.roleKey === "call_center_admin") {
+                                  void handleRemoveAdmin();
+                                } else {
+                                  void handleRemoveAgent(member.id);
+                                }
+                              }}
+                              style={{
+                                padding: "6px 10px",
+                                borderRadius: 8,
+                                border: "none",
+                                backgroundColor: "#fef2f2",
+                                color: "#b91c1c",
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))
+                    )}
                   </div>
 
                 </>
@@ -1746,7 +1940,24 @@ export default function BpoCentersPage() {
                           >
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                           </button>
-                          <button 
+                          {center.name.trim().toLowerCase().startsWith("inactive:") ? (
+                            <button
+                              onClick={() => handleReactivateCenterFromRow(center)}
+                              style={{ background: "none", border: "none", color: "#166534", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Enable Centre"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleDeactivateCenterFromRow(center)}
+                              style={{ background: "none", border: "none", color: "#b45309", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                              title="Mark Centre Inactive"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>
+                            </button>
+                          )}
+                          <button
                             onClick={() => openDeleteModal(center)}
                             style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 6, borderRadius: 6 }}
                             title="Delete Centre"
@@ -1778,6 +1989,99 @@ export default function BpoCentersPage() {
           </>
         )}
       </div>
+
+      {showDeactivateModal && deactivatingCenter && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 520, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#b45309" }}>Deactivate Centre</h2>
+              <button
+                onClick={() => setShowDeactivateModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              <p style={{ margin: 0, fontSize: 14, color: "#92400e", lineHeight: 1.6 }}>
+                <strong>Warning:</strong> This will rename <strong>"{deactivatingCenter.name}"</strong> to <strong>Inactive:{deactivatingCenter.name.replace(/^Inactive:/i, "").trim()}</strong> and set all linked users to inactive.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                Type <strong>{deactivatingCenter.name}</strong> to confirm deactivation
+              </label>
+              <input
+                type="text"
+                value={deactivateConfirmName}
+                onChange={(e) => setDeactivateConfirmName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && deactivateConfirmName === deactivatingCenter.name) void handleDeactivateCenterConfirm();
+                  if (e.key === 'Escape') setShowDeactivateModal(false);
+                }}
+                placeholder={deactivatingCenter.name}
+                autoFocus
+                style={{
+                  width: "100%",
+                  height: 44,
+                  border: `1.5px solid ${deactivateConfirmName === deactivatingCenter.name ? "#b45309" : T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                  background: T.cardBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowDeactivateModal(false)}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeactivateCenterConfirm}
+                disabled={deactivateConfirmName !== deactivatingCenter.name || deactivatingInProgress}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: deactivateConfirmName === deactivatingCenter.name && !deactivatingInProgress ? "#b45309" : T.border,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: deactivateConfirmName === deactivatingCenter.name && !deactivatingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: deactivateConfirmName === deactivatingCenter.name && !deactivatingInProgress ? "0 4px 12px rgba(180, 83, 9, 0.2)" : "none",
+                  transition: "all 0.15s ease-in-out",
+                }}
+              >
+                {deactivatingInProgress ? "Deactivating..." : "Deactivate Centre"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDeleteModal && deletingCenter && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>

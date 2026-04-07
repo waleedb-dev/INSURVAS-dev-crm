@@ -33,6 +33,7 @@ interface UserEditorProps {
   onClose: () => void;
   onSubmit: (data: any) => void;
   presetRoleKey?: "call_center_admin" | "call_center_agent";
+  allowedRoleKeys?: Array<"call_center_admin" | "call_center_agent">;
   presetCenterId?: string;
   lockRole?: boolean;
   lockCenter?: boolean;
@@ -119,6 +120,7 @@ export default function UserEditorComponent({
   onClose,
   onSubmit,
   presetRoleKey,
+  allowedRoleKeys,
   presetCenterId,
   lockRole = false,
   lockCenter = false,
@@ -159,6 +161,12 @@ export default function UserEditorComponent({
   const tabs: TabType[] = ["User Info", "Roles & Permissions"];
 
   const currentRole = roles.find(r => r.id === selectedRoleId);
+  const selectableRoles = useMemo(
+    () => (allowedRoleKeys && allowedRoleKeys.length > 0
+      ? roles.filter((role) => allowedRoleKeys.includes(role.key as "call_center_admin" | "call_center_agent"))
+      : roles),
+    [roles, allowedRoleKeys],
+  );
   const isCallCenterRole = currentRole?.key === "call_center_admin" || currentRole?.key === "call_center_agent";
   const isUnlicensedSalesRole = currentRole?.key === "sales_agent_unlicensed";
 
@@ -607,7 +615,7 @@ export default function UserEditorComponent({
                           if (rk !== "sales_agent_unlicensed") setUnlicensedSalesSubtype("");
                           if (rk !== "call_center_admin" && rk !== "call_center_agent") setSelectedCenterId("");
                         }}
-                        options={roles.map(r => ({ value: r.id, label: r.name }))}
+                        options={selectableRoles.map(r => ({ value: r.id, label: r.name }))}
                         placeholder="Select a role..."
                         disabled={lockRole}
                       />

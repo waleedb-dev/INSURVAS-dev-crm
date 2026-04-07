@@ -79,6 +79,8 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
       const resolvedRole = await getCurrentUserPrimaryRole(supabase, session.user.id);
 
       if (!resolvedRole) {
+        await supabase.auth.signOut();
+        router.replace("/");
         setErrorMessage("No role is assigned to this account. Contact admin.");
         setIsLoading(false);
         return;

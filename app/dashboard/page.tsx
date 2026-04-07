@@ -24,6 +24,8 @@ export default function DashboardRootPage() {
       const role = await getCurrentUserPrimaryRole(supabase, session.user.id);
 
       if (!role) {
+        await supabase.auth.signOut();
+        router.replace("/");
         setMessage("No role is assigned to this account. Contact admin.");
         return;
       }
