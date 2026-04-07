@@ -397,7 +397,8 @@ export default function TransferLeadApplicationForm({
   onInstantDuplicateCheck,
   initialData,
   submitButtonLabel,
-  centerName = ""
+  centerName = "",
+  unlockAfterDuplicateRemount = false,
 }: {
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void | Promise<boolean | void>;
@@ -406,8 +407,13 @@ export default function TransferLeadApplicationForm({
   initialData?: Partial<TransferLeadFormData>;
   submitButtonLabel?: string;
   centerName?: string;
+  /** Set when remounting after "Create Duplicate" — restores phone-gate + transfer-check so tabs and submit stay usable. */
+  unlockAfterDuplicateRemount?: boolean;
 }) {
   const supabase = getSupabaseBrowserClient();
+  const isEditMode = (submitButtonLabel || "").toLowerCase().includes("update");
+  const resumeVerificationAfterDuplicate =
+    Boolean(unlockAfterDuplicateRemount) && !isEditMode;
   const [activeTab, setActiveTab] = useState<TabType>("Lead Information");
   const tabs: TabType[] = [
     "Lead Information",
@@ -429,7 +435,7 @@ export default function TransferLeadApplicationForm({
   const [showDncModal, setShowDncModal] = useState(false);
   const [transferCheckData, setTransferCheckData] = useState<TransferCheckApiResponse | null>(null);
   const [transferCheckError, setTransferCheckError] = useState<string | null>(null);
-  const [transferCheckCompleted, setTransferCheckCompleted] = useState(false);
+  const [transferCheckCompleted, setTransferCheckCompleted] = useState(() => resumeVerificationAfterDuplicate);
   const [isCustomerBlocked, setIsCustomerBlocked] = useState(false);
   const [blockReason, setBlockReason] = useState("");
   const [phoneDupChecking, setPhoneDupChecking] = useState(false);
@@ -855,8 +861,9 @@ export default function TransferLeadApplicationForm({
     return digits.length === 9 ? `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}` : digits;
   }
 
-  const isEditMode = (submitButtonLabel || "").toLowerCase().includes("update");
-  const [phoneGatePassed, setPhoneGatePassed] = useState(isEditMode);
+  const [phoneGatePassed, setPhoneGatePassed] = useState(
+    () => isEditMode || resumeVerificationAfterDuplicate,
+  );
   useEffect(() => {
     if (isEditMode) setPhoneGatePassed(true);
   }, [isEditMode]);
