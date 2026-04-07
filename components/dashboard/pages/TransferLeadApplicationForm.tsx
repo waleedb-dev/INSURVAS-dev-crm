@@ -49,6 +49,12 @@ export type TransferLeadFormData = {
   coverageAmount: string;
   carrier: string;
   productType: string;
+  /** When true, user must complete backup carrier / product / premium / coverage. */
+  includeBackupQuote: boolean;
+  backupCarrier: string;
+  backupProductType: string;
+  backupMonthlyPremium: string;
+  backupCoverageAmount: string;
   draftDate: string;
   beneficiaryInformation: string;
   bankAccountType: string;
@@ -319,6 +325,11 @@ function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFo
     coverageAmount: "",
     carrier: "",
     productType: "",
+    includeBackupQuote: false,
+    backupCarrier: "",
+    backupProductType: "",
+    backupMonthlyPremium: "",
+    backupCoverageAmount: "",
     draftDate: "",
     beneficiaryInformation: "",
     bankAccountType: "",
@@ -494,6 +505,15 @@ export default function TransferLeadApplicationForm({
     });
   }, []);
 
+  const onInvalidateBackupProduct = useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
+    setFormData((prev) => {
+      if (prev.backupCarrier.trim() !== carrierNameSnapshot) return prev;
+      if (!prev.backupProductType.trim()) return prev;
+      if (list.some((x) => x.name === prev.backupProductType)) return prev;
+      return { ...prev, backupProductType: "" };
+    });
+  }, []);
+
   const { carriers, productsForCarrier, loadingProducts: policyCarrierProductsLoading } =
     useCarrierProductDropdowns(supabase, {
       carrierName: formData.carrier,
@@ -505,6 +525,14 @@ export default function TransferLeadApplicationForm({
       carrierName: underwritingData.carrier,
       onInvalidateProduct: onInvalidateUwProduct,
     });
+
+  const {
+    productsForCarrier: backupProductsForCarrier,
+    loadingProducts: backupCarrierProductsLoading,
+  } = useCarrierProductDropdowns(supabase, {
+    carrierName: formData.backupCarrier,
+    onInvalidateProduct: onInvalidateBackupProduct,
+  });
 
   const phoneError = formData.phone.length > 0 && !getUsPhone10Digits(formData.phone);
   const ssnDigits = normalizeSsnDigits(formData.social);
@@ -558,6 +586,10 @@ export default function TransferLeadApplicationForm({
       routingNumber: "Routing number is required",
       accountNumber: "Account number is required",
       futureDraftDate: "Future draft date is required",
+      backupCarrier: "Backup carrier is required",
+      backupProductType: "Backup product type is required",
+      backupMonthlyPremium: "Backup monthly premium is required",
+      backupCoverageAmount: "Backup coverage amount is required",
     };
     
     return fieldLabels[key] || "This field is required";
@@ -1840,6 +1872,169 @@ export default function TransferLeadApplicationForm({
                       </div>
                     )}
                   </Field>
+                <Field
+                  label="Add backup quote?"
+                  info="Optional second carrier/product quote (premium and face amount)."
+                  fieldKey="includeBackupQuote"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}
+                >
+                  <YesNo
+                    value={formData.includeBackupQuote ? "Yes" : "No"}
+                    onChange={(v) =>
+                      setFormData((p) =>
+                        v === "Yes"
+                          ? { ...p, includeBackupQuote: true }
+                          : {
+                              ...p,
+                              includeBackupQuote: false,
+                              backupCarrier: "",
+                              backupProductType: "",
+                              backupMonthlyPremium: "",
+                              backupCoverageAmount: "",
+                            },
+                      )
+                    }
+                    hasError={false}
+                  />
+                </Field>
+                {formData.includeBackupQuote && (
+                  <>
+                    <Field
+                      label="Backup carrier"
+                      required
+                      error={getFieldError("backupCarrier")}
+                      info="Select the backup quote carrier first, then product."
+                      fieldKey="backupCarrier"
+                      hoveredFieldInfo={hoveredFieldInfo}
+                      setHoveredFieldInfo={setHoveredFieldInfo}
+                    >
+                      <StyledSelect
+                        value={formData.backupCarrier}
+                        onValueChange={(val) =>
+                          setFormData((prev) => ({ ...prev, backupCarrier: val, backupProductType: "" }))
+                        }
+                        options={carriers.map((c) => ({ value: c.name, label: c.name }))}
+                        placeholder="Please select"
+                        error={submitHighlightKeys.has("backupCarrier")}
+                      />
+                    </Field>
+                    <Field
+                      label="Backup product type"
+                      required
+                      error={getFieldError("backupProductType")}
+                      info="Product for the backup quote."
+                      fieldKey="backupProductType"
+                      hoveredFieldInfo={hoveredFieldInfo}
+                      setHoveredFieldInfo={setHoveredFieldInfo}
+                    >
+                      {!formData.backupCarrier.trim() ? (
+                        <div style={{ ...fieldStyle, color: T.textMuted, display: "flex", alignItems: "center" }}>
+                          Select backup carrier first
+                        </div>
+                      ) : backupCarrierProductsLoading ? (
+                        <div style={{ ...fieldStyle, color: T.textMuted, display: "flex", alignItems: "center" }}>
+                          Loading products...
+                        </div>
+                      ) : backupProductsForCarrier.length === 0 ? (
+                        <div style={{ ...fieldStyle, color: T.textMuted, display: "flex", alignItems: "center" }}>
+                          No products available for this carrier
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {backupProductsForCarrier.map((product) => (
+                            <label
+                              key={product.id}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                                padding: "10px 14px",
+                                borderRadius: 8,
+                                border: `1.5px solid ${formData.backupProductType === product.name ? "#233217" : T.border}`,
+                                backgroundColor: formData.backupProductType === product.name ? "#EEF5EE" : "#fff",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease-in-out",
+                              }}
+                            >
+                              <input
+                                type="radio"
+                                name="backupProductType"
+                                value={product.name}
+                                checked={formData.backupProductType === product.name}
+                                onChange={() =>
+                                  setFormData((prev) => ({ ...prev, backupProductType: product.name }))
+                                }
+                                style={{ width: 18, height: 18, cursor: "pointer" }}
+                              />
+                              <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{product.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </Field>
+                    <Field
+                      label="Backup monthly premium"
+                      required
+                      error={getFieldError("backupMonthlyPremium")}
+                      info="Monthly premium for the backup quote."
+                      fieldKey="backupMonthlyPremium"
+                      hoveredFieldInfo={hoveredFieldInfo}
+                      setHoveredFieldInfo={setHoveredFieldInfo}
+                    >
+                      <div style={{ position: "relative" }}>
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: 14,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            fontSize: 14,
+                            fontWeight: 600,
+                            color: T.textMuted,
+                          }}
+                        >
+                          $
+                        </span>
+                        <input
+                          value={formData.backupMonthlyPremium}
+                          onChange={set("backupMonthlyPremium")}
+                          style={fieldStyleWithError("backupMonthlyPremium", { paddingLeft: 28 })}
+                        />
+                      </div>
+                    </Field>
+                    <Field
+                      label="Backup coverage amount"
+                      required
+                      error={getFieldError("backupCoverageAmount")}
+                      info="Face / coverage amount for the backup quote."
+                      fieldKey="backupCoverageAmount"
+                      hoveredFieldInfo={hoveredFieldInfo}
+                      setHoveredFieldInfo={setHoveredFieldInfo}
+                    >
+                      <div style={{ position: "relative" }}>
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: 14,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            fontSize: 14,
+                            fontWeight: 600,
+                            color: T.textMuted,
+                          }}
+                        >
+                          $
+                        </span>
+                        <input
+                          value={formData.backupCoverageAmount}
+                          onChange={set("backupCoverageAmount")}
+                          style={fieldStyleWithError("backupCoverageAmount", { paddingLeft: 28 })}
+                        />
+                      </div>
+                    </Field>
+                  </>
+                )}
                 <Field label="Draft Date" required error={getFieldError("draftDate")}
                   info="The date the first premium draft will occur."
                   fieldKey="draftDate" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
@@ -2435,6 +2630,17 @@ export default function TransferLeadApplicationForm({
             onClick={async () => {
               const missingKeys = REQUIRED_FORM_KEYS.filter((key) => !String(formData[key] ?? "").trim());
               const highlight = new Set<keyof TransferLeadFormData>(missingKeys);
+              if (formData.includeBackupQuote) {
+                const backupKeys: (keyof TransferLeadFormData)[] = [
+                  "backupCarrier",
+                  "backupProductType",
+                  "backupMonthlyPremium",
+                  "backupCoverageAmount",
+                ];
+                for (const key of backupKeys) {
+                  if (!String(formData[key] ?? "").trim()) highlight.add(key);
+                }
+              }
               if (formData.phone.trim().length > 0 && !getUsPhone10Digits(formData.phone)) {
                 highlight.add("phone");
               }

@@ -549,6 +549,8 @@ export default function BpoCentersPage() {
       const createdCenter: CenterDetail = {
         id: data.id,
         name: data.name,
+        status: "active",
+        isActive: true,
         createdAt: data.created_at ? new Date(data.created_at).toLocaleString() : new Date().toLocaleString(),
         did: data.did ?? null,
         slack_channel: data.slack_channel ?? null,

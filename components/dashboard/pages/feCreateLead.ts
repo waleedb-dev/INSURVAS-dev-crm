@@ -111,6 +111,8 @@ export function buildFeCreateLeadBodyFromIntakePayload(
 
   const coverage_amount = parseOptionalNumber(p.coverageAmount);
   const monthly_premium = parseOptionalNumber(p.monthlyPremium);
+  const backup_coverage_amount = parseOptionalNumber(p.backupCoverageAmount);
+  const backup_monthly_premium = parseOptionalNumber(p.backupMonthlyPremium);
   const age = parseOptionalNumber(p.age);
 
   const lead_vendor = options.leadVendor.trim() || p.leadSource.trim() || null;
@@ -153,6 +155,11 @@ export function buildFeCreateLeadBodyFromIntakePayload(
     additional_notes: p.additionalInformation.trim() || null,
     is_callback: options.isCallback ?? false,
     is_retention_call: options.isRetentionCall ?? false,
+    has_backup_quote: p.includeBackupQuote,
+    backup_carrier: p.includeBackupQuote ? p.backupCarrier.trim() || null : null,
+    backup_product_type: p.includeBackupQuote ? p.backupProductType.trim() || null : null,
+    backup_monthly_premium: p.includeBackupQuote ? backup_monthly_premium : null,
+    backup_coverage_amount: p.includeBackupQuote ? backup_coverage_amount : null,
   };
 
   if (age !== null) body.age = age;

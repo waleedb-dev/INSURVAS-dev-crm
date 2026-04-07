@@ -648,6 +648,17 @@ function getTodayInEasternYyyyMmDd(): string {
   }).format(new Date());
 }
 
+function backupQuoteFieldsFromPayload(payload: TransferLeadFormData) {
+  const on = payload.includeBackupQuote;
+  return {
+    has_backup_quote: on,
+    backup_carrier: on && payload.backupCarrier.trim() ? payload.backupCarrier.trim() : null,
+    backup_product_type: on && payload.backupProductType.trim() ? payload.backupProductType.trim() : null,
+    backup_monthly_premium: on && payload.backupMonthlyPremium.trim() ? payload.backupMonthlyPremium.trim() : null,
+    backup_coverage_amount: on && payload.backupCoverageAmount.trim() ? payload.backupCoverageAmount.trim() : null,
+  };
+}
+
 async function insertDailyDealFlowEntry(
   supabase: ReturnType<typeof getSupabaseBrowserClient>,
   row: {
@@ -1515,6 +1526,7 @@ export default function CallCenterLeadIntakePage({
         is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
         submitted_by: session.user.id,
+        ...backupQuoteFieldsFromPayload(finalPayload),
       };
 
       const existingDraftId = createDraftRowIdRef.current;
@@ -1663,6 +1675,7 @@ export default function CallCenterLeadIntakePage({
         is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
         submitted_by: session.user.id,
+        ...backupQuoteFieldsFromPayload(pendingCreatePayload),
       })
       .select("id")
       .single();
@@ -1798,6 +1811,7 @@ export default function CallCenterLeadIntakePage({
       stage_id: defaultTransferStageId,
       is_draft: true,
       call_center_id: userProfile?.call_center_id || null,
+      ...backupQuoteFieldsFromPayload(payload),
     };
 
     const existingDraftId = createDraftRowIdRef.current;
@@ -1847,7 +1861,7 @@ export default function CallCenterLeadIntakePage({
   const openLeadInForm = async (rowId: string): Promise<boolean> => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, sms_access, email_access, language, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline_id, stage, is_draft, pipelines(name)")
+      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, sms_access, email_access, language, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, existing_coverage_details, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, has_backup_quote, backup_carrier, backup_product_type, backup_monthly_premium, backup_coverage_amount, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline_id, stage, is_draft, pipelines(name)")
       .eq("id", rowId)
       .maybeSingle();
 
@@ -1890,6 +1904,13 @@ export default function CallCenterLeadIntakePage({
       coverageAmount: data.coverage_amount || "",
       carrier: data.carrier || "",
       productType: data.product_type || "",
+      includeBackupQuote:
+        (data as { has_backup_quote?: boolean }).has_backup_quote === true ||
+        Boolean(String((data as { backup_carrier?: string | null }).backup_carrier || "").trim()),
+      backupCarrier: String((data as { backup_carrier?: string | null }).backup_carrier || ""),
+      backupProductType: String((data as { backup_product_type?: string | null }).backup_product_type || ""),
+      backupMonthlyPremium: String((data as { backup_monthly_premium?: string | null }).backup_monthly_premium || ""),
+      backupCoverageAmount: String((data as { backup_coverage_amount?: string | null }).backup_coverage_amount || ""),
       draftDate: data.draft_date || "",
       beneficiaryInformation: data.beneficiary_information || "",
       bankAccountType: data.bank_account_type || "",
@@ -1992,6 +2013,7 @@ export default function CallCenterLeadIntakePage({
         stage_id: defaultTransferStageId,
         is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
+        ...backupQuoteFieldsFromPayload(payload),
       })
       .eq("id", editingLead.rowId);
 
@@ -2118,6 +2140,7 @@ export default function CallCenterLeadIntakePage({
         stage_id: defaultTransferStageId,
         is_draft: true,
         call_center_id: userProfile?.call_center_id || null,
+        ...backupQuoteFieldsFromPayload(payload),
       })
       .eq("id", editingLead.rowId);
 
