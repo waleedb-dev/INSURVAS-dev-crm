@@ -33,6 +33,8 @@ interface CenterRow {
   slack_channel: string | null;
   email: string | null;
   logo_url: string | null;
+  region: string | null;
+  country: string | null;
   admin: UserLink | null;
   agentCount: number;
 }
@@ -40,6 +42,30 @@ interface CenterRow {
 interface CenterDetail extends CenterRow {
   agents: UserLink[];
 }
+
+const REGIONS = [
+  "North America",
+  "South America",
+  "Central America",
+  "Caribbean",
+  "Europe",
+  "Middle East",
+  "Africa",
+  "Asia",
+  "Oceania",
+] as const;
+
+const COUNTRIES_BY_REGION: Record<string, string[]> = {
+  "North America": ["United States", "Canada", "Mexico"],
+  "South America": ["Brazil", "Argentina", "Colombia", "Peru", "Chile", "Venezuela", "Ecuador", "Bolivia", "Paraguay", "Uruguay", "Guyana", "Suriname", "French Guiana"],
+  "Central America": ["Guatemala", "Belize", "Honduras", "El Salvador", "Nicaragua", "Costa Rica", "Panama"],
+  "Caribbean": ["Dominican Republic", "Cuba", "Jamaica", "Puerto Rico", "Trinidad and Tobago", "Bahamas", "Barbados", "Haiti"],
+  "Europe": ["United Kingdom", "Spain", "Germany", "France", "Italy", "Portugal", "Poland", "Romania", "Netherlands", "Belgium", "Sweden", "Austria", "Switzerland", "Greece", "Czech Republic", "Hungary", "Denmark", "Finland", "Norway", "Ireland", "Slovakia", "Bulgaria", "Croatia", "Serbia", "Slovenia", "Lithuania", "Latvia", "Estonia", "Luxembourg", "Malta", "Cyprus"],
+  "Middle East": ["Saudi Arabia", "United Arab Emirates", "Israel", "Turkey", "Egypt", "Qatar", "Kuwait", "Bahrain", "Oman", "Jordan", "Lebanon", "Iraq", "Iran"],
+  "Africa": ["Nigeria", "South Africa", "Kenya", "Ghana", "Egypt", "Morocco", "Tanzania", "Uganda", "Ethiopia", "Algeria", "Cameroon", "Senegal", "Ivory Coast", "Tunisia", "Libya", "Sudan", "Angola", "Mozambique", "Madagascar", "Zimbabwe"],
+  "Asia": ["India", "Pakistan", "Philippines", "Bangladesh", "Sri Lanka", "Nepal", "Indonesia", "Thailand", "Vietnam", "Malaysia", "Singapore", "China", "Hong Kong", "Taiwan", "Japan", "South Korea", "Myanmar", "Cambodia", "Laos", "Mongolia"],
+  "Oceania": ["Australia", "New Zealand", "Fiji", "Papua New Guinea", "Samoa", "Tonga", "Vanuatu", "Solomon Islands"],
+};
 
 interface CenterThreshold {
   id: string;
@@ -252,6 +278,17 @@ export default function BpoCentersPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingCenter, setCreatingCenter] = useState(false);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
+  const [filterRegion, setFilterRegion] = useState("All");
+  const [filterCountry, setFilterCountry] = useState("All");
+
+  useEffect(() => {
+    if (toast) {
+      const timer = window.setTimeout(() => {
+        setToast(null);
+      }, 4000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [toast]);
 
   const isMissingRequired = (value: string | null | undefined) => String(value ?? "").trim() === "";
 
@@ -264,11 +301,13 @@ export default function BpoCentersPage() {
     return missing;
   };
 
-  const hasActiveFilters = filterAdmin !== "All";
-  const activeFilterCount = filterAdmin !== "All" ? 1 : 0;
+  const hasActiveFilters = filterAdmin !== "All" || filterRegion !== "All" || filterCountry !== "All";
+  const activeFilterCount = (filterAdmin !== "All" ? 1 : 0) + (filterRegion !== "All" ? 1 : 0) + (filterCountry !== "All" ? 1 : 0);
 
   const clearFilters = () => {
     setFilterAdmin("All");
+    setFilterRegion("All");
+    setFilterCountry("All");
     setPage(1);
   };
 
@@ -287,7 +326,7 @@ export default function BpoCentersPage() {
   async function fetchDirectory() {
     const [{ data: rolesData, error: rolesError }, { data: centersData, error: centersError }, { data: usersData, error: usersError }] = await Promise.all([
       supabase.from("roles").select("id, key"),
-      supabase.from("call_centers").select("id, name, status, is_active, created_at, did, slack_channel, email, logo_url").order("name"),
+      supabase.from("call_centers").select("id, name, status, is_active, created_at, did, slack_channel, email, logo_url, region, country").order("name"),
       supabase.from("users").select("id, full_name, call_center_id, role_id"),
     ]);
 
@@ -332,6 +371,8 @@ export default function BpoCentersPage() {
         slack_channel: center.slack_channel ?? null,
         email: center.email ?? null,
         logo_url: center.logo_url ?? null,
+        region: (center as { region?: string }).region ?? null,
+        country: (center as { country?: string }).country ?? null,
         admin,
         agentCount: agents.length,
       };
@@ -496,6 +537,8 @@ export default function BpoCentersPage() {
       slack_channel: "",
       email: "",
       logo_url: null,
+      region: "",
+      country: "",
       admin: null,
       agentCount: 0,
       agents: []
@@ -525,7 +568,9 @@ export default function BpoCentersPage() {
       slack_channel: selectedCenter?.slack_channel?.trim() || null,
       email: selectedCenter?.email?.trim() || null,
       logo_url: logoUrl || selectedCenter?.logo_url || null,
-    }]).select("id, name, created_at, did, slack_channel, email, logo_url").single();
+      region: selectedCenter?.region?.trim() || null,
+      country: selectedCenter?.country?.trim() || null,
+    }]).select("id, name, created_at, did, slack_channel, email, logo_url, region, country").single();
     if (error) {
       console.error("Error creating center:", error);
       setToast({ message: `Failed to create centre: ${error.message}`, type: "error" });
@@ -547,6 +592,8 @@ export default function BpoCentersPage() {
         slack_channel: data.slack_channel ?? null,
         email: data.email ?? null,
         logo_url: data.logo_url ?? null,
+        region: data.region ?? null,
+        country: data.country ?? null,
         admin: null,
         agentCount: 0,
         agents: [],
@@ -616,6 +663,8 @@ export default function BpoCentersPage() {
         slack_channel: selectedCenter.slack_channel?.trim() || null,
         email: selectedCenter.email?.trim() || null,
         logo_url: logoUrl || selectedCenter.logo_url || null,
+        region: selectedCenter.region?.trim() || null,
+        country: selectedCenter.country?.trim() || null,
       })
       .eq("id", selectedCenter.id);
 
@@ -866,7 +915,9 @@ export default function BpoCentersPage() {
   const filteredCenters = centers.filter((center) => {
     const matchesSearch = center.name.toLowerCase().includes(search.toLowerCase());
     const matchesAdmin = filterAdmin === "All" ? true : filterAdmin === "Assigned" ? !!center.admin : !center.admin;
-    return matchesSearch && matchesAdmin;
+    const matchesRegion = filterRegion === "All" || center.region === filterRegion;
+    const matchesCountry = filterCountry === "All" || center.country === filterCountry;
+    return matchesSearch && matchesAdmin && matchesRegion && matchesCountry;
   });
   const totalPages = Math.max(1, Math.ceil(filteredCenters.length / itemsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -1085,6 +1136,55 @@ export default function BpoCentersPage() {
                           placeholder="centre@email.com"
                           style={requiredInputStyle(invalidEmail)}
                         />
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginTop: 24 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>REGION</label>
+                        <select
+                          value={selectedCenter.region || ""}
+                          onChange={e => setSelectedCenter({ ...selectedCenter, region: e.target.value, country: "" })}
+                          style={{ 
+                            width: "100%", 
+                            padding: "14px 18px", 
+                            border: `1.5px solid ${T.border}`, 
+                            borderRadius: 12, 
+                            fontSize: 15, 
+                            fontWeight: 600,
+                            backgroundColor: "#fff",
+                            cursor: "pointer",
+                            color: selectedCenter.region ? T.textDark : T.textMuted,
+                          }}
+                        >
+                          <option value="">Select Region...</option>
+                          {REGIONS.map(r => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.textMuted, marginBottom: 8 }}>COUNTRY</label>
+                        <select
+                          value={selectedCenter.country || ""}
+                          onChange={e => setSelectedCenter({ ...selectedCenter, country: e.target.value })}
+                          disabled={!selectedCenter.region}
+                          style={{ 
+                            width: "100%", 
+                            padding: "14px 18px", 
+                            border: `1.5px solid ${T.border}`, 
+                            borderRadius: 12, 
+                            fontSize: 15, 
+                            fontWeight: 600,
+                            backgroundColor: selectedCenter.region ? "#fff" : T.rowBg,
+                            cursor: selectedCenter.region ? "pointer" : "not-allowed",
+                            color: selectedCenter.country ? T.textDark : (selectedCenter.region ? T.textMuted : "#aaa"),
+                          }}
+                        >
+                          <option value="">Select Country...</option>
+                          {selectedCenter.region && COUNTRIES_BY_REGION[selectedCenter.region]?.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                     <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
@@ -1626,14 +1726,14 @@ export default function BpoCentersPage() {
             { label: "Total Centers", value: centers.length.toString(), color: "#233217", icon: (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               ) },
-            { label: "Assigned Admins", value: centers.filter(c => c.admin).length.toString(), color: "#233217", icon: (
+            { label: "Active Admins", value: centers.filter(c => c.admin).length.toString(), color: "#233217", icon: (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
               ) },
             { label: "Total Agents", value: centers.reduce((sum, c) => sum + c.agentCount, 0).toString(), color: "#233217", icon: (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               ) },
-            { label: "This Month", value: centers.filter(c => new Date(c.createdAt).getMonth() === new Date().getMonth()).length.toString(), color: "#233217", icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            { label: "Countries", value: new Set(centers.map(c => c.country).filter(Boolean)).size.toString(), color: "#233217", icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
               ) },
           ].map(({ label, value, color, icon }, i) => (
               <Card
@@ -1829,17 +1929,59 @@ export default function BpoCentersPage() {
                     placeholder="All Admins"
                   />
                 </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Region</div>
+                  <StyledSelect
+                    value={filterRegion}
+                    onValueChange={(val) => { setFilterRegion(val); setFilterCountry("All"); }}
+                    options={[
+                      { value: "All", label: "All Regions" },
+                      ...REGIONS.map(r => ({ value: r, label: r })),
+                    ]}
+                    placeholder="All Regions"
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Country</div>
+                  <StyledSelect
+                    value={filterCountry}
+                    onValueChange={(val) => setFilterCountry(val)}
+                    options={[
+                      { value: "All", label: "All Countries" },
+                      ...(filterRegion !== "All" ? (COUNTRIES_BY_REGION[filterRegion] || []).map(c => ({ value: c, label: c })) : []),
+                    ]}
+                    placeholder="All Countries"
+                  />
+                </div>
               </div>
 
               {hasActiveFilters && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
-                      Admin: {filterAdmin}
-                      <button onClick={() => setFilterAdmin("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                      </button>
-                    </div>
+                    {filterAdmin !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Admin: {filterAdmin}
+                        <button onClick={() => setFilterAdmin("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {filterRegion !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Region: {filterRegion}
+                        <button onClick={() => { setFilterRegion("All"); setFilterCountry("All"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {filterCountry !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Country: {filterCountry}
+                        <button onClick={() => setFilterCountry("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <button
@@ -1916,6 +2058,8 @@ export default function BpoCentersPage() {
                   <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
                     {[
                       { label: "Centre Name", align: "left" as const },
+                      { label: "Region", align: "left" as const },
+                      { label: "Country", align: "left" as const },
                       { label: "Admin", align: "left" as const },
                       { label: "Agents", align: "center" as const },
                       { label: "Created", align: "left" as const },
@@ -1946,6 +2090,16 @@ export default function BpoCentersPage() {
                       <TableCell style={{ padding: "14px 20px" }}>
                         <span style={{ fontSize: 14, fontWeight: 500, color: T.textDark }}>
                           {center.name}
+                        </span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: center.region ? T.textDark : T.textMuted }}>
+                          {center.region || "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: center.country ? T.textDark : T.textMuted }}>
+                          {center.country || "—"}
                         </span>
                       </TableCell>
                       <TableCell style={{ padding: "14px 20px" }}>
@@ -2319,14 +2473,43 @@ export default function BpoCentersPage() {
           right: 24, 
           backgroundColor: toast.type === "success" ? "#233217" : "#dc2626", 
           color: "#fff", 
-          padding: "12px 20px", 
-          borderRadius: 10, 
+          padding: "14px 20px", 
+          borderRadius: 12, 
           fontSize: 14, 
           fontWeight: 600,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
           zIndex: 3000,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          animation: "slideInUp 0.3s ease-out",
+          maxWidth: 400,
         }}>
-          {toast.message}
+          <span style={{ flex: 1 }}>{toast.message}</span>
+          <button 
+            onClick={() => setToast(null)}
+            style={{ 
+              background: "rgba(255,255,255,0.2)", 
+              border: "none", 
+              borderRadius: 6, 
+              padding: "4px 8px", 
+              cursor: "pointer", 
+              color: "#fff", 
+              display: "flex", 
+              alignItems: "center",
+              transition: "background 0.15s ease",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.3)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+          <style>{`
+            @keyframes slideInUp {
+              from { opacity: 0; transform: translateY(20px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+          `}</style>
         </div>
       )}
     </div>

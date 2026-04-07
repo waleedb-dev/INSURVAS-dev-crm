@@ -47,6 +47,82 @@ export function duplicateKey(row: DailyDealFlowRow): string {
   return `${row.insured_name || ""}|${row.client_phone_number || ""}|${row.lead_vendor || ""}`;
 }
 
+const VENDOR_COLORS: Record<string, { backgroundColor: string; color: string }> = {};
+const AGENT_COLORS: Record<string, { backgroundColor: string; color: string }> = {};
+const VENDOR_COLOR_PALETTE = [
+  { backgroundColor: "#3b82f6", color: "#fff" },
+  { backgroundColor: "#8b5cf6", color: "#fff" },
+  { backgroundColor: "#ec4899", color: "#fff" },
+  { backgroundColor: "#f97316", color: "#fff" },
+  { backgroundColor: "#06b6d4", color: "#fff" },
+  { backgroundColor: "#84cc16", color: "#fff" },
+  { backgroundColor: "#f43f5e", color: "#fff" },
+  { backgroundColor: "#14b8a6", color: "#fff" },
+  { backgroundColor: "#a855f7", color: "#fff" },
+  { backgroundColor: "#eab308", color: "#000" },
+];
+const AGENT_COLOR_PALETTE = [
+  { backgroundColor: "#0ea5e9", color: "#fff" },
+  { backgroundColor: "#6366f1", color: "#fff" },
+  { backgroundColor: "#d946ef", color: "#fff" },
+  { backgroundColor: "#f97316", color: "#fff" },
+  { backgroundColor: "#2dd4bf", color: "#fff" },
+  { backgroundColor: "#a3e635", color: "#000" },
+  { backgroundColor: "#fb7185", color: "#fff" },
+  { backgroundColor: "#38bdf8", color: "#fff" },
+  { backgroundColor: "#c084fc", color: "#fff" },
+  { backgroundColor: "#fbbf24", color: "#000" },
+];
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
+function getUniqueColor(value: string, palette: { backgroundColor: string; color: string }[], cache: Record<string, { backgroundColor: string; color: string }>): { backgroundColor: string; color: string } {
+  const key = value.toLowerCase();
+  if (!cache[key]) {
+    const index = hashString(key) % palette.length;
+    cache[key] = palette[index];
+  }
+  return cache[key];
+}
+
+export function getVendorBadgeStyle(value?: string | null): CSSProperties {
+  const v = value || "";
+  if (!v) return { backgroundColor: "#6b7280", color: "#fff" };
+  const colors = getUniqueColor(v, VENDOR_COLOR_PALETTE, VENDOR_COLORS);
+  return {
+    ...colors,
+    borderRadius: 999,
+    padding: "3px 8px",
+    fontSize: 11,
+    fontWeight: 700,
+    display: "inline-block",
+    whiteSpace: "nowrap",
+  };
+}
+
+export function getAgentBadgeStyle(value?: string | null): CSSProperties {
+  const v = value || "";
+  if (!v) return { backgroundColor: "#6b7280", color: "#fff" };
+  const colors = getUniqueColor(v, AGENT_COLOR_PALETTE, AGENT_COLORS);
+  return {
+    ...colors,
+    borderRadius: 999,
+    padding: "3px 8px",
+    fontSize: 11,
+    fontWeight: 700,
+    display: "inline-block",
+    whiteSpace: "nowrap",
+  };
+}
+
 export function getBadgeStyle(kind: "vendor" | "status" | "result" | "agent" | "licensed", value?: string | null): CSSProperties {
   const v = (value || "").toLowerCase();
   const map: Record<string, { backgroundColor: string; color: string }> = {
@@ -68,6 +144,10 @@ export function getBadgeStyle(kind: "vendor" | "status" | "result" | "agent" | "
   let colors: { backgroundColor: string; color: string } = { backgroundColor: "#233217", color: "#fff" };
   if (kind === "status" || kind === "result") {
     colors = map[v] || colors;
+  } else if (kind === "vendor") {
+    colors = getUniqueColor(v, VENDOR_COLOR_PALETTE, VENDOR_COLORS);
+  } else if (kind === "agent") {
+    colors = getUniqueColor(v, AGENT_COLOR_PALETTE, AGENT_COLORS);
   } else {
     colors = { backgroundColor: "#233217", color: "#fff" };
   }

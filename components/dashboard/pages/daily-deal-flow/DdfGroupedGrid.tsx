@@ -14,7 +14,7 @@ import {
   STATUS_OPTIONS,
 } from "./constants";
 import { IconBolt, IconCheck, IconEye, IconPencil, IconPhone, IconTrash, IconX } from "@tabler/icons-react";
-import { duplicateKey, formatDateShort, generatePendingApprovalNotes, getBadgeStyle, getCurrentTimestampEST, getGroupValue } from "./helpers";
+import { duplicateKey, formatDateShort, generatePendingApprovalNotes, getAgentBadgeStyle, getBadgeStyle, getCurrentTimestampEST, getGroupValue, getVendorBadgeStyle } from "./helpers";
 import { LeadCard, InfoField, InfoGrid, formatCurrency, formatBool, formatDate } from "../LeadCard";
 import { Table as ShadcnTable, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/shadcn/table";
 import {
@@ -506,7 +506,7 @@ export function DdfGroupedGrid({
     onRefresh();
   };
 
-  const rowCellStyle: CSSProperties = { borderBottom: `1px solid ${T.border}`, padding: "12px 16px", fontSize: 12, verticalAlign: "top", color: T.textDark };
+  const rowCellStyle: CSSProperties = { borderBottom: `1px solid ${T.border}`, borderRight: `1px solid ${T.border}`, padding: "12px 16px", fontSize: 12, verticalAlign: "top", color: T.textDark };
   const showColumns = hasWritePermissions ? [...columns, "Actions"] : columns;
   const patchDraft = (patch: Partial<DailyDealFlowRow>) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
 
@@ -520,13 +520,13 @@ export function DdfGroupedGrid({
         <TableCell style={rowCellStyle}>{serialNumber}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="date" value={data.date || ""} onChange={(v) => patchDraft({ date: v })} /> : formatDateShort(row.date) || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>
-          {row.lead_vendor || "N/A"}
+          <span style={getVendorBadgeStyle(row.lead_vendor)}>{row.lead_vendor || "N/A"}</span>
         </TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput value={data.insured_name || ""} onChange={(v) => patchDraft({ insured_name: v })} /> : row.insured_name || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput value={data.client_phone_number || ""} onChange={(v) => patchDraft({ client_phone_number: v })} /> : row.client_phone_number || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.buffer_agent || ""} onValueChange={(v) => patchDraft({ buffer_agent: v })} options={bufferAgentOptions.map((v) => ({ value: v, label: v }))} /> : row.buffer_agent || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.retention_agent || ""} onValueChange={(v) => patchDraft({ retention_agent: v })} options={retentionOptions.map((v) => ({ value: v, label: v }))} /> : row.retention_agent || "N/A"}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.agent || ""} onValueChange={(v) => patchDraft({ agent: v })} options={agentOptions.map((v) => ({ value: v, label: v }))} /> : row.agent || "N/A"}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.agent || ""} onValueChange={(v) => patchDraft({ agent: v })} options={agentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getAgentBadgeStyle(row.agent)}>{row.agent || "N/A"}</span>}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.licensed_agent_account || ""} onValueChange={(v) => patchDraft({ licensed_agent_account: v })} options={licensedOptions.map((v) => ({ value: v, label: v }))} /> : row.licensed_agent_account || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.status || ""} onValueChange={(v) => patchDraft({ status: v })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", row.status)}>{row.status || "N/A"}</span>}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.call_result || ""} onValueChange={(v) => patchDraft({ call_result: v })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("result", row.call_result)}>{row.call_result || "N/A"}</span>}</TableCell>
@@ -565,7 +565,7 @@ export function DdfGroupedGrid({
           )}
         </TableCell>
         {hasWritePermissions && (
-          <TableCell style={{ ...rowCellStyle, whiteSpace: "nowrap", minWidth: 210 }}>
+          <TableCell style={{ ...rowCellStyle, whiteSpace: "nowrap", minWidth: 210, borderRight: "none" }}>
             <div
               style={{
                 display: "flex",
@@ -699,7 +699,7 @@ export function DdfGroupedGrid({
         <ShadcnTable>
           <TableHeader style={{ backgroundColor: "#233217" }}>
             <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
-              {showColumns.map((col) => (
+              {showColumns.map((col, idx) => (
                 <TableHead
                   key={col}
                   style={{
@@ -710,6 +710,7 @@ export function DdfGroupedGrid({
                     padding: "14px 16px",
                     whiteSpace: "nowrap",
                     letterSpacing: "0.3px",
+                    borderRight: idx < showColumns.length - 1 ? `1px solid rgba(255,255,255,0.15)` : "none",
                     ...(col === "Actions" ? { minWidth: 210 } : {}),
                   }}
                 >
@@ -881,7 +882,7 @@ export function DdfGroupedGrid({
                   <InfoGrid columns={3}>
                     <InfoField label="Insured Name" value={draft.insured_name} />
                     <InfoField label="Phone Number" value={draft.client_phone_number} />
-                    <InfoField label="Lead Vendor" value={draft.lead_vendor} />
+                    <InfoField label="Lead Vendor" value={<span style={getVendorBadgeStyle(draft.lead_vendor)}>{draft.lead_vendor || "—"}</span>} />
                   </InfoGrid>
                   <InfoGrid columns={3} bordered={false}>
                     <InfoField label="Submission ID" value={draft.submission_id} />
@@ -896,7 +897,7 @@ export function DdfGroupedGrid({
                     <InfoField label="Retention Agent" value={draft.retention_agent} />
                   </InfoGrid>
                   <InfoGrid columns={2}>
-                    <InfoField label="Agent" value={draft.agent} />
+                    <InfoField label="Agent" value={<span style={getAgentBadgeStyle(draft.agent)}>{draft.agent || "—"}</span>} />
                     <InfoField label="Licensed Agent Account" value={draft.licensed_agent_account} />
                   </InfoGrid>
                 </LeadCard>

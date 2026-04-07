@@ -14,6 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tree, TreeNode } from "react-organizational-chart";
+import styled from "styled-components";
 
 // Types
 interface IMO {
@@ -35,6 +37,7 @@ interface Agency {
 
 interface Agent {
   id: number;
+  agencyId?: number;
   firstName: string;
   lastName: string;
   fullName: string;
@@ -175,6 +178,65 @@ function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; la
     </div>
   );
 }
+
+const OrgCard = styled.div`
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1.5px solid #D2E1D2;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  min-width: 180px;
+
+  &:hover {
+    border-color: #233217;
+    box-shadow: 0 4px 16px rgba(35, 50, 23, 0.1);
+    transform: translateY(-2px);
+  }
+`;
+
+const OrgCardImo = styled(OrgCard)`
+  background: linear-gradient(135deg, #233217 0%, #2d3d22 100%);
+  border-color: #233217;
+  color: #fff;
+
+  &:hover {
+    background: linear-gradient(135deg, #2d3d22 0%, #364928 100%);
+  }
+`;
+
+const OrgNodeLabel = styled.div`
+  font-size: 13px;
+  font-weight: 700;
+  color: #233217;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+`;
+
+const OrgNodeSubtext = styled.div`
+  font-size: 11px;
+  color: #647864;
+  margin-top: 2px;
+`;
+
+const OrgNodeIcon = styled.div`
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #EEF5EE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  flex-shrink: 0;
+`;
+
+const OrgNodeIconImo = styled(OrgNodeIcon)`
+  background: rgba(255, 255, 255, 0.2);
+`;
 
 function StatSkeleton() {
   return (
@@ -558,13 +620,71 @@ export default function IMOManagementPage() {
     fetchIMOs();
   }
 
-  function navigateToIMOView(imo: IMO) {
+  async function navigateToIMOView(imo: IMO) {
     setSelectedIMO(imo);
     setView('imo-view');
     setBreadcrumbs([
       { label: 'IMOs', view: 'imo-list' },
       { label: imo.name, view: 'imo-view', id: imo.id }
     ]);
+    setLoading(true);
+    try {
+      await fetchAgencies(imo.id);
+      // Also fetch all agents for all agencies under this IMO for the org chart
+      const { data: agenciesData } = await supabase
+        .from("agencies")
+        .select("id")
+        .eq("imo_id", imo.id);
+      
+      if (agenciesData && agenciesData.length > 0) {
+        const agencyIds = agenciesData.map((a: any) => a.id);
+        const { data: agentsData } = await supabase
+          .from("agents")
+          .select(`
+            id, 
+            agency_id,
+            first_name, 
+            last_name,
+            users:user_id (email),
+            status
+          `)
+          .in("agency_id", agencyIds);
+        
+        // Fetch carrier counts
+        const agentIds = (agentsData ?? []).map((a: any) => a.id);
+        const { data: carrierData } = await supabase
+          .from("agent_carriers")
+          .select("agent_id")
+          .in("agent_id", agentIds);
+        
+        const carrierCountMap = new Map<number, number>();
+        (carrierData ?? []).forEach((row: any) => {
+          carrierCountMap.set(row.agent_id, (carrierCountMap.get(row.agent_id) || 0) + 1);
+        });
+        
+        setAgents((agentsData ?? []).map((agent: any) => ({
+          id: Number(agent.id),
+          agencyId: Number(agent.agency_id),
+          firstName: agent.first_name,
+          lastName: agent.last_name,
+          fullName: `${agent.first_name} ${agent.last_name}`,
+          email: agent.users?.email || '-',
+          slackUsername: '-',
+          status: agent.status || 'Active',
+          carrierCount: carrierCountMap.get(agent.id) || 0,
+          stateCount: 0,
+          createdAt: '',
+          uplineId: undefined,
+          language: 'English',
+        })));
+      } else {
+        setAgents([]);
+      }
+    } catch (error) {
+      console.error("Error fetching IMO structure:", error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function navigateToAgencyList(imo: IMO) {
@@ -3210,79 +3330,97 @@ export default function IMOManagementPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
           <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 12, padding: 20 }}>
             <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, marginBottom: 8 }}>AGENCIES</div>
-            <div style={{ fontSize: 32, fontWeight: 800, color: T.blue }}>{selectedIMO.agencyCount}</div>
+            <div style={{ fontSize: 32, fontWeight: 800, color: "#233217" }}>{selectedIMO.agencyCount}</div>
           </div>
           <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 12, padding: 20 }}>
             <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, marginBottom: 8 }}>TOTAL AGENTS</div>
-            <div style={{ fontSize: 32, fontWeight: 800, color: T.blue }}>{selectedIMO.agentCount}</div>
+            <div style={{ fontSize: 32, fontWeight: 800, color: "#233217" }}>{selectedIMO.agentCount}</div>
           </div>
           <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 12, padding: 20 }}>
             <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 700, marginBottom: 8 }}>AVG AGENTS/AGENCY</div>
-            <div style={{ fontSize: 32, fontWeight: 800, color: T.blue }}>
+            <div style={{ fontSize: 32, fontWeight: 800, color: "#233217" }}>
               {selectedIMO.agencyCount > 0 ? Math.round(selectedIMO.agentCount / selectedIMO.agencyCount) : 0}
             </div>
           </div>
         </div>
 
-        {/* Hierarchy Tree */}
-        <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, padding: 24 }}>
+        {/* Org Chart */}
+        <div style={{ backgroundColor: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 16, padding: 24, overflowX: "auto" }}>
           <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 24 }}>Organization Tree</h2>
           
-          {/* IMO Level */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: T.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
+          {loading ? (
+            <div style={{ padding: 60, textAlign: "center" }}>
+              <LoadingSpinner size={48} label="Loading organization structure..." />
             </div>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: T.textDark }}>{selectedIMO.name}</div>
-              <div style={{ fontSize: 13, color: T.textMuted }}>Insurance Marketing Organization</div>
+          ) : agencies.length === 0 ? (
+            <div style={{ padding: 60, textAlign: "center", color: T.textMuted }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>No agencies found</div>
+              <div style={{ fontSize: 14 }}>Add agencies to see the organization structure</div>
             </div>
-          </div>
-
-          {/* Connector Line */}
-          <div style={{ marginLeft: 24, paddingLeft: 24, borderLeft: `2px solid ${T.border}` }}>
-            {loading ? (
-              <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>Loading structure...</div>
-            ) : agencies.length === 0 ? (
-              <div style={{ padding: 40, textAlign: "center", color: T.textMuted }}>No agencies found</div>
-            ) : (
-              agencies.map((agency, idx) => (
-                <div key={agency.id} style={{ marginBottom: 24 }}>
-                  {/* Agency Level */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: T.blueFaint, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.blue} strokeWidth="2">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: T.textDark }}>{agency.name}</div>
-                      <div style={{ fontSize: 12, color: T.textMuted }}>{agency.agentCount} agents</div>
-                    </div>
-                  </div>
-
-                  {/* Agents under this agency */}
-                  {agency.agentCount > 0 && (
-                    <div style={{ marginLeft: 20, paddingLeft: 20, borderLeft: `2px solid ${T.borderLight}` }}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                        {agents.filter(a => a.id === agency.id).map(agent => (
-                          <div key={agent.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", backgroundColor: "#f8fafc", borderRadius: 8 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: agent.status === 'Active' ? '#638b4b' : '#3b5229' }}/>
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>{agent.fullName}</span>
-                          </div>
-                        ))}
-                        {agents.filter(a => a.id === agency.id).length === 0 && (
-                          <span style={{ fontSize: 12, color: T.textMuted, fontStyle: "italic" }}>Agents: {agency.agentCount}</span>
-                        )}
+          ) : (
+            <div style={{ display: "flex", justifyContent: "flex-start", padding: "20px 0" }}>
+              <Tree
+                lineWidth={'2px'}
+                lineColor={'#D2E1D2'}
+                lineBorderRadius={'10px'}
+                nodePadding={'12px'}
+                label={
+                  <OrgCardImo>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <OrgNodeIconImo>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                        </svg>
+                      </OrgNodeIconImo>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>{selectedIMO.name}</div>
+                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>IMO</div>
                       </div>
                     </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+                  </OrgCardImo>
+                }
+              >
+                {agencies.map((agency) => (
+                  <TreeNode
+                    key={agency.id}
+                    label={
+                      <OrgCard>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <OrgNodeIcon>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#233217" strokeWidth="2">
+                              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                              <polyline points="9 22 9 12 15 12 15 22"/>
+                            </svg>
+                          </OrgNodeIcon>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#233217", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{agency.name}</div>
+                            <OrgNodeSubtext>{agency.agentCount} agents</OrgNodeSubtext>
+                          </div>
+                        </div>
+                      </OrgCard>
+                    }
+                  >
+                    {agents.filter(a => a.agencyId === agency.id).map((agent) => (
+                      <TreeNode
+                        key={agent.id}
+                        label={
+                          <OrgCard style={{ minWidth: 140 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: agent.status === 'Active' ? '#638b4b' : '#94a3b8', flexShrink: 0 }} />
+                              <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{agent.fullName}</div>
+                                <div style={{ fontSize: 10, color: "#647864" }}>{agent.email}</div>
+                              </div>
+                            </div>
+                          </OrgCard>
+                        }
+                      />
+                    ))}
+                  </TreeNode>
+                ))}
+              </Tree>
+            </div>
+          )}
         </div>
       </div>
     );
