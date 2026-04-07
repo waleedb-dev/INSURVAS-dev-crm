@@ -221,12 +221,12 @@ export default function UserEditorComponent({
     fetchData();
   }, [supabase, user?.id, user?.roleId, selectedRoleId]);
 
+  /** Default role for new users only — do not re-apply when the user picks another allowed role. */
   useEffect(() => {
     if (!presetRoleKey || roles.length === 0 || user?.id) return;
+    if (selectedRoleId !== "") return;
     const presetRole = roles.find((role) => role.key === presetRoleKey);
-    if (presetRole && presetRole.id !== selectedRoleId) {
-      setSelectedRoleId(presetRole.id);
-    }
+    if (presetRole) setSelectedRoleId(presetRole.id);
   }, [presetRoleKey, roles, selectedRoleId, user?.id]);
 
   useEffect(() => {
