@@ -389,7 +389,7 @@ export default function TransferLeadApplicationForm({
   centerName = ""
 }: {
   onBack: () => void;
-  onSubmit: (data: TransferLeadFormData) => void;
+  onSubmit: (data: TransferLeadFormData) => void | Promise<boolean | void>;
   onSaveDraft?: (data: TransferLeadFormData, meta?: TransferLeadSaveDraftMeta) => void | Promise<void>;
   onInstantDuplicateCheck?: (data: TransferLeadFormData) => void | Promise<void>;
   initialData?: Partial<TransferLeadFormData>;
@@ -408,8 +408,6 @@ export default function TransferLeadApplicationForm({
   ];
   const contentRef = useRef<HTMLDivElement>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
-  const [conditionInput, setConditionInput] = useState("");
-  const [medicationInput, setMedicationInput] = useState("");
   const [toolkitUrl, setToolkitUrl] = useState("https://insurancetoolkits.com/login");
   const [dncChecking, setDncChecking] = useState(false);
   const [dncStatus, setDncStatus] = useState<DncStatus>("idle");
@@ -452,9 +450,6 @@ export default function TransferLeadApplicationForm({
   const displayBpoName = (centerName || "").trim() || "BPO";
 
   const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
-  const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastDraftPayloadRef = useRef<string>("");
-  const draftTouchedRef = useRef(false);
     // Always force leadSource to the fixed value
     useEffect(() => {
       setFormData((prev) => ({ ...prev, leadSource: FIXED_BPO_LEAD_SOURCE }));
@@ -580,38 +575,7 @@ export default function TransferLeadApplicationForm({
     return `${phone2}${nameLetters}${ssn2}${center2}`.toUpperCase();
   }, [formData.firstName, formData.lastName, formData.phone, formData.social, formData.leadUniqueId, centerName]);
 
-  useEffect(() => {
-    if (!onSaveDraft) return;
-    if (isSubmitting || submissionComplete) return;
-    if (!draftTouchedRef.current) return;
-
-    const payload: TransferLeadFormData = {
-      ...formData,
-      leadUniqueId: computedLeadUniqueId,
-      isDraft: true,
-    };
-    const fingerprint = JSON.stringify(payload);
-    if (fingerprint === lastDraftPayloadRef.current) return;
-
-    if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
-    draftSaveTimeoutRef.current = setTimeout(() => {
-      void (async () => {
-        try {
-          await onSaveDraft(payload, { source: "auto" });
-          lastDraftPayloadRef.current = fingerprint;
-        } catch {
-          // Keep draft autosave silent in this component.
-        }
-      })();
-    }, 900);
-
-    return () => {
-      if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
-    };
-  }, [computedLeadUniqueId, formData, isSubmitting, onSaveDraft, submissionComplete]);
-
   const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    draftTouchedRef.current = true;
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
   };
 
@@ -643,6 +607,7 @@ export default function TransferLeadApplicationForm({
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, stage, created_at")
         .eq("submitted_by", currentUserId)
+        .eq("is_draft", false)
         .in("phone", variants)
         .order("created_at", { ascending: false });
 
@@ -916,6 +881,7 @@ export default function TransferLeadApplicationForm({
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, stage, social, created_at")
         .eq("submitted_by", currentUserId)
+        .eq("is_draft", false)
         .in("social", variants)
         .order("created_at", { ascending: false });
 
@@ -1041,22 +1007,6 @@ export default function TransferLeadApplicationForm({
     return merged;
   };
 
-  const addTag = (raw: string, key: "healthConditions" | "medications") => {
-    const values = toTagParts(raw);
-    if (values.length === 0) return;
-    setUnderwritingData((prev) => ({
-      ...prev,
-      [key]: mergeUniqueTags(prev[key], values),
-    }));
-  };
-
-  const removeTag = (key: "healthConditions" | "medications", index: number) => {
-    setUnderwritingData((prev) => ({
-      ...prev,
-      [key]: prev[key].filter((_, i) => i !== index),
-    }));
-  };
-
   const openUnderwritingModal = () => {
     const healthConditions = formData.healthConditions
       ? formData.healthConditions.split(",").map((item) => item.trim()).filter(Boolean)
@@ -1080,21 +1030,10 @@ export default function TransferLeadApplicationForm({
       coverageAmount: formData.coverageAmount,
       monthlyPremium: formData.monthlyPremium,
     });
-    setConditionInput("");
-    setMedicationInput("");
     setShowUnderwritingModal(true);
   };
 
   const saveUnderwritingToForm = () => {
-    const mergedHealthConditions = mergeUniqueTags(
-      underwritingData.healthConditions,
-      toTagParts(conditionInput),
-    );
-    const mergedMedications = mergeUniqueTags(
-      underwritingData.medications,
-      toTagParts(medicationInput),
-    );
-
     setFormData((prev) => ({
       ...prev,
       tobaccoUse: underwritingData.tobaccoLast12Months
@@ -1102,8 +1041,8 @@ export default function TransferLeadApplicationForm({
           ? "Yes"
           : "No"
         : prev.tobaccoUse,
-      healthConditions: mergedHealthConditions.join(", "),
-      medications: mergedMedications.join(", "),
+      healthConditions: underwritingData.healthConditions.join(", "),
+      medications: underwritingData.medications.join(", "),
       height: underwritingData.height,
       weight: underwritingData.weight,
       carrier: underwritingData.carrier,
@@ -1111,8 +1050,6 @@ export default function TransferLeadApplicationForm({
       coverageAmount: underwritingData.coverageAmount.replace(/\$/g, "").replace(/,/g, ""),
       monthlyPremium: underwritingData.monthlyPremium.replace(/\$/g, "").replace(/,/g, ""),
     }));
-    setConditionInput("");
-    setMedicationInput("");
     setShowUnderwritingModal(false);
   };
 
@@ -1331,7 +1268,12 @@ export default function TransferLeadApplicationForm({
                   type="button"
                   onClick={async () => {
                     const dup = await checkPhoneDuplicate();
-                    if (dup.match) setShowPhoneDupDetails(true);
+                    if (dup.match) {
+                      setShowPhoneDupDetails(true);
+                      if (!isEditMode && onInstantDuplicateCheck) {
+                        void onInstantDuplicateCheck({ ...formData, leadUniqueId: computedLeadUniqueId });
+                      }
+                    }
                     if (dup.match && !dup.isAddable) {
                       setPhoneGatePassed(false);
                       return;
@@ -1588,7 +1530,6 @@ export default function TransferLeadApplicationForm({
                       type="checkbox"
                       checked={formData.smsAccess}
                       onChange={(e) => {
-                        draftTouchedRef.current = true;
                         setFormData((prev) => ({ ...prev, smsAccess: e.target.checked }));
                       }}
                       style={{ width: 16, height: 16, cursor: "pointer" }}
@@ -1608,7 +1549,6 @@ export default function TransferLeadApplicationForm({
                       type="checkbox"
                       checked={formData.emailAccess}
                       onChange={(e) => {
-                        draftTouchedRef.current = true;
                         setFormData((prev) => ({ ...prev, emailAccess: e.target.checked }));
                       }}
                       style={{ width: 16, height: 16, cursor: "pointer" }}
@@ -1790,12 +1730,22 @@ export default function TransferLeadApplicationForm({
                 <Field label="Health Conditions" required full error={getFieldError("healthConditions")}
                   info="Any existing medical conditions that may affect underwriting."
                   fieldKey="healthConditions" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
-                  <textarea value={formData.healthConditions} onChange={set("healthConditions")} style={{ ...fieldStyleWithError("healthConditions"), minHeight: 80, resize: "vertical" }} />
+                  <input
+                    value={formData.healthConditions}
+                    onChange={set("healthConditions")}
+                    placeholder="e.g. Diabetes, High blood pressure"
+                    style={fieldStyleWithError("healthConditions")}
+                  />
                 </Field>
                 <Field label="Medications" required full error={getFieldError("medications")}
                   info="List of current medications the lead is taking."
                   fieldKey="medications" hoveredFieldInfo={hoveredFieldInfo} setHoveredFieldInfo={setHoveredFieldInfo}>
-                  <textarea value={formData.medications} onChange={set("medications")} style={{ ...fieldStyleWithError("medications"), minHeight: 80, resize: "vertical" }} />
+                  <input
+                    value={formData.medications}
+                    onChange={set("medications")}
+                    placeholder="e.g. Metformin, Lisinopril"
+                    style={fieldStyleWithError("medications")}
+                  />
                 </Field>
               </div>
             </Section>
@@ -2061,61 +2011,22 @@ export default function TransferLeadApplicationForm({
 
             <div style={{ marginTop: 24 }}>
               <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Health Conditions:</label>
-              <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: 12 }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                  {underwritingData.healthConditions.map((tag, idx) => (
-                    <span key={`${tag}-${idx}`} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#f3f4f6", borderRadius: 999, padding: "6px 12px", fontSize: 18 }}>
-                      {tag}
-                      <button type="button" onClick={() => removeTag("healthConditions", idx)} aria-label={`Remove ${tag}`} style={{ border: "none", background: "transparent", cursor: "pointer" }}>
-                        x
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <input
-                  value={conditionInput}
-                  onChange={(e) => setConditionInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addTag(conditionInput, "healthConditions");
-                      setConditionInput("");
-                    }
-                  }}
-                  placeholder="Type and press Enter to add conditions..."
-                  style={{ ...fieldStyle, fontSize: 24, height: 48 }}
-                />
-              </div>
-              <p style={{ fontSize: 14, color: "#6b7a5f", marginTop: 8 }}>Click on conditions above to add them, or type custom conditions.</p>
+              <input
+                value={underwritingData.healthConditions.join(", ")}
+                onChange={(e) => setUnderwritingData((prev) => ({ ...prev, healthConditions: toTagParts(e.target.value) }))}
+                placeholder="e.g., Diabetes, High blood pressure"
+                style={{ ...fieldStyle, fontSize: 24, height: 48 }}
+              />
             </div>
 
             <div style={{ marginTop: 16 }}>
               <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Medications:</label>
-              <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: 12 }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                  {underwritingData.medications.map((tag, idx) => (
-                    <span key={`${tag}-${idx}`} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#f3f4f6", borderRadius: 999, padding: "6px 12px", fontSize: 18 }}>
-                      {tag}
-                      <button type="button" onClick={() => removeTag("medications", idx)} aria-label={`Remove ${tag}`} style={{ border: "none", background: "transparent", cursor: "pointer" }}>
-                        x
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <input
-                  value={medicationInput}
-                  onChange={(e) => setMedicationInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addTag(medicationInput, "medications");
-                      setMedicationInput("");
-                    }
-                  }}
-                  placeholder="Type and press Enter to add medications..."
-                  style={{ ...fieldStyle, fontSize: 24, height: 48 }}
-                />
-              </div>
+              <input
+                value={underwritingData.medications.join(", ")}
+                onChange={(e) => setUnderwritingData((prev) => ({ ...prev, medications: toTagParts(e.target.value) }))}
+                placeholder="e.g., Metformin, Lisinopril"
+                style={{ ...fieldStyle, fontSize: 24, height: 48 }}
+              />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
@@ -2541,7 +2452,8 @@ export default function TransferLeadApplicationForm({
               if (dup.match && !dup.isAddable) return;
               setIsSubmitting(true);
               try {
-                onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
+                const submitResult = await onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
+                if (submitResult === false) return;
                 setSubmissionComplete(true);
               } catch (error) {
                 setToast({ message: error instanceof Error ? error.message : "Submission failed. Please try again.", type: "error" });
