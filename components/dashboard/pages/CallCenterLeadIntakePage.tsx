@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { T } from "@/lib/theme";
 import { ActionMenu, DataGrid, FilterChip, Input, Pagination, Table, Toast, EmptyState } from "@/components/ui";
 import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
+import TransferLeadApplicationForm, { type TransferLeadFormData, type TransferLeadSaveDraftMeta } from "./TransferLeadApplicationForm";
 import { buildFeCreateLeadBodyFromIntakePayload, postFeCreateLeadAtFixedUrl } from "./feCreateLead";
 import LeadViewComponent from "./LeadViewComponent";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
@@ -871,6 +871,8 @@ export default function CallCenterLeadIntakePage({
   const [kanbanPage, setKanbanPage] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
+  /** Row id of the draft created during “Add lead” autosave; reset when opening the create form. */
+  const createDraftRowIdRef = useRef<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [defaultTransferPipelineId, setDefaultTransferPipelineId] = useState<number | null>(null);
@@ -921,6 +923,10 @@ export default function CallCenterLeadIntakePage({
       cancelled = true;
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (showCreateLead) createDraftRowIdRef.current = null;
+  }, [showCreateLead]);
 
   const refreshLeads = async () => {
     setIsLoading(true);
@@ -1795,7 +1801,8 @@ export default function CallCenterLeadIntakePage({
     await refreshLeads();
   };
 
-  const handleCreateDraftLead = async (payload: TransferLeadFormData) => {
+  const handleCreateDraftLead = async (payload: TransferLeadFormData, meta?: TransferLeadSaveDraftMeta) => {
+    const isAuto = meta?.source === "auto";
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -1814,8 +1821,7 @@ export default function CallCenterLeadIntakePage({
     const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
     const generatedSubmissionId = buildSubmissionId(callCenterName);
 
-    const { error } = await supabase.from("leads").insert({
-      submission_id: generatedSubmissionId,
+    const draftRow = {
       lead_unique_id: leadUniqueId,
       lead_value: Number(payload.leadValue || 0),
       lead_source: FIXED_BPO_LEAD_SOURCE,
@@ -1862,13 +1868,45 @@ export default function CallCenterLeadIntakePage({
       stage_id: defaultTransferStageId,
       is_draft: true,
       call_center_id: userProfile?.call_center_id || null,
-      submitted_by: session.user.id,
-    });
+    };
+
+    const existingDraftId = createDraftRowIdRef.current;
+    if (existingDraftId) {
+      let updateQuery = supabase.from("leads").update(draftRow).eq("id", existingDraftId).eq("is_draft", true);
+      if (isCallCenterAgentOnly && !canEditTransferLeads && session.user.id) {
+        updateQuery = updateQuery.eq("submitted_by", session.user.id);
+      }
+      const { error } = await updateQuery;
+      if (error) {
+        setToast({ message: error.message || "Failed to save draft", type: "error" });
+        return;
+      }
+      if (isAuto) return;
+      setToast({ message: "Draft saved", type: "success" });
+      setShowCreateLead(false);
+      setPage(1);
+      await refreshLeads();
+      return;
+    }
+
+    const { data: inserted, error } = await supabase
+      .from("leads")
+      .insert({
+        ...draftRow,
+        submission_id: generatedSubmissionId,
+        submitted_by: session.user.id,
+      })
+      .select("id")
+      .single();
 
     if (error) {
       setToast({ message: error.message || "Failed to save draft", type: "error" });
       return;
     }
+
+    if (inserted?.id) createDraftRowIdRef.current = inserted.id;
+
+    if (isAuto) return;
 
     setToast({ message: "Draft saved", type: "success" });
     setShowCreateLead(false);
@@ -2090,7 +2128,8 @@ export default function CallCenterLeadIntakePage({
     await refreshLeads();
   };
 
-  const handleUpdateDraftLead = async (payload: TransferLeadFormData) => {
+  const handleUpdateDraftLead = async (payload: TransferLeadFormData, meta?: TransferLeadSaveDraftMeta) => {
+    const isAuto = meta?.source === "auto";
     if (!editingLead?.rowId) return;
     // Only call center agents (not admins) can update their own drafts
     const canResumeDraftAsCallCenter = Boolean(isCallCenterAgentOnly && editingLead.formData.isDraft);
@@ -2178,6 +2217,8 @@ export default function CallCenterLeadIntakePage({
       setToast({ message: error.message || "Failed to save draft", type: "error" });
       return;
     }
+
+    if (isAuto) return;
 
     setToast({ message: "Draft updated", type: "success" });
     setEditingLead(null);

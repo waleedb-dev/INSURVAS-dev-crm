@@ -377,6 +377,8 @@ const tabSections: Record<TabType, string> = {
   "Banking Information": "section-banking-info",
 };
 
+export type TransferLeadSaveDraftMeta = { source: "auto" | "manual" };
+
 export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
@@ -388,7 +390,7 @@ export default function TransferLeadApplicationForm({
 }: {
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void;
-  onSaveDraft?: (data: TransferLeadFormData) => void;
+  onSaveDraft?: (data: TransferLeadFormData, meta?: TransferLeadSaveDraftMeta) => void | Promise<void>;
   onInstantDuplicateCheck?: (data: TransferLeadFormData) => void | Promise<void>;
   initialData?: Partial<TransferLeadFormData>;
   submitButtonLabel?: string;
@@ -593,12 +595,14 @@ export default function TransferLeadApplicationForm({
 
     if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
     draftSaveTimeoutRef.current = setTimeout(() => {
-      try {
-        onSaveDraft(payload);
-        lastDraftPayloadRef.current = fingerprint;
-      } catch {
-        // Keep draft autosave silent in this component.
-      }
+      void (async () => {
+        try {
+          await onSaveDraft(payload, { source: "auto" });
+          lastDraftPayloadRef.current = fingerprint;
+        } catch {
+          // Keep draft autosave silent in this component.
+        }
+      })();
     }, 900);
 
     return () => {
@@ -2593,7 +2597,7 @@ export default function TransferLeadApplicationForm({
 
         {phoneGatePassed && onSaveDraft && (
           <button
-            onClick={() => onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true })}
+            onClick={() => void onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true }, { source: "manual" })}
             style={{
               height: 42,
               padding: "0 20px",
