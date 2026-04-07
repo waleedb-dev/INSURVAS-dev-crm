@@ -1479,6 +1479,8 @@ export default function CallCenterLeadIntakePage({
           state: finalPayload.state,
           zip_code: finalPayload.zipCode,
           phone: finalPayload.phone,
+          sms_access: finalPayload.smsAccess,
+          email_access: finalPayload.emailAccess,
           language: finalPayload.language,
           birth_state: finalPayload.birthState,
           date_of_birth: finalPayload.dateOfBirth,
@@ -1611,6 +1613,8 @@ export default function CallCenterLeadIntakePage({
         state: pendingCreatePayload.state,
         zip_code: pendingCreatePayload.zipCode,
         phone: pendingCreatePayload.phone,
+        sms_access: pendingCreatePayload.smsAccess,
+        email_access: pendingCreatePayload.emailAccess,
         language: pendingCreatePayload.language,
         birth_state: pendingCreatePayload.birthState,
         date_of_birth: pendingCreatePayload.dateOfBirth,
@@ -1739,6 +1743,8 @@ export default function CallCenterLeadIntakePage({
         state: pendingCreatePayload.state,
         zip_code: pendingCreatePayload.zipCode,
         phone: pendingCreatePayload.phone,
+        sms_access: pendingCreatePayload.smsAccess,
+        email_access: pendingCreatePayload.emailAccess,
         language: pendingCreatePayload.language,
         birth_state: pendingCreatePayload.birthState,
         date_of_birth: pendingCreatePayload.dateOfBirth,
@@ -1822,6 +1828,8 @@ export default function CallCenterLeadIntakePage({
       state: payload.state || null,
       zip_code: payload.zipCode || null,
       phone: payload.phone || null,
+      sms_access: payload.smsAccess,
+      email_access: payload.emailAccess,
       language: payload.language || null,
       birth_state: payload.birthState || null,
       date_of_birth: payload.dateOfBirth || null,
@@ -1871,7 +1879,7 @@ export default function CallCenterLeadIntakePage({
   const openLeadInForm = async (rowId: string) => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, language, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline_id, stage, is_draft, pipelines(name)")
+      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, sms_access, email_access, language, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline_id, stage, is_draft, pipelines(name)")
       .eq("id", rowId)
       .maybeSingle();
 
@@ -1893,6 +1901,8 @@ export default function CallCenterLeadIntakePage({
       state: data.state || "",
       zipCode: data.zip_code || "",
       phone: data.phone || "",
+      smsAccess: Boolean((data as any).sms_access),
+      emailAccess: Boolean((data as any).email_access),
       language: data.language || "English",
       birthState: data.birth_state || "",
       dateOfBirth: data.date_of_birth || "",
@@ -1985,6 +1995,8 @@ export default function CallCenterLeadIntakePage({
         state: payload.state,
         zip_code: payload.zipCode,
         phone: payload.phone,
+        sms_access: payload.smsAccess,
+        email_access: payload.emailAccess,
         language: payload.language,
         birth_state: payload.birthState,
         date_of_birth: payload.dateOfBirth,
@@ -2118,6 +2130,8 @@ export default function CallCenterLeadIntakePage({
         state: payload.state || null,
         zip_code: payload.zipCode || null,
         phone: payload.phone || null,
+        sms_access: payload.smsAccess,
+        email_access: payload.emailAccess,
         language: payload.language || null,
         birth_state: payload.birthState || null,
         date_of_birth: payload.dateOfBirth || null,

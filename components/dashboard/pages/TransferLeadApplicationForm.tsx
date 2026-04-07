@@ -28,6 +28,8 @@ export type TransferLeadFormData = {
   state: string;
   zipCode: string;
   phone: string;
+  smsAccess: boolean;
+  emailAccess: boolean;
   language: string;
   birthState: string;
   dateOfBirth: string;
@@ -296,6 +298,8 @@ function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFo
     state: "",
     zipCode: "",
     phone: "",
+    smsAccess: false,
+    emailAccess: false,
     language: "English",
     birthState: "",
     dateOfBirth: "",
@@ -446,6 +450,9 @@ export default function TransferLeadApplicationForm({
   const displayBpoName = (centerName || "").trim() || "BPO";
 
   const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
+  const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDraftPayloadRef = useRef<string>("");
+  const draftTouchedRef = useRef(false);
     // Always force leadSource to the fixed value
     useEffect(() => {
       setFormData((prev) => ({ ...prev, leadSource: FIXED_BPO_LEAD_SOURCE }));
@@ -571,8 +578,38 @@ export default function TransferLeadApplicationForm({
     return `${phone2}${nameLetters}${ssn2}${center2}`.toUpperCase();
   }, [formData.firstName, formData.lastName, formData.phone, formData.social, formData.leadUniqueId, centerName]);
 
-  const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+  useEffect(() => {
+    if (!onSaveDraft) return;
+    if (isSubmitting || submissionComplete) return;
+    if (!draftTouchedRef.current) return;
+
+    const payload: TransferLeadFormData = {
+      ...formData,
+      leadUniqueId: computedLeadUniqueId,
+      isDraft: true,
+    };
+    const fingerprint = JSON.stringify(payload);
+    if (fingerprint === lastDraftPayloadRef.current) return;
+
+    if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      try {
+        onSaveDraft(payload);
+        lastDraftPayloadRef.current = fingerprint;
+      } catch {
+        // Keep draft autosave silent in this component.
+      }
+    }, 900);
+
+    return () => {
+      if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
+    };
+  }, [computedLeadUniqueId, formData, isSubmitting, onSaveDraft, submissionComplete]);
+
+  const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    draftTouchedRef.current = true;
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+  };
 
   const checkPhoneDuplicate = async (): Promise<{ match: PhoneDuplicateMatch | null; isAddable: boolean }> => {
     const canonicalDigits = getUsPhone10Digits(formData.phone);
@@ -1534,6 +1571,46 @@ export default function TransferLeadApplicationForm({
                     placeholder="Select language"
                     error={submitHighlightKeys.has("language")}
                   />
+                </Field>
+                <Field
+                  label="SMS Access Permission"
+                  info="Ask the customer if they allow us to send SMS updates."
+                  fieldKey="smsAccess"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}
+                >
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 42, padding: "0 4px", color: T.textDark, fontSize: 14, fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.smsAccess}
+                      onChange={(e) => {
+                        draftTouchedRef.current = true;
+                        setFormData((prev) => ({ ...prev, smsAccess: e.target.checked }));
+                      }}
+                      style={{ width: 16, height: 16, cursor: "pointer" }}
+                    />
+                    Customer allows SMS communication
+                  </label>
+                </Field>
+                <Field
+                  label="Email Access Permission"
+                  info="Ask the customer if they allow us to send email updates."
+                  fieldKey="emailAccess"
+                  hoveredFieldInfo={hoveredFieldInfo}
+                  setHoveredFieldInfo={setHoveredFieldInfo}
+                >
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 42, padding: "0 4px", color: T.textDark, fontSize: 14, fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.emailAccess}
+                      onChange={(e) => {
+                        draftTouchedRef.current = true;
+                        setFormData((prev) => ({ ...prev, emailAccess: e.target.checked }));
+                      }}
+                      style={{ width: 16, height: 16, cursor: "pointer" }}
+                    />
+                    Customer allows email communication
+                  </label>
                 </Field>
               </div>
               {ssnDupMatch && (
