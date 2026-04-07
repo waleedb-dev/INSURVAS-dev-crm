@@ -25,6 +25,8 @@ interface UserLink {
 interface CenterRow {
   id: string;
   name: string;
+  status: "active" | "inactive";
+  isActive: boolean;
   createdAt: string;
   did: string | null;
   slack_channel: string | null;
@@ -252,6 +254,10 @@ export default function BpoCentersPage() {
   const [deactivatingCenter, setDeactivatingCenter] = useState<CenterRow | null>(null);
   const [deactivateConfirmName, setDeactivateConfirmName] = useState("");
   const [deactivatingInProgress, setDeactivatingInProgress] = useState(false);
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
+  const [reactivatingCenter, setReactivatingCenter] = useState<CenterRow | null>(null);
+  const [reactivateConfirmName, setReactivateConfirmName] = useState("");
+  const [reactivatingInProgress, setReactivatingInProgress] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingCenter, setCreatingCenter] = useState(false);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
@@ -290,7 +296,7 @@ export default function BpoCentersPage() {
   async function fetchDirectory() {
     const [{ data: rolesData, error: rolesError }, { data: centersData, error: centersError }, { data: usersData, error: usersError }] = await Promise.all([
       supabase.from("roles").select("id, key"),
-      supabase.from("call_centers").select("id, name, created_at, did, slack_channel, email, logo_url").order("name"),
+      supabase.from("call_centers").select("id, name, status, is_active, created_at, did, slack_channel, email, logo_url").order("name"),
       supabase.from("users").select("id, full_name, call_center_id, role_id"),
     ]);
 
@@ -320,10 +326,16 @@ export default function BpoCentersPage() {
       const agents = normalizedUsers.filter(
         (user) => user.callCenterId === center.id && user.roleKey === "call_center_agent",
       );
+      const normalizedStatus: "active" | "inactive" =
+        center.status === "inactive" || center.is_active === false || center.name.trim().toLowerCase().startsWith("inactive:")
+          ? "inactive"
+          : "active";
 
       return {
         id: center.id,
         name: center.name,
+        status: normalizedStatus,
+        isActive: normalizedStatus === "active",
         createdAt: new Date(center.created_at).toLocaleString(),
         did: center.did ?? null,
         slack_channel: center.slack_channel ?? null,
@@ -733,6 +745,7 @@ export default function BpoCentersPage() {
       .update({
         name: inactiveName,
         status: "inactive",
+        is_active: false,
       })
       .eq("id", centerId);
 
@@ -741,6 +754,7 @@ export default function BpoCentersPage() {
         .from("call_centers")
         .update({
           name: inactiveName,
+          is_active: false,
         })
         .eq("id", centerId);
 
@@ -788,6 +802,7 @@ export default function BpoCentersPage() {
       .update({
         name: activeName,
         status: "active",
+        is_active: true,
       })
       .eq("id", centerId);
 
@@ -796,6 +811,7 @@ export default function BpoCentersPage() {
         .from("call_centers")
         .update({
           name: activeName,
+          is_active: true,
         })
         .eq("id", centerId);
       if (fallbackCenterError) {
@@ -804,12 +820,38 @@ export default function BpoCentersPage() {
       }
     }
 
-    setToast({ message: "Centre reactivated successfully.", type: "success" });
+    const { error: usersError } = await supabase
+      .from("users")
+      .update({
+        status: "active",
+      })
+      .eq("call_center_id", centerId);
+
+    if (usersError) {
+      setToast({ message: `Centre reactivated, but failed to reactivate users: ${usersError.message}`, type: "error" });
+      await fetchDirectory();
+      return;
+    }
+
+    setToast({ message: "Centre reactivated and linked users were activated.", type: "success" });
     await fetchDirectory();
   }
 
   async function handleReactivateCenterFromRow(center: CenterRow) {
-    await reactivateCenterById(center.id, center.name);
+    setReactivatingCenter(center);
+    setReactivateConfirmName("");
+    setShowReactivateModal(true);
+  }
+
+  async function handleReactivateCenterConfirm() {
+    if (!reactivatingCenter) return;
+    if (reactivateConfirmName !== reactivatingCenter.name) return;
+    setReactivatingInProgress(true);
+    await reactivateCenterById(reactivatingCenter.id, reactivatingCenter.name);
+    setReactivatingInProgress(false);
+    setShowReactivateModal(false);
+    setReactivatingCenter(null);
+    setReactivateConfirmName("");
   }
 
 
@@ -1940,7 +1982,7 @@ export default function BpoCentersPage() {
                           >
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                           </button>
-                          {center.name.trim().toLowerCase().startsWith("inactive:") ? (
+                          {center.status === "inactive" || !center.isActive || center.name.trim().toLowerCase().startsWith("inactive:") ? (
                             <button
                               onClick={() => handleReactivateCenterFromRow(center)}
                               style={{ background: "none", border: "none", color: "#166534", cursor: "pointer", padding: 6, borderRadius: 6 }}
@@ -2077,6 +2119,99 @@ export default function BpoCentersPage() {
                 }}
               >
                 {deactivatingInProgress ? "Deactivating..." : "Deactivate Centre"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReactivateModal && reactivatingCenter && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 520, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#166534" }}>Reactivate Centre</h2>
+              <button
+                onClick={() => setShowReactivateModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              <p style={{ margin: 0, fontSize: 14, color: "#166534", lineHeight: 1.6 }}>
+                <strong>Confirmation:</strong> This will rename <strong>"{reactivatingCenter.name}"</strong> to <strong>{reactivatingCenter.name.replace(/^Inactive:/i, "").trim() || reactivatingCenter.name}</strong> and mark the centre as active.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                Type <strong>{reactivatingCenter.name}</strong> to confirm reactivation
+              </label>
+              <input
+                type="text"
+                value={reactivateConfirmName}
+                onChange={(e) => setReactivateConfirmName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && reactivateConfirmName === reactivatingCenter.name) void handleReactivateCenterConfirm();
+                  if (e.key === 'Escape') setShowReactivateModal(false);
+                }}
+                placeholder={reactivatingCenter.name}
+                autoFocus
+                style={{
+                  width: "100%",
+                  height: 44,
+                  border: `1.5px solid ${reactivateConfirmName === reactivatingCenter.name ? "#166534" : T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                  background: T.cardBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowReactivateModal(false)}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReactivateCenterConfirm}
+                disabled={reactivateConfirmName !== reactivatingCenter.name || reactivatingInProgress}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: reactivateConfirmName === reactivatingCenter.name && !reactivatingInProgress ? "#166534" : T.border,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: reactivateConfirmName === reactivatingCenter.name && !reactivatingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: reactivateConfirmName === reactivatingCenter.name && !reactivatingInProgress ? "0 4px 12px rgba(22, 101, 52, 0.2)" : "none",
+                  transition: "all 0.15s ease-in-out",
+                }}
+              >
+                {reactivatingInProgress ? "Reactivating..." : "Reactivate Centre"}
               </button>
             </div>
           </div>
