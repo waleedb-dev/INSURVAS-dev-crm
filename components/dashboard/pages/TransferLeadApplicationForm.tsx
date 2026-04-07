@@ -1572,7 +1572,7 @@ export default function TransferLeadApplicationForm({
                       }}
                       style={{ width: 16, height: 16, cursor: "pointer" }}
                     />
-                    Customer allows SMS communication
+                    Does customer has access to receive SMS
                   </label>
                 </Field>
                 <Field
@@ -1591,7 +1591,7 @@ export default function TransferLeadApplicationForm({
                       }}
                       style={{ width: 16, height: 16, cursor: "pointer" }}
                     />
-                    Customer allows email communication
+                    Does customer has access to receive the Email
                   </label>
                 </Field>
               </div>
