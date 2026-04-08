@@ -920,6 +920,7 @@ export default function CallCenterLeadIntakePage({
   const [duplicateRuleMessage, setDuplicateRuleMessage] = useState<string>("");
   const [duplicateIsAddable, setDuplicateIsAddable] = useState<boolean>(true);
   const [callCenterName, setCallCenterName] = useState("");
+  const [callCenterDid, setCallCenterDid] = useState("");
   const [pendingDeleteLead, setPendingDeleteLead] = useState<{ rowId: string; name: string } | null>(null);
   const [deletingLead, setDeletingLead] = useState(false);
   const [claimModalOpen, setClaimModalOpen] = useState(false);
@@ -943,17 +944,25 @@ export default function CallCenterLeadIntakePage({
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.user?.id) {
-        if (!cancelled) setCallCenterName("");
+        if (!cancelled) {
+          setCallCenterName("");
+          setCallCenterDid("");
+        }
         return;
       }
       const { data } = await supabase
         .from("users")
-        .select("call_centers(name)")
+        .select("call_centers(name, did)")
         .eq("id", session.user.id)
         .maybeSingle();
-      const row = data as { call_centers?: { name?: string } | null } | null;
-      const name = row?.call_centers?.name;
-      if (!cancelled) setCallCenterName(typeof name === "string" ? name.trim() : "");
+      const row = data as { call_centers?: { name?: string; did?: string | null } | null } | null;
+      const center = row?.call_centers;
+      const name = center?.name;
+      const did = center?.did;
+      if (!cancelled) {
+        setCallCenterName(typeof name === "string" ? name.trim() : "");
+        setCallCenterDid(typeof did === "string" ? did.trim() : "");
+      }
     };
     void loadCallCenterName();
     return () => {
@@ -2135,6 +2144,7 @@ export default function CallCenterLeadIntakePage({
           initialData={createLeadFormInitialData ?? undefined}
           unlockAfterDuplicateRemount={createLeadUnlockAfterDuplicate}
           centerName={callCenterName}
+          centerDid={callCenterDid}
         />
         {showDuplicateDialog && duplicateLeadMatch && (
           <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -2230,6 +2240,7 @@ export default function CallCenterLeadIntakePage({
           initialData={editingLead.formData}
           submitButtonLabel="Update Lead"
           centerName={callCenterName}
+          centerDid={callCenterDid}
         />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </>

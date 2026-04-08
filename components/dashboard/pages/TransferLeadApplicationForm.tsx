@@ -580,6 +580,7 @@ export default function TransferLeadApplicationForm({
   initialData,
   submitButtonLabel,
   centerName = "",
+  centerDid = "",
   unlockAfterDuplicateRemount = false,
 }: {
   onBack: () => void;
@@ -589,6 +590,8 @@ export default function TransferLeadApplicationForm({
   initialData?: Partial<TransferLeadFormData>;
   submitButtonLabel?: string;
   centerName?: string;
+  /** Call center direct line (DID) from `call_centers.did` — shown on the form and echoed after submit from the intake page. */
+  centerDid?: string;
   /** Set when remounting after "Create Duplicate" — restores phone-gate + transfer-check so tabs and submit stay usable. */
   unlockAfterDuplicateRemount?: boolean;
 }) {
@@ -650,7 +653,10 @@ export default function TransferLeadApplicationForm({
   const [hoveredFieldInfo, setHoveredFieldInfo] = useState<{ key: string; info: string; x: number; y: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionComplete, setSubmissionComplete] = useState(false);
+  /** Final step: agent must confirm they are transferring the call before `onSubmit` runs. */
+  const [showTransferSubmitGate, setShowTransferSubmitGate] = useState(false);
   const displayBpoName = (centerName || "").trim() || "BPO";
+  const displayCenterDid = (centerDid || "").trim();
 
   const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
     // Always force leadSource to the fixed value
@@ -798,6 +804,29 @@ export default function TransferLeadApplicationForm({
     }
     return `${phone2}${nameLetters}${ssn2}${center2}`.toUpperCase();
   }, [formData.firstName, formData.lastName, formData.phone, formData.social, formData.leadUniqueId, centerName]);
+
+  const executeApplicationSubmit = useCallback(async () => {
+    setShowTransferSubmitGate(false);
+    setIsSubmitting(true);
+    try {
+      const submitResult = await onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
+      if (submitResult === false) return;
+      setSubmissionComplete(true);
+    } catch (error) {
+      setToast({ message: error instanceof Error ? error.message : "Submission failed. Please try again.", type: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [onSubmit, formData, computedLeadUniqueId]);
+
+  useEffect(() => {
+    if (!showTransferSubmitGate) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowTransferSubmitGate(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showTransferSubmitGate]);
 
   const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
@@ -1353,7 +1382,7 @@ export default function TransferLeadApplicationForm({
   const lastAutoDraftSnapshotRef = useRef<string>("");
 
   useEffect(() => {
-    if (!onSaveDraft || !phoneGatePassed || isSubmitting || submissionComplete) return;
+    if (!onSaveDraft || !phoneGatePassed || isSubmitting || submissionComplete || showTransferSubmitGate) return;
     // Editing a submitted lead: only manual "Save Draft" should demote to draft — no autosave.
     if (isEditMode && !formData.isDraft) return;
 
@@ -1381,6 +1410,7 @@ export default function TransferLeadApplicationForm({
     isEditMode,
     isSubmitting,
     submissionComplete,
+    showTransferSubmitGate,
   ]);
 
   return (
@@ -1398,6 +1428,14 @@ export default function TransferLeadApplicationForm({
         <div>
           <h1 style={{ margin: 0, fontSize: 22, color: T.textDark, fontWeight: 800 }}>{displayBpoName} Application</h1>
           <p style={{ margin: "4px 0 0", color: T.textMuted, fontWeight: 600, fontSize: 13 }}>All information needed to track sales for Live Transfers</p>
+          <p style={{ margin: "8px 0 0", color: T.textMid, fontWeight: 700, fontSize: 13 }}>
+            Center DID (transfer line):{" "}
+            {displayCenterDid ? (
+              <span style={{ fontFamily: "ui-monospace, monospace", color: "#233217" }}>{displayCenterDid}</span>
+            ) : (
+              <span style={{ color: T.textMuted, fontWeight: 600 }}>Not configured — ask your admin to set the direct line in BPO Centers.</span>
+            )}
+          </p>
         </div>
       </div>
 
@@ -3041,18 +3079,9 @@ export default function TransferLeadApplicationForm({
               const dup = await checkPhoneDuplicate();
               if (dup.match) setShowPhoneDupDetails(true);
               if (dup.match && !dup.isAddable) return;
-              setIsSubmitting(true);
-              try {
-                const submitResult = await onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
-                if (submitResult === false) return;
-                setSubmissionComplete(true);
-              } catch (error) {
-                setToast({ message: error instanceof Error ? error.message : "Submission failed. Please try again.", type: "error" });
-              } finally {
-                setIsSubmitting(false);
-              }
+              setShowTransferSubmitGate(true);
             }}
-            disabled={submitDisabled || isSubmitting}
+            disabled={submitDisabled || isSubmitting || showTransferSubmitGate}
             style={{
               height: 48,
               padding: "0 48px",
@@ -3156,6 +3185,105 @@ export default function TransferLeadApplicationForm({
           }}
         >
           {hoveredFieldInfo.info}
+        </div>
+      )}
+
+      {showTransferSubmitGate && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            zIndex: 10050,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="transfer-gate-title"
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              border: `1px solid ${T.border}`,
+              padding: 22,
+              boxShadow: "0 18px 38px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h3 id="transfer-gate-title" style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>
+              Transfer the call
+            </h3>
+            <p style={{ marginTop: 12, marginBottom: 0, fontSize: 14, color: T.textMid, lineHeight: 1.55 }}>
+              The application will not be submitted until you transfer the customer, then press <strong style={{ color: T.textDark }}>Transfer</strong> below.
+            </p>
+            {displayCenterDid ? (
+              <>
+                <p style={{ marginTop: 16, marginBottom: 8, fontSize: 13, fontWeight: 700, color: T.textMuted }}>
+                  Transfer to this DID (direct line)
+                </p>
+                <div
+                  style={{
+                    backgroundColor: T.rowBg,
+                    border: `1px solid ${T.borderLight}`,
+                    borderRadius: 10,
+                    padding: "14px 16px",
+                    marginBottom: 20,
+                    fontSize: 22,
+                    fontWeight: 800,
+                    color: "#233217",
+                    fontFamily: "ui-monospace, monospace",
+                    textAlign: "center",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {displayCenterDid}
+                </div>
+              </>
+            ) : (
+              <p style={{ marginTop: 16, marginBottom: 20, fontSize: 13, color: T.textMuted, lineHeight: 1.5 }}>
+                No DID is on file for this center. Follow your center&apos;s transfer procedure, then press Transfer to save the application.
+              </p>
+            )}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setShowTransferSubmitGate(false)}
+                style={{
+                  background: "#fff",
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 8,
+                  padding: "10px 18px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  color: T.textDark,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void executeApplicationSubmit()}
+                style={{
+                  border: "none",
+                  background: "#233217",
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "10px 22px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: 14,
+                }}
+              >
+                Transfer
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
