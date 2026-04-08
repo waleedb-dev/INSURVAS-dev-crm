@@ -537,14 +537,12 @@ function mapSelectOptions(values: string[], allLabel: string) {
   return [{ value: "All", label: allLabel }, ...sorted.map((v) => ({ value: v, label: v }))];
 }
 
-/*
- * Unused while post-create Slack / GHL / notify-eligible-agents are disabled (fe-create-lead only).
- * See commented body of `notifySlackTransferPortalLead`.
- */
-// const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
-// const FE_SLACK_NOTIFICATION_EDGE_FUNCTION = "fe-slack-notification" as const;
-// const FE_GHL_CREATE_CONTACT_EDGE_FUNCTION = "fe-ghl-create-contact" as const;
-// const TEST_BPO_CHANNEL = "#test-bpo" as const;
+const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
+/** Production Insurvas app (Slack “View Application” and similar deep links). No trailing slash. */
+const INSURVAS_APP_ORIGIN = "https://app.insurvas.com";
+const FE_SLACK_NOTIFICATION_EDGE_FUNCTION = "fe-slack-notification" as const;
+const FE_GHL_CREATE_CONTACT_EDGE_FUNCTION = "fe-ghl-create-contact" as const;
+const TEST_BPO_CHANNEL = "#test-bpo" as const;
 
 type SsnDuplicateRule = {
   stage_name: string;
@@ -750,14 +748,9 @@ async function notifySlackTransferPortalLead(
     payload: TransferLeadFormData;
     callCenterName: string;
     callCenterId?: string | null;
-  }
+  },
 ) {
-  // Outbound edge calls disabled: use `fe-create-lead` only (`postFeCreateLeadAtFixedUrl` after insert/update).
-  void supabase;
-  void params;
-
-  /*
-  const { leadId, submissionId, leadUniqueId, payload, callCenterName, callCenterId } = params;
+  const { leadId, submissionId, payload, callCenterName, callCenterId } = params;
   try {
     const customerName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
     const transferPortalMessage = `A new Application Submission:
@@ -766,29 +759,22 @@ Customer Name: ${customerName}
 Customer Number: ${payload.phone || "N/A"}
 Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`;
 
-    const { error: transferPortalError } = await supabase.functions.invoke(
-      FE_SLACK_NOTIFICATION_EDGE_FUNCTION,
-      {
-        body: {
-          channel: TEST_BPO_CHANNEL,
-          message: transferPortalMessage,
-        },
+    const { error: transferPortalError } = await supabase.functions.invoke(FE_SLACK_NOTIFICATION_EDGE_FUNCTION, {
+      body: {
+        channel: TEST_BPO_CHANNEL,
+        message: transferPortalMessage,
       },
-    );
+    });
     if (transferPortalError) console.warn("fe-slack-notification (transfer-portal):", transferPortalError.message);
 
     const { data: centerRow } = callCenterId
-      ? await supabase
-          .from("call_centers")
-          .select("name, slack_channel")
-          .eq("id", callCenterId)
-          .maybeSingle()
+      ? await supabase.from("call_centers").select("name, slack_channel").eq("id", callCenterId).maybeSingle()
       : { data: null as { name?: string | null; slack_channel?: string | null } | null };
     const centerName = (centerRow?.name || callCenterName || TRANSFER_PORTAL_LEAD_VENDOR).trim();
-    const centerSlackChannel = TEST_BPO_CHANNEL;
+    const centerSlackChannel = centerRow?.slack_channel?.trim() || TEST_BPO_CHANNEL;
 
     if (centerSlackChannel) {
-      const agentPortalUrl = `https://crm-agent-portal.vercel.app/dashboard/sales_agent_licensed/transfer-leads/${encodeURIComponent(leadId)}`;
+      const agentPortalUrl = `${INSURVAS_APP_ORIGIN}/dashboard/sales_agent_licensed/transfer-leads/${encodeURIComponent(leadId)}`;
       const centerMessage = `New Application Submission:
 
 Call Center Name: ${centerName}
@@ -817,16 +803,13 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
         },
       ];
 
-      const { error: centerSlackError } = await supabase.functions.invoke(
-        FE_SLACK_NOTIFICATION_EDGE_FUNCTION,
-        {
-          body: {
-            channel: centerSlackChannel,
-            message: centerMessage,
-            blocks: centerBlocks,
-          },
+      const { error: centerSlackError } = await supabase.functions.invoke(FE_SLACK_NOTIFICATION_EDGE_FUNCTION, {
+        body: {
+          channel: centerSlackChannel,
+          message: centerMessage,
+          blocks: centerBlocks,
         },
-      );
+      });
       if (centerSlackError) console.warn("fe-slack-notification (center):", centerSlackError.message);
     }
 
@@ -876,7 +859,6 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
   } catch (e) {
     console.warn("post-create notifications failed", e);
   }
-  */
 }
 
 export default function CallCenterLeadIntakePage({
@@ -1964,37 +1946,41 @@ export default function CallCenterLeadIntakePage({
     }
 
     let feCreateLeadDraftSubmitSyncError: string | null = null;
-    if (wasDraftBeforeUpdate && updatedLead?.id) {
-      const submissionId = String(updatedLead.submission_id || "").trim() || buildSubmissionId(callCenterName);
-      const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
-      await insertDailyDealFlowEntry(supabase, {
-        submissionId,
-        leadVendor: callCenterName,
-        leadName,
-        payload,
-        callCenterId: userProfile?.call_center_id || null,
-      });
+    if (updatedLead?.id) {
+      const submissionIdForNotify = String(updatedLead.submission_id || "").trim() || buildSubmissionId(callCenterName);
+
+      if (wasDraftBeforeUpdate) {
+        const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
+        await insertDailyDealFlowEntry(supabase, {
+          submissionId: submissionIdForNotify,
+          leadVendor: callCenterName,
+          leadName,
+          payload,
+          callCenterId: userProfile?.call_center_id || null,
+        });
+        try {
+          await postFeCreateLeadAtFixedUrl(
+            supabase,
+            buildFeCreateLeadBodyFromIntakePayload(payload, {
+              submissionId: submissionIdForNotify,
+              leadVendor: callCenterName,
+            }),
+            "[CallCenterLeadIntake:draft-submit]",
+          );
+        } catch (feErr) {
+          feCreateLeadDraftSubmitSyncError = feErr instanceof Error ? feErr.message : String(feErr);
+          console.warn("[CallCenterLeadIntake] fe-create-lead failed after draft submit", feErr);
+        }
+      }
+
       void notifySlackTransferPortalLead(supabase, {
         leadId: updatedLead.id,
-        submissionId,
+        submissionId: submissionIdForNotify,
         leadUniqueId,
         payload,
         callCenterName,
         callCenterId: userProfile?.call_center_id || null,
       });
-      try {
-        await postFeCreateLeadAtFixedUrl(
-          supabase,
-          buildFeCreateLeadBodyFromIntakePayload(payload, {
-            submissionId,
-            leadVendor: callCenterName,
-          }),
-          "[CallCenterLeadIntake:draft-submit]",
-        );
-      } catch (feErr) {
-        feCreateLeadDraftSubmitSyncError = feErr instanceof Error ? feErr.message : String(feErr);
-        console.warn("[CallCenterLeadIntake] fe-create-lead failed after draft submit", feErr);
-      }
     }
 
     setToast({

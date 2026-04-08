@@ -30,10 +30,24 @@ function getBearerToken(req: Request): string | null {
   return auth.slice(7).trim();
 }
 
-function getDefaultPasswordFromFullName(fullName: string): string {
-  const rawFirstName = (fullName || "").trim().split(/\s+/)[0] || "user";
-  const normalizedFirstName = rawFirstName.toLowerCase();
-  return `${normalizedFirstName}123!`;
+/** Temp password: sanitized first name + YYYYMMDD (UTC) + 6 random digits + symbol. */
+function generateTempPassword(fullName: string): string {
+  const rawFirst = (fullName || "").trim().split(/\s+/)[0] || "user";
+  const lettersOnly = rawFirst.replace(/[^a-zA-Z]/g, "");
+  const lower = (lettersOnly || "user").slice(0, 24).toLowerCase();
+  const namePart = lower.length > 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : "User";
+
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const mo = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const da = String(now.getUTCDate()).padStart(2, "0");
+  const datePart = `${y}${mo}${da}`;
+
+  const rand = new Uint32Array(1);
+  crypto.getRandomValues(rand);
+  const numPart = String(rand[0] % 1_000_000).padStart(6, "0");
+
+  return `${namePart}${datePart}${numPart}!`;
 }
 
 function normalizeUnlicensedSubtype(roleKey: string | undefined, raw: unknown): string | null {
@@ -161,7 +175,7 @@ Deno.serve(async (req: Request) => {
     const roleKey = (roleRow as { key: string }).key;
     const unlicensedSubtype = normalizeUnlicensedSubtype(roleKey, body.unlicensed_sales_subtype);
 
-    const tempPassword = getDefaultPasswordFromFullName(body.full_name);
+    const tempPassword = generateTempPassword(body.full_name);
     const { data: createdAuth, error: createAuthError } = await adminClient.auth.admin.createUser({
       email: body.email,
       password: tempPassword,
