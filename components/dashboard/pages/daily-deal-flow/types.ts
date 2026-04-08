@@ -28,6 +28,7 @@ export interface DailyDealFlowRow {
   product_type_carrier?: string | null;
   level_or_gi?: string | null;
   la_callback?: string | null;
+  initial_quote?: string | null;
   call_center_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;

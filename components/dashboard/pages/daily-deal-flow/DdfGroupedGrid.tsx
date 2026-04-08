@@ -252,7 +252,7 @@ type SortConfig = { key: string; direction: "asc" | "desc" } | null;
 
 const columns = [
   "S.No", "Date", "Lead Vendor", "Insured Name", "Phone Number", "B.A", "R.A", "Agent", "L.A", "Status",
-  "Call Result", "Carrier", "Product Type", "Draft Date", "MP", "Face Amount", "Notes",
+  "Call Result", "Carrier", "Product Type", "Draft Date", "MP", "Face Amount", "Initial Quote", "Notes",
 ];
 
 function sortRows(items: DailyDealFlowRow[], sortConfig: SortConfig): DailyDealFlowRow[] {
@@ -535,6 +535,9 @@ export function DdfGroupedGrid({
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="date" value={data.draft_date || ""} onChange={(v) => patchDraft({ draft_date: v })} /> : formatDateShort(row.draft_date) || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="number" value={String(data.monthly_premium ?? "")} onChange={(v) => patchDraft({ monthly_premium: v ? Number(v) : null })} /> : row.monthly_premium ? `$${row.monthly_premium.toFixed(2)}` : "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="number" value={String(data.face_amount ?? "")} onChange={(v) => patchDraft({ face_amount: v ? Number(v) : null })} /> : row.face_amount ? `$${row.face_amount.toLocaleString()}` : "N/A"}</TableCell>
+        <TableCell style={{ ...rowCellStyle, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {row.initial_quote || "N/A"}
+        </TableCell>
         <TableCell style={{ ...rowCellStyle, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>
           {isEditing ? (
             <textarea value={data.notes || ""} onChange={(e) => patchDraft({ notes: e.target.value })} style={{ minHeight: 54, width: 100, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 12, padding: "8px 10px", resize: "vertical", outline: "none", transition: "all 0.15s ease-in-out" }} onFocus={(e) => { e.currentTarget.style.borderColor = "#233217"; e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }} onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }} />
@@ -716,7 +719,7 @@ export function DdfGroupedGrid({
                 >
                   <button
                     onClick={() => {
-                      const keyMap: Record<string, string> = { Date: "date", "Lead Vendor": "lead_vendor", "Insured Name": "insured_name", "Phone Number": "client_phone_number", "B.A": "buffer_agent", Agent: "agent", "L.A": "licensed_agent_account", Status: "status", "Call Result": "call_result", Carrier: "carrier", "Product Type": "product_type", "Draft Date": "draft_date", MP: "monthly_premium", "Face Amount": "face_amount", "LA Callback": "la_callback", Notes: "notes", "R.A": "retention_agent" };
+                      const keyMap: Record<string, string> = { Date: "date", "Lead Vendor": "lead_vendor", "Insured Name": "insured_name", "Phone Number": "client_phone_number", "B.A": "buffer_agent", Agent: "agent", "L.A": "licensed_agent_account", Status: "status", "Call Result": "call_result", Carrier: "carrier", "Product Type": "product_type", "Draft Date": "draft_date", MP: "monthly_premium", "Face Amount": "face_amount", "Initial Quote": "initial_quote", "LA Callback": "la_callback", Notes: "notes", "R.A": "retention_agent" };
                       const key = keyMap[col];
                       if (!key || groupBy === "none") return;
                       setSortConfig((prev) => (prev?.key === key ? { key, direction: prev.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" }));
@@ -912,6 +915,9 @@ export function DdfGroupedGrid({
                     <InfoField label="LA Callback" value={draft.la_callback} />
                     <InfoField label="Policy Number" value={draft.policy_number} />
                     <InfoField label="Draft Date" value={formatDate(draft.draft_date || undefined)} />
+                  </InfoGrid>
+                  <InfoGrid columns={1} bordered={false}>
+                    <InfoField label="Initial Quote (from intake form)" value={draft.initial_quote || "—"} />
                   </InfoGrid>
                 </LeadCard>
 

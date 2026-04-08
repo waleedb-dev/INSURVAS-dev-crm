@@ -700,6 +700,32 @@ async function insertDailyDealFlowEntry(
           .maybeSingle()
       ).data?.name || null
     : null;
+
+  // Build initial quote text from form values
+  const initialQuoteParts: string[] = [];
+  if (row.payload.carrier?.trim()) {
+    initialQuoteParts.push(row.payload.carrier.trim());
+  }
+  if (row.payload.productType?.trim()) {
+    initialQuoteParts.push(row.payload.productType.trim());
+  }
+  if (Number.isFinite(monthly) && monthly > 0) {
+    initialQuoteParts.push(`Premium: $${monthly.toLocaleString()}`);
+  }
+  if (Number.isFinite(face) && face > 0) {
+    initialQuoteParts.push(`Face: $${face.toLocaleString()}`);
+  }
+  if (row.payload.draftDate?.trim()) {
+    initialQuoteParts.push(`Draft: ${row.payload.draftDate.trim()}`);
+  }
+
+  const initialQuote = initialQuoteParts.length > 0
+    ? `Original Quote: ${initialQuoteParts.join(" | ")}`
+    : null;
+
+  // Insert only basic fields + initial_quote
+  // carrier, product_type, monthly_premium, face_amount, draft_date are left NULL
+  // to be filled by the sales agent after the call
   const { error } = await supabase.from("daily_deal_flow").insert({
     submission_id: row.submissionId,
     client_phone_number: row.payload.phone || null,
@@ -707,11 +733,10 @@ async function insertDailyDealFlowEntry(
     call_center_id: row.callCenterId || null,
     date: flowDate,
     insured_name: insuredName,
-    carrier: row.payload.carrier || null,
-    product_type: row.payload.productType || null,
-    draft_date: row.payload.draftDate || null,
-    monthly_premium: Number.isFinite(monthly) ? monthly : null,
-    face_amount: Number.isFinite(face) ? face : null,
+    initial_quote: initialQuote,
+    // Note: carrier, product_type, draft_date, monthly_premium, face_amount
+    // are intentionally left NULL here - they will be populated by the agent
+    // when they submit the call update form
   });
   if (error) console.warn("daily_deal_flow insert:", error.message);
 }

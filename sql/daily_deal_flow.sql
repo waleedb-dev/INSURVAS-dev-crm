@@ -40,6 +40,7 @@ create table public.daily_deal_flow (
   retention_agent_id uuid null,
   is_reviewed boolean null default false,
   la_callback text null,
+  initial_quote text null,
   constraint daily_deal_flow_pkey primary key (id),
   constraint daily_deal_flow_submission_id_date_key unique (submission_id, date),
   constraint daily_deal_flow_retention_agent_id_fkey foreign key (retention_agent_id) references auth.users (id),
