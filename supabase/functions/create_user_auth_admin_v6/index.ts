@@ -14,6 +14,8 @@ interface CreateUserRequest {
   /** Set when role is sales_agent_unlicensed */
   unlicensed_sales_subtype?: string | null;
   permissions?: string[];
+  /** Optional: override destination for welcome email. If not provided, email goes to the created user. */
+  welcome_email_to?: string | null;
 }
 
 interface SendWelcomeEmailInput {
@@ -210,7 +212,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const emailResult = await sendWelcomeEmailViaMailtrap({
-      toEmail: body.email,
+      toEmail: body.welcome_email_to || body.email,
       fullName: body.full_name,
       tempPassword,
     });

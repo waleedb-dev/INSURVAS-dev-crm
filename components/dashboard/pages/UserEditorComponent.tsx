@@ -359,6 +359,9 @@ export default function UserEditorComponent({
           unlicensed_sales_subtype:
             isUnlicensedSalesRole && unlicensedSalesSubtype ? unlicensedSalesSubtype : null,
           permissions: Array.from(selectedPermissions),
+          // Send welcome email to admin during testing phase
+          // Remove this line or set to null to send to the created user's email instead
+          welcome_email_to: "waleed.b@unlimitedinsurance.io",
         };
 
         const { data: result, error: invokeError } = await supabase.functions.invoke("create_user_auth_admin_v6", {
