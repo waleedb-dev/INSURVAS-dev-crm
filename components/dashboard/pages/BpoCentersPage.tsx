@@ -242,6 +242,7 @@ export default function BpoCentersPage() {
   const [selectedAdminUserId, setSelectedAdminUserId] = useState("");
   const [selectedAgentUserId, setSelectedAgentUserId] = useState("");
   const [filterAdmin, setFilterAdmin] = useState<"All" | "Assigned" | "Unassigned">("All");
+  const [filterStatus, setFilterStatus] = useState<"All" | "Active" | "Inactive">("All");
   const itemsPerPage = 10;
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -301,11 +302,16 @@ export default function BpoCentersPage() {
     return missing;
   };
 
-  const hasActiveFilters = filterAdmin !== "All" || filterRegion !== "All" || filterCountry !== "All";
-  const activeFilterCount = (filterAdmin !== "All" ? 1 : 0) + (filterRegion !== "All" ? 1 : 0) + (filterCountry !== "All" ? 1 : 0);
+  const hasActiveFilters = filterAdmin !== "All" || filterStatus !== "All" || filterRegion !== "All" || filterCountry !== "All";
+  const activeFilterCount =
+    (filterAdmin !== "All" ? 1 : 0) +
+    (filterStatus !== "All" ? 1 : 0) +
+    (filterRegion !== "All" ? 1 : 0) +
+    (filterCountry !== "All" ? 1 : 0);
 
   const clearFilters = () => {
     setFilterAdmin("All");
+    setFilterStatus("All");
     setFilterRegion("All");
     setFilterCountry("All");
     setPage(1);
@@ -518,7 +524,7 @@ export default function BpoCentersPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, filterAdmin]);
+  }, [search, filterAdmin, filterStatus, filterRegion, filterCountry]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -617,6 +623,19 @@ export default function BpoCentersPage() {
     if (deleteConfirmName !== deletingCenter.name) return;
 
     setDeletingInProgress(true);
+
+    // Preserve historical Daily Deal Flow rows by detaching the center reference.
+    const { error: detachDdfError } = await supabase
+      .from("daily_deal_flow")
+      .update({ call_center_id: null })
+      .eq("call_center_id", deletingCenter.id);
+
+    if (detachDdfError) {
+      console.error("Error detaching daily deal flow center links:", detachDdfError);
+      setToast({ message: `Failed to preserve Daily Deal Flow entries: ${detachDdfError.message}`, type: "error" });
+      setDeletingInProgress(false);
+      return;
+    }
 
     const linkedUsers = users.filter((user) => user.callCenterId === deletingCenter.id);
     if (linkedUsers.length > 0) {
@@ -915,9 +934,10 @@ export default function BpoCentersPage() {
   const filteredCenters = centers.filter((center) => {
     const matchesSearch = center.name.toLowerCase().includes(search.toLowerCase());
     const matchesAdmin = filterAdmin === "All" ? true : filterAdmin === "Assigned" ? !!center.admin : !center.admin;
+    const matchesStatus = filterStatus === "All" ? true : filterStatus === "Active" ? center.status === "active" : center.status === "inactive";
     const matchesRegion = filterRegion === "All" || center.region === filterRegion;
     const matchesCountry = filterCountry === "All" || center.country === filterCountry;
-    return matchesSearch && matchesAdmin && matchesRegion && matchesCountry;
+    return matchesSearch && matchesAdmin && matchesStatus && matchesRegion && matchesCountry;
   });
   const totalPages = Math.max(1, Math.ceil(filteredCenters.length / itemsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -1915,7 +1935,7 @@ export default function BpoCentersPage() {
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Admin Status</div>
                   <StyledSelect
@@ -1927,6 +1947,19 @@ export default function BpoCentersPage() {
                       { value: "Unassigned", label: "Unassigned" },
                     ]}
                     placeholder="All Admins"
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Center Status</div>
+                  <StyledSelect
+                    value={filterStatus}
+                    onValueChange={(val) => setFilterStatus(val as "All" | "Active" | "Inactive")}
+                    options={[
+                      { value: "All", label: "All Status" },
+                      { value: "Active", label: "Active" },
+                      { value: "Inactive", label: "Inactive" },
+                    ]}
+                    placeholder="All Status"
                   />
                 </div>
                 <div>
@@ -1962,6 +1995,14 @@ export default function BpoCentersPage() {
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
                         Admin: {filterAdmin}
                         <button onClick={() => setFilterAdmin("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {filterStatus !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Status: {filterStatus}
+                        <button onClick={() => setFilterStatus("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
                         </button>
                       </div>

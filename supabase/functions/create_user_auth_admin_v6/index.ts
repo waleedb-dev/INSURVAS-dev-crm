@@ -16,6 +16,12 @@ interface CreateUserRequest {
   permissions?: string[];
 }
 
+interface SendWelcomeEmailInput {
+  toEmail: string;
+  fullName: string;
+  tempPassword: string;
+}
+
 function getBearerToken(req: Request): string | null {
   const auth = req.headers.get("Authorization");
   if (!auth || !auth.startsWith("Bearer ")) return null;
@@ -34,6 +40,56 @@ function normalizeUnlicensedSubtype(roleKey: string | undefined, raw: unknown): 
   const s = String(raw);
   if (s === "buffer_agent" || s === "retention_agent") return s;
   return null;
+}
+
+async function sendWelcomeEmailViaMailtrap({
+  toEmail,
+  fullName,
+  tempPassword,
+}: SendWelcomeEmailInput): Promise<{ ok: boolean; error?: string }> {
+  const apiToken =
+    Deno.env.get("MAILTRAP") ||
+    Deno.env.get("MAILTRAP_API_TOKEN") ||
+    "";
+
+  if (!apiToken) {
+    return { ok: false, error: "MAILTRAP token is missing" };
+  }
+
+  const payload = {
+    from: {
+      email: "hello@demomailtrap.co",
+      name: "Insurvas CRM",
+    },
+    to: [{ email: toEmail }],
+    subject: "Your Insurvas account is ready",
+    text: `Hello ${fullName},
+
+Your Insurvas account has been created.
+
+Login email: ${toEmail}
+Temporary password: ${tempPassword}
+
+Please sign in and update your password after first login.
+`,
+    category: "User Onboarding",
+  };
+
+  const response = await fetch("https://send.api.mailtrap.io/api/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return { ok: false, error: `Mailtrap send failed (${response.status}): ${errorText}` };
+  }
+
+  return { ok: true };
 }
 
 Deno.serve(async (req: Request) => {
@@ -153,12 +209,22 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const emailResult = await sendWelcomeEmailViaMailtrap({
+      toEmail: body.email,
+      fullName: body.full_name,
+      tempPassword,
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
         user: { id: userId, email: body.email, full_name: body.full_name },
         temp_password: tempPassword,
-        message: "User created successfully",
+        message: emailResult.ok
+          ? "User created successfully"
+          : "User created successfully, but welcome email failed to send",
+        email_sent: emailResult.ok,
+        email_error: emailResult.ok ? null : emailResult.error,
       }),
       {
         status: 200,
