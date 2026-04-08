@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { T } from "@/lib/theme";
 import { ActionMenu, DataGrid, FilterChip, Input, Pagination, Table, Toast, EmptyState } from "@/components/ui";
 import { FieldLabel, SelectInput } from "./daily-deal-flow/ui-primitives";
@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import TransferLeadApplicationForm, { type TransferLeadFormData } from "./TransferLeadApplicationForm";
+import TransferLeadApplicationForm, { type TransferLeadFormData, type TransferLeadSaveDraftMeta } from "./TransferLeadApplicationForm";
 import { buildFeCreateLeadBodyFromIntakePayload, postFeCreateLeadAtFixedUrl } from "./feCreateLead";
 import LeadViewComponent from "./LeadViewComponent";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
@@ -638,6 +638,24 @@ function formatUsPhone(digits: string) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
+/** Postgres `date` columns reject ""; coalesce empty optional dates to null. */
+function dbDateOrNull(value: string | null | undefined): string | null {
+  const s = value != null ? String(value).trim() : "";
+  return s === "" ? null : s;
+}
+
+/**
+ * `leads` CHECK constraints allow only 'Yes' | 'No' (and NULL — empty string is rejected).
+ */
+function dbYesNoOrNull(value: string | null | undefined): string | null {
+  const s = value != null ? String(value).trim() : "";
+  if (s === "") return null;
+  const lower = s.toLowerCase();
+  if (lower === "yes") return "Yes";
+  if (lower === "no") return "No";
+  return null;
+}
+
 /** Calendar date `YYYY-MM-DD` in US Eastern — aligns with FE quote `date` and portal submission dates. */
 function getTodayInEasternYyyyMmDd(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -646,6 +664,17 @@ function getTodayInEasternYyyyMmDd(): string {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+}
+
+function backupQuoteFieldsFromPayload(payload: TransferLeadFormData) {
+  const on = payload.includeBackupQuote;
+  return {
+    has_backup_quote: on,
+    backup_carrier: on && payload.backupCarrier.trim() ? payload.backupCarrier.trim() : null,
+    backup_product_type: on && payload.backupProductType.trim() ? payload.backupProductType.trim() : null,
+    backup_monthly_premium: on && payload.backupMonthlyPremium.trim() ? payload.backupMonthlyPremium.trim() : null,
+    backup_coverage_amount: on && payload.backupCoverageAmount.trim() ? payload.backupCoverageAmount.trim() : null,
+  };
 }
 
 async function insertDailyDealFlowEntry(
@@ -837,12 +866,6 @@ export default function CallCenterLeadIntakePage({
   const { permissionKeys, currentRole, setPageHeaderActions } = useDashboardContext();
   const canEditTransferLeads = permissionKeys.has("action.transfer_leads.edit");
   const canEditLeadPipeline = permissionKeys.has("action.lead_pipeline.update");
-  /** Overwrite the matched row: editors always; intake creators only for SSN match (duplicate resolution). */
-  const canOverwriteDuplicateMatch = (match: DuplicateLeadMatch | null) =>
-    Boolean(
-      match &&
-        (canEditTransferLeads || (canCreateLeads && match.match_type === "ssn")),
-    );
   const isCallCenterTransferRole =
     currentRole === "call_center_agent" || currentRole === "call_center_admin";
   // Only call center agents (not admins) can update their own drafts
@@ -871,6 +894,14 @@ export default function CallCenterLeadIntakePage({
   const [kanbanPage, setKanbanPage] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
+  /** Bumps when user discards duplicate modal to start a fresh create form (remounts `TransferLeadApplicationForm`). */
+  const [createLeadFormKey, setCreateLeadFormKey] = useState(0);
+  /** After "Create Duplicate", pre-fill only these fields on the remounted form (e.g. same phone). Cleared on normal open/close. */
+  const [createLeadFormInitialData, setCreateLeadFormInitialData] = useState<Partial<TransferLeadFormData> | null>(null);
+  /** After "Create Duplicate", remounted form should unlock tabs + submit (phone check + transfer check already passed). */
+  const [createLeadUnlockAfterDuplicate, setCreateLeadUnlockAfterDuplicate] = useState(false);
+  /** Row id of the draft created during “Add lead” autosave; reset when opening the create form. */
+  const createDraftRowIdRef = useRef<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [defaultTransferPipelineId, setDefaultTransferPipelineId] = useState<number | null>(null);
@@ -922,6 +953,10 @@ export default function CallCenterLeadIntakePage({
     };
   }, [supabase]);
 
+  useEffect(() => {
+    if (showCreateLead) createDraftRowIdRef.current = null;
+  }, [showCreateLead]);
+
   const refreshLeads = async () => {
     setIsLoading(true);
     const {
@@ -962,7 +997,7 @@ export default function CallCenterLeadIntakePage({
         ? baseQuery.eq("call_center_id", userProfile.call_center_id)
         : canViewOwn
           ? baseQuery.eq("submitted_by", session.user.id)
-          : baseQuery.eq("id", "__no_access__");
+          : baseQuery.eq("id", "00000000-0000-0000-0000-000000000000");
     const query = hideDraftsForSalesRole ? scopedQuery.eq("is_draft", false) : scopedQuery;
 
     const { data, error } = await query;
@@ -1365,6 +1400,7 @@ export default function CallCenterLeadIntakePage({
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, social, stage, created_at")
         .eq("submitted_by", currentUserId)
+        .eq("is_draft", false)
         .in("phone", variants)
         .order("created_at", { ascending: false });
       if (existingError) return null;
@@ -1384,6 +1420,7 @@ export default function CallCenterLeadIntakePage({
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, social, stage, created_at")
         .eq("submitted_by", currentUserId)
+        .eq("is_draft", false)
         .in("social", variants)
         .order("created_at", { ascending: false });
       if (existingError) return null;
@@ -1439,14 +1476,14 @@ export default function CallCenterLeadIntakePage({
     return false;
   };
 
-  const handleCreateLead = async (payload: TransferLeadFormData) => {
+  const handleCreateLead = async (payload: TransferLeadFormData): Promise<boolean> => {
     const {
       data: { session },
     } = await supabase.auth.getSession();
 
     if (!session?.user?.id) {
       setToast({ message: "You are not logged in", type: "error" });
-      return;
+      return false;
     }
 
     const { data: userProfile } = await supabase
@@ -1459,70 +1496,83 @@ export default function CallCenterLeadIntakePage({
     const generatedSubmissionId = buildSubmissionId(callCenterName);
 
     const hasDuplicate = await promptDuplicateIfAny(payload);
-    if (hasDuplicate) return;
+    if (hasDuplicate) return false;
 
     const insertLead = async (finalPayload: TransferLeadFormData, asDuplicate: boolean) => {
       const existingAdditional = (finalPayload.additionalInformation || "").trim();
-      return supabase
-        .from("leads")
-        .insert({
-          submission_id: generatedSubmissionId,
-          lead_unique_id: leadUniqueId,
-          lead_value: Number(finalPayload.leadValue || 0),
-          lead_source: FIXED_BPO_LEAD_SOURCE,
-          submission_date: finalPayload.submissionDate,
-          first_name: finalPayload.firstName,
-          last_name: finalPayload.lastName,
-          street1: finalPayload.street1,
-          street2: finalPayload.street2 || null,
-          city: finalPayload.city,
-          state: finalPayload.state,
-          zip_code: finalPayload.zipCode,
-          phone: finalPayload.phone,
-          language: finalPayload.language,
-          birth_state: finalPayload.birthState,
-          date_of_birth: finalPayload.dateOfBirth,
-          age: finalPayload.age,
-          social: finalPayload.social,
-          driver_license_number: finalPayload.driverLicenseNumber,
-          existing_coverage_last_2_years: finalPayload.existingCoverageLast2Years,
-          existing_coverage_details: finalPayload.existingCoverageDetails || null,
-          previous_applications_2_years: finalPayload.previousApplications2Years,
-          height: finalPayload.height,
-          weight: finalPayload.weight,
-          doctor_name: finalPayload.doctorName,
-          tobacco_use: finalPayload.tobaccoUse,
-          health_conditions: finalPayload.healthConditions,
-          medications: finalPayload.medications,
-          monthly_premium: finalPayload.monthlyPremium,
-          coverage_amount: finalPayload.coverageAmount,
-          carrier: finalPayload.carrier,
-          product_type: finalPayload.productType,
-          draft_date: finalPayload.draftDate,
-          beneficiary_information: finalPayload.beneficiaryInformation,
-          bank_account_type: finalPayload.bankAccountType || null,
-          institution_name: finalPayload.institutionName,
-          routing_number: finalPayload.routingNumber,
-          account_number: finalPayload.accountNumber,
-          future_draft_date: finalPayload.futureDraftDate,
-          additional_information: existingAdditional || null,
-          tags: asDuplicate ? ["duplicate"] : [],
-          stage: finalPayload.stage || "Transfer API",
-          pipeline_id: defaultTransferPipelineId,
-          stage_id: defaultTransferStageId,
-          is_draft: false,
-          call_center_id: userProfile?.call_center_id || null,
-          submitted_by: session.user.id,
-        })
-        .select("id")
-        .single();
+      const leadRow = {
+        submission_id: generatedSubmissionId,
+        lead_unique_id: leadUniqueId,
+        lead_value: Number(finalPayload.leadValue || 0),
+        lead_source: FIXED_BPO_LEAD_SOURCE,
+        submission_date: dbDateOrNull(finalPayload.submissionDate),
+        first_name: finalPayload.firstName,
+        last_name: finalPayload.lastName,
+        street1: finalPayload.street1,
+        street2: finalPayload.street2 || null,
+        city: finalPayload.city,
+        state: finalPayload.state,
+        zip_code: finalPayload.zipCode,
+        phone: finalPayload.phone,
+        sms_access: finalPayload.smsAccess,
+        email_access: finalPayload.emailAccess,
+        language: finalPayload.language,
+        birth_state: finalPayload.birthState,
+        date_of_birth: dbDateOrNull(finalPayload.dateOfBirth),
+        age: finalPayload.age,
+        social: finalPayload.social,
+        driver_license_number: finalPayload.driverLicenseNumber,
+        existing_coverage_last_2_years: dbYesNoOrNull(finalPayload.existingCoverageLast2Years),
+        existing_coverage_details: finalPayload.existingCoverageDetails || null,
+        previous_applications_2_years: dbYesNoOrNull(finalPayload.previousApplications2Years),
+        height: finalPayload.height,
+        weight: finalPayload.weight,
+        doctor_name: finalPayload.doctorName,
+        tobacco_use: dbYesNoOrNull(finalPayload.tobaccoUse),
+        health_conditions: finalPayload.healthConditions,
+        medications: finalPayload.medications,
+        monthly_premium: finalPayload.monthlyPremium,
+        coverage_amount: finalPayload.coverageAmount,
+        carrier: finalPayload.carrier,
+        product_type: finalPayload.productType,
+        draft_date: dbDateOrNull(finalPayload.draftDate),
+        beneficiary_information: finalPayload.beneficiaryInformation,
+        bank_account_type: finalPayload.bankAccountType || null,
+        institution_name: finalPayload.institutionName,
+        routing_number: finalPayload.routingNumber,
+        account_number: finalPayload.accountNumber,
+        future_draft_date: dbDateOrNull(finalPayload.futureDraftDate),
+        additional_information: existingAdditional || null,
+        tags: asDuplicate ? ["duplicate"] : [],
+        stage: finalPayload.stage || "Transfer API",
+        pipeline_id: defaultTransferPipelineId,
+        stage_id: defaultTransferStageId,
+        is_draft: false,
+        call_center_id: userProfile?.call_center_id || null,
+        submitted_by: session.user.id,
+        ...backupQuoteFieldsFromPayload(finalPayload),
+      };
+
+      const existingDraftId = createDraftRowIdRef.current;
+      if (!asDuplicate && existingDraftId) {
+        return supabase
+          .from("leads")
+          .update(leadRow)
+          .eq("id", existingDraftId)
+          .eq("is_draft", true)
+          .eq("submitted_by", session.user.id)
+          .select("id")
+          .single();
+      }
+
+      return supabase.from("leads").insert(leadRow).select("id").single();
     };
 
     const { data: insertedLead, error } = await insertLead(payload, false);
 
     if (error) {
       setToast({ message: error.message || "Failed to save lead", type: "error" });
-      return;
+      return false;
     }
 
     let feCreateLeadSyncError: string | null = null;
@@ -1564,232 +1614,46 @@ export default function CallCenterLeadIntakePage({
         : "Lead saved successfully",
       type: feCreateLeadSyncError ? "error" : "success",
     });
+    setCreateLeadFormInitialData(null);
+    setCreateLeadUnlockAfterDuplicate(false);
     setShowCreateLead(false);
+    createDraftRowIdRef.current = null;
     setPage(1);
     await refreshLeads();
+    return true;
   };
 
-  const handleCreateDuplicateLead = async () => {
-    if (!pendingCreatePayload) return;
-    if (!duplicateIsAddable) {
-      setToast({ message: "Duplicate creation is not allowed for the existing lead’s current stage.", type: "error" });
-      return;
-    }
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user?.id) {
-      setToast({ message: "You are not logged in", type: "error" });
-      return;
-    }
-
-    const { data: userProfile } = await supabase
-      .from("users")
-      .select("call_center_id")
-      .eq("id", session.user.id)
-      .maybeSingle();
-
-    const leadUniqueId = normalizeLeadUniqueId(pendingCreatePayload.leadUniqueId) || buildLeadUniqueId(pendingCreatePayload);
-    const generatedSubmissionId = buildSubmissionId(callCenterName);
-    const existingAdditional = (pendingCreatePayload.additionalInformation || "").trim();
-
-    const { data: dupInserted, error } = await supabase
-      .from("leads")
-      .insert({
-        submission_id: generatedSubmissionId,
-        lead_unique_id: leadUniqueId,
-        lead_value: Number(pendingCreatePayload.leadValue || 0),
-        lead_source: FIXED_BPO_LEAD_SOURCE,
-        submission_date: pendingCreatePayload.submissionDate,
-        first_name: pendingCreatePayload.firstName,
-        last_name: pendingCreatePayload.lastName,
-        street1: pendingCreatePayload.street1,
-        street2: pendingCreatePayload.street2 || null,
-        city: pendingCreatePayload.city,
-        state: pendingCreatePayload.state,
-        zip_code: pendingCreatePayload.zipCode,
-        phone: pendingCreatePayload.phone,
-        language: pendingCreatePayload.language,
-        birth_state: pendingCreatePayload.birthState,
-        date_of_birth: pendingCreatePayload.dateOfBirth,
-        age: pendingCreatePayload.age,
-        social: pendingCreatePayload.social,
-        driver_license_number: pendingCreatePayload.driverLicenseNumber,
-        existing_coverage_last_2_years: pendingCreatePayload.existingCoverageLast2Years,
-        existing_coverage_details: pendingCreatePayload.existingCoverageDetails || null,
-        previous_applications_2_years: pendingCreatePayload.previousApplications2Years,
-        height: pendingCreatePayload.height,
-        weight: pendingCreatePayload.weight,
-        doctor_name: pendingCreatePayload.doctorName,
-        tobacco_use: pendingCreatePayload.tobaccoUse,
-        health_conditions: pendingCreatePayload.healthConditions,
-        medications: pendingCreatePayload.medications,
-        monthly_premium: pendingCreatePayload.monthlyPremium,
-        coverage_amount: pendingCreatePayload.coverageAmount,
-        carrier: pendingCreatePayload.carrier,
-        product_type: pendingCreatePayload.productType,
-        draft_date: pendingCreatePayload.draftDate,
-        beneficiary_information: pendingCreatePayload.beneficiaryInformation,
-        bank_account_type: pendingCreatePayload.bankAccountType || null,
-        institution_name: pendingCreatePayload.institutionName,
-        routing_number: pendingCreatePayload.routingNumber,
-        account_number: pendingCreatePayload.accountNumber,
-        future_draft_date: pendingCreatePayload.futureDraftDate,
-        additional_information: existingAdditional || null,
-        tags: ["duplicate"],
-        stage: pendingCreatePayload.stage || "Transfer API",
-        pipeline_id: defaultTransferPipelineId,
-        stage_id: defaultTransferStageId,
-        is_draft: false,
-        call_center_id: userProfile?.call_center_id || null,
-        submitted_by: session.user.id,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      setToast({ message: error.message || "Failed to save duplicate lead", type: "error" });
-      return;
-    }
-
-    let feCreateLeadDupSyncError: string | null = null;
-    if (dupInserted?.id) {
-      const leadName = `${pendingCreatePayload.firstName} ${pendingCreatePayload.lastName}`.trim() || "Unnamed Lead";
-      await insertDailyDealFlowEntry(supabase, {
-        submissionId: generatedSubmissionId,
-        leadVendor: callCenterName,
-        leadName,
-        payload: pendingCreatePayload,
-        callCenterId: userProfile?.call_center_id || null,
-      });
-      void notifySlackTransferPortalLead(supabase, {
-        leadId: dupInserted.id,
-        submissionId: generatedSubmissionId,
-        leadUniqueId,
-        payload: pendingCreatePayload,
-        callCenterName,
-        callCenterId: userProfile?.call_center_id || null,
-      });
-      try {
-        await postFeCreateLeadAtFixedUrl(
-          supabase,
-          buildFeCreateLeadBodyFromIntakePayload(pendingCreatePayload, {
-            submissionId: generatedSubmissionId,
-            leadVendor: callCenterName,
-          }),
-          "[CallCenterLeadIntake:duplicate]",
-        );
-      } catch (feErr) {
-        feCreateLeadDupSyncError = feErr instanceof Error ? feErr.message : String(feErr);
-        console.warn("[CallCenterLeadIntake] fe-create-lead failed after duplicate insert", feErr);
-      }
-    }
-
-    setShowDuplicateDialog(false);
-    setPendingCreatePayload(null);
-    setDuplicateLeadMatch(null);
-    setToast({
-      message: feCreateLeadDupSyncError
-        ? `Duplicate lead saved. fe-create-lead sync failed: ${feCreateLeadDupSyncError}`
-        : "Duplicate lead saved with duplicate tag",
-      type: feCreateLeadDupSyncError ? "error" : "success",
-    });
-    setShowCreateLead(false);
-    setPage(1);
-    await refreshLeads();
-  };
-
-  const handleEditExistingDuplicateLead = async () => {
-    if (!pendingCreatePayload) return;
-    if (!duplicateLeadMatch?.id) return;
-    if (!canOverwriteDuplicateMatch(duplicateLeadMatch)) {
-      setToast({ message: "You do not have permission to overwrite this lead.", type: "error" });
-      return;
-    }
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user?.id) {
-      setToast({ message: "You are not logged in", type: "error" });
-      return;
-    }
-
-    const { data: userProfile } = await supabase
-      .from("users")
-      .select("call_center_id")
-      .eq("id", session.user.id)
-      .maybeSingle();
-
-    const { error } = await supabase
-      .from("leads")
-      .update({
-        lead_unique_id: normalizeLeadUniqueId(pendingCreatePayload.leadUniqueId) || buildLeadUniqueId(pendingCreatePayload),
-        lead_value: Number(pendingCreatePayload.leadValue || 0),
-        lead_source: FIXED_BPO_LEAD_SOURCE,
-        submission_date: pendingCreatePayload.submissionDate,
-        first_name: pendingCreatePayload.firstName,
-        last_name: pendingCreatePayload.lastName,
-        street1: pendingCreatePayload.street1,
-        street2: pendingCreatePayload.street2 || null,
-        city: pendingCreatePayload.city,
-        state: pendingCreatePayload.state,
-        zip_code: pendingCreatePayload.zipCode,
-        phone: pendingCreatePayload.phone,
-        language: pendingCreatePayload.language,
-        birth_state: pendingCreatePayload.birthState,
-        date_of_birth: pendingCreatePayload.dateOfBirth,
-        age: pendingCreatePayload.age,
-        social: pendingCreatePayload.social,
-        driver_license_number: pendingCreatePayload.driverLicenseNumber,
-        existing_coverage_last_2_years: pendingCreatePayload.existingCoverageLast2Years,
-        existing_coverage_details: pendingCreatePayload.existingCoverageDetails || null,
-        previous_applications_2_years: pendingCreatePayload.previousApplications2Years,
-        height: pendingCreatePayload.height,
-        weight: pendingCreatePayload.weight,
-        doctor_name: pendingCreatePayload.doctorName,
-        tobacco_use: pendingCreatePayload.tobaccoUse,
-        health_conditions: pendingCreatePayload.healthConditions,
-        medications: pendingCreatePayload.medications,
-        monthly_premium: pendingCreatePayload.monthlyPremium,
-        coverage_amount: pendingCreatePayload.coverageAmount,
-        carrier: pendingCreatePayload.carrier,
-        product_type: pendingCreatePayload.productType,
-        draft_date: pendingCreatePayload.draftDate,
-        beneficiary_information: pendingCreatePayload.beneficiaryInformation,
-        bank_account_type: pendingCreatePayload.bankAccountType || null,
-        institution_name: pendingCreatePayload.institutionName,
-        routing_number: pendingCreatePayload.routingNumber,
-        account_number: pendingCreatePayload.accountNumber,
-        future_draft_date: pendingCreatePayload.futureDraftDate,
-        additional_information: pendingCreatePayload.additionalInformation || null,
-        stage: pendingCreatePayload.stage || "Transfer API",
-        pipeline_id: defaultTransferPipelineId,
-        stage_id: defaultTransferStageId,
-        is_draft: false,
-        call_center_id: userProfile?.call_center_id || null,
-      })
-      .eq("id", duplicateLeadMatch.id);
-
-    if (error) {
-      setToast({ message: error.message || "Failed to update existing duplicate lead", type: "error" });
-      return;
-    }
-
+  /** User chose a brand-new lead: no DB/API side effects — close modal and remount the empty transfer form. */
+  const handleStartNewLeadFromDuplicateDialog = () => {
+    const phoneTrim = pendingCreatePayload?.phone?.trim() ?? "";
+    const phoneOk = Boolean(phoneTrim);
     setShowDuplicateDialog(false);
     setPendingCreatePayload(null);
     setDuplicateLeadMatch(null);
     setDuplicateRuleMessage("");
-    setShowCreateLead(false);
-    setToast({ message: "Existing lead updated successfully", type: "success" });
-    setPage(1);
-    await refreshLeads();
+    setDuplicateIsAddable(true);
+    createDraftRowIdRef.current = null;
+    setCreateLeadFormInitialData(phoneOk ? { phone: phoneTrim } : null);
+    setCreateLeadUnlockAfterDuplicate(phoneOk);
+    setCreateLeadFormKey((k) => k + 1);
   };
 
-  const handleCreateDraftLead = async (payload: TransferLeadFormData) => {
+  const handleEditExistingDuplicateLead = async () => {
+    if (!duplicateLeadMatch?.id) return;
+    const duplicateRowId = duplicateLeadMatch.id;
+    const loaded = await openLeadInForm(duplicateRowId);
+    if (!loaded) return;
+    setShowDuplicateDialog(false);
+    setPendingCreatePayload(null);
+    setDuplicateLeadMatch(null);
+    setDuplicateRuleMessage("");
+    setCreateLeadFormInitialData(null);
+    setCreateLeadUnlockAfterDuplicate(false);
+    setShowCreateLead(false);
+  };
+
+  const handleCreateDraftLead = async (payload: TransferLeadFormData, meta?: TransferLeadSaveDraftMeta) => {
+    const isAuto = meta?.source === "auto";
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -1808,12 +1672,11 @@ export default function CallCenterLeadIntakePage({
     const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
     const generatedSubmissionId = buildSubmissionId(callCenterName);
 
-    const { error } = await supabase.from("leads").insert({
-      submission_id: generatedSubmissionId,
+    const draftRow = {
       lead_unique_id: leadUniqueId,
       lead_value: Number(payload.leadValue || 0),
       lead_source: FIXED_BPO_LEAD_SOURCE,
-      submission_date: payload.submissionDate || null,
+      submission_date: dbDateOrNull(payload.submissionDate),
       first_name: payload.firstName || null,
       last_name: payload.lastName || null,
       street1: payload.street1 || null,
@@ -1822,62 +1685,101 @@ export default function CallCenterLeadIntakePage({
       state: payload.state || null,
       zip_code: payload.zipCode || null,
       phone: payload.phone || null,
+      sms_access: payload.smsAccess,
+      email_access: payload.emailAccess,
       language: payload.language || null,
       birth_state: payload.birthState || null,
-      date_of_birth: payload.dateOfBirth || null,
+      date_of_birth: dbDateOrNull(payload.dateOfBirth),
       age: payload.age || null,
       social: payload.social || null,
       driver_license_number: payload.driverLicenseNumber || null,
-      existing_coverage_last_2_years: payload.existingCoverageLast2Years || null,
+      existing_coverage_last_2_years: dbYesNoOrNull(payload.existingCoverageLast2Years),
       existing_coverage_details: payload.existingCoverageDetails || null,
-      previous_applications_2_years: payload.previousApplications2Years || null,
+      previous_applications_2_years: dbYesNoOrNull(payload.previousApplications2Years),
       height: payload.height || null,
       weight: payload.weight || null,
       doctor_name: payload.doctorName || null,
-      tobacco_use: payload.tobaccoUse || null,
+      tobacco_use: dbYesNoOrNull(payload.tobaccoUse),
       health_conditions: payload.healthConditions || null,
       medications: payload.medications || null,
       monthly_premium: payload.monthlyPremium || null,
       coverage_amount: payload.coverageAmount || null,
       carrier: payload.carrier || null,
       product_type: payload.productType || null,
-      draft_date: payload.draftDate || null,
+      draft_date: dbDateOrNull(payload.draftDate),
       beneficiary_information: payload.beneficiaryInformation || null,
       bank_account_type: payload.bankAccountType || null,
       institution_name: payload.institutionName || null,
       routing_number: payload.routingNumber || null,
       account_number: payload.accountNumber || null,
-      future_draft_date: payload.futureDraftDate || null,
+      future_draft_date: dbDateOrNull(payload.futureDraftDate),
       additional_information: payload.additionalInformation || null,
       stage: payload.stage || "Transfer API",
       pipeline_id: defaultTransferPipelineId,
       stage_id: defaultTransferStageId,
       is_draft: true,
       call_center_id: userProfile?.call_center_id || null,
-      submitted_by: session.user.id,
-    });
+      ...backupQuoteFieldsFromPayload(payload),
+    };
+
+    const existingDraftId = createDraftRowIdRef.current;
+    if (existingDraftId) {
+      let updateQuery = supabase.from("leads").update(draftRow).eq("id", existingDraftId).eq("is_draft", true);
+      if (isCallCenterAgentOnly && !canEditTransferLeads && session.user.id) {
+        updateQuery = updateQuery.eq("submitted_by", session.user.id);
+      }
+      const { error } = await updateQuery;
+      if (error) {
+        setToast({ message: error.message || "Failed to save draft", type: "error" });
+        return;
+      }
+      if (isAuto) return;
+      setToast({ message: "Draft saved", type: "success" });
+      setCreateLeadFormInitialData(null);
+      setCreateLeadUnlockAfterDuplicate(false);
+      setShowCreateLead(false);
+      setPage(1);
+      await refreshLeads();
+      return;
+    }
+
+    const { data: inserted, error } = await supabase
+      .from("leads")
+      .insert({
+        ...draftRow,
+        submission_id: generatedSubmissionId,
+        submitted_by: session.user.id,
+      })
+      .select("id")
+      .single();
 
     if (error) {
       setToast({ message: error.message || "Failed to save draft", type: "error" });
       return;
     }
 
+    if (inserted?.id) createDraftRowIdRef.current = inserted.id;
+
+    if (isAuto) return;
+
     setToast({ message: "Draft saved", type: "success" });
+    setCreateLeadFormInitialData(null);
+    setCreateLeadUnlockAfterDuplicate(false);
     setShowCreateLead(false);
     setPage(1);
     await refreshLeads();
   };
 
-  const openLeadInForm = async (rowId: string) => {
+  const openLeadInForm = async (rowId: string): Promise<boolean> => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, language, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline_id, stage, is_draft, pipelines(name)")
+      .select("id, lead_unique_id, lead_value, lead_source, submission_date, first_name, last_name, street1, street2, city, state, zip_code, phone, sms_access, email_access, language, birth_state, date_of_birth, age, social, driver_license_number, existing_coverage_last_2_years, existing_coverage_details, previous_applications_2_years, height, weight, doctor_name, tobacco_use, health_conditions, medications, monthly_premium, coverage_amount, carrier, product_type, has_backup_quote, backup_carrier, backup_product_type, backup_monthly_premium, backup_coverage_amount, draft_date, beneficiary_information, bank_account_type, institution_name, routing_number, account_number, future_draft_date, additional_information, pipeline_id, stage, is_draft, pipelines(name)")
       .eq("id", rowId)
       .maybeSingle();
 
     if (error || !data) {
       setToast({ message: error?.message || "Failed to load lead for editing", type: "error" });
-      return;
+      return false;
     }
 
     const mapped: TransferLeadFormData = {
@@ -1893,6 +1795,8 @@ export default function CallCenterLeadIntakePage({
       state: data.state || "",
       zipCode: data.zip_code || "",
       phone: data.phone || "",
+      smsAccess: Boolean((data as any).sms_access),
+      emailAccess: Boolean((data as any).email_access),
       language: data.language || "English",
       birthState: data.birth_state || "",
       dateOfBirth: data.date_of_birth || "",
@@ -1912,6 +1816,13 @@ export default function CallCenterLeadIntakePage({
       coverageAmount: data.coverage_amount || "",
       carrier: data.carrier || "",
       productType: data.product_type || "",
+      includeBackupQuote:
+        (data as { has_backup_quote?: boolean }).has_backup_quote === true ||
+        Boolean(String((data as { backup_carrier?: string | null }).backup_carrier || "").trim()),
+      backupCarrier: String((data as { backup_carrier?: string | null }).backup_carrier || ""),
+      backupProductType: String((data as { backup_product_type?: string | null }).backup_product_type || ""),
+      backupMonthlyPremium: String((data as { backup_monthly_premium?: string | null }).backup_monthly_premium || ""),
+      backupCoverageAmount: String((data as { backup_coverage_amount?: string | null }).backup_coverage_amount || ""),
       draftDate: data.draft_date || "",
       beneficiaryInformation: data.beneficiary_information || "",
       bankAccountType: data.bank_account_type || "",
@@ -1926,6 +1837,7 @@ export default function CallCenterLeadIntakePage({
     };
 
     setEditingLead({ rowId, formData: mapped });
+    return true;
   };
 
   const handleEditLead = async (rowId: string) => {
@@ -1945,15 +1857,9 @@ export default function CallCenterLeadIntakePage({
     setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId });
   };
 
-  const handleUpdateLead = async (payload: TransferLeadFormData) => {
-    if (!editingLead?.rowId) return;
-    // Only call center agents (not admins) can resume/update their own drafts
-    const canResumeDraftAsCallCenter = Boolean(isCallCenterAgentOnly && editingLead.formData.isDraft);
+  const handleUpdateLead = async (payload: TransferLeadFormData): Promise<boolean> => {
+    if (!editingLead?.rowId) return false;
     const wasDraftBeforeUpdate = Boolean(editingLead.formData.isDraft);
-    if (!canEditTransferLeads && !canResumeDraftAsCallCenter) {
-      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
-      return;
-    }
 
     const {
       data: { session },
@@ -1976,7 +1882,7 @@ export default function CallCenterLeadIntakePage({
         lead_unique_id: leadUniqueId,
         lead_value: Number(payload.leadValue || 0),
         lead_source: FIXED_BPO_LEAD_SOURCE,
-        submission_date: payload.submissionDate,
+        submission_date: dbDateOrNull(payload.submissionDate),
         first_name: payload.firstName,
         last_name: payload.lastName,
         street1: payload.street1,
@@ -1985,45 +1891,43 @@ export default function CallCenterLeadIntakePage({
         state: payload.state,
         zip_code: payload.zipCode,
         phone: payload.phone,
+        sms_access: payload.smsAccess,
+        email_access: payload.emailAccess,
         language: payload.language,
         birth_state: payload.birthState,
-        date_of_birth: payload.dateOfBirth,
+        date_of_birth: dbDateOrNull(payload.dateOfBirth),
         age: payload.age,
         social: payload.social,
         driver_license_number: payload.driverLicenseNumber,
-        existing_coverage_last_2_years: payload.existingCoverageLast2Years,
+        existing_coverage_last_2_years: dbYesNoOrNull(payload.existingCoverageLast2Years),
         existing_coverage_details: payload.existingCoverageDetails || null,
-        previous_applications_2_years: payload.previousApplications2Years,
+        previous_applications_2_years: dbYesNoOrNull(payload.previousApplications2Years),
         height: payload.height,
         weight: payload.weight,
         doctor_name: payload.doctorName,
-        tobacco_use: payload.tobaccoUse,
+        tobacco_use: dbYesNoOrNull(payload.tobaccoUse),
         health_conditions: payload.healthConditions,
         medications: payload.medications,
         monthly_premium: payload.monthlyPremium,
         coverage_amount: payload.coverageAmount,
         carrier: payload.carrier,
         product_type: payload.productType,
-        draft_date: payload.draftDate,
+        draft_date: dbDateOrNull(payload.draftDate),
         beneficiary_information: payload.beneficiaryInformation,
         bank_account_type: payload.bankAccountType || null,
         institution_name: payload.institutionName,
         routing_number: payload.routingNumber,
         account_number: payload.accountNumber,
-        future_draft_date: payload.futureDraftDate,
+        future_draft_date: dbDateOrNull(payload.futureDraftDate),
         additional_information: payload.additionalInformation || null,
         stage: payload.stage || "Transfer API",
         pipeline_id: defaultTransferPipelineId,
         stage_id: defaultTransferStageId,
         is_draft: false,
         call_center_id: userProfile?.call_center_id || null,
+        ...backupQuoteFieldsFromPayload(payload),
       })
       .eq("id", editingLead.rowId);
-
-    // Add ownership filter for call center agents (not admins) to ensure they can only update their own drafts
-    if (isCallCenterAgentOnly && !canEditTransferLeads && session?.user?.id) {
-      updateQuery = updateQuery.eq("submitted_by", session.user.id);
-    }
 
     const { data: updatedLead, error } = await updateQuery
       .select("id, submission_id")
@@ -2031,7 +1935,7 @@ export default function CallCenterLeadIntakePage({
 
     if (error) {
       setToast({ message: error.message || "Failed to update lead", type: "error" });
-      return;
+      return false;
     }
 
     let feCreateLeadDraftSubmitSyncError: string | null = null;
@@ -2076,16 +1980,12 @@ export default function CallCenterLeadIntakePage({
     });
     setEditingLead(null);
     await refreshLeads();
+    return true;
   };
 
-  const handleUpdateDraftLead = async (payload: TransferLeadFormData) => {
+  const handleUpdateDraftLead = async (payload: TransferLeadFormData, meta?: TransferLeadSaveDraftMeta) => {
+    const isAuto = meta?.source === "auto";
     if (!editingLead?.rowId) return;
-    // Only call center agents (not admins) can update their own drafts
-    const canResumeDraftAsCallCenter = Boolean(isCallCenterAgentOnly && editingLead.formData.isDraft);
-    if (!canEditTransferLeads && !canResumeDraftAsCallCenter) {
-      setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
-      return;
-    }
 
     const {
       data: { session },
@@ -2109,7 +2009,7 @@ export default function CallCenterLeadIntakePage({
         lead_unique_id: normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload),
         lead_value: Number(payload.leadValue || 0),
         lead_source: FIXED_BPO_LEAD_SOURCE,
-        submission_date: payload.submissionDate || null,
+        submission_date: dbDateOrNull(payload.submissionDate),
         first_name: payload.firstName || null,
         last_name: payload.lastName || null,
         street1: payload.street1 || null,
@@ -2118,45 +2018,43 @@ export default function CallCenterLeadIntakePage({
         state: payload.state || null,
         zip_code: payload.zipCode || null,
         phone: payload.phone || null,
+        sms_access: payload.smsAccess,
+        email_access: payload.emailAccess,
         language: payload.language || null,
         birth_state: payload.birthState || null,
-        date_of_birth: payload.dateOfBirth || null,
+        date_of_birth: dbDateOrNull(payload.dateOfBirth),
         age: payload.age || null,
         social: payload.social || null,
         driver_license_number: payload.driverLicenseNumber || null,
-        existing_coverage_last_2_years: payload.existingCoverageLast2Years || null,
+        existing_coverage_last_2_years: dbYesNoOrNull(payload.existingCoverageLast2Years),
         existing_coverage_details: payload.existingCoverageDetails || null,
-        previous_applications_2_years: payload.previousApplications2Years || null,
+        previous_applications_2_years: dbYesNoOrNull(payload.previousApplications2Years),
         height: payload.height || null,
         weight: payload.weight || null,
         doctor_name: payload.doctorName || null,
-        tobacco_use: payload.tobaccoUse || null,
+        tobacco_use: dbYesNoOrNull(payload.tobaccoUse),
         health_conditions: payload.healthConditions || null,
         medications: payload.medications || null,
         monthly_premium: payload.monthlyPremium || null,
         coverage_amount: payload.coverageAmount || null,
         carrier: payload.carrier || null,
         product_type: payload.productType || null,
-        draft_date: payload.draftDate || null,
+        draft_date: dbDateOrNull(payload.draftDate),
         beneficiary_information: payload.beneficiaryInformation || null,
         bank_account_type: payload.bankAccountType || null,
         institution_name: payload.institutionName || null,
         routing_number: payload.routingNumber || null,
         account_number: payload.accountNumber || null,
-        future_draft_date: payload.futureDraftDate || null,
+        future_draft_date: dbDateOrNull(payload.futureDraftDate),
         additional_information: payload.additionalInformation || null,
         stage: payload.stage || "Transfer API",
         pipeline_id: defaultTransferPipelineId,
         stage_id: defaultTransferStageId,
         is_draft: true,
         call_center_id: userProfile?.call_center_id || null,
+        ...backupQuoteFieldsFromPayload(payload),
       })
       .eq("id", editingLead.rowId);
-
-    // Add ownership filter for call center agents (not admins) to ensure they can only update their own drafts
-    if (isCallCenterAgentOnly && !canEditTransferLeads && session?.user?.id) {
-      query = query.eq("submitted_by", session.user.id);
-    }
 
     const { error } = await query;
 
@@ -2164,6 +2062,8 @@ export default function CallCenterLeadIntakePage({
       setToast({ message: error.message || "Failed to save draft", type: "error" });
       return;
     }
+
+    if (isAuto) return;
 
     setToast({ message: "Draft updated", type: "success" });
     setEditingLead(null);
@@ -2208,10 +2108,17 @@ export default function CallCenterLeadIntakePage({
     return (
       <>
         <TransferLeadApplicationForm
-          onBack={() => setShowCreateLead(false)}
+          key={createLeadFormKey}
+          onBack={() => {
+            setCreateLeadFormInitialData(null);
+            setCreateLeadUnlockAfterDuplicate(false);
+            setShowCreateLead(false);
+          }}
           onSubmit={handleCreateLead}
           onSaveDraft={handleCreateDraftLead}
           onInstantDuplicateCheck={(payload) => void promptDuplicateIfAny(payload)}
+          initialData={createLeadFormInitialData ?? undefined}
+          unlockAfterDuplicateRemount={createLeadUnlockAfterDuplicate}
           centerName={callCenterName}
         />
         {showDuplicateDialog && duplicateLeadMatch && (
@@ -2221,9 +2128,12 @@ export default function CallCenterLeadIntakePage({
               <p style={{ marginTop: 10, marginBottom: 8, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
                 {duplicateRuleMessage || `We found an existing lead with the same ${duplicateLeadMatch.match_type === "ssn" ? "SSN" : "phone number"}.`}
               </p>
+              <p style={{ marginTop: 0, marginBottom: 14, fontSize: 13, color: T.textMid, lineHeight: 1.45 }}>
+                Is this a new lead, or do you want to update the existing one?
+              </p>
               {duplicateLeadMatch.match_type === "ssn" && (
                 <p style={{ marginTop: 0, marginBottom: 14, fontSize: 12, color: T.textMuted, lineHeight: 1.45 }}>
-                  Stage rules (SSN duplicate rules) control whether a <strong>second</strong> lead can be created. You can still overwrite the existing lead with the form you entered.
+                  Stage rules may customize the message above for SSN matches.
                 </p>
               )}
               <div style={{ backgroundColor: T.rowBg, border: `1px solid ${T.borderLight}`, borderRadius: 10, padding: 12, marginBottom: 16 }}>
@@ -2264,41 +2174,28 @@ export default function CallCenterLeadIntakePage({
                 >
                   Cancel
                 </button>
-                {canOverwriteDuplicateMatch(duplicateLeadMatch) && (
-                  <button
-                    type="button"
-                    onClick={() => void handleEditExistingDuplicateLead()}
-                    style={{
-                      background: duplicateIsAddable ? "#fff" : T.blue,
-                      border: duplicateIsAddable ? `1px solid ${T.blue}` : "none",
-                      color: duplicateIsAddable ? T.blue : "#fff",
-                      borderRadius: 8,
-                      padding: "10px 14px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Overwrite existing lead
-                  </button>
-                )}
-                {duplicateIsAddable ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleCreateDuplicateLead()}
-                    style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
-                  >
-                    Create Duplicate
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled
-                    style={{ background: "#c8d4bb", color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "not-allowed" }}
-                    title="A second lead is not allowed for this stage (see SSN duplicate stage rules)."
-                  >
-                    Duplicate Not Allowed
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => void handleEditExistingDuplicateLead()}
+                  style={{
+                    background: duplicateIsAddable ? "#fff" : T.blue,
+                    border: duplicateIsAddable ? `1px solid ${T.blue}` : "none",
+                    color: duplicateIsAddable ? T.blue : "#fff",
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Update Existing Lead
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartNewLeadFromDuplicateDialog}
+                  style={{ background: T.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}
+                >
+                  Create Duplicate
+                </button>
               </div>
             </div>
           </div>
@@ -2586,7 +2483,11 @@ export default function CallCenterLeadIntakePage({
 
             <button
               type="button"
-              onClick={() => setShowCreateLead(true)}
+              onClick={() => {
+                setCreateLeadFormInitialData(null);
+                setCreateLeadUnlockAfterDuplicate(false);
+                setShowCreateLead(true);
+              }}
               disabled={!canCreateLeads}
               title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
               style={{

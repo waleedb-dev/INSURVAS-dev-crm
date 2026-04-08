@@ -102,11 +102,25 @@ export default function SignInPage() {
       return;
     }
 
+    const { data: profile } = await supabase
+      .from("users")
+      .select("status")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
+    if (profile?.status && profile.status !== "active") {
+      await supabase.auth.signOut();
+      setErrorMessage("Your profile is inactive. Contact admin.");
+      setIsSubmitting(false);
+      return;
+    }
+
     const role = await getCurrentUserPrimaryRole(supabase, data.user.id);
 
     setIsSubmitting(false);
 
     if (!role) {
+      await supabase.auth.signOut();
       setErrorMessage("No role is assigned to this account. Contact admin.");
       return;
     }

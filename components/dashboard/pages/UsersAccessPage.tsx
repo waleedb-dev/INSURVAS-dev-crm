@@ -4,6 +4,7 @@ import { T } from "@/lib/theme";
 import { Card } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { AppSelect } from "@/components/ui/app-select";
+import { Pagination } from "@/components/ui/Pagination";
 import UserEditorComponent from "./UserEditorComponent";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useMemo } from "react";
@@ -774,20 +775,13 @@ export default function UsersAccessPage(){
               </ShadcnTable>
             </div>
 
-            <div
-              style={{
-                backgroundColor: T.cardBg,
-                padding: "16px 20px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderTop: `1px solid ${T.border}`,
-              }}
-            >
-              <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
-                Showing {paginated.length} of {filtered.length} users
-              </span>
-            </div>
+            <Pagination
+              page={page}
+              totalItems={filtered.length}
+              itemsPerPage={itemsPerPage}
+              itemLabel="users"
+              onPageChange={setPage}
+            />
           </>
         )}
       </div>

@@ -32,6 +32,11 @@ interface UserEditorProps {
   };
   onClose: () => void;
   onSubmit: (data: any) => void;
+  presetRoleKey?: "call_center_admin" | "call_center_agent";
+  allowedRoleKeys?: Array<"call_center_admin" | "call_center_agent">;
+  presetCenterId?: string;
+  lockRole?: boolean;
+  lockCenter?: boolean;
 }
 
 type TabType = "User Info" | "Roles & Permissions";
@@ -110,7 +115,16 @@ function StyledSelect({
   );
 }
 
-export default function UserEditorComponent({ user, onClose, onSubmit }: UserEditorProps) {
+export default function UserEditorComponent({
+  user,
+  onClose,
+  onSubmit,
+  presetRoleKey,
+  allowedRoleKeys,
+  presetCenterId,
+  lockRole = false,
+  lockCenter = false,
+}: UserEditorProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [activeTab, setActiveTab] = useState<TabType>("User Info");
   
@@ -147,6 +161,12 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
   const tabs: TabType[] = ["User Info", "Roles & Permissions"];
 
   const currentRole = roles.find(r => r.id === selectedRoleId);
+  const selectableRoles = useMemo(
+    () => (allowedRoleKeys && allowedRoleKeys.length > 0
+      ? roles.filter((role) => allowedRoleKeys.includes(role.key as "call_center_admin" | "call_center_agent"))
+      : roles),
+    [roles, allowedRoleKeys],
+  );
   const isCallCenterRole = currentRole?.key === "call_center_admin" || currentRole?.key === "call_center_agent";
   const isUnlicensedSalesRole = currentRole?.key === "sales_agent_unlicensed";
 
@@ -200,6 +220,21 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
     }
     fetchData();
   }, [supabase, user?.id, user?.roleId, selectedRoleId]);
+
+  /** Default role for new users only — do not re-apply when the user picks another allowed role. */
+  useEffect(() => {
+    if (!presetRoleKey || roles.length === 0 || user?.id) return;
+    if (selectedRoleId !== "") return;
+    const presetRole = roles.find((role) => role.key === presetRoleKey);
+    if (presetRole) setSelectedRoleId(presetRole.id);
+  }, [presetRoleKey, roles, selectedRoleId, user?.id]);
+
+  useEffect(() => {
+    if (!presetCenterId || user?.id) return;
+    if (selectedCenterId !== presetCenterId) {
+      setSelectedCenterId(presetCenterId);
+    }
+  }, [presetCenterId, selectedCenterId, user?.id]);
 
   useEffect(() => {
     async function fetchEffectivePermissions() {
@@ -574,13 +609,15 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                       <StyledSelect
                         value={selectedRoleId}
                         onValueChange={(v) => {
+                          if (lockRole) return;
                           setSelectedRoleId(v);
                           const rk = roles.find((r) => r.id === v)?.key;
                           if (rk !== "sales_agent_unlicensed") setUnlicensedSalesSubtype("");
                           if (rk !== "call_center_admin" && rk !== "call_center_agent") setSelectedCenterId("");
                         }}
-                        options={roles.map(r => ({ value: r.id, label: r.name }))}
+                        options={selectableRoles.map(r => ({ value: r.id, label: r.name }))}
                         placeholder="Select a role..."
+                        disabled={lockRole}
                       />
                     </div>
                     {isCallCenterRole && (
@@ -591,6 +628,7 @@ export default function UserEditorComponent({ user, onClose, onSubmit }: UserEdi
                           onValueChange={setSelectedCenterId}
                           options={centers.map(c => ({ value: c.id, label: c.name }))}
                           placeholder="Select a centre..."
+                          disabled={lockCenter}
                         />
                       </div>
                     )}

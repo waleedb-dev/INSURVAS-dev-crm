@@ -1334,8 +1334,21 @@ interface LeadSummaryCardProps {
     call_center_id?: string;
     licensed_agent_account?: string;
     lead_source?: string;
+
+    has_backup_quote?: boolean;
+    backup_carrier?: string | null;
+    backup_product_type?: string | null;
+    backup_monthly_premium?: string | number | null;
+    backup_coverage_amount?: string | number | null;
   };
   canViewPolicy?: boolean;
+}
+
+function formatBackupMoney(raw: string | number | null | undefined): string {
+  if (raw == null || raw === "") return "—";
+  const n = Number(String(raw).replace(/\$/g, "").replace(/,/g, "").trim());
+  if (Number.isFinite(n)) return formatCurrency(n);
+  return String(raw);
 }
 
 function SectionHeader({ icon, title, subtitle }: { icon: string; title: string; subtitle?: string }) {
@@ -1429,6 +1442,29 @@ function LeadSummaryCard({ lead, canViewPolicy = true }: LeadSummaryCardProps) {
             <InfoField label="Product Type" value={lead.product_type} />
             <InfoField label="Coverage Amount" value={formatCurrency(lead.coverage_amount)} />
           </InfoGrid>
+
+          {(lead.has_backup_quote ||
+            (lead.backup_carrier != null && String(lead.backup_carrier).trim() !== "")) && (
+            <>
+              <div style={{ marginTop: 8, marginBottom: 4 }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.textDark }}>Backup quote</p>
+              </div>
+              <InfoGrid columns={3}>
+                <InfoField label="Backup carrier" value={lead.backup_carrier} />
+                <InfoField label="Backup product type" value={lead.backup_product_type} />
+                <InfoField
+                  label="Backup coverage amount"
+                  value={formatBackupMoney(lead.backup_coverage_amount)}
+                />
+              </InfoGrid>
+              <InfoGrid columns={3}>
+                <InfoField
+                  label="Backup monthly premium"
+                  value={formatBackupMoney(lead.backup_monthly_premium)}
+                />
+              </InfoGrid>
+            </>
+          )}
 
           <InfoGrid columns={3}>
             <InfoField label="Monthly Premium" value={formatCurrency(lead.monthly_premium)} />

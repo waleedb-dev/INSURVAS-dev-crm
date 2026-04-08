@@ -7,11 +7,11 @@ export async function getCurrentUserPrimaryRole(
 ): Promise<RoleKey | null> {
   const { data: user, error: userError } = await supabase
     .from("users")
-    .select("role_id")
+    .select("role_id, status")
     .eq("id", userId)
     .maybeSingle();
 
-  if (userError || !user?.role_id) {
+  if (userError || !user?.role_id || user.status !== "active") {
     return null;
   }
 
