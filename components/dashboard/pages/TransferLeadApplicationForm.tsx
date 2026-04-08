@@ -569,6 +569,9 @@ const tabSections: Record<TabType, string> = {
 
 export type TransferLeadSaveDraftMeta = { source: "auto" | "manual" };
 
+/** Debounce for autosave after form changes (phone gate passed). */
+const AUTO_DRAFT_DEBOUNCE_MS = 2_500;
+
 export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
@@ -1346,6 +1349,39 @@ export default function TransferLeadApplicationForm({
       }
     }
   }, [phoneGatePassed, activeTab]);
+
+  const lastAutoDraftSnapshotRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!onSaveDraft || !phoneGatePassed || isSubmitting || submissionComplete) return;
+    // Editing a submitted lead: only manual "Save Draft" should demote to draft — no autosave.
+    if (isEditMode && !formData.isDraft) return;
+
+    const payload: TransferLeadFormData = { ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true };
+    const snapshot = JSON.stringify(payload);
+
+    const timer = window.setTimeout(() => {
+      if (JSON.stringify({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true }) !== snapshot) {
+        return;
+      }
+      if (snapshot === lastAutoDraftSnapshotRef.current) return;
+      lastAutoDraftSnapshotRef.current = snapshot;
+      void Promise.resolve(onSaveDraft(payload, { source: "auto" })).catch((err) => {
+        console.warn("Auto-save draft failed:", err);
+        lastAutoDraftSnapshotRef.current = "";
+      });
+    }, AUTO_DRAFT_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    formData,
+    computedLeadUniqueId,
+    onSaveDraft,
+    phoneGatePassed,
+    isEditMode,
+    isSubmitting,
+    submissionComplete,
+  ]);
 
   return (
     <div style={{ fontFamily: T.font, minHeight: "100vh", paddingBottom: 40 }}>

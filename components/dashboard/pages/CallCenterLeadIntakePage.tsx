@@ -875,8 +875,9 @@ export default function CallCenterLeadIntakePage({
   const canEditLeadPipeline = permissionKeys.has("action.lead_pipeline.update");
   const isCallCenterTransferRole =
     currentRole === "call_center_agent" || currentRole === "call_center_admin";
-  // Only call center agents (not admins) can update their own drafts
+  // Only call center agents (not admins) auto-open drafts from grid / certain flows; admins use explicit "Edit draft" in the menu
   const isCallCenterAgentOnly = currentRole === "call_center_agent";
+  const isCallCenterAdmin = currentRole === "call_center_admin";
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
   const [leads, setLeads] = useState<IntakeLead[]>([]);
@@ -1666,7 +1667,7 @@ export default function CallCenterLeadIntakePage({
     } = await supabase.auth.getSession();
 
     if (!session?.user?.id) {
-      setToast({ message: "You are not logged in", type: "error" });
+      if (!isAuto) setToast({ message: "You are not logged in", type: "error" });
       return;
     }
 
@@ -1737,7 +1738,8 @@ export default function CallCenterLeadIntakePage({
       }
       const { error } = await updateQuery;
       if (error) {
-        setToast({ message: error.message || "Failed to save draft", type: "error" });
+        if (isAuto) console.warn("Auto-save draft failed:", error.message);
+        else setToast({ message: error.message || "Failed to save draft", type: "error" });
         return;
       }
       if (isAuto) return;
@@ -1761,7 +1763,8 @@ export default function CallCenterLeadIntakePage({
       .single();
 
     if (error) {
-      setToast({ message: error.message || "Failed to save draft", type: "error" });
+      if (isAuto) console.warn("Auto-save draft failed:", error.message);
+      else setToast({ message: error.message || "Failed to save draft", type: "error" });
       return;
     }
 
@@ -2003,7 +2006,7 @@ export default function CallCenterLeadIntakePage({
     } = await supabase.auth.getSession();
 
     if (!session?.user?.id) {
-      setToast({ message: "Authentication required", type: "error" });
+      if (!isAuto) setToast({ message: "Authentication required", type: "error" });
       return;
     }
 
@@ -2070,7 +2073,8 @@ export default function CallCenterLeadIntakePage({
     const { error } = await query;
 
     if (error) {
-      setToast({ message: error.message || "Failed to save draft", type: "error" });
+      if (isAuto) console.warn("Auto-save draft failed:", error.message);
+      else setToast({ message: error.message || "Failed to save draft", type: "error" });
       return;
     }
 
@@ -2235,7 +2239,6 @@ export default function CallCenterLeadIntakePage({
   if (viewingLead) {
     // Only users with edit permission OR call center agents (not admins) can edit
     // Call center admins are explicitly blocked from editing
-    const isCallCenterAdmin = currentRole === "call_center_admin";
     const canEditAsCallCenterAgent = isCallCenterAgentOnly; // Only agents, not admins
     const effectiveCanEdit = (canEditTransferLeads || canEditLeadPipeline) && !isCallCenterAdmin || canEditAsCallCenterAgent;
     return (
@@ -3155,13 +3158,16 @@ export default function CallCenterLeadIntakePage({
                                 canEditTransferLeads
                                   ? [
                                       { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                      { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
+                                      {
+                                        label: lead.isDraft ? "Edit draft" : "Edit Lead",
+                                        onClick: () => void handleEditLead(lead.rowId),
+                                      },
                                       { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
                                     ]
-                                  : isCallCenterAgentOnly && lead.isDraft
+                                  : lead.isDraft && (isCallCenterAgentOnly || isCallCenterAdmin)
                                     ? [
                                         { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                        { label: "Update Lead", onClick: () => void openLeadInForm(lead.rowId) },
+                                        { label: "Edit draft", onClick: () => void openLeadInForm(lead.rowId) },
                                       ]
                                     : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
                               }
