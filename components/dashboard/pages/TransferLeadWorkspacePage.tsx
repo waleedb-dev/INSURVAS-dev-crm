@@ -7,6 +7,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
 import TransferLeadVerificationPanel from "./TransferLeadVerificationPanel";
 import TransferLeadCallFixForm from "./TransferLeadCallFixForm";
+import TransferLeadSsnPolicyCards from "./TransferLeadSsnPolicyCards";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import {
   applyClaimSelectionToSession,
@@ -466,14 +467,17 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               setOpenClaim(true);
             }}
           />
-          <TransferLeadCallFixForm
-            leadRowId={lead.rowId}
-            submissionId={lead.submissionId || lead.rowId}
-            verificationSessionId={sessionId}
-            leadName={lead.leadName}
-            leadPhone={lead.phone}
-            leadVendor={lead.source}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+            <TransferLeadCallFixForm
+              leadRowId={lead.rowId}
+              submissionId={lead.submissionId || lead.rowId}
+              verificationSessionId={sessionId}
+              leadName={lead.leadName}
+              leadPhone={lead.phone}
+              leadVendor={lead.source}
+            />
+            <TransferLeadSsnPolicyCards leadRowId={lead.rowId} supabase={supabase} />
+          </div>
         </div>
       ) : sessionId && !canViewTransferClaimReclaimVisit ? (
         <div style={{ backgroundColor: "#fef2f2", border: `1.5px solid #fecaca`, borderRadius: 14, padding: 18 }}>
