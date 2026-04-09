@@ -26,6 +26,26 @@ import { TransferStyledSelect, transferSelectLabelStyle } from "./TransferStyled
 
 /** `pipeline_stages.name` for the Supabase-driven disposition wizard (see `disposition_flows`). */
 const NEEDS_BPO_CALLBACK_STAGE = "Needs BPO Callback";
+const INCOMPLETE_TRANSFER_STAGE = "Incomplete Transfer";
+const RETURNED_TO_CENTER_DQ_STAGE = "Returned To Center - DQ";
+const DQ_CANT_BE_SOLD_STAGE = "DQ'd Can't be sold";
+
+/**
+ * Transfer Portal stages that have a row in `stage_disposition_map` (call outcomes only).
+ * Entry/routing stages such as Transfer API and Chargeback Fix API are pipeline positions, not dispositions.
+ * @see sql/stage_disposition_map.sql
+ */
+const STAGES_WITH_DISPOSITION_MAP = new Set([
+  "Needs BPO Callback",
+  "DQ'd Can't be sold",
+  "GI DQ",
+  "Returned To Center - DQ",
+  "Incomplete Transfer",
+  "Fulfilled Carrier Requirement",
+  "Pending Failed Payment Fix",
+  "New Submission",
+  "Chargeback DQ",
+]);
 
 type PersistedCallDisposition = {
   path: unknown;
@@ -169,16 +189,22 @@ export default function TransferLeadCallFixForm({
   const statusOptions = useMemo(() => transferStageOptions, [transferStageOptions]);
   const reasonStatus = useMemo(() => getReasonStatusFromStage(status), [status]);
   const reasons = REASON_MAP[reasonStatus] || [];
-  const isNeedsBpoCallbackStage = applicationSubmitted === false && status === NEEDS_BPO_CALLBACK_STAGE;
-  const showStructuredDisposition = isNeedsBpoCallbackStage && dispositionFlow !== null;
-  /** While loading the BPO flow, hide the legacy Reason row; if no flow exists after load, show it again. */
-  const hideReasonForBpoWizard = isNeedsBpoCallbackStage && (dispositionFlowLoading || dispositionFlow !== null);
+  const dispositionWizardForCurrentStage =
+    dispositionFlow !== null && dispositionFlow.pipeline_stage_name.trim() === status.trim();
+  const showStructuredDisposition =
+    applicationSubmitted === false && dispositionWizardForCurrentStage;
+  /** Hide legacy Reason while a Supabase disposition flow is loading or active for this stage. */
+  const hideReasonForDispositionWizard =
+    applicationSubmitted === false &&
+    !!status.trim() &&
+    (dispositionFlowLoading ||
+      (dispositionFlow !== null && dispositionFlow.pipeline_stage_name.trim() === status.trim()));
   const showSubmittedFields = applicationSubmitted === true;
   const showNotSubmittedFields = applicationSubmitted === false;
   const showStatusReasonDropdown =
     applicationSubmitted === false &&
     REASON_STATUSES_WITH_DROPDOWN.has(reasonStatus) &&
-    !hideReasonForBpoWizard;
+    !hideReasonForDispositionWizard;
   const requiresDraftDate = reasonStatus === "Updated Banking/draft date" && !!statusReason;
   const showCarrierAttemptedFields = applicationSubmitted === false && reasonStatus === "GI - Currently DQ";
   const statusReasonRequired = showStatusReasonDropdown && reasons.length > 0;
@@ -249,46 +275,39 @@ export default function TransferLeadCallFixForm({
     const loadTransferStagesWithDispositions = async () => {
       setTransferStagesLoading(true);
       try {
-        const { data: pipelineRow, error: pipelineError } = await supabase
-          .from("pipelines")
-          .select("id")
-          .eq("name", "Transfer Portal")
-          .maybeSingle();
-        if (pipelineError || !pipelineRow?.id) {
+        const { data: mapRows, error: mapError } = await supabase
+          .from("stage_disposition_map")
+          .select("disposition, pipeline_stages(name, position)")
+          .order("disposition", { ascending: true });
+        if (mapError || !mapRows?.length) {
           if (!cancelled) setTransferStageOptions([]);
           return;
         }
 
-        const { data: stageRows, error: stageError } = await supabase
-          .from("pipeline_stages")
-          .select("id, name, position")
-          .eq("pipeline_id", pipelineRow.id)
-          .order("position", { ascending: true });
-        if (stageError) {
-          if (!cancelled) setTransferStageOptions([]);
-          return;
-        }
-
-        const dispByStageId = new Map<string, string>();
-        const { data: mapRows, error: mapError } = await supabase.from("stage_disposition_map").select("stage_id, disposition");
-        if (!mapError && mapRows) {
-          for (const row of mapRows) {
-            const sid = row.stage_id != null ? String(row.stage_id) : "";
-            if (sid && row.disposition) dispByStageId.set(sid, String(row.disposition).trim());
-          }
-        }
-
-        const options = (stageRows || [])
-          .map((row: { id: number | string; name?: string | null; position?: number | null }) => {
-            const stageName = String(row.name || "").trim();
-            if (!stageName) return null;
-            const idKey = String(row.id);
-            const label = dispByStageId.get(idKey) || stageName;
-            return { stageName, label };
+        type MapRow = {
+          disposition: string | null;
+          pipeline_stages:
+            | { name: string | null; position: number | null }
+            | { name: string | null; position: number | null }[]
+            | null;
+        };
+        const options = (mapRows as unknown as MapRow[])
+          .map((row) => {
+            const disposition = String(row.disposition || "").trim();
+            const rawPs = row.pipeline_stages;
+            const ps = Array.isArray(rawPs) ? rawPs[0] : rawPs;
+            const stageName = String(ps?.name || "").trim();
+            if (!disposition || !stageName) return null;
+            const position = typeof ps?.position === "number" ? ps.position : 0;
+            return { stageName, label: disposition, position };
           })
-          .filter((x): x is { stageName: string; label: string } => x != null);
+          .filter((x): x is { stageName: string; label: string; position: number } => x != null)
+          .filter((x) => STAGES_WITH_DISPOSITION_MAP.has(x.stageName))
+          .sort((a, b) => a.position - b.position || a.label.localeCompare(b.label));
 
-        if (!cancelled) setTransferStageOptions(options);
+        if (!cancelled) {
+          setTransferStageOptions(options.map(({ stageName, label }) => ({ stageName, label })));
+        }
       } finally {
         if (!cancelled) setTransferStagesLoading(false);
       }
@@ -299,15 +318,30 @@ export default function TransferLeadCallFixForm({
     };
   }, [supabase]);
 
+  /** Drop pipeline-only values (e.g. "Transfer API") and stale values not in the disposition map list. */
+  useEffect(() => {
+    if (hydrating) return;
+    if (!status) return;
+    if (!STAGES_WITH_DISPOSITION_MAP.has(status)) {
+      setStatus("");
+      return;
+    }
+    if (transferStagesLoading || transferStageOptions.length === 0) return;
+    if (!transferStageOptions.some((o) => o.stageName === status)) {
+      setStatus("");
+    }
+  }, [hydrating, status, transferStagesLoading, transferStageOptions]);
+
   useEffect(() => {
     let cancelled = false;
-    if (applicationSubmitted !== false || status !== NEEDS_BPO_CALLBACK_STAGE) {
+    if (applicationSubmitted !== false || !status.trim()) {
       setDispositionFlow(null);
       setDispositionFlowLoading(false);
       return;
     }
     dispositionWizardBootRef.current = true;
     setDispositionPayload(null);
+    setDispositionFlow(null);
     setDispositionFlowLoading(true);
     void loadDispositionFlowForStage(supabase, status).then((flow) => {
       if (cancelled) return;
@@ -408,7 +442,12 @@ export default function TransferLeadCallFixForm({
   }, [submissionId, supabase]);
 
   useEffect(() => {
-    if (status === NEEDS_BPO_CALLBACK_STAGE) {
+    if (
+      status === NEEDS_BPO_CALLBACK_STAGE ||
+      status === INCOMPLETE_TRANSFER_STAGE ||
+      status === RETURNED_TO_CENTER_DQ_STAGE ||
+      status === DQ_CANT_BE_SOLD_STAGE
+    ) {
       setStatusReason("");
       return;
     }
@@ -1167,7 +1206,7 @@ export default function TransferLeadCallFixForm({
           </>
         )}
 
-        {isNeedsBpoCallbackStage && dispositionFlowLoading && (
+        {applicationSubmitted === false && !!status.trim() && dispositionFlowLoading && (
           <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: T.textMuted }}>Loading disposition wizard…</p>
         )}
 

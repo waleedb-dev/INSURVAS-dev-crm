@@ -577,17 +577,40 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
   }
 
   if (currentNode.node_type === "text") {
+    const disclaimer =
+      typeof currentNode.metadata?.disclaimer === "string" ? currentNode.metadata.disclaimer.trim() : "";
+    const placeholderRaw =
+      typeof currentNode.metadata?.placeholder === "string" ? currentNode.metadata.placeholder.trim() : "";
+    const textPlaceholder = placeholderRaw
+      ? applyDispositionTemplate(placeholderRaw, { client_name: clientName })
+      : "";
+
     return (
       <div style={cardStyle}>
         {header}
         <div style={stackStyle}>
           {lockedPathSteps}
+          {disclaimer ? (
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                fontWeight: 600,
+                color: T.textMuted,
+                lineHeight: 1.45,
+                fontStyle: "italic",
+              }}
+            >
+              {disclaimer}
+            </p>
+          ) : null}
           <div>
             <label style={transferSelectLabelStyle}>{currentNode.node_label}</label>
             <textarea
               rows={4}
               value={terminalManual}
               onChange={(e) => setTerminalManual(e.target.value)}
+              placeholder={textPlaceholder || undefined}
               style={{ ...transferFieldStyle, minHeight: 88, resize: "vertical" as const, marginBottom: 0 }}
             />
           </div>
