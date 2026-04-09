@@ -8,6 +8,7 @@ import { Toast } from "@/components/ui";
 import { AppSelect } from "@/components/ui/app-select";
 import { useCarrierProductDropdowns } from "@/lib/useCarrierProductDropdowns";
 import { fetchClaimAgents, syncVerifiedFieldsToLead, type AgentOption } from "./transferLeadParity";
+import { LeadCard } from "./LeadCard";
 import {
   getNoteText,
   getReasonStatusFromStage,
@@ -595,21 +596,13 @@ export default function TransferLeadCallFixForm({
   }
 
   return (
-    <div
-      style={{
-        backgroundColor: "#fff",
-        border: `1.5px solid ${T.border}`,
-        borderRadius: 18,
-        boxShadow: T.shadowSm,
-        padding: 18,
-      }}
-    >
-      <h3 style={{ margin: 0, fontSize: 18, color: T.textDark, fontWeight: 800 }}>Update Call Result</h3>
-      <p style={{ marginTop: 6, marginBottom: 14, fontSize: 12, color: T.textMuted }}>
-        Agent Portal parity form for transfer lead disposition and outcome tracking.
-      </p>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <>
+      <LeadCard
+        icon="📞"
+        title="Update Call Result"
+        subtitle="Agent Portal parity form for transfer lead disposition and outcome tracking."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ fontSize: 16, color: T.textDark, fontWeight: 800, marginBottom: 2 }}>Was the application submitted?</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
@@ -1010,7 +1003,8 @@ export default function TransferLeadCallFixForm({
           </button>
         </div>
       </div>
+      </LeadCard>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    </div>
+    </>
   );
 }
