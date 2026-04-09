@@ -47,10 +47,6 @@ export default function TransferLeadSsnPolicyCards({ leadRowId, supabase }: Prop
     backup_product_type: string | null;
     backup_monthly_premium: string | null;
     backup_coverage_amount: string | null;
-    carrier: string | null;
-    product_type: string | null;
-    monthly_premium: string | null;
-    coverage_amount: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -62,7 +58,7 @@ export default function TransferLeadSsnPolicyCards({ leadRowId, supabase }: Prop
         const { data: leadOwn, error: leadErr } = await supabase
           .from("leads")
           .select(
-            "social, has_backup_quote, backup_carrier, backup_product_type, backup_monthly_premium, backup_coverage_amount, carrier, product_type, monthly_premium, coverage_amount",
+            "social, has_backup_quote, backup_carrier, backup_product_type, backup_monthly_premium, backup_coverage_amount",
           )
           .eq("id", leadRowId)
           .maybeSingle();
@@ -76,10 +72,6 @@ export default function TransferLeadSsnPolicyCards({ leadRowId, supabase }: Prop
             backup_product_type: (leadOwn.backup_product_type as string | null) ?? null,
             backup_monthly_premium: (leadOwn.backup_monthly_premium as string | null) ?? null,
             backup_coverage_amount: (leadOwn.backup_coverage_amount as string | null) ?? null,
-            carrier: (leadOwn.carrier as string | null) ?? null,
-            product_type: (leadOwn.product_type as string | null) ?? null,
-            monthly_premium: (leadOwn.monthly_premium as string | null) ?? null,
-            coverage_amount: (leadOwn.coverage_amount as string | null) ?? null,
           });
         }
 
@@ -273,38 +265,17 @@ export default function TransferLeadSsnPolicyCards({ leadRowId, supabase }: Prop
       </LeadCard>
 
       <LeadCard icon="📑" title="Backup Quote" defaultExpanded={false}>
-        {backup && (
-          <>
-            <p style={{ margin: "0 0 16px", fontSize: 12, color: T.textMuted, fontWeight: 700 }}>
-              Has backup quote flag:{" "}
-              <span style={{ color: T.textDark }}>{backup.has_backup_quote ? "Yes" : "No"}</span>
-            </p>
-            <div style={{ marginBottom: 16 }}>
-              <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 800, color: T.textDark }}>Primary quote</p>
-              <InfoGrid columns={4} bordered={false}>
-                <InfoField label="Carrier" value={displayText(backup.carrier)} />
-                <InfoField label="Product type" value={displayText(backup.product_type)} />
-                <InfoField label="Monthly premium" value={formatMoney(backup.monthly_premium)} />
-                <InfoField label="Coverage amount" value={formatMoney(backup.coverage_amount)} />
-              </InfoGrid>
-            </div>
-            {hasBackupData ? (
-              <div>
-                <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 800, color: T.textDark }}>Backup Quote</p>
-                <InfoGrid columns={4} bordered={false}>
-                  <InfoField label="Backup carrier" value={displayText(backup.backup_carrier)} />
-                  <InfoField label="Backup product type" value={displayText(backup.backup_product_type)} />
-                  <InfoField label="Backup monthly premium" value={formatMoney(backup.backup_monthly_premium)} />
-                  <InfoField label="Backup coverage amount" value={formatMoney(backup.backup_coverage_amount)} />
-                </InfoGrid>
-              </div>
-            ) : (
-              <p style={{ margin: 0, fontSize: 13, color: T.textMid, fontWeight: 600 }}>
-                No backup quote fields are populated on this lead.
-              </p>
-            )}
-          </>
-        )}
+        {backup &&
+          (hasBackupData ? (
+            <InfoGrid columns={4} bordered={false}>
+              <InfoField label="Backup carrier" value={displayText(backup.backup_carrier)} />
+              <InfoField label="Backup product type" value={displayText(backup.backup_product_type)} />
+              <InfoField label="Backup monthly premium" value={formatMoney(backup.backup_monthly_premium)} />
+              <InfoField label="Backup coverage amount" value={formatMoney(backup.backup_coverage_amount)} />
+            </InfoGrid>
+          ) : (
+            <p style={{ margin: 0, fontSize: 13, color: T.textMid, fontWeight: 600 }}>No backup quote on this lead.</p>
+          ))}
       </LeadCard>
     </div>
   );
