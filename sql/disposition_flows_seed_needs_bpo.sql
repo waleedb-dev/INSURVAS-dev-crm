@@ -41,11 +41,6 @@ values
     'nbpo_timing_manual',
     '',
     'Timing issue — agent manual note only'
-  ),
-  (
-    'nbpo_signature_stub',
-    '{{client_name}} — signature issue (complete details in manual note below)',
-    'Placeholder until full signature branch is configured'
   )
 on conflict (template_key) do update
 set
@@ -78,7 +73,33 @@ cross join (
     ('nbpo_iv_address_sub', 'choice', 'Address — what happened?', 0, '{}'),
     ('nbpo_iv_address_carriers', 'carrier_multi', 'Select carrier(s) attempted', 0, '{"template_key_after_carriers":"nbpo_iv_address_carrier"}'),
     ('nbpo_wouldnt_field', 'choice', 'What wouldn''t they verify?', 0, '{}'),
-    ('nbpo_signature_root', 'choice', 'Signature issue', 0, '{}'),
+    ('nbpo_signature_path', 'choice', 'Signature issue', 0, '{}'),
+    (
+      'nbpo_sig_couldnt_carriers_attempted',
+      'carrier_multi',
+      'Carrier signature attempted',
+      0,
+      '{"next_node_key_after_carriers":"nbpo_sig_couldnt_texts_yn"}'
+    ),
+    ('nbpo_sig_couldnt_texts_yn', 'choice', 'Can receive texts?', 0, '{}'),
+    ('nbpo_sig_couldnt_emails_yn', 'choice', 'Can receive emails?', 0, '{}'),
+    (
+      'nbpo_sig_couldnt_carriers_only',
+      'carrier_multi',
+      'Only carriers available (will need to be attempted on)',
+      0,
+      '{}'
+    ),
+    (
+      'nbpo_sig_wouldnt_detail',
+      'text',
+      'Wouldn''t complete signature',
+      0,
+      $sig_wouldnt_meta${
+        "disclaimer": "No carrier dropdowns — type both lines. Generated note is your text below.",
+        "placeholder": "{{client_name}} was not willing to complete the signature with [carrier attempted].\n\nOnly carriers available: [list or N/A]"
+      }$sig_wouldnt_meta$
+    ),
     ('nbpo_timing_note', 'text', 'Timing issue — describe what happened', 0, '{"requires_manual":true}')
 ) as v(node_key, node_type, node_label, sort_order, metadata)
 where f.flow_key = 'needs_bpo_callback'
@@ -97,7 +118,7 @@ join public.disposition_flows f on f.id = n.flow_id
 join (
   values
     ('nbpo_category', 'information_verification_issue', 'Information Verification Issue', 0, 'nbpo_iv_path', null::text, 'Information Verification Issue'::text, false),
-    ('nbpo_category', 'signature_issues', 'Signature Issues', 1, 'nbpo_signature_root', null::text, 'Signature Issues'::text, false),
+    ('nbpo_category', 'signature_issues', 'Signature Issues', 1, 'nbpo_signature_path', null::text, 'Signature Issues'::text, false),
     ('nbpo_category', 'timing_issue', 'Timing issue (client had to go)', 2, 'nbpo_timing_note', null::text, 'Manual Note'::text, false),
     ('nbpo_category', 'not_interested', 'Not Interested', 3, null::text, null::text, 'Manual Note'::text, true),
     ('nbpo_category', 'pricing_issue', 'Pricing Issue', 4, null::text, null::text, 'Manual Note'::text, true),
@@ -244,14 +265,92 @@ set
   quick_tag_label = excluded.quick_tag_label,
   requires_manual_note = excluded.requires_manual_note;
 
--- Signature root (stub → template + manual encouraged)
+-- Signature path: couldn''t / wouldn''t complete (mirrors IV couldn''t / wouldn''t verify)
 insert into public.disposition_flow_options (node_id, option_key, option_label, sort_order, next_node_key, template_key, quick_tag_label, requires_manual_note)
 select n.id, v.option_key, v.option_label, v.sort_order, v.next_node_key, v.template_key, v.quick_tag_label, v.requires_manual_note
 from public.disposition_flow_nodes n
 join public.disposition_flows f on f.id = n.flow_id
 join (
   values
-    ('nbpo_signature_root', 'signature_stub', 'Continue (add details in notes)', 0, null::text, 'nbpo_signature_stub'::text, 'Signature Issues'::text, true)
+    (
+      'nbpo_signature_path',
+      'couldnt_complete_signature',
+      'Couldn''t Complete Signature',
+      0,
+      'nbpo_sig_couldnt_carriers_attempted'::text,
+      null::text,
+      'Signature Issues'::text,
+      false
+    ),
+    (
+      'nbpo_signature_path',
+      'wouldnt_complete_signature',
+      'Wouldn''t Complete Signature',
+      1,
+      'nbpo_sig_wouldnt_detail'::text,
+      null::text,
+      'Signature Issues'::text,
+      false
+    )
+) as v(node_key, option_key, option_label, sort_order, next_node_key, template_key, quick_tag_label, requires_manual_note)
+  on n.node_key = v.node_key
+where f.flow_key = 'needs_bpo_callback'
+on conflict (node_id, option_key) do update
+set
+  option_label = excluded.option_label,
+  sort_order = excluded.sort_order,
+  next_node_key = excluded.next_node_key,
+  template_key = excluded.template_key,
+  quick_tag_label = excluded.quick_tag_label,
+  requires_manual_note = excluded.requires_manual_note;
+
+-- Couldn''t complete: texts Y/N → emails Y/N → only carriers (app composes final note on last Continue)
+insert into public.disposition_flow_options (node_id, option_key, option_label, sort_order, next_node_key, template_key, quick_tag_label, requires_manual_note)
+select n.id, v.option_key, v.option_label, v.sort_order, v.next_node_key, v.template_key, v.quick_tag_label, v.requires_manual_note
+from public.disposition_flow_nodes n
+join public.disposition_flows f on f.id = n.flow_id
+join (
+  values
+    (
+      'nbpo_sig_couldnt_texts_yn',
+      'texts_yes',
+      'Yes',
+      0,
+      'nbpo_sig_couldnt_emails_yn'::text,
+      null::text,
+      null::text,
+      false
+    ),
+    (
+      'nbpo_sig_couldnt_texts_yn',
+      'texts_no',
+      'No',
+      1,
+      'nbpo_sig_couldnt_emails_yn'::text,
+      null::text,
+      null::text,
+      false
+    ),
+    (
+      'nbpo_sig_couldnt_emails_yn',
+      'emails_yes',
+      'Yes',
+      0,
+      'nbpo_sig_couldnt_carriers_only'::text,
+      null::text,
+      null::text,
+      false
+    ),
+    (
+      'nbpo_sig_couldnt_emails_yn',
+      'emails_no',
+      'No',
+      1,
+      'nbpo_sig_couldnt_carriers_only'::text,
+      null::text,
+      null::text,
+      false
+    )
 ) as v(node_key, option_key, option_label, sort_order, next_node_key, template_key, quick_tag_label, requires_manual_note)
   on n.node_key = v.node_key
 where f.flow_key = 'needs_bpo_callback'

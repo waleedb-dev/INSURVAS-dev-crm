@@ -2,8 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { T } from "@/lib/theme";
-import type { DispositionFlowDefinition, DispositionPathStep } from "@/lib/dispositionFlowTypes";
-import { applyDispositionTemplate, resolveTemplateKeyFromNode } from "@/lib/dispositionFlowRuntime";
+import type {
+  DispositionFlowDefinition,
+  DispositionFlowOptionDef,
+  DispositionPathStep,
+} from "@/lib/dispositionFlowTypes";
+import {
+  applyDispositionTemplate,
+  buildNeedsBpoCouldntSignatureCompleteNote,
+  resolveTemplateKeyFromNode,
+} from "@/lib/dispositionFlowRuntime";
 import {
   TransferStyledSelect,
   transferFieldStyle,
@@ -19,6 +27,8 @@ const cardStyle = {
 } as const;
 
 const stackStyle = { display: "flex", flexDirection: "column" as const, gap: 10 };
+
+const POST_COMPLETE_NODE_KEY = "__post_complete__";
 
 export type DispositionWizardPayload = {
   path: DispositionPathStep[];
@@ -72,6 +82,7 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
   const [pendingTemplateKey, setPendingTemplateKey] = useState<string | null>(null);
   const [pendingPathForTemplate, setPendingPathForTemplate] = useState<DispositionPathStep[]>([]);
   const [done, setDone] = useState(false);
+  const [completedTemplateKey, setCompletedTemplateKey] = useState<string | null>(null);
   const [choiceSelectValue, setChoiceSelectValue] = useState("");
   const [carrierAddValue, setCarrierAddValue] = useState("");
 
@@ -90,6 +101,7 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
     setPendingTemplateKey(null);
     setPendingPathForTemplate([]);
     setDone(false);
+    setCompletedTemplateKey(null);
     setChoiceSelectValue("");
     setCarrierAddValue("");
     pushPayload({
@@ -104,28 +116,106 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
 
   const finish = useCallback(
     (nextPath: DispositionPathStep[], templateKey: string | null, manual: string) => {
-      const gen = templateKey ? buildGeneratedFromTemplate(flow, templateKey, nextPath, clientName) : "";
       const man = manual.trim();
-      const final = [gen, man].filter(Boolean).join("\n\n").trim();
-      const qt = lastQuickTagFromPath(nextPath) || (man ? "Manual Note" : null);
       setPath(nextPath);
+      setTerminalManual(man);
+      setCompletedTemplateKey(templateKey);
       setDone(true);
-      setCurrentNodeKey(flow.root_node_key);
-      pushPayload({
-        path: nextPath,
-        generated_note: gen,
-        manual_note: man,
-        final_note: final,
-        quick_tag_label: qt,
-        complete: true,
-      });
+      setCurrentNodeKey(POST_COMPLETE_NODE_KEY);
+      setPendingTemplateKey(null);
+      setPendingPathForTemplate([]);
     },
-    [clientName, flow, pushPayload],
+    [],
   );
 
   const currentNode = flow.nodes[currentNodeKey];
 
-  const handleChoiceOption = (opt: (typeof currentNode)["options"][number]) => {
+  const advanceAfterChoiceStep = useCallback(
+    (nextPath: DispositionPathStep[], opt: DispositionFlowOptionDef) => {
+      if (opt.next_node_key) {
+        const nextNode = flow.nodes[opt.next_node_key];
+        if (!nextNode) return;
+        setPath(nextPath);
+        setCurrentNodeKey(opt.next_node_key);
+        setCarrierPick([]);
+        setTerminalManual("");
+        setDone(false);
+        setCompletedTemplateKey(null);
+        pushPayload({
+          path: nextPath,
+          generated_note: "",
+          manual_note: "",
+          final_note: "",
+          quick_tag_label: lastQuickTagFromPath(nextPath),
+          complete: false,
+        });
+        return;
+      }
+
+      if (opt.template_key && opt.requires_manual_note) {
+        setPath(nextPath);
+        setPendingTemplateKey(opt.template_key);
+        setPendingPathForTemplate(nextPath);
+        setTerminalManual("");
+        setCurrentNodeKey("__template_and_manual__");
+        setDone(false);
+        setCompletedTemplateKey(null);
+        pushPayload({
+          path: nextPath,
+          generated_note: buildGeneratedFromTemplate(flow, opt.template_key!, nextPath, clientName),
+          manual_note: "",
+          final_note: "",
+          quick_tag_label: lastQuickTagFromPath(nextPath),
+          complete: false,
+        });
+        return;
+      }
+
+      if (opt.template_key) {
+        finish(nextPath, opt.template_key, "");
+        return;
+      }
+
+      if (opt.requires_manual_note) {
+        setPath(nextPath);
+        setTerminalManual("");
+        setCurrentNodeKey("__manual_only__");
+        setDone(false);
+        setCompletedTemplateKey(null);
+        pushPayload({
+          path: nextPath,
+          generated_note: "",
+          manual_note: "",
+          final_note: "",
+          quick_tag_label: opt.quick_tag_label || lastQuickTagFromPath(nextPath),
+          complete: false,
+        });
+        return;
+      }
+    },
+    [flow, finish, pushPayload],
+  );
+
+  useEffect(() => {
+    if (!done) return;
+    const gen = completedTemplateKey
+      ? buildGeneratedFromTemplate(flow, completedTemplateKey, path, clientName)
+      : "";
+    const lastText = [...path].reverse().find((s): s is Extract<DispositionPathStep, { kind: "text" }> => s.kind === "text");
+    const man = (lastText?.manual_text ?? terminalManual).trim();
+    const final = [gen, man].filter(Boolean).join("\n\n").trim();
+    const qt = lastQuickTagFromPath(path) || (man ? "Manual Note" : null);
+    pushPayload({
+      path,
+      generated_note: gen,
+      manual_note: man,
+      final_note: final,
+      quick_tag_label: qt,
+      complete: true,
+    });
+  }, [done, path, terminalManual, completedTemplateKey, flow, clientName, pushPayload]);
+
+  const handleChoiceOption = (opt: DispositionFlowOptionDef) => {
     if (!currentNode) return;
     const step: DispositionPathStep = {
       kind: "choice",
@@ -135,12 +225,56 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
       quick_tag_label: opt.quick_tag_label,
     };
     const nextPath = [...path, step];
+    advanceAfterChoiceStep(nextPath, opt);
+  };
 
-    if (opt.next_node_key) {
-      const nextNode = flow.nodes[opt.next_node_key];
-      if (!nextNode) return;
+  const handlePostCompleteChoiceChange = useCallback(
+    (stepIndex: number, optionKey: string) => {
+      const st = path[stepIndex];
+      if (st?.kind !== "choice") return;
+      const node = flow.nodes[st.node_key];
+      const opt = node?.options.find((o) => o.option_key === optionKey);
+      if (!opt || optionKey === st.option_key) return;
+      const basePath = path.slice(0, stepIndex);
+      const newStep: DispositionPathStep = {
+        kind: "choice",
+        node_key: st.node_key,
+        option_key: opt.option_key,
+        option_label: opt.option_label,
+        quick_tag_label: opt.quick_tag_label,
+      };
+      advanceAfterChoiceStep([...basePath, newStep], opt);
+    },
+    [path, flow, advanceAfterChoiceStep],
+  );
+
+  const handlePostCompleteTextChange = useCallback((stepIndex: number, text: string) => {
+    setPath((prev) => {
+      const next = [...prev];
+      const s = next[stepIndex];
+      if (s?.kind !== "text") return prev;
+      next[stepIndex] = { ...s, manual_text: text };
+      return next;
+    });
+    setTerminalManual(text);
+  }, []);
+
+  const handleCarrierConfirm = () => {
+    if (!currentNode || currentNode.node_type !== "carrier_multi") return;
+    if (carrierPick.length === 0) return;
+    const step: DispositionPathStep = { kind: "carrier_multi", node_key: currentNode.node_key, carriers: carrierPick };
+    const nextPath = [...path, step];
+
+    if (currentNode.node_key === "nbpo_sig_couldnt_carriers_only" && flow.flow_key === "needs_bpo_callback") {
+      const composed = buildNeedsBpoCouldntSignatureCompleteNote(nextPath, clientName);
+      finish(nextPath, null, composed);
+      return;
+    }
+
+    const nextAfter = currentNode.metadata?.next_node_key_after_carriers;
+    if (typeof nextAfter === "string" && nextAfter.trim() && flow.nodes[nextAfter]) {
       setPath(nextPath);
-      setCurrentNodeKey(opt.next_node_key);
+      setCurrentNodeKey(nextAfter);
       setCarrierPick([]);
       setTerminalManual("");
       setDone(false);
@@ -155,51 +289,6 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
       return;
     }
 
-    if (opt.template_key && opt.requires_manual_note) {
-      setPath(nextPath);
-      setPendingTemplateKey(opt.template_key);
-      setPendingPathForTemplate(nextPath);
-      setTerminalManual("");
-      setCurrentNodeKey("__template_and_manual__");
-      setDone(false);
-      pushPayload({
-        path: nextPath,
-        generated_note: buildGeneratedFromTemplate(flow, opt.template_key!, nextPath, clientName),
-        manual_note: "",
-        final_note: "",
-        quick_tag_label: lastQuickTagFromPath(nextPath),
-        complete: false,
-      });
-      return;
-    }
-
-    if (opt.template_key) {
-      finish(nextPath, opt.template_key, "");
-      return;
-    }
-
-    if (opt.requires_manual_note) {
-      setPath(nextPath);
-      setTerminalManual("");
-      setCurrentNodeKey("__manual_only__");
-      setDone(false);
-      pushPayload({
-        path: nextPath,
-        generated_note: "",
-        manual_note: "",
-        final_note: "",
-        quick_tag_label: opt.quick_tag_label || lastQuickTagFromPath(nextPath),
-        complete: false,
-      });
-      return;
-    }
-  };
-
-  const handleCarrierConfirm = () => {
-    if (!currentNode || currentNode.node_type !== "carrier_multi") return;
-    if (carrierPick.length === 0) return;
-    const step: DispositionPathStep = { kind: "carrier_multi", node_key: currentNode.node_key, carriers: carrierPick };
-    const nextPath = [...path, step];
     const tmpl = resolveTemplateKeyFromNode(flow, currentNode.node_key);
     finish(nextPath, tmpl, "");
   };
@@ -235,6 +324,7 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
     setPendingTemplateKey(null);
     setPendingPathForTemplate([]);
     setDone(false);
+    setCompletedTemplateKey(null);
     setChoiceSelectValue("");
     setCarrierAddValue("");
     pushPayload({
@@ -310,6 +400,65 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
     });
   }, [path, flow]);
 
+  const postCompletePathSteps = useMemo(() => {
+    return path.map((step, index) => {
+      if (step.kind === "choice") {
+        const node = flow.nodes[step.node_key];
+        const nodeLabel = node?.node_label ?? "Choice";
+        const opts = node?.options ?? [];
+        const sorted = [...opts].sort((a, b) => a.sort_order - b.sort_order);
+        return (
+          <div key={`${step.node_key}-${step.option_key}-${index}-pc`}>
+            <label style={transferSelectLabelStyle}>{nodeLabel}</label>
+            <TransferStyledSelect
+              value={step.option_key}
+              onValueChange={(key) => {
+                if (!key) return;
+                handlePostCompleteChoiceChange(index, key);
+              }}
+              options={sorted.map((opt) => ({
+                value: opt.option_key,
+                label: opt.option_label,
+              }))}
+              placeholder=""
+            />
+          </div>
+        );
+      }
+      if (step.kind === "carrier_multi") {
+        const nodeLabel = flow.nodes[step.node_key]?.node_label ?? "Carriers";
+        const summary = step.carriers.length ? step.carriers.join(", ") : "—";
+        return (
+          <div key={`${step.node_key}-carriers-${index}-pc`}>
+            <label style={transferSelectLabelStyle}>{nodeLabel}</label>
+            <TransferStyledSelect
+              disabled
+              value="__locked__"
+              onValueChange={() => {}}
+              options={[{ value: "__locked__", label: summary }]}
+              placeholder=""
+            />
+          </div>
+        );
+      }
+      if (step.kind === "text") {
+        const nodeLabel = flow.nodes[step.node_key]?.node_label ?? "Details";
+        return (
+          <div key={`${step.node_key}-text-${index}-pc`}>
+            <label style={transferSelectLabelStyle}>{nodeLabel}</label>
+            <textarea
+              rows={4}
+              value={step.manual_text}
+              onChange={(e) => handlePostCompleteTextChange(index, e.target.value)}
+              style={{ ...transferFieldStyle, minHeight: 88, resize: "vertical" as const, marginBottom: 0 }}
+            />
+          </div>
+        );
+      }
+      return null;
+    });
+  }, [path, flow, handlePostCompleteChoiceChange, handlePostCompleteTextChange]);
+
   const header = useMemo(
     () => (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -336,11 +485,32 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
   );
 
   if (done) {
+    const generatedPreview = completedTemplateKey
+      ? buildGeneratedFromTemplate(flow, completedTemplateKey, path, clientName)
+      : "";
     return (
       <div style={cardStyle}>
         {header}
         <div style={stackStyle}>
-          {lockedPathSteps}
+          {postCompletePathSteps}
+          {completedTemplateKey ? (
+            <div>
+              <label style={transferSelectLabelStyle}>Generated note</label>
+              <div
+                style={{
+                  ...transferReadonlyFieldStyle,
+                  whiteSpace: "pre-wrap",
+                  height: "auto",
+                  minHeight: 42,
+                  alignItems: "flex-start",
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                }}
+              >
+                {generatedPreview || "(no template body)"}
+              </div>
+            </div>
+          ) : null}
           <div
             style={{
               border: `1px solid ${T.borderLight}`,
@@ -350,7 +520,8 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
             }}
           >
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#166534" }}>
-              Disposition detail saved to notes below. Clear to choose a different path.
+              Disposition detail is saved to notes below. You can still change the selections above; notes update
+              automatically. Edit wording in Notes if needed. Use Clear to start over.
             </p>
           </div>
         </div>
