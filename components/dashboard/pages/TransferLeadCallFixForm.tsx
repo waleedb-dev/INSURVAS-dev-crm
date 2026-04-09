@@ -365,7 +365,8 @@ export default function TransferLeadCallFixForm({
         dispositionWizardBootRef.current = false;
         return;
       }
-      setNotes("");
+      // Do not clear Notes when the wizard resets (Clear / step back): agents often add to Notes after
+      // "Apply"; wiping here forced retyping from scratch.
       return;
     }
     dispositionWizardBootRef.current = false;
@@ -1238,7 +1239,7 @@ export default function TransferLeadCallFixForm({
             }}
             placeholder={
               showStructuredDisposition
-                ? "Complete the quick disposition above; notes fill in when you finish. You can edit before saving."
+                ? "Notes update when you finish the disposition steps above. Edit or add to this text anytime — it stays when you use Clear on the wizard."
                 : showStatusReasonDropdown && statusReason && statusReason !== "Other"
                   ? "Note has been auto-populated. You can edit if needed."
                   : showStatusReasonDropdown && statusReason === "Other"
@@ -1254,6 +1255,11 @@ export default function TransferLeadCallFixForm({
           {applicationSubmitted === false && showStatusReasonDropdown && statusReason === "Other" && (
             <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
               Please enter a custom message for this reason.
+            </p>
+          )}
+          {applicationSubmitted === false && showStructuredDisposition && notes.trim().length > 0 && (
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+              This field is fully editable. Add context here even after applying the disposition above.
             </p>
           )}
           {applicationSubmitted === false && !dispositionNotesOk && (

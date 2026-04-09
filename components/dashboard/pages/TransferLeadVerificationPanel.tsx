@@ -575,6 +575,7 @@ export default function TransferLeadVerificationPanel({
   const autoPhoneCheckRanRef = useRef<string | null>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
   const [underwritingSaving, setUnderwritingSaving] = useState(false);
+  const [verificationFieldsCopied, setVerificationFieldsCopied] = useState(false);
   const [toolkitUrl, setToolkitUrl] = useState("https://insurancetoolkits.com/login");
   const [underwritingData, setUnderwritingData] = useState({
     tobaccoLast12Months: "",
@@ -698,6 +699,29 @@ export default function TransferLeadVerificationPanel({
       return a.field_name.localeCompare(b.field_name);
     });
   }, [items]);
+
+  const verificationFieldsCopyText = useMemo(() => {
+    const lines: string[] = [];
+    for (const item of orderedItems) {
+      const label = VERIFICATION_FIELD_LABELS[item.field_name] || item.field_name.replace(/_/g, " ");
+      const raw = String(draftValues[item.id] ?? item.verified_value ?? item.original_value ?? "").trimEnd();
+      const flat = raw.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+      lines.push(`${label}: ${flat}`);
+    }
+    return lines.join("\n");
+  }, [orderedItems, draftValues]);
+
+  const copyVerificationFieldsToClipboard = useCallback(async () => {
+    if (orderedItems.length === 0) return;
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(verificationFieldsCopyText);
+      setVerificationFieldsCopied(true);
+      window.setTimeout(() => setVerificationFieldsCopied(false), 2000);
+    } catch {
+      setError("Could not copy to clipboard.");
+    }
+  }, [verificationFieldsCopyText, orderedItems.length]);
 
   const getValueByFieldName = (fieldName: string) => {
     const match = items.find((item) => item.field_name === fieldName);
@@ -987,9 +1011,76 @@ export default function TransferLeadVerificationPanel({
         padding: 18,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <h3 style={{ margin: 0, fontSize: 18, color: T.textDark, fontWeight: 800 }}>Verification Panel</h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => void copyVerificationFieldsToClipboard()}
+            disabled={orderedItems.length === 0}
+            title="Copy all verification field labels and current values (as shown in the panel)"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 14px",
+              borderRadius: 10,
+              border: `1.5px solid ${T.border}`,
+              background: verificationFieldsCopied ? "#dcfce7" : "#fff",
+              color: verificationFieldsCopied ? "#16a34a" : T.textDark,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: orderedItems.length === 0 ? "not-allowed" : "pointer",
+              opacity: orderedItems.length === 0 ? 0.5 : 1,
+              transition: "all 0.15s ease-in-out",
+              fontFamily: T.font,
+            }}
+          >
+            {verificationFieldsCopied ? (
+              <>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Copied
+              </>
+            ) : (
+              <>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                Copy verification
+              </>
+            )}
+          </button>
           {showProgressSummary && (
             <span style={{ fontSize: 12, fontWeight: 700, color: T.textMid }}>
               {verifiedCount}/{items.length} fields verified
