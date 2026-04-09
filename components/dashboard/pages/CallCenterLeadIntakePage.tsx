@@ -1625,18 +1625,15 @@ export default function CallCenterLeadIntakePage({
       }
     }
 
-    setToast({
-      message: feCreateLeadSyncError
-        ? `Lead saved. fe-create-lead sync failed: ${feCreateLeadSyncError}`
-        : "Lead saved successfully",
-      type: feCreateLeadSyncError ? "error" : "success",
-    });
-    setCreateLeadFormInitialData(null);
-    setCreateLeadUnlockAfterDuplicate(false);
-    setShowCreateLead(false);
+    // fe-create-lead errors only: success UX is the transfer modal on the form (do not close the form here).
+    if (feCreateLeadSyncError) {
+      setToast({
+        message: `Lead saved. fe-create-lead sync failed: ${feCreateLeadSyncError}`,
+        type: "error",
+      });
+    }
     createDraftRowIdRef.current = null;
-    setPage(1);
-    await refreshLeads();
+    void refreshLeads();
     return true;
   };
 
@@ -1995,14 +1992,13 @@ export default function CallCenterLeadIntakePage({
       });
     }
 
-    setToast({
-      message: feCreateLeadDraftSubmitSyncError
-        ? `Lead updated. fe-create-lead sync failed: ${feCreateLeadDraftSubmitSyncError}`
-        : "Lead updated successfully",
-      type: feCreateLeadDraftSubmitSyncError ? "error" : "success",
-    });
-    setEditingLead(null);
-    await refreshLeads();
+    if (feCreateLeadDraftSubmitSyncError) {
+      setToast({
+        message: `Lead updated. fe-create-lead sync failed: ${feCreateLeadDraftSubmitSyncError}`,
+        type: "error",
+      });
+    }
+    void refreshLeads();
     return true;
   };
 
@@ -2137,6 +2133,8 @@ export default function CallCenterLeadIntakePage({
             setCreateLeadFormInitialData(null);
             setCreateLeadUnlockAfterDuplicate(false);
             setShowCreateLead(false);
+            setPage(1);
+            void refreshLeads();
           }}
           onSubmit={handleCreateLead}
           onSaveDraft={handleCreateDraftLead}
@@ -2234,7 +2232,10 @@ export default function CallCenterLeadIntakePage({
     return (
       <>
         <TransferLeadApplicationForm
-          onBack={() => setEditingLead(null)}
+          onBack={() => {
+            setEditingLead(null);
+            void refreshLeads();
+          }}
           onSubmit={handleUpdateLead}
           onSaveDraft={handleUpdateDraftLead}
           initialData={editingLead.formData}

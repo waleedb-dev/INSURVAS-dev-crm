@@ -651,10 +651,10 @@ export default function TransferLeadApplicationForm({
   const [submitHighlightKeys, setSubmitHighlightKeys] = useState<Set<keyof TransferLeadFormData>>(() => new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [hoveredFieldInfo, setHoveredFieldInfo] = useState<{ key: string; info: string; x: number; y: number } | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submissionComplete, setSubmissionComplete] = useState(false);
-  /** Final step: agent must confirm they are transferring the call before `onSubmit` runs. */
+  /** Shown during and after submission to handle the transfer step. */
   const [showTransferSubmitGate, setShowTransferSubmitGate] = useState(false);
+  const [isSubmittingInTransferModal, setIsSubmittingInTransferModal] = useState(false);
+  const [didCopied, setDidCopied] = useState(false);
   const displayBpoName = (centerName || "").trim() || "BPO";
   const displayCenterDid = (centerDid || "").trim();
 
@@ -806,27 +806,36 @@ export default function TransferLeadApplicationForm({
   }, [formData.firstName, formData.lastName, formData.phone, formData.social, formData.leadUniqueId, centerName]);
 
   const executeApplicationSubmit = useCallback(async () => {
-    setShowTransferSubmitGate(false);
-    setIsSubmitting(true);
+    // Show transfer modal immediately with loading state
+    setShowTransferSubmitGate(true);
+    setIsSubmittingInTransferModal(true);
     try {
       const submitResult = await onSubmit({ ...formData, leadUniqueId: computedLeadUniqueId });
-      if (submitResult === false) return;
-      setSubmissionComplete(true);
+      if (submitResult === false) {
+        // Close modal if submission was cancelled/invalid
+        setShowTransferSubmitGate(false);
+        return;
+      }
+      // Keep modal open - submission succeeded, will show success content
     } catch (error) {
       setToast({ message: error instanceof Error ? error.message : "Submission failed. Please try again.", type: "error" });
+      setShowTransferSubmitGate(false);
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingInTransferModal(false);
     }
   }, [onSubmit, formData, computedLeadUniqueId]);
 
   useEffect(() => {
     if (!showTransferSubmitGate) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowTransferSubmitGate(false);
+      if (e.key !== "Escape") return;
+      if (isSubmittingInTransferModal) return;
+      setShowTransferSubmitGate(false);
+      onBack();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showTransferSubmitGate]);
+  }, [showTransferSubmitGate, isSubmittingInTransferModal, onBack]);
 
   const set = (key: keyof TransferLeadFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
@@ -1382,7 +1391,7 @@ export default function TransferLeadApplicationForm({
   const lastAutoDraftSnapshotRef = useRef<string>("");
 
   useEffect(() => {
-    if (!onSaveDraft || !phoneGatePassed || isSubmitting || submissionComplete || showTransferSubmitGate) return;
+    if (!onSaveDraft || !phoneGatePassed || showTransferSubmitGate) return;
     // Editing a submitted lead: only manual "Save Draft" should demote to draft — no autosave.
     if (isEditMode && !formData.isDraft) return;
 
@@ -1408,8 +1417,6 @@ export default function TransferLeadApplicationForm({
     onSaveDraft,
     phoneGatePassed,
     isEditMode,
-    isSubmitting,
-    submissionComplete,
     showTransferSubmitGate,
   ]);
 
@@ -3079,22 +3086,22 @@ export default function TransferLeadApplicationForm({
               const dup = await checkPhoneDuplicate();
               if (dup.match) setShowPhoneDupDetails(true);
               if (dup.match && !dup.isAddable) return;
-              setShowTransferSubmitGate(true);
+              void executeApplicationSubmit();
             }}
-            disabled={submitDisabled || isSubmitting || showTransferSubmitGate}
+            disabled={submitDisabled || showTransferSubmitGate}
             style={{
               height: 48,
               padding: "0 48px",
               borderRadius: 8,
               border: "none",
-              backgroundColor: submitDisabled || isSubmitting ? T.border : "#233217",
+              backgroundColor: submitDisabled || showTransferSubmitGate ? T.border : "#233217",
               color: "#fff",
               fontSize: 15,
               fontWeight: 700,
               fontFamily: T.font,
-              cursor: submitDisabled || isSubmitting ? "not-allowed" : "pointer",
-              boxShadow: submitDisabled || isSubmitting ? "none" : "0 4px 12px rgba(35, 50, 23, 0.2)",
-              opacity: submitDisabled || isSubmitting ? 0.6 : 1,
+              cursor: submitDisabled || showTransferSubmitGate ? "not-allowed" : "pointer",
+              boxShadow: submitDisabled || showTransferSubmitGate ? "none" : "0 4px 12px rgba(35, 50, 23, 0.2)",
+              opacity: submitDisabled || showTransferSubmitGate ? 0.6 : 1,
               transition: "all 0.15s ease-in-out",
               display: "flex",
               alignItems: "center",
@@ -3103,19 +3110,19 @@ export default function TransferLeadApplicationForm({
               minWidth: 220,
             }}
             onMouseEnter={(e) => {
-              if (!submitDisabled && !isSubmitting) {
+              if (!submitDisabled && !showTransferSubmitGate) {
                 e.currentTarget.style.backgroundColor = "#1a260f";
               }
             }}
             onMouseLeave={(e) => {
-              if (!submitDisabled && !isSubmitting) {
+              if (!submitDisabled && !showTransferSubmitGate) {
                 e.currentTarget.style.backgroundColor = "#233217";
               }
             }}
-            onMouseDown={(e) => { if (!submitDisabled && !isSubmitting) e.currentTarget.style.transform = "scale(0.97)"; }}
+            onMouseDown={(e) => { if (!submitDisabled && !showTransferSubmitGate) e.currentTarget.style.transform = "scale(0.97)"; }}
             onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
           >
-            {isSubmitting ? (
+            {showTransferSubmitGate ? (
               <>
                 <div style={{ width: 18, height: 18, border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
                 <span>Submitting...</span>
@@ -3207,135 +3214,167 @@ export default function TransferLeadApplicationForm({
           <div
             style={{
               width: "100%",
-              maxWidth: 480,
+              maxWidth: 600,
               backgroundColor: "#fff",
-              borderRadius: 12,
+              borderRadius: 16,
               border: `1px solid ${T.border}`,
-              padding: 22,
-              boxShadow: "0 18px 38px rgba(0,0,0,0.2)",
+              padding: 32,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
             }}
           >
-            <h3 id="transfer-gate-title" style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>
-              Transfer the call
-            </h3>
-            <p style={{ marginTop: 12, marginBottom: 0, fontSize: 14, color: T.textMid, lineHeight: 1.55 }}>
-              The application will not be submitted until you transfer the customer, then press <strong style={{ color: T.textDark }}>Transfer</strong> below.
-            </p>
-            {displayCenterDid ? (
-              <>
-                <p style={{ marginTop: 16, marginBottom: 8, fontSize: 13, fontWeight: 700, color: T.textMuted }}>
-                  Transfer to this DID (direct line)
+            {isSubmittingInTransferModal ? (
+              // Loading state
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 20px" }}>
+                <div style={{ width: 56, height: 56, border: `4px solid ${T.border}`, borderTopColor: "#233217", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginBottom: 24 }} />
+                <h3 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: T.textDark, marginBottom: 12 }}>
+                  Submitting Application...
+                </h3>
+                <p style={{ margin: 0, fontSize: 15, color: T.textMuted, textAlign: "center" }}>
+                  Please wait while we save your application
                 </p>
-                <div
-                  style={{
-                    backgroundColor: T.rowBg,
-                    border: `1px solid ${T.borderLight}`,
-                    borderRadius: 10,
-                    padding: "14px 16px",
-                    marginBottom: 20,
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: "#233217",
-                    fontFamily: "ui-monospace, monospace",
-                    textAlign: "center",
-                    wordBreak: "break-all",
-                  }}
-                >
-                  {displayCenterDid}
+              </div>
+            ) : (
+              // Success state - after submission completes
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <h3 id="transfer-gate-title" style={{ margin: 0, fontSize: 24, fontWeight: 800, color: T.textDark }}>
+                    Application Submitted
+                  </h3>
+                </div>
+                <p style={{ marginTop: 8, marginBottom: 0, fontSize: 15, color: T.textMid, lineHeight: 1.6 }}>
+                  Your application has been successfully saved. Now transfer the customer to the number below, then press <strong style={{ color: T.textDark }}>Transfer</strong> or <strong style={{ color: T.textDark }}>Close</strong> to return to the list.
+                </p>
+                {displayCenterDid ? (
+                  <>
+                    <p style={{ marginTop: 20, marginBottom: 12, fontSize: 14, fontWeight: 700, color: T.textMuted }}>
+                      Transfer to this DID (direct line)
+                    </p>
+                    <div
+                      style={{
+                        backgroundColor: T.rowBg,
+                        border: `1px solid ${T.borderLight}`,
+                        borderRadius: 12,
+                        padding: "20px 24px",
+                        marginBottom: 24,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 16,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 28,
+                          fontWeight: 800,
+                          color: "#233217",
+                          fontFamily: "ui-monospace, monospace",
+                          wordBreak: "break-all",
+                          flex: 1,
+                          textAlign: "center",
+                        }}
+                      >
+                        {displayCenterDid}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (displayCenterDid) {
+                            navigator.clipboard.writeText(displayCenterDid);
+                            setDidCopied(true);
+                            setTimeout(() => setDidCopied(false), 2000);
+                          }
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "10px 16px",
+                          borderRadius: 8,
+                          border: `1px solid ${T.border}`,
+                          background: didCopied ? "#dcfce7" : "#fff",
+                          color: didCopied ? "#16a34a" : T.textDark,
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease-in-out",
+                          whiteSpace: "nowrap",
+                          flexShrink: 0,
+                        }}
+                        title="Copy DID to clipboard"
+                      >
+                        {didCopied ? (
+                          <>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                            Copy
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ marginTop: 20, marginBottom: 24, fontSize: 14, color: T.textMuted, lineHeight: 1.6 }}>
+                    No DID is on file for this center. Follow your center&apos;s transfer procedure, then press Transfer or Close to return to the list.
+                  </p>
+                )}
+                <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTransferSubmitGate(false);
+                      onBack();
+                    }}
+                    style={{
+                      background: "#fff",
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 10,
+                      padding: "12px 22px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontSize: 15,
+                      color: T.textDark,
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTransferSubmitGate(false);
+                      onBack();
+                    }}
+                    style={{
+                      border: "none",
+                      background: "#233217",
+                      color: "#fff",
+                      borderRadius: 10,
+                      padding: "12px 28px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontSize: 15,
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                  >
+                    Transfer
+                  </button>
                 </div>
               </>
-            ) : (
-              <p style={{ marginTop: 16, marginBottom: 20, fontSize: 13, color: T.textMuted, lineHeight: 1.5 }}>
-                No DID is on file for this center. Follow your center&apos;s transfer procedure, then press Transfer to save the application.
-              </p>
             )}
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={() => setShowTransferSubmitGate(false)}
-                style={{
-                  background: "#fff",
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 8,
-                  padding: "10px 18px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontSize: 14,
-                  color: T.textDark,
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void executeApplicationSubmit()}
-                style={{
-                  border: "none",
-                  background: "#233217",
-                  color: "#fff",
-                  borderRadius: 8,
-                  padding: "10px 22px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontSize: 14,
-                }}
-              >
-                Transfer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isSubmitting && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(255,255,255,0.95)", zIndex: 9999, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
-          <div style={{ width: 48, height: 48, border: `3px solid ${T.border}`, borderTopColor: "#233217", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-          <div style={{ fontSize: 18, fontWeight: 700, color: T.textDark }}>Submitting Application...</div>
-          <div style={{ fontSize: 14, color: T.textMuted }}>Please wait while we process your submission</div>
-        </div>
-      )}
-
-      {submissionComplete && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ width: "100%", maxWidth: 420, backgroundColor: "#fff", borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.15)", overflow: "hidden" }}>
-            <div style={{ padding: "32px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-              <div style={{ width: 64, height: 64, borderRadius: "50%", backgroundColor: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: T.textDark, marginBottom: 8 }}>
-                Application Submitted
-              </h2>
-              <p style={{ margin: 0, fontSize: 14, color: T.textMuted, lineHeight: 1.5, marginBottom: 24 }}>
-                The application has been successfully submitted and saved to the system.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSubmissionComplete(false);
-                  onBack();
-                }}
-                style={{
-                  width: "100%",
-                  height: 48,
-                  borderRadius: 10,
-                  border: "none",
-                  backgroundColor: "#233217",
-                  color: "#fff",
-                  fontSize: 15,
-                  fontWeight: 700,
-                  fontFamily: T.font,
-                  cursor: "pointer",
-                  transition: "all 0.15s ease-in-out",
-                  boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#1a260f"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#233217"; }}
-              >
-                Done
-              </button>
-            </div>
           </div>
         </div>
       )}
