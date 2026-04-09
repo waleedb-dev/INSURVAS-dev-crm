@@ -781,6 +781,7 @@ export default function TransferLeadCallFixForm({
         draft_date: draftDate || null,
         monthly_premium: monthlyPremium ? Number(monthlyPremium) : null,
         face_amount: coverageAmount ? Number(coverageAmount) : null,
+        coverage_amount: coverageAmount ? Number(coverageAmount) : null,
         notes: notes || null,
         dq_reason: showStatusReasonDropdown ? statusReason || null : null,
         new_draft_date: requiresDraftDate ? newDraftDate || null : null,
@@ -797,8 +798,12 @@ export default function TransferLeadCallFixForm({
           dispositionPayload?.complete
             ? dispositionPayload.quick_tag_label
             : persistedDisposition?.quick_disposition_tag ?? null,
+        carrier_attempted_1: showCarrierAttemptedFields ? carrierAttempted1 || null : null,
+        carrier_attempted_2: showCarrierAttemptedFields ? carrierAttempted2 || null : null,
+        carrier_attempted_3: showCarrierAttemptedFields ? carrierAttempted3 || null : null,
         from_callback: callSource === "Agent Callback",
         is_callback: submissionId.startsWith("CB") || submissionId.startsWith("CBB"),
+        is_retention_call: isRetentionCall,
       });
 
       if (applicationSubmitted === true) {

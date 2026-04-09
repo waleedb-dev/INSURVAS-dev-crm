@@ -32,6 +32,20 @@ export interface DailyDealFlowRow {
   call_center_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  /** Disposition / call-result extras (see sql/daily_deal_flow_add_disposition_fields.sql + call_result_parity). */
+  dq_reason?: string | null;
+  new_draft_date?: string | null;
+  disposition_path?: unknown;
+  generated_note?: string | null;
+  manual_note?: string | null;
+  quick_disposition_tag?: string | null;
+  application_submitted?: boolean | null;
+  call_source?: string | null;
+  sent_to_underwriting?: boolean | null;
+  coverage_amount?: number | null;
+  carrier_attempted_1?: string | null;
+  carrier_attempted_2?: string | null;
+  carrier_attempted_3?: string | null;
 }
 
 export interface DdfFilters {

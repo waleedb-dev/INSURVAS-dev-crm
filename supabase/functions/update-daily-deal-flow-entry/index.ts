@@ -128,6 +128,10 @@ serve(async (req) => {
       generated_note = null,
       manual_note = null,
       quick_disposition_tag = null,
+      coverage_amount = null,
+      carrier_attempted_1 = null,
+      carrier_attempted_2 = null,
+      carrier_attempted_3 = null,
     } = body;
 
     if (!submission_id) throw new Error("Missing required field: submission_id");
@@ -214,6 +218,7 @@ serve(async (req) => {
       draft_date,
       monthly_premium,
       face_amount,
+      coverage_amount,
       notes,
       dq_reason,
       new_draft_date,
@@ -228,6 +233,12 @@ serve(async (req) => {
       from_callback,
       is_callback,
       is_retention_call,
+      application_submitted,
+      call_source,
+      sent_to_underwriting,
+      carrier_attempted_1,
+      carrier_attempted_2,
+      carrier_attempted_3,
       updated_at: getCurrentTimestampEST(),
     };
 
