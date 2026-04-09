@@ -7,6 +7,9 @@ export const TRANSFER_STAGE_TO_REASON_STATUS: Record<string, string> = {
   "DQ'd Can't be sold": "DQ",
   "Application Withdrawn": "Future Submission Date",
   "Pending Approval": "Fulfilled carrier requirements",
+  "GI DQ": "GI - Currently DQ",
+  "Fulfilled Carrier Requirement": "Fulfilled carrier requirements",
+  "New Submission": "Needs callback",
   "test stage": "Needs callback",
 };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -20,6 +20,19 @@ import {
   REASON_MAP,
   REASON_STATUSES_WITH_DROPDOWN,
 } from "./transferCallReasonMapping";
+import { loadDispositionFlowForStage } from "@/lib/dispositionFlowLoad";
+import type { DispositionFlowDefinition } from "@/lib/dispositionFlowTypes";
+import TransferDispositionWizard, { type DispositionWizardPayload } from "./TransferDispositionWizard";
+
+/** `pipeline_stages.name` for the Supabase-driven disposition wizard (see `disposition_flows`). */
+const NEEDS_BPO_CALLBACK_STAGE = "Needs BPO Callback";
+
+type PersistedCallDisposition = {
+  path: unknown;
+  generated_note: string;
+  manual_note: string;
+  quick_disposition_tag: string | null;
+};
 
 type Props = {
   leadRowId: string;
@@ -108,11 +121,18 @@ export default function TransferLeadCallFixForm({
     bufferAgents: AgentOption[];
     licensedAgents: AgentOption[];
   }>({ bufferAgents: [], licensedAgents: [] });
-  const [transferPipelineStages, setTransferPipelineStages] = useState<string[]>([]);
+  /** Transfer Portal: `stageName` is persisted (pipeline_stages.name); `label` is disposition when mapped. */
+  const [transferStageOptions, setTransferStageOptions] = useState<{ stageName: string; label: string }[]>([]);
   const [transferStagesLoading, setTransferStagesLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [hydrating, setHydrating] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [dispositionFlow, setDispositionFlow] = useState<DispositionFlowDefinition | null>(null);
+  const [dispositionFlowLoading, setDispositionFlowLoading] = useState(false);
+  const [dispositionPayload, setDispositionPayload] = useState<DispositionWizardPayload | null>(null);
+  const [persistedDisposition, setPersistedDisposition] = useState<PersistedCallDisposition | null>(null);
+  /** Skip the wizard's first empty payload so we do not wipe notes loaded from `call_results`. */
+  const dispositionWizardBootRef = useRef(true);
   const { carriers, productsForCarrier, loadingProducts } = useCarrierProductDropdowns(supabase, {
     carrierName: carrier,
     onInvalidateProduct: (list, carrierNameSnapshot) => {
@@ -146,14 +166,19 @@ export default function TransferLeadCallFixForm({
     [claimAgents.licensedAgents, agentWhoTookCall, licensedAgentAccount],
   );
 
-  const statusOptions = useMemo(() => transferPipelineStages, [transferPipelineStages]);
+  const statusOptions = useMemo(() => transferStageOptions, [transferStageOptions]);
   const reasonStatus = useMemo(() => getReasonStatusFromStage(status), [status]);
   const reasons = REASON_MAP[reasonStatus] || [];
+  const isNeedsBpoCallbackStage = applicationSubmitted === false && status === NEEDS_BPO_CALLBACK_STAGE;
+  const showStructuredDisposition = isNeedsBpoCallbackStage && dispositionFlow !== null;
+  /** While loading the BPO flow, hide the legacy Reason row; if no flow exists after load, show it again. */
+  const hideReasonForBpoWizard = isNeedsBpoCallbackStage && (dispositionFlowLoading || dispositionFlow !== null);
   const showSubmittedFields = applicationSubmitted === true;
   const showNotSubmittedFields = applicationSubmitted === false;
   const showStatusReasonDropdown =
     applicationSubmitted === false &&
-    REASON_STATUSES_WITH_DROPDOWN.has(reasonStatus);
+    REASON_STATUSES_WITH_DROPDOWN.has(reasonStatus) &&
+    !hideReasonForBpoWizard;
   const requiresDraftDate = reasonStatus === "Updated Banking/draft date" && !!statusReason;
   const showCarrierAttemptedFields = applicationSubmitted === false && reasonStatus === "GI - Currently DQ";
   const statusReasonRequired = showStatusReasonDropdown && reasons.length > 0;
@@ -167,13 +192,17 @@ export default function TransferLeadCallFixForm({
     !coverageAmount ? "Coverage Amount" : "",
     sentToUnderwriting === null ? "Sent to Underwriting" : "",
   ].filter(Boolean);
+  const dispositionNotesOk =
+    showStructuredDisposition
+      ? notes.trim().length > 0 && (!!dispositionPayload?.complete || persistedDisposition !== null)
+      : notes.trim().length > 0;
   const notSubmittedMissingFields = [
     !agentWhoTookCall ? "Agent who took the call" : "",
-    !status ? "Status/Stage" : "",
+    !status ? "Disposition" : "",
     statusReasonRequired && !statusReason ? "Reason" : "",
     requiresDraftDate && !newDraftDate ? "New Draft Date" : "",
     showCarrierAttemptedFields && !carrierAttempted1 ? "Carrier Attempted #1" : "",
-    !notes.trim() ? "Notes" : "",
+    !dispositionNotesOk ? "Notes" : "",
   ].filter(Boolean);
   const canSubmit =
     !!callSource &&
@@ -217,7 +246,7 @@ export default function TransferLeadCallFixForm({
 
   useEffect(() => {
     let cancelled = false;
-    const loadTransferPipelineStages = async () => {
+    const loadTransferStagesWithDispositions = async () => {
       setTransferStagesLoading(true);
       try {
         const { data: pipelineRow, error: pipelineError } = await supabase
@@ -226,37 +255,87 @@ export default function TransferLeadCallFixForm({
           .eq("name", "Transfer Portal")
           .maybeSingle();
         if (pipelineError || !pipelineRow?.id) {
-          if (!cancelled) setTransferPipelineStages([]);
+          if (!cancelled) setTransferStageOptions([]);
           return;
         }
 
         const { data: stageRows, error: stageError } = await supabase
           .from("pipeline_stages")
-          .select("name")
+          .select("id, name, position")
           .eq("pipeline_id", pipelineRow.id)
-          .order("created_at", { ascending: true });
+          .order("position", { ascending: true });
         if (stageError) {
-          if (!cancelled) setTransferPipelineStages([]);
+          if (!cancelled) setTransferStageOptions([]);
           return;
         }
 
-        const names = Array.from(
-          new Set(
-            (stageRows || [])
-              .map((row) => String((row as { name?: string | null }).name || "").trim())
-              .filter(Boolean),
-          ),
-        );
-        if (!cancelled) setTransferPipelineStages(names);
+        const dispByStageId = new Map<string, string>();
+        const { data: mapRows, error: mapError } = await supabase.from("stage_disposition_map").select("stage_id, disposition");
+        if (!mapError && mapRows) {
+          for (const row of mapRows) {
+            const sid = row.stage_id != null ? String(row.stage_id) : "";
+            if (sid && row.disposition) dispByStageId.set(sid, String(row.disposition).trim());
+          }
+        }
+
+        const options = (stageRows || [])
+          .map((row: { id: number | string; name?: string | null; position?: number | null }) => {
+            const stageName = String(row.name || "").trim();
+            if (!stageName) return null;
+            const idKey = String(row.id);
+            const label = dispByStageId.get(idKey) || stageName;
+            return { stageName, label };
+          })
+          .filter((x): x is { stageName: string; label: string } => x != null);
+
+        if (!cancelled) setTransferStageOptions(options);
       } finally {
         if (!cancelled) setTransferStagesLoading(false);
       }
     };
-    void loadTransferPipelineStages();
+    void loadTransferStagesWithDispositions();
     return () => {
       cancelled = true;
     };
   }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (applicationSubmitted !== false || status !== NEEDS_BPO_CALLBACK_STAGE) {
+      setDispositionFlow(null);
+      setDispositionFlowLoading(false);
+      return;
+    }
+    dispositionWizardBootRef.current = true;
+    setDispositionPayload(null);
+    setDispositionFlowLoading(true);
+    void loadDispositionFlowForStage(supabase, status).then((flow) => {
+      if (cancelled) return;
+      setDispositionFlow(flow);
+      setDispositionFlowLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [applicationSubmitted, status, supabase]);
+
+  const handleDispositionPayloadChange = useCallback((p: DispositionWizardPayload) => {
+    setDispositionPayload(p);
+    if (p.complete) {
+      setNotes(p.final_note);
+      dispositionWizardBootRef.current = false;
+      return;
+    }
+    if (p.path.length === 0) {
+      if (dispositionWizardBootRef.current) {
+        dispositionWizardBootRef.current = false;
+        return;
+      }
+      setNotes("");
+      return;
+    }
+    dispositionWizardBootRef.current = false;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -298,6 +377,26 @@ export default function TransferLeadCallFixForm({
         setCarrierAttempted1(String(existing.carrier_attempted_1 || ""));
         setCarrierAttempted2(String(existing.carrier_attempted_2 || ""));
         setCarrierAttempted3(String(existing.carrier_attempted_3 || ""));
+
+        const dp = (existing as { disposition_path?: unknown }).disposition_path;
+        const pathArr = Array.isArray(dp) ? dp : null;
+        const qtag = (existing as { quick_disposition_tag?: string | null }).quick_disposition_tag;
+        const gen = (existing as { generated_note?: string | null }).generated_note;
+        const man = (existing as { manual_note?: string | null }).manual_note;
+        const hasPersisted =
+          (pathArr && pathArr.length > 0) ||
+          !!(qtag && String(qtag).trim()) ||
+          !!(gen && String(gen).trim());
+        if (hasPersisted) {
+          setPersistedDisposition({
+            path: pathArr ?? [],
+            generated_note: String(gen || ""),
+            manual_note: String(man || ""),
+            quick_disposition_tag: qtag ? String(qtag) : null,
+          });
+        } else {
+          setPersistedDisposition(null);
+        }
       } finally {
         if (!cancelled) setHydrating(false);
       }
@@ -309,6 +408,10 @@ export default function TransferLeadCallFixForm({
   }, [submissionId, supabase]);
 
   useEffect(() => {
+    if (status === NEEDS_BPO_CALLBACK_STAGE) {
+      setStatusReason("");
+      return;
+    }
     if (reasonStatus === "Chargeback DQ") {
       setStatusReason("Chargeback DQ");
       setNotes(getNoteText(reasonStatus, "Chargeback DQ", leadName || "[Client Name]"));
@@ -329,7 +432,7 @@ export default function TransferLeadCallFixForm({
     }
     setStatusReason("");
     setNotes("");
-  }, [reasonStatus, leadName]);
+  }, [reasonStatus, leadName, status]);
 
   useEffect(() => {
     if (reasonStatus === "GI - Currently DQ" && carrierAttempted1) {
@@ -404,6 +507,34 @@ export default function TransferLeadCallFixForm({
             : "Pending Approval"
           : status;
 
+      const dispositionCallFields: Record<string, unknown> = showStructuredDisposition
+        ? dispositionPayload?.complete
+          ? {
+              disposition_path: dispositionPayload.path,
+              generated_note: dispositionPayload.generated_note || null,
+              manual_note: dispositionPayload.manual_note || null,
+              quick_disposition_tag: dispositionPayload.quick_tag_label,
+            }
+          : persistedDisposition
+            ? {
+                disposition_path: persistedDisposition.path,
+                generated_note: persistedDisposition.generated_note || null,
+                manual_note: persistedDisposition.manual_note || null,
+                quick_disposition_tag: persistedDisposition.quick_disposition_tag,
+              }
+            : {
+                disposition_path: null,
+                generated_note: null,
+                manual_note: null,
+                quick_disposition_tag: null,
+              }
+        : {
+            disposition_path: null,
+            generated_note: null,
+            manual_note: null,
+            quick_disposition_tag: null,
+          };
+
       const payload: Record<string, unknown> = {
         submission_id: submissionId,
         lead_id: leadRowId,
@@ -430,6 +561,7 @@ export default function TransferLeadCallFixForm({
         carrier_attempted_3: showCarrierAttemptedFields ? carrierAttempted3 || null : null,
         user_id: userId,
         updated_at: new Date().toISOString(),
+        ...dispositionCallFields,
       };
 
       // No unique constraint on submission_id in your current schema, so we do update-or-insert manually.
@@ -506,6 +638,49 @@ export default function TransferLeadCallFixForm({
       const { error: leadUpdateError } = await supabase.from("leads").update(leadUpdate).eq("id", leadRowId);
       if (leadUpdateError) {
         console.warn("Lead update after call result failed:", leadUpdateError.message);
+      }
+
+      const quickTagForLead =
+        typeof dispositionCallFields.quick_disposition_tag === "string"
+          ? dispositionCallFields.quick_disposition_tag.trim()
+          : "";
+      if (quickTagForLead) {
+        const { data: tagRow, error: tagSelectError } = await supabase
+          .from("leads")
+          .select("tags")
+          .eq("id", leadRowId)
+          .maybeSingle();
+        if (!tagSelectError && tagRow) {
+          const cur = Array.isArray(tagRow.tags) ? (tagRow.tags as string[]) : [];
+          if (!cur.includes(quickTagForLead)) {
+            const { error: tagUpdateError } = await supabase
+              .from("leads")
+              .update({ tags: [...cur, quickTagForLead], updated_at: new Date().toISOString() })
+              .eq("id", leadRowId);
+            if (tagUpdateError) console.warn("Lead tags merge (quick disposition) failed:", tagUpdateError.message);
+          }
+        }
+      }
+
+      const dispPayload = dispositionPayload;
+      const shouldInsertDispositionEvent =
+        showStructuredDisposition &&
+        dispositionFlow &&
+        dispPayload?.complete &&
+        JSON.stringify(dispPayload.path) !== JSON.stringify(persistedDisposition?.path ?? []);
+      if (shouldInsertDispositionEvent && dispPayload) {
+        const { error: dispEvError } = await supabase.from("disposition_events").insert({
+          submission_id: submissionId,
+          lead_id: leadRowId,
+          flow_key: dispositionFlow.flow_key,
+          path_json: dispPayload.path,
+          generated_note: dispPayload.generated_note || null,
+          manual_note: dispPayload.manual_note || null,
+          final_note: dispPayload.final_note || null,
+          quick_tag_label: dispPayload.quick_tag_label,
+          created_by: userId,
+        });
+        if (dispEvError) console.warn("disposition_events insert failed:", dispEvError.message);
       }
 
       let verifiedSyncWarning: string | null = null;
@@ -869,7 +1044,7 @@ export default function TransferLeadCallFixForm({
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
-                  Status / Stage *
+                  Disposition *
                 </label>
                 <AppSelect
                   value={status}
@@ -881,14 +1056,18 @@ export default function TransferLeadCallFixForm({
                 >
                   <option value="">
                     {transferStagesLoading
-                      ? "Loading stages..."
+                      ? "Loading dispositions..."
                       : statusOptions.length > 0
-                        ? "Select stage"
+                        ? "Select disposition"
                         : "No transfer stages configured"}
                   </option>
-                  {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                  {statusOptions.map((opt) => (
+                    <option key={opt.stageName} value={opt.stageName}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </AppSelect>
-                {!status && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Status/Stage is required</p>}
+                {!status && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Disposition is required</p>}
               </div>
             </div>
 
@@ -959,6 +1138,20 @@ export default function TransferLeadCallFixForm({
           </>
         )}
 
+        {isNeedsBpoCallbackStage && dispositionFlowLoading && (
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: T.textMuted }}>Loading disposition wizard…</p>
+        )}
+
+        {showStructuredDisposition && dispositionFlow && (
+          <TransferDispositionWizard
+            key={dispositionFlow.flow_key}
+            flow={dispositionFlow}
+            clientName={leadName || "[Client Name]"}
+            carrierOptions={carrierOptions}
+            onPayloadChange={handleDispositionPayloadChange}
+          />
+        )}
+
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
             Notes
@@ -976,11 +1169,13 @@ export default function TransferLeadCallFixForm({
               fontFamily: T.font,
             }}
             placeholder={
-              showStatusReasonDropdown && statusReason && statusReason !== "Other"
-                ? "Note has been auto-populated. You can edit if needed."
-                : showStatusReasonDropdown && statusReason === "Other"
-                  ? "Please enter a custom message."
-                  : "Why the call got dropped or application was not submitted? Please provide the reason (required)"
+              showStructuredDisposition
+                ? "Complete the quick disposition above; notes fill in when you finish. You can edit before saving."
+                : showStatusReasonDropdown && statusReason && statusReason !== "Other"
+                  ? "Note has been auto-populated. You can edit if needed."
+                  : showStatusReasonDropdown && statusReason === "Other"
+                    ? "Please enter a custom message."
+                    : "Why the call got dropped or application was not submitted? Please provide the reason (required)"
             }
           />
           {applicationSubmitted === false && showStatusReasonDropdown && statusReason && statusReason !== "Other" && (
@@ -993,8 +1188,12 @@ export default function TransferLeadCallFixForm({
               Please enter a custom message for this reason.
             </p>
           )}
-          {applicationSubmitted === false && !notes.trim() && (
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Notes are required</p>
+          {applicationSubmitted === false && !dispositionNotesOk && (
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>
+              {showStructuredDisposition
+                ? "Complete the disposition wizard (or load an existing saved disposition) and ensure notes are filled in."
+                : "Notes are required"}
+            </p>
           )}
         </div>
 
