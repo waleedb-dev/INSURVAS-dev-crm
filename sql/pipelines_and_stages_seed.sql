@@ -147,7 +147,12 @@ join (
     ('Transfer Portal', 'Application Withdrawn', 8),
     ('Transfer Portal', 'Declined Underwriting', 9),
     ('Transfer Portal', 'Pending Approval', 10),
-    ('Transfer Portal', 'Pending Manual Action', 11)
+    ('Transfer Portal', 'Pending Manual Action', 11),
+    ('Transfer Portal', 'GI DQ', 12),
+    ('Transfer Portal', 'Fulfilled Carrier Requirement', 13),
+    ('Transfer Portal', 'Pending Failed Payment Fix', 14),
+    ('Transfer Portal', 'New Submission', 15),
+    ('Transfer Portal', 'Chargeback DQ', 16)
 ) as s(pipeline_name, name, position)
   on s.pipeline_name = p.name
 on conflict (pipeline_id, name) do update

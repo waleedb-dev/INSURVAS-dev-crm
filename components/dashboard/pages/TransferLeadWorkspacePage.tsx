@@ -475,6 +475,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               leadName={lead.leadName}
               leadPhone={lead.phone}
               leadVendor={lead.source}
+              sessionUserId={sessionUserId}
             />
             <TransferLeadSsnPolicyCards leadRowId={lead.rowId} supabase={supabase} />
           </div>

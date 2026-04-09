@@ -7,7 +7,12 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Toast } from "@/components/ui";
 import { AppSelect } from "@/components/ui/app-select";
 import { useCarrierProductDropdowns } from "@/lib/useCarrierProductDropdowns";
-import { fetchClaimAgents, syncVerifiedFieldsToLead, type AgentOption } from "./transferLeadParity";
+import {
+  defaultLicensedAgentIdForSession,
+  fetchClaimAgents,
+  syncVerifiedFieldsToLead,
+  type AgentOption,
+} from "./transferLeadParity";
 import { LeadCard } from "./LeadCard";
 import {
   getNoteText,
@@ -23,6 +28,8 @@ type Props = {
   leadName: string;
   leadPhone?: string;
   leadVendor?: string;
+  /** When set, empty “Agent who took the call” / “Licensed Agent Account” picklists default like TransferLeadClaimModal. */
+  sessionUserId?: string | null;
 };
 
 const mapStatusToSheetValue = (userSelectedStatus: string) => {
@@ -70,6 +77,7 @@ export default function TransferLeadCallFixForm({
   leadName,
   leadPhone,
   leadVendor,
+  sessionUserId = null,
 }: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
@@ -195,6 +203,17 @@ export default function TransferLeadCallFixForm({
       cancelled = true;
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (claimAgentsLoading || hydrating) return;
+    const autoId = defaultLicensedAgentIdForSession(claimAgents.licensedAgents, sessionUserId);
+    if (!autoId) return;
+    const opt = claimAgents.licensedAgents.find((a) => a.id === autoId);
+    const name = opt?.name?.trim();
+    if (!name) return;
+    setAgentWhoTookCall((prev) => (prev.trim() ? prev : name));
+    setLicensedAgentAccount((prev) => (prev.trim() ? prev : name));
+  }, [claimAgentsLoading, hydrating, claimAgents.licensedAgents, sessionUserId]);
 
   useEffect(() => {
     let cancelled = false;
