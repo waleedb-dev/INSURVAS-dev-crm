@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Toast } from "@/components/ui";
-import { AppSelect } from "@/components/ui/app-select";
 import { useCarrierProductDropdowns } from "@/lib/useCarrierProductDropdowns";
 import {
   defaultLicensedAgentIdForSession,
@@ -23,6 +22,7 @@ import {
 import { loadDispositionFlowForStage } from "@/lib/dispositionFlowLoad";
 import type { DispositionFlowDefinition } from "@/lib/dispositionFlowTypes";
 import TransferDispositionWizard, { type DispositionWizardPayload } from "./TransferDispositionWizard";
+import { TransferStyledSelect, transferSelectLabelStyle } from "./TransferStyledSelect";
 
 /** `pipeline_stages.name` for the Supabase-driven disposition wizard (see `disposition_flows`). */
 const NEEDS_BPO_CALLBACK_STAGE = "Needs BPO Callback";
@@ -608,56 +608,62 @@ export default function TransferLeadCallFixForm({
         if (attempt === 7) throw writeError;
       }
 
-      const leadStageName = mapDispositionToLeadStageName(applicationSubmitted, status);
-      const { data: tpPipeline } = await supabase.from("pipelines").select("id").eq("name", "Transfer Portal").maybeSingle();
-      let resolvedPipelineId: number | null = null;
-      let resolvedStageId: number | null = null;
-      if (tpPipeline?.id) {
-        resolvedPipelineId = Number(tpPipeline.id);
-        const { data: stageRow } = await supabase
-          .from("pipeline_stages")
+      if (applicationSubmitted === true) {
+        const leadStageName = mapDispositionToLeadStageName(applicationSubmitted, status);
+        const { data: tpPipeline } = await supabase
+          .from("pipelines")
           .select("id")
-          .eq("pipeline_id", tpPipeline.id)
-          .eq("name", leadStageName)
+          .eq("name", "Transfer Portal")
           .maybeSingle();
-        resolvedStageId = stageRow?.id ? Number(stageRow.id) : null;
-      }
+        let resolvedPipelineId: number | null = null;
+        let resolvedStageId: number | null = null;
+        if (tpPipeline?.id) {
+          resolvedPipelineId = Number(tpPipeline.id);
+          const { data: stageRow } = await supabase
+            .from("pipeline_stages")
+            .select("id")
+            .eq("pipeline_id", tpPipeline.id)
+            .eq("name", leadStageName)
+            .maybeSingle();
+          resolvedStageId = stageRow?.id ? Number(stageRow.id) : null;
+        }
 
-      const leadUpdate: Record<string, unknown> = {
-        stage: leadStageName,
-        updated_at: new Date().toISOString(),
-      };
-      if (resolvedPipelineId) leadUpdate.pipeline_id = resolvedPipelineId;
-      if (resolvedStageId) leadUpdate.stage_id = resolvedStageId;
-      if (carrier.trim()) leadUpdate.carrier = carrier.trim();
-      if (productType.trim()) leadUpdate.product_type = productType.trim();
-      if (monthlyPremium.trim()) leadUpdate.monthly_premium = monthlyPremium.trim();
-      if (coverageAmount.trim()) leadUpdate.coverage_amount = coverageAmount.trim();
-      if (draftDate.trim()) leadUpdate.draft_date = draftDate.trim();
+        const leadUpdate: Record<string, unknown> = {
+          stage: leadStageName,
+          updated_at: new Date().toISOString(),
+        };
+        if (resolvedPipelineId) leadUpdate.pipeline_id = resolvedPipelineId;
+        if (resolvedStageId) leadUpdate.stage_id = resolvedStageId;
+        if (carrier.trim()) leadUpdate.carrier = carrier.trim();
+        if (productType.trim()) leadUpdate.product_type = productType.trim();
+        if (monthlyPremium.trim()) leadUpdate.monthly_premium = monthlyPremium.trim();
+        if (coverageAmount.trim()) leadUpdate.coverage_amount = coverageAmount.trim();
+        if (draftDate.trim()) leadUpdate.draft_date = draftDate.trim();
 
-      const { error: leadUpdateError } = await supabase.from("leads").update(leadUpdate).eq("id", leadRowId);
-      if (leadUpdateError) {
-        console.warn("Lead update after call result failed:", leadUpdateError.message);
-      }
+        const { error: leadUpdateError } = await supabase.from("leads").update(leadUpdate).eq("id", leadRowId);
+        if (leadUpdateError) {
+          console.warn("Lead update after call result failed:", leadUpdateError.message);
+        }
 
-      const quickTagForLead =
-        typeof dispositionCallFields.quick_disposition_tag === "string"
-          ? dispositionCallFields.quick_disposition_tag.trim()
-          : "";
-      if (quickTagForLead) {
-        const { data: tagRow, error: tagSelectError } = await supabase
-          .from("leads")
-          .select("tags")
-          .eq("id", leadRowId)
-          .maybeSingle();
-        if (!tagSelectError && tagRow) {
-          const cur = Array.isArray(tagRow.tags) ? (tagRow.tags as string[]) : [];
-          if (!cur.includes(quickTagForLead)) {
-            const { error: tagUpdateError } = await supabase
-              .from("leads")
-              .update({ tags: [...cur, quickTagForLead], updated_at: new Date().toISOString() })
-              .eq("id", leadRowId);
-            if (tagUpdateError) console.warn("Lead tags merge (quick disposition) failed:", tagUpdateError.message);
+        const quickTagForLead =
+          typeof dispositionCallFields.quick_disposition_tag === "string"
+            ? dispositionCallFields.quick_disposition_tag.trim()
+            : "";
+        if (quickTagForLead) {
+          const { data: tagRow, error: tagSelectError } = await supabase
+            .from("leads")
+            .select("tags")
+            .eq("id", leadRowId)
+            .maybeSingle();
+          if (!tagSelectError && tagRow) {
+            const cur = Array.isArray(tagRow.tags) ? (tagRow.tags as string[]) : [];
+            if (!cur.includes(quickTagForLead)) {
+              const { error: tagUpdateError } = await supabase
+                .from("leads")
+                .update({ tags: [...cur, quickTagForLead], updated_at: new Date().toISOString() })
+                .eq("id", leadRowId);
+              if (tagUpdateError) console.warn("Lead tags merge (quick disposition) failed:", tagUpdateError.message);
+            }
           }
         }
       }
@@ -684,11 +690,13 @@ export default function TransferLeadCallFixForm({
       }
 
       let verifiedSyncWarning: string | null = null;
-      try {
-        await syncVerifiedFieldsToLead(supabase, leadRowId, submissionId, verificationSessionId);
-      } catch (syncError) {
-        verifiedSyncWarning = syncError instanceof Error ? syncError.message : String(syncError);
-        console.warn("Verified fields sync to lead failed:", verifiedSyncWarning);
+      if (applicationSubmitted === true) {
+        try {
+          await syncVerifiedFieldsToLead(supabase, leadRowId, submissionId, verificationSessionId);
+        } catch (syncError) {
+          verifiedSyncWarning = syncError instanceof Error ? syncError.message : String(syncError);
+          console.warn("Verified fields sync to lead failed:", verifiedSyncWarning);
+        }
       }
 
       const { error: logError } = await supabase.from("call_update_logs").insert({
@@ -734,6 +742,21 @@ export default function TransferLeadCallFixForm({
         monthly_premium: monthlyPremium ? Number(monthlyPremium) : null,
         face_amount: coverageAmount ? Number(coverageAmount) : null,
         notes: notes || null,
+        dq_reason: showStatusReasonDropdown ? statusReason || null : null,
+        new_draft_date: requiresDraftDate ? newDraftDate || null : null,
+        disposition_path: dispositionPayload?.complete
+          ? dispositionPayload.path
+          : persistedDisposition?.path ?? null,
+        generated_note: dispositionPayload?.complete
+          ? dispositionPayload.generated_note || null
+          : persistedDisposition?.generated_note || null,
+        manual_note: dispositionPayload?.complete
+          ? dispositionPayload.manual_note || null
+          : persistedDisposition?.manual_note || null,
+        quick_disposition_tag:
+          dispositionPayload?.complete
+            ? dispositionPayload.quick_tag_label
+            : persistedDisposition?.quick_disposition_tag ?? null,
         from_callback: callSource === "Agent Callback",
         is_callback: submissionId.startsWith("CB") || submissionId.startsWith("CBB"),
       });
@@ -847,18 +870,19 @@ export default function TransferLeadCallFixForm({
         </div>
 
         <div>
-          <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+          <label style={transferSelectLabelStyle}>
             Call Source *
           </label>
-          <AppSelect
+          <TransferStyledSelect
             value={callSource}
-            onChange={(e) => setCallSource(e.target.value)}
-            style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!callSource ? "#fca5a5" : T.border}` }}
-          >
-            <option value="">Select call source (required)</option>
-            <option value="BPO Transfer">BPO Transfer</option>
-            <option value="Agent Callback">Agent Callback</option>
-          </AppSelect>
+            onValueChange={setCallSource}
+            error={!callSource}
+            placeholder="Select call source (required)"
+            options={[
+              { value: "BPO Transfer", label: "BPO Transfer" },
+              { value: "Agent Callback", label: "Agent Callback" },
+            ]}
+          />
           {!callSource && (
             <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Call source is required</p>
           )}
@@ -870,35 +894,41 @@ export default function TransferLeadCallFixForm({
               <div style={{ fontSize: 16, color: T.textDark, fontWeight: 800, marginBottom: 10 }}>Call Information</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                  <label style={transferSelectLabelStyle}>
                     Buffer Agent
                   </label>
-                  <AppSelect value={bufferAgent} onChange={(e) => setBufferAgent(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }} disabled={claimAgentsLoading}>
-                    <option value="">
-                      {claimAgentsLoading
+                  <TransferStyledSelect
+                    value={bufferAgent}
+                    onValueChange={setBufferAgent}
+                    disabled={claimAgentsLoading || bufferAgentOptions.length === 0}
+                    placeholder={
+                      claimAgentsLoading
                         ? "Loading buffer agents..."
                         : bufferAgentOptions.length > 0
                           ? "Select buffer agent"
-                          : "No buffer agents found"}
-                    </option>
-                    {bufferAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </AppSelect>
+                          : "No buffer agents found"
+                    }
+                    options={bufferAgentOptions.map((option) => ({ value: option, label: option }))}
+                  />
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                  <label style={transferSelectLabelStyle}>
                     Agent who took the call
                   </label>
-                  <AppSelect value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }} disabled={claimAgentsLoading}>
-                    <option value="">
-                      {claimAgentsLoading
+                  <TransferStyledSelect
+                    value={agentWhoTookCall}
+                    onValueChange={setAgentWhoTookCall}
+                    disabled={claimAgentsLoading || licensedAgentOptions.length === 0}
+                    placeholder={
+                      claimAgentsLoading
                         ? "Loading licensed agents..."
                         : licensedAgentOptions.length > 0
                           ? "Select licensed agent"
-                          : "No licensed agents found"}
-                    </option>
-                    {licensedAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </AppSelect>
+                          : "No licensed agents found"
+                    }
+                    options={licensedAgentOptions.map((option) => ({ value: option, label: option }))}
+                  />
                   {!agentWhoTookCall && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Agent who took the call is required</p>}
                 </div>
               </div>
@@ -910,64 +940,60 @@ export default function TransferLeadCallFixForm({
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                <label style={transferSelectLabelStyle}>
                   Licensed Agent Account *
                 </label>
-                <AppSelect value={licensedAgentAccount} onChange={(e) => setLicensedAgentAccount(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!licensedAgentAccount ? "#fca5a5" : T.border}` }} disabled={claimAgentsLoading}>
-                  <option value="">
-                    {claimAgentsLoading
+                <TransferStyledSelect
+                  value={licensedAgentAccount}
+                  onValueChange={setLicensedAgentAccount}
+                  error={!licensedAgentAccount}
+                  disabled={claimAgentsLoading || licensedAgentOptions.length === 0}
+                  placeholder={
+                    claimAgentsLoading
                       ? "Loading licensed accounts..."
                       : licensedAgentOptions.length > 0
                         ? "Select licensed account"
-                        : "No licensed agents found"}
-                  </option>
-                  {licensedAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </AppSelect>
+                        : "No licensed agents found"
+                  }
+                  options={licensedAgentOptions.map((option) => ({ value: option, label: option }))}
+                />
                 {!licensedAgentAccount && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Licensed Agent Account is required</p>}
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                <label style={transferSelectLabelStyle}>
                   Carrier Name *
                 </label>
-                <AppSelect value={carrier} onChange={(e) => setCarrier(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!carrier ? "#fca5a5" : T.border}` }}>
-                  <option value="">Select carrier</option>
-                  {carrierOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </AppSelect>
+                <TransferStyledSelect
+                  value={carrier}
+                  onValueChange={setCarrier}
+                  error={!carrier}
+                  placeholder="Select carrier"
+                  options={carrierOptions.map((option) => ({ value: option, label: option }))}
+                />
                 {!carrier && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Carrier is required</p>}
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                <label style={transferSelectLabelStyle}>
                   Product Type *
                 </label>
-                <AppSelect
+                <TransferStyledSelect
                   value={productType}
-                  onChange={(e) => setProductType(e.target.value)}
-                  disabled={!carrier.trim() || loadingProducts}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: `1.5px solid ${!productType ? "#fca5a5" : T.border}`,
-                    opacity: !carrier.trim() || loadingProducts ? 0.7 : 1,
-                  }}
-                >
-                  <option value="">
-                    {loadingProducts
+                  onValueChange={setProductType}
+                  disabled={!carrier.trim() || loadingProducts || productsForCarrier.length === 0}
+                  error={!productType}
+                  placeholder={
+                    loadingProducts
                       ? "Loading product types..."
                       : !carrier.trim()
                         ? "Select carrier first"
                         : productsForCarrier.length === 0
                           ? "No products for this carrier"
-                          : "Select product type"}
-                  </option>
-                  {productsForCarrier.map((option) => (
-                    <option key={option.id} value={option.name}>
-                      {option.name}
-                    </option>
-                  ))}
-                </AppSelect>
+                          : "Select product type"
+                  }
+                  options={productsForCarrier.map((option) => ({ value: option.name, label: option.name }))}
+                />
                 {!productType && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Product Type is required</p>}
               </div>
 
@@ -1026,64 +1052,60 @@ export default function TransferLeadCallFixForm({
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                <label style={transferSelectLabelStyle}>
                   Agent Who Took Call *
                 </label>
-                <AppSelect value={agentWhoTookCall} onChange={(e) => setAgentWhoTookCall(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!agentWhoTookCall ? "#fca5a5" : T.border}` }} disabled={claimAgentsLoading}>
-                  <option value="">
-                    {claimAgentsLoading
+                <TransferStyledSelect
+                  value={agentWhoTookCall}
+                  onValueChange={setAgentWhoTookCall}
+                  error={!agentWhoTookCall}
+                  disabled={claimAgentsLoading || licensedAgentOptions.length === 0}
+                  placeholder={
+                    claimAgentsLoading
                       ? "Loading licensed agents..."
                       : licensedAgentOptions.length > 0
                         ? "Select licensed agent"
-                        : "No licensed agents found"}
-                  </option>
-                  {licensedAgentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </AppSelect>
+                        : "No licensed agents found"
+                  }
+                  options={licensedAgentOptions.map((option) => ({ value: option, label: option }))}
+                />
                 {!agentWhoTookCall && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Agent who took the call is required</p>}
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                <label style={transferSelectLabelStyle}>
                   Disposition *
                 </label>
-                <AppSelect
+                <TransferStyledSelect
                   value={status}
-                  onChange={(e) => {
-                    setStatus(e.target.value);
-                  }}
-                  disabled={transferStagesLoading}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!status ? "#fca5a5" : T.border}` }}
-                >
-                  <option value="">
-                    {transferStagesLoading
+                  onValueChange={setStatus}
+                  disabled={transferStagesLoading || statusOptions.length === 0}
+                  error={!status}
+                  placeholder={
+                    transferStagesLoading
                       ? "Loading dispositions..."
                       : statusOptions.length > 0
                         ? "Select disposition"
-                        : "No transfer stages configured"}
-                  </option>
-                  {statusOptions.map((opt) => (
-                    <option key={opt.stageName} value={opt.stageName}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </AppSelect>
+                        : "No transfer stages configured"
+                  }
+                  options={statusOptions.map((opt) => ({ value: opt.stageName, label: opt.label }))}
+                />
                 {!status && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Disposition is required</p>}
               </div>
             </div>
 
             {showStatusReasonDropdown && reasons.length > 0 && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                <label style={transferSelectLabelStyle}>
                   Reason
                 </label>
-                <AppSelect
+                <TransferStyledSelect
                   value={statusReason}
-                  onChange={(e) => handleStatusReasonChange(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
-                >
-                  <option value="">Select reason</option>
-                  {reasons.map((option) => <option key={option} value={option}>{option}</option>)}
-                </AppSelect>
+                  onValueChange={handleStatusReasonChange}
+                  error={!statusReason}
+                  placeholder="Select reason"
+                  options={reasons.map((option) => ({ value: option, label: option }))}
+                />
                 {!statusReason && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Reason is required</p>}
               </div>
             )}
@@ -1106,32 +1128,39 @@ export default function TransferLeadCallFixForm({
             {showCarrierAttemptedFields && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                  <label style={transferSelectLabelStyle}>
                     Carrier Attempted #1 *
                   </label>
-                  <AppSelect value={carrierAttempted1} onChange={(e) => setCarrierAttempted1(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!carrierAttempted1 ? "#fca5a5" : T.border}` }}>
-                    <option value="">Select</option>
-                    {carrierOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </AppSelect>
+                  <TransferStyledSelect
+                    value={carrierAttempted1}
+                    onValueChange={setCarrierAttempted1}
+                    error={!carrierAttempted1}
+                    placeholder="Select"
+                    options={carrierOptions.map((option) => ({ value: option, label: option }))}
+                  />
                   {!carrierAttempted1 && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Carrier Attempted #1 is required</p>}
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                  <label style={transferSelectLabelStyle}>
                     Carrier Attempted #2
                   </label>
-                  <AppSelect value={carrierAttempted2} onChange={(e) => setCarrierAttempted2(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}>
-                    <option value="">Select</option>
-                    {carrierOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </AppSelect>
+                  <TransferStyledSelect
+                    value={carrierAttempted2}
+                    onValueChange={setCarrierAttempted2}
+                    placeholder="Select"
+                    options={carrierOptions.map((option) => ({ value: option, label: option }))}
+                  />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                  <label style={transferSelectLabelStyle}>
                     Carrier Attempted #3
                   </label>
-                  <AppSelect value={carrierAttempted3} onChange={(e) => setCarrierAttempted3(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}>
-                    <option value="">Select</option>
-                    {carrierOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </AppSelect>
+                  <TransferStyledSelect
+                    value={carrierAttempted3}
+                    onValueChange={setCarrierAttempted3}
+                    placeholder="Select"
+                    options={carrierOptions.map((option) => ({ value: option, label: option }))}
+                  />
                 </div>
               </div>
             )}

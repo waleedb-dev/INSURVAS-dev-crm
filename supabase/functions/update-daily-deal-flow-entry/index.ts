@@ -123,6 +123,11 @@ serve(async (req) => {
       client_phone_number,
       is_retention_call = false,
       dq_reason = null,
+      new_draft_date = null,
+      disposition_path = null,
+      generated_note = null,
+      manual_note = null,
+      quick_disposition_tag = null,
     } = body;
 
     if (!submission_id) throw new Error("Missing required field: submission_id");
@@ -210,6 +215,12 @@ serve(async (req) => {
       monthly_premium,
       face_amount,
       notes,
+      dq_reason,
+      new_draft_date,
+      disposition_path,
+      generated_note,
+      manual_note,
+      quick_disposition_tag,
       policy_number,
       carrier_audit,
       product_type_carrier,
