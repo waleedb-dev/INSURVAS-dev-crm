@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { T } from "@/lib/theme";
 import { X } from "lucide-react";
 import {
@@ -10,11 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type {
-  AgentOption,
-  ClaimSelections,
-  ClaimWorkflowType,
-  RetentionType,
+import {
+  defaultLicensedAgentIdForSession,
+  type AgentOption,
+  type ClaimSelections,
+  type ClaimWorkflowType,
 } from "./transferLeadParity";
 
 // StyledSelect component matching LeadEditForm design
@@ -118,74 +118,6 @@ function FormField({
   );
 }
 
-// FormInput component matching LeadEditForm
-function FormInput({
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  disabled = false,
-}: {
-  value: string | number;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <input
-      type={type}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      disabled={disabled}
-      style={{
-        width: "100%",
-        padding: "12px",
-        borderRadius: 8,
-        border: `1.5px solid ${T.border}`,
-        fontSize: 14,
-        fontWeight: 600,
-        color: disabled ? T.textMuted : T.textDark,
-        backgroundColor: disabled ? T.pageBg : "#fff",
-        fontFamily: T.font,
-        outline: "none",
-        transition: "all 0.2s",
-      }}
-      onFocus={(e) => {
-        if (!disabled) {
-          e.currentTarget.style.borderColor = T.blue;
-          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.12)";
-        }
-      }}
-      onBlur={(e) => {
-        e.currentTarget.style.borderColor = T.border;
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    />
-  );
-}
-
-// SectionHeader component matching LeadEditForm
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <h3
-      style={{
-        margin: "20px 0 16px",
-        fontSize: 14,
-        fontWeight: 800,
-        color: T.textDark,
-        textTransform: "uppercase",
-        letterSpacing: "0.5px",
-        borderBottom: `2px solid ${T.borderLight}`,
-        paddingBottom: 8,
-      }}
-    >
-      {title}
-    </h3>
-  );
-}
-
 type Props = {
   open: boolean;
   loading: boolean;
@@ -200,6 +132,8 @@ type Props = {
   onClose: () => void;
   onSubmit: () => void;
   retentionOnly?: boolean;
+  /** When set, “Direct to Licensed” pre-selects this user if they appear in `agents.licensedAgents`. */
+  sessionUserId?: string | null;
 };
 
 function RadioTile({
@@ -243,14 +177,19 @@ export default function TransferLeadClaimModal({
   onClose,
   onSubmit,
   retentionOnly = false,
+  sessionUserId = null,
 }: Props) {
   const valid = useMemo(() => {
     if (retentionOnly || selection.workflowType === "retention") {
-      if (!selection.retentionAgentId || !selection.retentionType) return false;
-      if (selection.retentionType !== "new_sale" && !selection.retentionNotes.trim()) return false;
+      if (!selection.retentionAgentId || !selection.licensedAgentId) return false;
+      const effectiveRetentionType = selection.retentionType || "new_sale";
+      if (effectiveRetentionType !== "new_sale" && !selection.retentionNotes.trim()) return false;
       return true;
     }
-    if (selection.workflowType === "buffer") return Boolean(selection.bufferAgentId);
+    if (selection.workflowType === "buffer_only") return Boolean(selection.bufferAgentId);
+    if (selection.workflowType === "buffer") {
+      return Boolean(selection.bufferAgentId && selection.licensedAgentId);
+    }
     if (selection.workflowType === "licensed") return Boolean(selection.licensedAgentId);
     return false;
   }, [selection, retentionOnly]);
@@ -258,18 +197,83 @@ export default function TransferLeadClaimModal({
   // Auto-set workflow to retention when in retention-only mode
   useMemo(() => {
     if (retentionOnly && selection.workflowType !== "retention") {
-      onChange({ ...selection, workflowType: "retention" });
+      onChange({ ...selection, workflowType: "retention", retentionType: "new_sale" });
     }
   }, [retentionOnly, selection, onChange]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (
+      selection.workflowType !== "licensed" &&
+      selection.workflowType !== "retention" &&
+      selection.workflowType !== "buffer"
+    ) {
+      return;
+    }
+    const hasValid =
+      selection.licensedAgentId &&
+      agents.licensedAgents.some((a) => a.id === selection.licensedAgentId);
+    if (hasValid) return;
+    const auto = defaultLicensedAgentIdForSession(agents.licensedAgents, sessionUserId);
+    if (!auto) return;
+    onChange({ ...selection, licensedAgentId: auto });
+  }, [open, selection, agents.licensedAgents, sessionUserId, onChange]);
 
   if (!open) return null;
 
   const setWorkflow = (workflowType: ClaimWorkflowType) => {
+    if (workflowType === "buffer_only") {
+      onChange({
+        ...selection,
+        workflowType: "buffer_only",
+        licensedAgentId: null,
+      });
+      return;
+    }
+    if (workflowType === "licensed") {
+      const auto = defaultLicensedAgentIdForSession(agents.licensedAgents, sessionUserId);
+      const keep =
+        selection.licensedAgentId &&
+        agents.licensedAgents.some((a) => a.id === selection.licensedAgentId)
+          ? selection.licensedAgentId
+          : null;
+      onChange({
+        ...selection,
+        workflowType,
+        licensedAgentId: keep ?? auto ?? null,
+      });
+      return;
+    }
+    if (workflowType === "retention") {
+      const auto = defaultLicensedAgentIdForSession(agents.licensedAgents, sessionUserId);
+      const keep =
+        selection.licensedAgentId &&
+        agents.licensedAgents.some((a) => a.id === selection.licensedAgentId)
+          ? selection.licensedAgentId
+          : null;
+      onChange({
+        ...selection,
+        workflowType,
+        retentionType: "new_sale",
+        licensedAgentId: keep ?? auto ?? null,
+      });
+      return;
+    }
+    if (workflowType === "buffer") {
+      const auto = defaultLicensedAgentIdForSession(agents.licensedAgents, sessionUserId);
+      const keep =
+        selection.licensedAgentId &&
+        agents.licensedAgents.some((a) => a.id === selection.licensedAgentId)
+          ? selection.licensedAgentId
+          : null;
+      onChange({
+        ...selection,
+        workflowType,
+        licensedAgentId: keep ?? auto ?? null,
+      });
+      return;
+    }
     onChange({ ...selection, workflowType });
-  };
-
-  const setRetentionType = (retentionType: RetentionType | "") => {
-    onChange({ ...selection, retentionType });
   };
 
   return (
@@ -373,14 +377,22 @@ export default function TransferLeadClaimModal({
         >
 
         {!retentionOnly && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gap: 8,
+              marginBottom: 14,
+            }}
+          >
+            <RadioTile active={selection.workflowType === "buffer_only"} label="Buffer" onClick={() => setWorkflow("buffer_only")} />
             <RadioTile active={selection.workflowType === "buffer"} label="Buffer to Licensed" onClick={() => setWorkflow("buffer")} />
             <RadioTile active={selection.workflowType === "licensed"} label="Direct to Licensed" onClick={() => setWorkflow("licensed")} />
             <RadioTile active={selection.workflowType === "retention"} label="Retention Workflow" onClick={() => setWorkflow("retention")} />
           </div>
         )}
 
-        {selection.workflowType === "buffer" && (
+        {selection.workflowType === "buffer_only" && (
           <div style={{ marginBottom: 20 }}>
             <FormField label="Buffer Agent" required>
               <StyledSelect
@@ -391,6 +403,33 @@ export default function TransferLeadClaimModal({
                   ...agents.bufferAgents.map((agent) => ({ value: agent.id, label: agent.name })),
                 ]}
                 placeholder="Select buffer agent"
+              />
+            </FormField>
+          </div>
+        )}
+
+        {selection.workflowType === "buffer" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+            <FormField label="Buffer Agent" required>
+              <StyledSelect
+                value={selection.bufferAgentId || ""}
+                onValueChange={(val) => onChange({ ...selection, bufferAgentId: val || null })}
+                options={[
+                  { value: "", label: "Select buffer agent" },
+                  ...agents.bufferAgents.map((agent) => ({ value: agent.id, label: agent.name })),
+                ]}
+                placeholder="Select buffer agent"
+              />
+            </FormField>
+            <FormField label="Licensed Agent" required>
+              <StyledSelect
+                value={selection.licensedAgentId || ""}
+                onValueChange={(val) => onChange({ ...selection, licensedAgentId: val || null })}
+                options={[
+                  { value: "", label: "Select licensed agent" },
+                  ...agents.licensedAgents.map((agent) => ({ value: agent.id, label: agent.name })),
+                ]}
+                placeholder="Select licensed agent"
               />
             </FormField>
           </div>
@@ -414,7 +453,6 @@ export default function TransferLeadClaimModal({
 
         {selection.workflowType === "retention" && (
           <>
-            <SectionHeader title="Retention Details" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
               <FormField label="Retention Agent" required>
                 <StyledSelect
@@ -427,56 +465,18 @@ export default function TransferLeadClaimModal({
                   placeholder="Select retention agent"
                 />
               </FormField>
-              <FormField label="Retention Type" required>
+              <FormField label="Licensed Agent" required>
                 <StyledSelect
-                  value={selection.retentionType || ""}
-                  onValueChange={(val) => setRetentionType((val || "") as RetentionType | "")}
+                  value={selection.licensedAgentId || ""}
+                  onValueChange={(val) => onChange({ ...selection, licensedAgentId: val || null })}
                   options={[
-                    { value: "", label: "Select retention type" },
-                    { value: "new_sale", label: "New Sale" },
-                    { value: "fixed_payment", label: "Fixed Failed Payment" },
-                    { value: "carrier_requirements", label: "Carrier Requirements" },
+                    { value: "", label: "Select licensed agent" },
+                    ...agents.licensedAgents.map((agent) => ({ value: agent.id, label: agent.name })),
                   ]}
-                  placeholder="Select retention type"
+                  placeholder="Select licensed agent"
                 />
               </FormField>
             </div>
-
-            {selection.retentionType === "new_sale" && (
-              <>
-                <SectionHeader title="Quote Information" />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-                  <FormField label="Carrier">
-                    <FormInput
-                      value={selection.quoteCarrier || ""}
-                      onChange={(val) => onChange({ ...selection, quoteCarrier: val })}
-                      placeholder="Carrier (optional)"
-                    />
-                  </FormField>
-                  <FormField label="Product">
-                    <FormInput
-                      value={selection.quoteProduct || ""}
-                      onChange={(val) => onChange({ ...selection, quoteProduct: val })}
-                      placeholder="Product (optional)"
-                    />
-                  </FormField>
-                  <FormField label="Coverage">
-                    <FormInput
-                      value={selection.quoteCoverage || ""}
-                      onChange={(val) => onChange({ ...selection, quoteCoverage: val })}
-                      placeholder="Coverage (optional)"
-                    />
-                  </FormField>
-                  <FormField label="Monthly Premium">
-                    <FormInput
-                      value={selection.quoteMonthlyPremium || ""}
-                      onChange={(val) => onChange({ ...selection, quoteMonthlyPremium: val })}
-                      placeholder="Monthly premium (optional)"
-                    />
-                  </FormField>
-                </div>
-              </>
-            )}
 
             {(selection.retentionType === "fixed_payment" || selection.retentionType === "carrier_requirements") && (
               <div style={{ marginBottom: 20 }}>

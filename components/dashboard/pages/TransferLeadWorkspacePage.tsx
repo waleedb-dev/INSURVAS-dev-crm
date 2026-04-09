@@ -62,6 +62,20 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     retentionAgents: { id: string; name: string; roleKey: string }[];
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
   const [isRetentionOnlyMode, setIsRetentionOnlyMode] = useState(false);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!cancelled) setSessionUserId(session?.user?.id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,6 +192,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       ...defaultSelection,
       workflowType: "retention",
       isRetentionCall: true,
+      retentionType: "new_sale",
     };
     setSelection(retentionSelection);
     setIsRetentionOnlyMode(true);
@@ -288,56 +303,6 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           >
             {lead.leadName}
           </h1>
-          
-          {/* Lead metadata row */}
-          <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>ID:</span>
-              <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700, fontFamily: "monospace" }}>
-                {lead.leadUniqueId}
-              </span>
-            </div>
-            
-            {lead.phone && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Phone:</span>
-                <a
-                  href={`tel:${lead.phone.replace(/\D/g, "")}`}
-                  style={{
-                    fontSize: 15,
-                    color: T.blue,
-                    fontWeight: 700,
-                    textDecoration: "none",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "2px 8px",
-                    borderRadius: 6,
-                    backgroundColor: T.blueLight,
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = T.blueFaint;
-                    e.currentTarget.style.color = T.blueHover;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = T.blueLight;
-                    e.currentTarget.style.color = T.blue;
-                  }}
-                  title="Click to call"
-                >
-                  📞 {lead.phone}
-                </a>
-              </div>
-            )}
-            
-            {lead.source && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Source:</span>
-                <span style={{ fontSize: 13, color: T.textMid, fontWeight: 700 }}>{lead.source}</span>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Progress Indicator - Right side */}
@@ -538,6 +503,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           void startClaim();
         }}
         retentionOnly={isRetentionOnlyMode}
+        sessionUserId={sessionUserId}
       />
     </div>
   );

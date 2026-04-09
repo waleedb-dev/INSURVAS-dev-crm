@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isUnlicensedSalesSubtype, type UnlicensedSalesSubtype } from "@/lib/auth/unlicensedSalesSubtype";
 
-export type ClaimWorkflowType = "buffer" | "licensed" | "retention";
+export type ClaimWorkflowType = "buffer_only" | "buffer" | "licensed" | "retention";
 export type RetentionType = "new_sale" | "fixed_payment" | "carrier_requirements";
 
 export type AgentOption = {
@@ -11,6 +11,16 @@ export type AgentOption = {
   name: string;
   roleKey: string;
 };
+
+/** Default “Direct to Licensed” assignee when the signed-in user is in the licensed agents list. */
+export function defaultLicensedAgentIdForSession(
+  licensedAgents: AgentOption[],
+  sessionUserId: string | null | undefined,
+): string | null {
+  const uid = typeof sessionUserId === "string" ? sessionUserId.trim() : "";
+  if (!uid) return null;
+  return licensedAgents.some((a) => a.id === uid) ? uid : null;
+}
 
 /** Roles that can take a “Direct to Licensed” claim */
 const LICENSED_CLAIM_ROLE_KEYS = new Set([
@@ -351,8 +361,14 @@ export async function findOrCreateVerificationSession(
     started_at: new Date().toISOString(),
   };
 
+  if (selection.workflowType === "buffer_only" && selection.bufferAgentId) {
+    basePayload.buffer_agent_id = selection.bufferAgentId;
+  }
   if (selection.workflowType === "buffer" && selection.bufferAgentId) {
     basePayload.buffer_agent_id = selection.bufferAgentId;
+  }
+  if (selection.workflowType === "buffer" && selection.licensedAgentId) {
+    basePayload.licensed_agent_id = selection.licensedAgentId;
   }
   if (selection.workflowType === "licensed" && selection.licensedAgentId) {
     basePayload.licensed_agent_id = selection.licensedAgentId;
@@ -360,13 +376,16 @@ export async function findOrCreateVerificationSession(
   if (selection.workflowType === "retention" && selection.retentionAgentId) {
     basePayload.retention_agent_id = selection.retentionAgentId;
     basePayload.retention_notes = {
-      retentionType: selection.retentionType || null,
+      retentionType: selection.retentionType || "new_sale",
       notes: selection.retentionNotes || null,
       quoteCarrier: selection.quoteCarrier || null,
       quoteProduct: selection.quoteProduct || null,
       quoteCoverage: selection.quoteCoverage || null,
       quoteMonthlyPremium: selection.quoteMonthlyPremium || null,
     };
+  }
+  if (selection.workflowType === "retention" && selection.licensedAgentId) {
+    basePayload.licensed_agent_id = selection.licensedAgentId;
   }
 
   const { data: created, error: createError } = await supabase
@@ -411,14 +430,19 @@ export async function applyClaimSelectionToSession(
     status: "in_progress",
   };
 
-  if (selection.workflowType === "buffer") {
+  if (selection.workflowType === "buffer_only") {
     sessionPatch.buffer_agent_id = selection.bufferAgentId;
+    sessionPatch.licensed_agent_id = null;
+  } else if (selection.workflowType === "buffer") {
+    sessionPatch.buffer_agent_id = selection.bufferAgentId;
+    sessionPatch.licensed_agent_id = selection.licensedAgentId;
   } else if (selection.workflowType === "licensed") {
     sessionPatch.licensed_agent_id = selection.licensedAgentId;
   } else if (selection.workflowType === "retention") {
     sessionPatch.retention_agent_id = selection.retentionAgentId;
+    sessionPatch.licensed_agent_id = selection.licensedAgentId;
     sessionPatch.retention_notes = {
-      retentionType: selection.retentionType || null,
+      retentionType: selection.retentionType || "new_sale",
       notes: selection.retentionNotes || null,
       quoteCarrier: selection.quoteCarrier || null,
       quoteProduct: selection.quoteProduct || null,
@@ -584,11 +608,7 @@ export async function saveFullRetentionWorkflow(
   }
 
   const submissionId = context.submissionId;
-  const retentionType = selection.retentionType;
-
-  if (!retentionType) {
-    throw new Error("Retention type is required.");
-  }
+  const retentionType = selection.retentionType || "new_sale";
 
   // For new_sale mode, add to daily_deal_flow
   if (retentionType === "new_sale") {

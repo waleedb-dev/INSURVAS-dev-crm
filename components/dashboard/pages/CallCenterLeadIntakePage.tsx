@@ -933,6 +933,7 @@ export default function CallCenterLeadIntakePage({
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
   const [claimSelection, setClaimSelection] = useState<ClaimSelections>(DEFAULT_CLAIM_SELECTION);
   const [isRetentionOnlyMode, setIsRetentionOnlyMode] = useState(false);
+  const [claimSessionUserId, setClaimSessionUserId] = useState<string | null>(null);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const itemsPerPage = 7;
@@ -1114,6 +1115,7 @@ export default function CallCenterLeadIntakePage({
       ...DEFAULT_CLAIM_SELECTION,
       workflowType: "retention",
       isRetentionCall: true,
+      retentionType: "new_sale",
     };
 
     setClaimLeadContext(context);
@@ -1168,6 +1170,19 @@ export default function CallCenterLeadIntakePage({
       setClaimModalLoading(false);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!cancelled) setClaimSessionUserId(session?.user?.id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     refreshLeads();
@@ -3289,6 +3304,7 @@ export default function CallCenterLeadIntakePage({
           void handleClaimAndOpenLead();
         }}
         retentionOnly={isRetentionOnlyMode}
+        sessionUserId={claimSessionUserId}
       />
       <style jsx>{`
         .lead-action-btn {
