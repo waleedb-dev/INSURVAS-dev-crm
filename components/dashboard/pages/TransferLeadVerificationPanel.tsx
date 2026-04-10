@@ -384,24 +384,39 @@ function CollapsibleSectionHeader({
       </div>
       
       {/* Mini progress bar */}
-      <div
-        style={{
-          width: 60,
-          height: 4,
-          borderRadius: 999,
-          backgroundColor: T.rowBg,
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {(isInProgress || isComplete) && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: isComplete ? "#166534" : "#4e6e3a",
+              minWidth: 34,
+              textAlign: "right",
+            }}
+          >
+            {progress}%
+          </span>
+        )}
         <div
           style={{
-            width: `${progress}%`,
-            height: "100%",
+            width: 60,
+            height: 4,
             borderRadius: 999,
-            backgroundColor: isComplete ? "#16a34a" : T.blue,
-            transition: "width 0.3s ease",
+            backgroundColor: T.rowBg,
+            overflow: "hidden",
           }}
-        />
+        >
+          <div
+            style={{
+              width: `${progress}%`,
+              height: "100%",
+              borderRadius: 999,
+              backgroundColor: isComplete ? "#16a34a" : T.blue,
+              transition: "width 0.3s ease",
+            }}
+          />
+        </div>
       </div>
     </button>
   );

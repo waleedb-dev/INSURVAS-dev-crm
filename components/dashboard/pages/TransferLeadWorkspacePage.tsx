@@ -504,35 +504,35 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           <div
             style={{
               backgroundColor: verificationProgress.progress >= 100 ? "#f0fdf4" : T.pageBg,
-              borderRadius: 12,
-              padding: "14px 18px",
-              minWidth: 220,
+              borderRadius: 16,
+              padding: "18px 20px",
+              minWidth: 340,
               border: `1px solid ${verificationProgress.progress >= 100 ? "#86efac" : T.border}`,
             }}
           >
-            {/* Label row with dynamic color */}
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: 10,
+                marginBottom: 14,
               }}
             >
               <span
                 style={{
-                  fontSize: 11,
-                  fontWeight: 700,
+                  fontSize: 14,
+                  fontWeight: 800,
                   color: T.textMuted,
                   textTransform: "uppercase",
-                  letterSpacing: "0.5px",
+                  letterSpacing: "0.8px",
                 }}
               >
-                Verification
+                Progress
               </span>
               <span
                 style={{
-                  fontSize: 18,
+                  fontSize: 48,
+                  lineHeight: 1,
                   fontWeight: 800,
                   color: progressColor,
                 }}
@@ -541,14 +541,13 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               </span>
             </div>
 
-            {/* Color-coded progress bar */}
             <div
               style={{
-                height: 6,
+                height: 14,
                 borderRadius: 999,
-                backgroundColor: T.rowBg,
+                backgroundColor: "#e7ebef",
                 overflow: "hidden",
-                marginBottom: 10,
+                marginBottom: 14,
               }}
             >
               <div
@@ -561,33 +560,48 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                   height: "100%",
                   borderRadius: 999,
                   backgroundColor: progressColor,
-                  transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+                  transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
               />
             </div>
 
-            {/* Status text - shows remaining fields or completion */}
             <div
               style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: verificationProgress.progress >= 100 ? "#16a34a" : T.textMuted,
-                textAlign: "center",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                gap: 4,
+                justifyContent: "space-between",
+                gap: 10,
               }}
             >
-              {verificationProgress.progress >= 100 ? (
-                <>
-                  <span style={{ fontSize: 14 }}>✓</span> Complete
-                </>
-              ) : verificationProgress.progress === 0 ? (
-                <span style={{ color: "#dc2626" }}>{remainingFields} fields to verify</span>
-              ) : (
-                <span>{remainingFields} fields remaining</span>
-              )}
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.textMuted }}>
+                {verificationProgress.verifiedCount} of {verificationProgress.totalCount} fields verified
+              </span>
+              <span
+                style={{
+                  fontSize: 14,
+                  fontWeight: 800,
+                  borderRadius: 10,
+                  padding: "8px 14px",
+                  backgroundColor:
+                    verificationProgress.progress >= 100
+                      ? "#dcfce7"
+                      : verificationProgress.progress > 0
+                        ? "#ffedd5"
+                        : "#fee2e2",
+                  color:
+                    verificationProgress.progress >= 100
+                      ? "#166534"
+                      : verificationProgress.progress > 0
+                        ? "#9a3412"
+                        : "#b91c1c",
+                }}
+              >
+                {verificationProgress.progress >= 100
+                  ? "Complete"
+                  : verificationProgress.progress > 0
+                    ? "Just Started"
+                    : "Not Started"}
+              </span>
             </div>
           </div>
         )}
