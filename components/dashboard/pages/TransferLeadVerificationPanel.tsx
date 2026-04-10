@@ -625,30 +625,14 @@ export default function TransferLeadVerificationPanel({
   const [underwritingHealthInput, setUnderwritingHealthInput] = useState("");
   const [underwritingMedicationInput, setUnderwritingMedicationInput] = useState("");
   
-  // Track collapsed sections - start with Contact and Personal expanded
-  const [collapsedSections, setCollapsedSections] = useState<Set<SectionName>>(() => {
-    const initiallyCollapsed: SectionName[] = [
-      "Health & Underwriting",
-      "Policy Information", 
-      "Banking Details",
-      "Notes & Disposition",
-    ];
-    return new Set(initiallyCollapsed);
-  });
+  // Single-open accordion: only one section can be expanded at a time.
+  const [expandedSection, setExpandedSection] = useState<SectionName | null>("Contact Information");
   
   // Recently verified items for animation
   const [recentlyVerified, setRecentlyVerified] = useState<Set<string>>(new Set());
 
   const toggleSection = (section: SectionName) => {
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(section)) {
-        next.delete(section);
-      } else {
-        next.add(section);
-      }
-      return next;
-    });
+    setExpandedSection((prev) => (prev === section ? null : section));
   };
 
   // Calculate section completion
@@ -1241,7 +1225,7 @@ export default function TransferLeadVerificationPanel({
         {(Object.entries(FIELD_SECTIONS) as [SectionName, readonly string[]][]).map(
           ([sectionName, sectionFields]) => {
             const stats = getSectionStats(sectionFields);
-            const isCollapsed = collapsedSections.has(sectionName);
+            const isCollapsed = expandedSection !== sectionName;
             
             // Get visible items for this section that are in our ordered list
             const sectionItems = orderedItems.filter((item) =>
