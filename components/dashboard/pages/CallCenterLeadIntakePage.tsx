@@ -1396,7 +1396,12 @@ export default function CallCenterLeadIntakePage({
   const uniquePipelines = new Set(filtered.map((l) => l.pipelineName)).size;
   const draftCount = filtered.reduce((n, l) => n + (l.isDraft ? 1 : 0), 0);
 
+  /** Set `true` to restore the “Duplicate lead found” modal (phone/SSN → update vs create duplicate). */
+  const enableIntakeDuplicateDialog = false;
+
   const promptDuplicateIfAny = async (payload: TransferLeadFormData): Promise<boolean> => {
+    if (!enableIntakeDuplicateDialog) return false;
+
     const phoneDigits = normalizePhoneDigits(payload.phone || "");
     const ssnDigits = normalizeSsnDigits(payload.social || "");
     const {
@@ -2157,7 +2162,7 @@ export default function CallCenterLeadIntakePage({
           centerName={callCenterName}
           centerDid={callCenterDid}
         />
-        {showDuplicateDialog && duplicateLeadMatch && (
+        {enableIntakeDuplicateDialog && showDuplicateDialog && duplicateLeadMatch && (
           <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
             <div style={{ width: "100%", maxWidth: 560, backgroundColor: "#fff", borderRadius: 12, border: `1px solid ${T.border}`, padding: 22, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
               <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: T.textDark }}>Duplicate lead found</h3>

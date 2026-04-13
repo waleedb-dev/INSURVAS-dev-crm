@@ -1610,12 +1610,10 @@ export default function TransferLeadApplicationForm({
                         void onInstantDuplicateCheck({ ...formData, leadUniqueId: computedLeadUniqueId });
                       }
                     }
-                    if (dup.match && !dup.isAddable) {
-                      setPhoneGatePassed(false);
-                      return;
-                    }
+                    // Always run agency transfer check even when CRM duplicate is not addable (DQ stages, etc.).
                     const dncResult = await checkDnc();
-                    setPhoneGatePassed(dncResult === "clear");
+                    const duplicateBlocksPhone = Boolean(dup.match) && !dup.isAddable;
+                    setPhoneGatePassed(dncResult === "clear" && !duplicateBlocksPhone);
                   }}
                   disabled={dncChecking || phoneDupChecking}
                   style={{
