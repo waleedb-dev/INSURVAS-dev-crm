@@ -61,6 +61,7 @@ export default function RoleDashboardPage() {
         <DailyDealFlowPage
           canProcessActions={permissionKeys.has("action.daily_deal_flow.process")}
           isCallCenterScoped={currentRole === "call_center_admin" || currentRole === "call_center_agent"}
+          isSalesManager={currentRole === "sales_manager"}
         />
       )}
       {activePage === "lead-pipeline" && (

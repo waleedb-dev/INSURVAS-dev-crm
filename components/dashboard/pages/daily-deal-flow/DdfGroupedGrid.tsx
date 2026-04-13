@@ -252,7 +252,7 @@ type SortConfig = { key: string; direction: "asc" | "desc" } | null;
 
 const columns = [
   "S.No", "Date", "Lead Vendor", "Insured Name", "Phone Number", "B.A", "R.A", "Agent", "L.A", "Status",
-  "Call Result", "Carrier", "Product Type", "Draft Date", "MP", "Face Amount", "Notes",
+  "Call Result", "Carrier", "Product Type", "Draft Date", "MP", "Face Amount", "Initial Quote", "Notes",
 ];
 
 function sortRows(items: DailyDealFlowRow[], sortConfig: SortConfig): DailyDealFlowRow[] {
@@ -535,6 +535,9 @@ export function DdfGroupedGrid({
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="date" value={data.draft_date || ""} onChange={(v) => patchDraft({ draft_date: v })} /> : formatDateShort(row.draft_date) || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="number" value={String(data.monthly_premium ?? "")} onChange={(v) => patchDraft({ monthly_premium: v ? Number(v) : null })} /> : row.monthly_premium ? `$${row.monthly_premium.toFixed(2)}` : "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="number" value={String(data.face_amount ?? "")} onChange={(v) => patchDraft({ face_amount: v ? Number(v) : null })} /> : row.face_amount ? `$${row.face_amount.toLocaleString()}` : "N/A"}</TableCell>
+        <TableCell style={{ ...rowCellStyle, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {row.initial_quote || "N/A"}
+        </TableCell>
         <TableCell style={{ ...rowCellStyle, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>
           {isEditing ? (
             <textarea value={data.notes || ""} onChange={(e) => patchDraft({ notes: e.target.value })} style={{ minHeight: 54, width: 100, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 12, padding: "8px 10px", resize: "vertical", outline: "none", transition: "all 0.15s ease-in-out" }} onFocus={(e) => { e.currentTarget.style.borderColor = "#233217"; e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }} onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }} />
@@ -716,7 +719,7 @@ export function DdfGroupedGrid({
                 >
                   <button
                     onClick={() => {
-                      const keyMap: Record<string, string> = { Date: "date", "Lead Vendor": "lead_vendor", "Insured Name": "insured_name", "Phone Number": "client_phone_number", "B.A": "buffer_agent", Agent: "agent", "L.A": "licensed_agent_account", Status: "status", "Call Result": "call_result", Carrier: "carrier", "Product Type": "product_type", "Draft Date": "draft_date", MP: "monthly_premium", "Face Amount": "face_amount", "LA Callback": "la_callback", Notes: "notes", "R.A": "retention_agent" };
+                      const keyMap: Record<string, string> = { Date: "date", "Lead Vendor": "lead_vendor", "Insured Name": "insured_name", "Phone Number": "client_phone_number", "B.A": "buffer_agent", Agent: "agent", "L.A": "licensed_agent_account", Status: "status", "Call Result": "call_result", Carrier: "carrier", "Product Type": "product_type", "Draft Date": "draft_date", MP: "monthly_premium", "Face Amount": "face_amount", "Initial Quote": "initial_quote", "LA Callback": "la_callback", Notes: "notes", "R.A": "retention_agent" };
                       const key = keyMap[col];
                       if (!key || groupBy === "none") return;
                       setSortConfig((prev) => (prev?.key === key ? { key, direction: prev.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" }));
@@ -913,13 +916,42 @@ export function DdfGroupedGrid({
                     <InfoField label="Policy Number" value={draft.policy_number} />
                     <InfoField label="Draft Date" value={formatDate(draft.draft_date || undefined)} />
                   </InfoGrid>
+                  <InfoGrid columns={1} bordered={false}>
+                    <InfoField label="Initial Quote (from intake form)" value={draft.initial_quote || "—"} />
+                  </InfoGrid>
                 </LeadCard>
 
                 <LeadCard icon="💰" title="Financial Information" subtitle="Premium and coverage amounts">
                   <InfoGrid columns={3}>
                     <InfoField label="Monthly Premium" value={draft.monthly_premium ? formatCurrency(draft.monthly_premium) : "—"} />
                     <InfoField label="Face Amount" value={draft.face_amount ? formatCurrency(draft.face_amount) : "—"} />
+                    <InfoField label="Coverage amount (call result)" value={draft.coverage_amount != null ? formatCurrency(draft.coverage_amount) : "—"} />
+                  </InfoGrid>
+                  <InfoGrid columns={1} bordered={false}>
                     <InfoField label="From Callback" value={formatBool(draft.from_callback ?? undefined)} />
+                  </InfoGrid>
+                </LeadCard>
+
+                <LeadCard icon="📞" title="Transfer portal call result" subtitle="Saved from BPO call results (submitted or not)">
+                  <InfoGrid columns={3}>
+                    <InfoField label="Application submitted" value={formatBool(draft.application_submitted ?? undefined)} />
+                    <InfoField label="Call source" value={draft.call_source || "—"} />
+                    <InfoField label="Sent to underwriting" value={formatBool(draft.sent_to_underwriting ?? undefined)} />
+                  </InfoGrid>
+                  <InfoGrid columns={3} bordered={false}>
+                    <InfoField label="DQ / status reason" value={draft.dq_reason || "—"} />
+                    <InfoField label="New draft date" value={formatDate(draft.new_draft_date || undefined)} />
+                    <InfoField label="Quick disposition tag" value={draft.quick_disposition_tag || "—"} />
+                  </InfoGrid>
+                  <InfoGrid columns={3} bordered={false}>
+                    <InfoField label="Retention call" value={formatBool(draft.is_retention_call ?? undefined)} />
+                    <InfoField label="Carrier attempted 1" value={draft.carrier_attempted_1 || "—"} />
+                    <InfoField label="Carrier attempted 2" value={draft.carrier_attempted_2 || "—"} />
+                  </InfoGrid>
+                  <InfoGrid columns={1} bordered={false}>
+                    <InfoField label="Carrier attempted 3" value={draft.carrier_attempted_3 || "—"} />
+                    <InfoField label="Generated note" value={draft.generated_note || "—"} />
+                    <InfoField label="Manual note" value={draft.manual_note || "—"} />
                   </InfoGrid>
                 </LeadCard>
 
@@ -1102,6 +1134,17 @@ export function DdfGroupedGrid({
                       />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Coverage amount</label>
+                      <input
+                        type="number"
+                        value={String(draft.coverage_amount ?? "")}
+                        onChange={(e) => patchDraft({ coverage_amount: e.target.value ? Number(e.target.value) : null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                        onFocus={(e) => { e.target.style.borderColor = "#233217"; e.target.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`; }}
+                        onBlur={(e) => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>From Callback</label>
                       <StyledSelect
                         value={draft.from_callback ? "Yes" : "No"}
@@ -1110,6 +1153,131 @@ export function DdfGroupedGrid({
                         placeholder="Select"
                       />
                     </div>
+                  </div>
+                </LeadCard>
+
+                <LeadCard icon="📞" title="Transfer portal call result" subtitle="Edit fields synced from call results" collapsible={false}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Application submitted</label>
+                      <StyledSelect
+                        value={draft.application_submitted === true ? "Yes" : draft.application_submitted === false ? "No" : ""}
+                        onValueChange={(v) =>
+                          patchDraft({
+                            application_submitted: v === "Yes" ? true : v === "No" ? false : null,
+                          })
+                        }
+                        options={[
+                          { value: "", label: "—" },
+                          { value: "Yes", label: "Yes" },
+                          { value: "No", label: "No" },
+                        ]}
+                        placeholder="—"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Call source</label>
+                      <input
+                        type="text"
+                        value={draft.call_source || ""}
+                        onChange={(e) => patchDraft({ call_source: e.target.value || null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Sent to underwriting</label>
+                      <StyledSelect
+                        value={draft.sent_to_underwriting === true ? "Yes" : draft.sent_to_underwriting === false ? "No" : ""}
+                        onValueChange={(v) =>
+                          patchDraft({
+                            sent_to_underwriting: v === "Yes" ? true : v === "No" ? false : null,
+                          })
+                        }
+                        options={[
+                          { value: "", label: "—" },
+                          { value: "Yes", label: "Yes" },
+                          { value: "No", label: "No" },
+                        ]}
+                        placeholder="—"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>DQ / status reason</label>
+                      <input
+                        type="text"
+                        value={draft.dq_reason || ""}
+                        onChange={(e) => patchDraft({ dq_reason: e.target.value || null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>New draft date</label>
+                      <input
+                        type="date"
+                        value={draft.new_draft_date || ""}
+                        onChange={(e) => patchDraft({ new_draft_date: e.target.value || null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Quick disposition tag</label>
+                      <input
+                        type="text"
+                        value={draft.quick_disposition_tag || ""}
+                        onChange={(e) => patchDraft({ quick_disposition_tag: e.target.value || null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Retention call</label>
+                      <StyledSelect
+                        value={draft.is_retention_call ? "Yes" : "No"}
+                        onValueChange={(v) => patchDraft({ is_retention_call: v === "Yes" })}
+                        options={[{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }]}
+                        placeholder="Select"
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Carrier attempted 1</label>
+                      <input
+                        type="text"
+                        value={draft.carrier_attempted_1 || ""}
+                        onChange={(e) => patchDraft({ carrier_attempted_1: e.target.value || null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Carrier attempted 2</label>
+                      <input
+                        type="text"
+                        value={draft.carrier_attempted_2 || ""}
+                        onChange={(e) => patchDraft({ carrier_attempted_2: e.target.value || null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Carrier attempted 3</label>
+                      <input
+                        type="text"
+                        value={draft.carrier_attempted_3 || ""}
+                        onChange={(e) => patchDraft({ carrier_attempted_3: e.target.value || null })}
+                        style={{ width: "100%", height: 38, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "0 12px", outline: "none" }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Generated note</label>
+                    <textarea
+                      value={draft.generated_note || ""}
+                      onChange={(e) => patchDraft({ generated_note: e.target.value || null })}
+                      style={{ width: "100%", minHeight: 72, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "10px 12px", resize: "vertical", outline: "none" }}
+                    />
+                    <label style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>Manual note</label>
+                    <textarea
+                      value={draft.manual_note || ""}
+                      onChange={(e) => patchDraft({ manual_note: e.target.value || null })}
+                      style={{ width: "100%", minHeight: 72, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, color: T.textDark, fontSize: 13, padding: "10px 12px", resize: "vertical", outline: "none" }}
+                    />
                   </div>
                 </LeadCard>
 

@@ -123,6 +123,15 @@ serve(async (req) => {
       client_phone_number,
       is_retention_call = false,
       dq_reason = null,
+      new_draft_date = null,
+      disposition_path = null,
+      generated_note = null,
+      manual_note = null,
+      quick_disposition_tag = null,
+      coverage_amount = null,
+      carrier_attempted_1 = null,
+      carrier_attempted_2 = null,
+      carrier_attempted_3 = null,
     } = body;
 
     if (!submission_id) throw new Error("Missing required field: submission_id");
@@ -209,7 +218,14 @@ serve(async (req) => {
       draft_date,
       monthly_premium,
       face_amount,
+      coverage_amount,
       notes,
+      dq_reason,
+      new_draft_date,
+      disposition_path,
+      generated_note,
+      manual_note,
+      quick_disposition_tag,
       policy_number,
       carrier_audit,
       product_type_carrier,
@@ -217,6 +233,12 @@ serve(async (req) => {
       from_callback,
       is_callback,
       is_retention_call,
+      application_submitted,
+      call_source,
+      sent_to_underwriting,
+      carrier_attempted_1,
+      carrier_attempted_2,
+      carrier_attempted_3,
       updated_at: getCurrentTimestampEST(),
     };
 

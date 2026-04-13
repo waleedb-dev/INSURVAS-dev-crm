@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { EmptyState, Toast } from "@/components/ui";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -17,10 +18,13 @@ import type { DailyDealFlowRow } from "./daily-deal-flow/types";
 import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE, STATUS_OPTIONS } from "./daily-deal-flow/constants";
 import { dateObjectToESTString } from "./daily-deal-flow/helpers";
 import { DdfGroupedGrid } from "./daily-deal-flow/DdfGroupedGrid";
+import { DdfSyncNotSubmittedToLeadsModal } from "./daily-deal-flow/DdfSyncNotSubmittedToLeadsModal";
 
 type DailyDealFlowPageProps = {
   canProcessActions: boolean;
   isCallCenterScoped?: boolean;
+  /** Sales manager: sync not-submitted call results to lead pipeline stage. */
+  isSalesManager?: boolean;
 };
 
 function StyledSelect({
@@ -161,8 +165,14 @@ function StatSkeleton() {
   );
 }
 
-export default function DailyDealFlowPage({ canProcessActions, isCallCenterScoped = false }: DailyDealFlowPageProps) {
+export default function DailyDealFlowPage({
+  canProcessActions,
+  isCallCenterScoped = false,
+  isSalesManager = false,
+}: DailyDealFlowPageProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const params = useParams<{ role?: string }>();
+  const dashboardRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
   const [rows, setRows] = useState<DailyDealFlowRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -179,6 +189,7 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
   const hasWritePermissions = canProcessActions;
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
+  const [syncNotSubmittedModalOpen, setSyncNotSubmittedModalOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState("");
@@ -653,6 +664,30 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
               )}
             </button>
 
+            {isSalesManager && (
+              <button
+                type="button"
+                onClick={() => setSyncNotSubmittedModalOpen(true)}
+                style={{
+                  height: 38,
+                  padding: "0 16px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                Sync
+              </button>
+            )}
+
             <button
               onClick={handleExport}
               style={{
@@ -925,6 +960,16 @@ export default function DailyDealFlowPage({ canProcessActions, isCallCenterScope
           carrierOptions={carrierOptionsDynamic}
           groupBy={groupBy}
           groupBySecondary={groupBySecondary}
+        />
+      )}
+
+      {isSalesManager && (
+        <DdfSyncNotSubmittedToLeadsModal
+          open={syncNotSubmittedModalOpen}
+          onClose={() => setSyncNotSubmittedModalOpen(false)}
+          supabase={supabase}
+          dashboardRole={dashboardRole}
+          onSynced={() => void fetchData(currentPage)}
         />
       )}
 

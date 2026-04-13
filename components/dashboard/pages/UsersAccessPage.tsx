@@ -228,6 +228,7 @@ export default function UsersAccessPage(){
 
   const [search,setSearch]=useState("");
   const [rf,setRf]=useState<string>("All");
+  const [sf,setSf]=useState<"All" | "Active" | "Inactive">("All");
   const [showInvite, setShowInvite] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [page, setPage] = useState(1);
@@ -239,14 +240,19 @@ export default function UsersAccessPage(){
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingInProgress, setDeletingInProgress] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [statusTargetUser, setStatusTargetUser] = useState<User | null>(null);
+  const [statusConfirmName, setStatusConfirmName] = useState("");
+  const [statusUpdatingInProgress, setStatusUpdatingInProgress] = useState(false);
   
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   
-  const hasActiveFilters = rf !== "All";
-  const activeFilterCount = rf !== "All" ? 1 : 0;
+  const hasActiveFilters = rf !== "All" || sf !== "All";
+  const activeFilterCount = (rf !== "All" ? 1 : 0) + (sf !== "All" ? 1 : 0);
   
   const clearFilters = () => {
     setRf("All");
+    setSf("All");
   };
 
   const refreshUsers = async () => {
@@ -285,7 +291,11 @@ export default function UsersAccessPage(){
     load();
   }, [rolesFromDb, supabase]);
 
-  const filtered=users.filter(u=>(rf==="All"||u.role===rf)&&(!search||u.name.toLowerCase().includes(search.toLowerCase())||u.id.toLowerCase().includes(search.toLowerCase())||(u.phone || "").toLowerCase().includes(search.toLowerCase())));
+  const filtered=users.filter(u=>
+    (rf==="All"||u.role===rf) &&
+    (sf==="All"||u.status===sf) &&
+    (!search||u.name.toLowerCase().includes(search.toLowerCase())||u.id.toLowerCase().includes(search.toLowerCase())||(u.phone || "").toLowerCase().includes(search.toLowerCase()))
+  );
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
@@ -315,9 +325,47 @@ export default function UsersAccessPage(){
     setShowDeleteModal(true);
   }
 
+  async function handleToggleUserStatus() {
+    if (!statusTargetUser) return;
+    if (statusConfirmName !== statusTargetUser.name) return;
+
+    setStatusUpdatingInProgress(true);
+    try {
+      const nextStatus = statusTargetUser.status === "Active" ? "inactive" : "active";
+      const { error } = await supabase
+        .from("users")
+        .update({ status: nextStatus })
+        .eq("id", statusTargetUser.id);
+
+      if (error) throw new Error(error.message || "Failed to update user status");
+
+      await refreshUsers();
+      setShowStatusModal(false);
+      setStatusTargetUser(null);
+      setStatusConfirmName("");
+      setToast({
+        message: nextStatus === "inactive" ? "User marked inactive successfully" : "User marked active successfully",
+        type: "success",
+      });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Failed to update user status",
+        type: "error",
+      });
+    } finally {
+      setStatusUpdatingInProgress(false);
+    }
+  }
+
+  function openStatusModal(u: User) {
+    setStatusTargetUser(u);
+    setStatusConfirmName("");
+    setShowStatusModal(true);
+  }
+
   useEffect(() => {
     setPage(1);
-  }, [rf, search]);
+  }, [rf, sf, search]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) {
@@ -586,6 +634,19 @@ export default function UsersAccessPage(){
                     placeholder="All Roles"
                   />
                 </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Status</div>
+                  <StyledSelect
+                    value={sf}
+                    onValueChange={(val) => { setSf(val as "All" | "Active" | "Inactive"); setPage(1); }}
+                    options={[
+                      { value: "All", label: "All Status" },
+                      { value: "Active", label: "Active" },
+                      { value: "Inactive", label: "Inactive" },
+                    ]}
+                    placeholder="All Status"
+                  />
+                </div>
               </div>
 
               {hasActiveFilters && (
@@ -595,6 +656,14 @@ export default function UsersAccessPage(){
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
                         Role: {rf}
                         <button onClick={() => setRf("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {sf !== "All" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Status: {sf}
+                        <button onClick={() => setSf("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
                         </button>
                       </div>
@@ -761,6 +830,17 @@ export default function UsersAccessPage(){
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                           </button>
                           <button 
+                            onClick={() => openStatusModal(u)}
+                            style={{ background: "none", border: "none", color: u.status === "Active" ? "#b45309" : "#166534", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                            title={u.status === "Active" ? "Mark Inactive" : "Mark Active"}
+                          >
+                            {u.status === "Active" ? (
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>
+                            ) : (
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+                            )}
+                          </button>
+                          <button 
                             onClick={() => openDeleteModal(u)}
                             style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", padding: 6, borderRadius: 6 }}
                             title="Delete User"
@@ -787,6 +867,108 @@ export default function UsersAccessPage(){
       </div>
 
       {/* Delete User Modal */}
+      {showStatusModal && statusTargetUser && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: statusTargetUser.status === "Active" ? "#b45309" : "#166534" }}>
+                {statusTargetUser.status === "Active" ? "Deactivate User" : "Activate User"}
+              </h2>
+              <button
+                onClick={() => setShowStatusModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", color: T.textMuted }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: statusTargetUser.status === "Active" ? "#fffbeb" : "#ecfdf3", border: `1px solid ${statusTargetUser.status === "Active" ? "#fcd34d" : "#86efac"}`, borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              <p style={{ margin: 0, fontSize: 14, color: statusTargetUser.status === "Active" ? "#92400e" : "#166534", lineHeight: 1.6 }}>
+                <strong>Confirmation:</strong> This will mark <strong>"{statusTargetUser.name}"</strong> as{" "}
+                <strong>{statusTargetUser.status === "Active" ? "inactive" : "active"}</strong>.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                Type <strong>{statusTargetUser.name}</strong> to confirm
+              </label>
+              <input
+                type="text"
+                value={statusConfirmName}
+                onChange={(e) => setStatusConfirmName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && statusConfirmName === statusTargetUser.name) void handleToggleUserStatus();
+                  if (e.key === 'Escape') setShowStatusModal(false);
+                }}
+                placeholder={statusTargetUser.name}
+                autoFocus
+                style={{
+                  width: "100%",
+                  height: 44,
+                  border: `1.5px solid ${statusConfirmName === statusTargetUser.name ? (statusTargetUser.status === "Active" ? "#b45309" : "#16a34a") : T.border}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: T.textDark,
+                  padding: "0 14px",
+                  boxSizing: "border-box",
+                  background: T.cardBg,
+                  outline: "none",
+                  fontFamily: T.font,
+                  transition: "all 0.15s ease-in-out",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowStatusModal(false)}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleToggleUserStatus}
+                disabled={statusConfirmName !== statusTargetUser.name || statusUpdatingInProgress}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: statusConfirmName === statusTargetUser.name && !statusUpdatingInProgress
+                    ? (statusTargetUser.status === "Active" ? "#b45309" : "#16a34a")
+                    : T.border,
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: statusConfirmName === statusTargetUser.name && !statusUpdatingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: statusConfirmName === statusTargetUser.name && !statusUpdatingInProgress
+                    ? `0 4px 12px ${statusTargetUser.status === "Active" ? "rgba(180, 83, 9, 0.2)" : "rgba(22, 163, 74, 0.2)"}`
+                    : "none",
+                  transition: "all 0.15s ease-in-out",
+                }}
+              >
+                {statusUpdatingInProgress
+                  ? (statusTargetUser.status === "Active" ? "Deactivating..." : "Activating...")
+                  : (statusTargetUser.status === "Active" ? "Deactivate User" : "Activate User")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteModal && deletingUser && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div style={{ width: "100%", maxWidth: 480, backgroundColor: "#fff", borderRadius: 16, border: `1px solid ${T.border}`, padding: 24, boxShadow: "0 18px 38px rgba(0,0,0,0.2)" }}>

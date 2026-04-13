@@ -254,6 +254,40 @@ function FormTextarea({
   );
 }
 
+function toTagParts(raw: string): string[] {
+  return String(raw || "")
+    .split(/[\n,]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function mergeUniqueTags(existing: string[], incoming: string[]): string[] {
+  const seen = new Set(existing.map((item) => item.toLowerCase()));
+  const merged = [...existing];
+  for (const item of incoming) {
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+  return merged;
+}
+
+/** Matches `TransferLeadApplicationForm` underwriting modal field chrome. */
+const uwModalFieldStyle: CSSProperties = {
+  width: "100%",
+  padding: "11px 14px",
+  borderRadius: 8,
+  border: `1.5px solid ${T.border}`,
+  fontSize: 14,
+  color: T.textDark,
+  outline: "none",
+  fontFamily: T.font,
+  backgroundColor: "#fff",
+  transition: "border-color 0.15s, box-shadow 0.15s",
+  boxSizing: "border-box",
+};
+
 // Section header component with collapsible functionality
 function CollapsibleSectionHeader({
   title,
@@ -350,24 +384,39 @@ function CollapsibleSectionHeader({
       </div>
       
       {/* Mini progress bar */}
-      <div
-        style={{
-          width: 60,
-          height: 4,
-          borderRadius: 999,
-          backgroundColor: T.rowBg,
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {(isInProgress || isComplete) && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: isComplete ? "#166534" : "#4e6e3a",
+              minWidth: 34,
+              textAlign: "right",
+            }}
+          >
+            {progress}%
+          </span>
+        )}
         <div
           style={{
-            width: `${progress}%`,
-            height: "100%",
+            width: 60,
+            height: 4,
             borderRadius: 999,
-            backgroundColor: isComplete ? "#16a34a" : T.blue,
-            transition: "width 0.3s ease",
+            backgroundColor: T.rowBg,
+            overflow: "hidden",
           }}
-        />
+        >
+          <div
+            style={{
+              width: `${progress}%`,
+              height: "100%",
+              borderRadius: 999,
+              backgroundColor: isComplete ? "#16a34a" : T.blue,
+              transition: "width 0.3s ease",
+            }}
+          />
+        </div>
       </div>
     </button>
   );
@@ -575,11 +624,10 @@ export default function TransferLeadVerificationPanel({
   const autoPhoneCheckRanRef = useRef<string | null>(null);
   const [showUnderwritingModal, setShowUnderwritingModal] = useState(false);
   const [underwritingSaving, setUnderwritingSaving] = useState(false);
+  const [verificationFieldsCopied, setVerificationFieldsCopied] = useState(false);
   const [toolkitUrl, setToolkitUrl] = useState("https://insurancetoolkits.com/login");
   const [underwritingData, setUnderwritingData] = useState({
     tobaccoLast12Months: "",
-    healthConditions: "",
-    medications: "",
     height: "",
     weight: "",
     carrier: "",
@@ -587,31 +635,19 @@ export default function TransferLeadVerificationPanel({
     coverageAmount: "",
     monthlyPremium: "",
   });
+  const [underwritingHealthTags, setUnderwritingHealthTags] = useState<string[]>([]);
+  const [underwritingMedicationTags, setUnderwritingMedicationTags] = useState<string[]>([]);
+  const [underwritingHealthInput, setUnderwritingHealthInput] = useState("");
+  const [underwritingMedicationInput, setUnderwritingMedicationInput] = useState("");
   
-  // Track collapsed sections - start with Contact and Personal expanded
-  const [collapsedSections, setCollapsedSections] = useState<Set<SectionName>>(() => {
-    const initiallyCollapsed: SectionName[] = [
-      "Health & Underwriting",
-      "Policy Information", 
-      "Banking Details",
-      "Notes & Disposition",
-    ];
-    return new Set(initiallyCollapsed);
-  });
+  // Single-open accordion: only one section can be expanded at a time.
+  const [expandedSection, setExpandedSection] = useState<SectionName | null>("Contact Information");
   
   // Recently verified items for animation
   const [recentlyVerified, setRecentlyVerified] = useState<Set<string>>(new Set());
 
   const toggleSection = (section: SectionName) => {
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(section)) {
-        next.delete(section);
-      } else {
-        next.add(section);
-      }
-      return next;
-    });
+    setExpandedSection((prev) => (prev === section ? null : section));
   };
 
   // Calculate section completion
@@ -638,22 +674,6 @@ export default function TransferLeadVerificationPanel({
       carrierName: underwritingData.carrier,
       onInvalidateProduct: onInvalidateUwProduct,
     });
-
-  const uwFieldStyle: CSSProperties = {
-    width: "100%",
-    height: 42,
-    border: `1.5px solid ${T.border}`,
-    borderRadius: 10,
-    padding: "0 14px",
-    boxSizing: "border-box",
-    fontSize: 14,
-    fontWeight: 600,
-    fontFamily: T.font,
-    backgroundColor: "#fff",
-    color: T.textDark,
-    outline: "none",
-    transition: "all 0.2s",
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -699,6 +719,29 @@ export default function TransferLeadVerificationPanel({
     });
   }, [items]);
 
+  const verificationFieldsCopyText = useMemo(() => {
+    const lines: string[] = [];
+    for (const item of orderedItems) {
+      const label = VERIFICATION_FIELD_LABELS[item.field_name] || item.field_name.replace(/_/g, " ");
+      const raw = String(draftValues[item.id] ?? item.verified_value ?? item.original_value ?? "").trimEnd();
+      const flat = raw.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+      lines.push(`${label}: ${flat}`);
+    }
+    return lines.join("\n");
+  }, [orderedItems, draftValues]);
+
+  const copyVerificationFieldsToClipboard = useCallback(async () => {
+    if (orderedItems.length === 0) return;
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(verificationFieldsCopyText);
+      setVerificationFieldsCopied(true);
+      window.setTimeout(() => setVerificationFieldsCopied(false), 2000);
+    } catch {
+      setError("Could not copy to clipboard.");
+    }
+  }, [verificationFieldsCopyText, orderedItems.length]);
+
   const getValueByFieldName = (fieldName: string) => {
     const match = items.find((item) => item.field_name === fieldName);
     if (!match) return "";
@@ -724,8 +767,6 @@ export default function TransferLeadVerificationPanel({
 
     setUnderwritingData({
       tobaccoLast12Months,
-      healthConditions: getValueByFieldName("health_conditions"),
-      medications: getValueByFieldName("medications"),
       height: getValueByFieldName("height"),
       weight: getValueByFieldName("weight"),
       carrier: getValueByFieldName("carrier"),
@@ -733,6 +774,10 @@ export default function TransferLeadVerificationPanel({
       coverageAmount: getValueByFieldName("coverage_amount"),
       monthlyPremium: getValueByFieldName("monthly_premium"),
     });
+    setUnderwritingHealthTags(mergeUniqueTags([], toTagParts(getValueByFieldName("health_conditions"))));
+    setUnderwritingMedicationTags(mergeUniqueTags([], toTagParts(getValueByFieldName("medications"))));
+    setUnderwritingHealthInput("");
+    setUnderwritingMedicationInput("");
     setToolkitUrl("https://insurancetoolkits.com/login");
     setShowUnderwritingModal(true);
   };
@@ -771,8 +816,16 @@ export default function TransferLeadVerificationPanel({
             ? "No"
             : "",
       );
-      await updateItemVerifiedValue("health_conditions", underwritingData.healthConditions);
-      await updateItemVerifiedValue("medications", underwritingData.medications);
+      const normalizedHealthConditions = mergeUniqueTags(
+        underwritingHealthTags,
+        toTagParts(underwritingHealthInput),
+      );
+      const normalizedMedications = mergeUniqueTags(
+        underwritingMedicationTags,
+        toTagParts(underwritingMedicationInput),
+      );
+      await updateItemVerifiedValue("health_conditions", normalizedHealthConditions.join(", "));
+      await updateItemVerifiedValue("medications", normalizedMedications.join(", "));
       await updateItemVerifiedValue("height", underwritingData.height);
       await updateItemVerifiedValue("weight", underwritingData.weight);
       await updateItemVerifiedValue("carrier", underwritingData.carrier);
@@ -987,9 +1040,76 @@ export default function TransferLeadVerificationPanel({
         padding: 18,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <h3 style={{ margin: 0, fontSize: 18, color: T.textDark, fontWeight: 800 }}>Verification Panel</h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => void copyVerificationFieldsToClipboard()}
+            disabled={orderedItems.length === 0}
+            title="Copy all verification field labels and current values (as shown in the panel)"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 14px",
+              borderRadius: 10,
+              border: `1.5px solid ${T.border}`,
+              background: verificationFieldsCopied ? "#dcfce7" : "#fff",
+              color: verificationFieldsCopied ? "#16a34a" : T.textDark,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: orderedItems.length === 0 ? "not-allowed" : "pointer",
+              opacity: orderedItems.length === 0 ? 0.5 : 1,
+              transition: "all 0.15s ease-in-out",
+              fontFamily: T.font,
+            }}
+          >
+            {verificationFieldsCopied ? (
+              <>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Copied
+              </>
+            ) : (
+              <>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                Copy verification
+              </>
+            )}
+          </button>
           {showProgressSummary && (
             <span style={{ fontSize: 12, fontWeight: 700, color: T.textMid }}>
               {verifiedCount}/{items.length} fields verified
@@ -1120,7 +1240,7 @@ export default function TransferLeadVerificationPanel({
         {(Object.entries(FIELD_SECTIONS) as [SectionName, readonly string[]][]).map(
           ([sectionName, sectionFields]) => {
             const stats = getSectionStats(sectionFields);
-            const isCollapsed = collapsedSections.has(sectionName);
+            const isCollapsed = expandedSection !== sectionName;
             
             // Get visible items for this section that are in our ordered list
             const sectionItems = orderedItems.filter((item) =>
@@ -1589,248 +1709,444 @@ export default function TransferLeadVerificationPanel({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: 18,
+            padding: 20,
           }}
         >
           <div
             style={{
-              width: "95vw",
-              maxWidth: 1400,
-              maxHeight: "95vh",
+              width: "98vw",
+              maxWidth: "98vw",
+              height: "96vh",
+              maxHeight: "96vh",
               overflowY: "auto",
               backgroundColor: "#fff",
               borderRadius: 14,
-              border: `1.5px solid ${T.border}`,
-              padding: 18,
+              border: `1px solid ${T.border}`,
+              padding: 20,
             }}
           >
-            <h4 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#4e6e3a" }}>Underwriting</h4>
-            <p style={{ marginTop: 8, marginBottom: 12, color: T.textMid, fontSize: 16 }}>
+            <h2 style={{ margin: 0, fontSize: 30, color: "#4e6e3a", fontWeight: 800 }}>Underwriting</h2>
+            <p style={{ margin: "8px 0 0", fontSize: 16, color: T.textMuted, fontWeight: 600 }}>
               Please read the following script to the customer and verify all information.
             </p>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "stretch" }}>
-              <div style={{ backgroundColor: "#f8fafc", padding: 14, borderRadius: 10, border: `1px solid ${T.border}`, overflowY: "auto" }}>
-                <h5 style={{ margin: "0 0 10px", fontSize: 24, fontWeight: 800 }}>Underwriting Questions</h5>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 18, color: T.textDark }}>
-                  <p style={{ margin: 0, fontWeight: 600 }}>
-                    "I am going to ask you some medical questions and we expect your honesty that is going to save us a lot of
-                    time. This helps us evaluate which insurance carrier gives the maximum benefit at the lowest rate."
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.35fr", gap: 24, marginTop: 18, alignItems: "stretch" }}>
+              <div
+                style={{
+                  backgroundColor: "#f9fafb",
+                  padding: 16,
+                  borderRadius: 12,
+                  border: `1px solid ${T.border}`,
+                  height: "100%",
+                  overflowY: "auto",
+                }}
+              >
+                <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: 30, fontWeight: 800 }}>Underwriting Questions</h4>
+                <div style={{ fontSize: 24 }}>
+                  <p style={{ fontWeight: 600, marginTop: 0 }}>
+                    &quot;I am going to ask you some medical questions and we expect your honesty that is going to save us a lot
+                    of time. And, this will help us evaluate which insurance carrier comes back with the maximum benefit at the
+                    lowest rates for you.&quot;
                   </p>
-                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: 12 }}>
-                    <p style={{ margin: 0, fontWeight: 800 }}>Question 1</p>
-                    <p style={{ margin: "6px 0 0", fontSize: 16 }}>
-                      Have you ever been diagnosed with Alzheimer's, dementia, CHF, organ transplant, HIV/AIDS, TB, chronic
-                      respiratory disease, currently paralyzed, amputation due to disease, currently on oxygen, or currently in
-                      nursing facility?
+                  <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, marginBottom: 12 }}>
+                    <p style={{ marginTop: 0, fontWeight: 800, fontSize: 24 }}>Question 1:</p>
+                    <p style={{ fontSize: 22, marginBottom: 0 }}>
+                      Have you ever been diagnosed or treated for Alzheimer&apos;s Dementia, Congestive heart failure, organ
+                      transplant, HIV, AIDS, ARC, Leukemia, Tuberculosis, chronic Respiratory disease, currently paralyzed,
+                      amputation due to a disease? Are you currently hospitalized in a nursing facility? Due to a disease are
+                      you currently confined to a wheelchair? Are you currently on oxygen?
                     </p>
                   </div>
-                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: 12 }}>
-                    <p style={{ margin: 0, fontWeight: 800 }}>Question 2</p>
-                    <p style={{ margin: "6px 0 0", fontSize: 16 }}>
-                      In the last 5 years, any heart attack, cancer, dementia, kidney failure, organ removal? Any disorder of
-                      kidney/lung/brain/heart/liver? Or recent stent, pacemaker, defibrillator, stroke, TIA, paralysis?
+                  <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, marginBottom: 12 }}>
+                    <p style={{ marginTop: 0, fontWeight: 800, fontSize: 24 }}>Question 2:</p>
+                    <p style={{ fontSize: 22, marginBottom: 0 }}>
+                      In the last 5 years, have you had any heart attacks, cancers, Alzheimer&apos;s, dementia, congestive heart
+                      failure, kidney failure or an organ removal? Have you ever had any disorders of the kidney, lung, brain,
+                      heart, circulatory system or liver? Or In the last 3 years have you been diagnosed and treated for
+                      leukemia, sickle cell anemia, brain disorder, Alzheimer&apos;s or dementia, aneurysm, diabetic coma,
+                      amputation due to any disease, cirrhosis of the liver, Multiple Sclerosis, chronic respiratory disease,
+                      tuberculosis, chronic pneumonia, hepatitis? Or In the last 2 years if you had any stents, pacemaker,
+                      defibrillator, valve replacement, stroke, TIA or paralysis?
                     </p>
                   </div>
-                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: 12 }}>
-                    <p style={{ margin: 0, fontWeight: 800 }}>Question 3</p>
-                    <p style={{ margin: "6px 0 0", fontSize: 16 }}>
-                      Any diabetes complications (neuropathy, retinopathy, diabetic coma), COPD, bipolar, or schizophrenia?
+                  <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 10, padding: 16 }}>
+                    <p style={{ marginTop: 0, fontWeight: 800, fontSize: 24 }}>Question 3:</p>
+                    <p style={{ fontSize: 22, marginBottom: 0 }}>
+                      Or if you have any complications from diabetes? Like (Neuropathy, amputation due to diabetes, retinopathy,
+                      diabetic coma, etc) Have you been treated or diagnosed with COPD, Bipolar, or schizophrenia?
                     </p>
+                  </div>
+                  <div style={{ marginTop: 16, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 12 }}>
+                    <p style={{ marginTop: 0, marginBottom: 8, fontWeight: 800, fontSize: 24 }}>Tobacco Usage:</p>
+                    <p style={{ fontSize: 22 }}>Have you consumed any tobacco or nicotine products in the last 12 months?</p>
+                    <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 24 }}>
+                        <input
+                          type="radio"
+                          name="uw_tobacco_verify"
+                          checked={underwritingData.tobaccoLast12Months === "yes"}
+                          onChange={() => setUnderwritingData((prev) => ({ ...prev, tobaccoLast12Months: "yes" }))}
+                        />
+                        Yes
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 24 }}>
+                        <input
+                          type="radio"
+                          name="uw_tobacco_verify"
+                          checked={underwritingData.tobaccoLast12Months === "no"}
+                          onChange={() => setUnderwritingData((prev) => ({ ...prev, tobaccoLast12Months: "no" }))}
+                        />
+                        No
+                      </label>
+                    </div>
+                  </div>
+                  <p style={{ fontWeight: 600, fontSize: 24, marginTop: 16 }}>
+                    Lastly, do you have any health conditions or take any prescribed medication on a regular basis?
+                  </p>
+                  <div style={{ padding: 16, background: "#fff", borderRadius: 10, border: `1px solid ${T.border}` }}>
+                    <p style={{ marginTop: 0, marginBottom: 8, fontWeight: 800, fontSize: 24 }}>Follow Up:</p>
+                    <ul style={{ margin: 0, paddingLeft: 24, fontSize: 22 }}>
+                      <li>How many medications are you taking on a daily basis?</li>
+                      <li>Do you know what those medications are for?</li>
+                      <li>Do you have your medications, or a list of your medications nearby?</li>
+                    </ul>
                   </div>
                 </div>
               </div>
 
-              <div style={{ border: "2px solid #c4b5fd", borderRadius: 10, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-                <div style={{ backgroundColor: "#4e6e3a", color: "#fff", padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div
+                style={{
+                  backgroundColor: "#fff",
+                  border: "2px solid #ddd6fe",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "#4e6e3a",
+                    color: "#fff",
+                    padding: "8px 16px",
+                    fontWeight: 800,
+                    fontSize: 18,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
                   <span>Insurance Toolkit</span>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       type="button"
+                      style={{ height: 28, fontSize: 12, padding: "0 10px", borderRadius: 6, border: "none", cursor: "pointer" }}
                       onClick={() => setToolkitUrl("https://insurancetoolkits.com/fex/quoter")}
-                      style={{ border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 700 }}
                     >
                       Quote Tool
                     </button>
                     <button
                       type="button"
+                      style={{
+                        height: 28,
+                        fontSize: 12,
+                        padding: "0 10px",
+                        borderRadius: 6,
+                        border: "1px solid #fff",
+                        color: "#fff",
+                        background: "transparent",
+                        cursor: "pointer",
+                      }}
                       onClick={() => setToolkitUrl("https://insurancetoolkits.com/login")}
-                      style={{ border: "1px solid #fff", background: "transparent", color: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 700 }}
                     >
                       Login
                     </button>
                   </div>
                 </div>
-                <div style={{ minHeight: 520, backgroundColor: "#fff" }}>
+                <div style={{ border: "2px solid #c4b5fd", borderRadius: 10, overflow: "hidden", background: "#fff", flex: 1, minHeight: 600 }}>
                   <iframe
-                    style={{ border: "none", height: "100%", minHeight: 520, width: "100%" }}
+                    style={{ border: "none", height: "100%", width: "100%" }}
                     src={toolkitUrl}
                     title="Insurance Toolkit"
+                    id="healthKitIframeVerify"
                   />
                 </div>
               </div>
             </div>
 
-            <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div style={{ gridColumn: "1 / -1", border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
-                <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Tobacco Usage (last 12 months)</label>
-                <div style={{ display: "flex", gap: 16 }}>
-                  <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                    <input
-                      type="radio"
-                      name="uw_tobacco"
-                      checked={underwritingData.tobaccoLast12Months === "yes"}
-                      onChange={() => setUnderwritingData((prev) => ({ ...prev, tobaccoLast12Months: "yes" }))}
-                    />
-                    Yes
-                  </label>
-                  <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                    <input
-                      type="radio"
-                      name="uw_tobacco"
-                      checked={underwritingData.tobaccoLast12Months === "no"}
-                      onChange={() => setUnderwritingData((prev) => ({ ...prev, tobaccoLast12Months: "no" }))}
-                    />
-                    No
-                  </label>
-                </div>
+            <div style={{ marginTop: 24 }}>
+              <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Health Conditions:</label>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginBottom: 10,
+                  minHeight: underwritingHealthTags.length ? undefined : 0,
+                }}
+              >
+                {underwritingHealthTags.map((tag, i) => (
+                  <span
+                    key={`h-${i}-${tag}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      backgroundColor: "#EEF5EE",
+                      border: `1px solid ${T.borderLight}`,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: T.textDark,
+                      fontFamily: T.font,
+                    }}
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${tag}`}
+                      onClick={() => setUnderwritingHealthTags((prev) => prev.filter((_, j) => j !== i))}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        padding: 0,
+                        margin: 0,
+                        lineHeight: 1,
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: T.textMuted,
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
               </div>
-              <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
-                <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Health Conditions (comma separated)</label>
-                <textarea
-                  value={underwritingData.healthConditions}
-                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, healthConditions: e.target.value }))}
-                  rows={4}
-                  style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px", resize: "vertical" }}
+              <input
+                value={underwritingHealthInput}
+                onChange={(e) => setUnderwritingHealthInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const parts = toTagParts(underwritingHealthInput);
+                  if (!parts.length) return;
+                  setUnderwritingHealthTags((prev) => mergeUniqueTags(prev, parts));
+                  setUnderwritingHealthInput("");
+                }}
+                placeholder="Type and press Enter to add conditions..."
+                style={{ ...uwModalFieldStyle, fontSize: 18, height: 48, width: "100%", boxSizing: "border-box" }}
+              />
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: T.textMuted, fontWeight: 500 }}>
+                Click on conditions above to add them, or type custom conditions.
+              </p>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8, color: "#2563eb" }}>
+                Medications:
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                {underwritingMedicationTags.map((tag, i) => (
+                  <span
+                    key={`m-${i}-${tag}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      backgroundColor: "#EEF5EE",
+                      border: `1px solid ${T.borderLight}`,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: T.textDark,
+                      fontFamily: T.font,
+                    }}
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${tag}`}
+                      onClick={() => setUnderwritingMedicationTags((prev) => prev.filter((_, j) => j !== i))}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        padding: 0,
+                        margin: 0,
+                        lineHeight: 1,
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: T.textMuted,
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <input
+                value={underwritingMedicationInput}
+                onChange={(e) => setUnderwritingMedicationInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const parts = toTagParts(underwritingMedicationInput);
+                  if (!parts.length) return;
+                  setUnderwritingMedicationTags((prev) => mergeUniqueTags(prev, parts));
+                  setUnderwritingMedicationInput("");
+                }}
+                placeholder="Type and press Enter to add medications..."
+                style={{ ...uwModalFieldStyle, fontSize: 18, height: 48, width: "100%", boxSizing: "border-box" }}
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+              <div>
+                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Height:</label>
+                <input
+                  value={underwritingData.height}
+                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, height: e.target.value }))}
+                  placeholder="e.g., 5 ft 10 in"
+                  style={{ ...uwModalFieldStyle, fontSize: 24, height: 48 }}
                 />
               </div>
-              <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
-                <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Medications (comma separated)</label>
-                <textarea
-                  value={underwritingData.medications}
-                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, medications: e.target.value }))}
-                  rows={4}
-                  style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px", resize: "vertical" }}
+              <div>
+                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Weight:</label>
+                <input
+                  value={underwritingData.weight}
+                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, weight: e.target.value }))}
+                  placeholder="e.g., 180 lbs"
+                  style={{ ...uwModalFieldStyle, fontSize: 24, height: 48 }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Carrier:</label>
+                <AppSelect
+                  value={underwritingData.carrier}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setUnderwritingData((prev) => ({ ...prev, carrier: v, productLevel: "" }));
+                  }}
+                  style={{
+                    ...uwModalFieldStyle,
+                    fontSize: 24,
+                    height: 56,
+                    lineHeight: "1.2",
+                    paddingTop: 8,
+                    paddingBottom: 8,
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="">Select carrier</option>
+                  {uwCarriers.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </AppSelect>
+              </div>
+              <div>
+                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level:</label>
+                <AppSelect
+                  value={underwritingData.productLevel}
+                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
+                  disabled={!underwritingData.carrier.trim() || uwProductsLoading}
+                  style={{
+                    ...uwModalFieldStyle,
+                    fontSize: 24,
+                    height: 56,
+                    lineHeight: "1.2",
+                    paddingTop: 8,
+                    paddingBottom: 8,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    opacity: !underwritingData.carrier.trim() || uwProductsLoading ? 0.7 : 1,
+                  }}
+                >
+                  <option value="">
+                    {uwProductsLoading
+                      ? "Loading products…"
+                      : underwritingData.carrier.trim() && uwProducts.length === 0
+                        ? "No products for this carrier"
+                        : "Select product level"}
+                  </option>
+                  {uwProducts.map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </AppSelect>
+              </div>
+              <div>
+                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Coverage Amount:</label>
+                <input
+                  value={underwritingData.coverageAmount}
+                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, coverageAmount: e.target.value }))}
+                  placeholder="e.g., $10,000"
+                  style={{ ...uwModalFieldStyle, fontSize: 24, height: 48 }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Monthly Premium:</label>
+                <input
+                  value={underwritingData.monthlyPremium}
+                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, monthlyPremium: e.target.value }))}
+                  placeholder="e.g., $50.00"
+                  style={{ ...uwModalFieldStyle, fontSize: 24, height: 48 }}
                 />
               </div>
             </div>
 
-            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {(
-                [
-                  ["Height", "height", "e.g. 5'10\""],
-                  ["Weight", "weight", "e.g. 180 lbs"],
-                  ["Carrier", "carrier", "e.g. AMAM"],
-                  ["Product Level", "productLevel", ""],
-                  ["Coverage Amount", "coverageAmount", "e.g. $10,000"],
-                  ["Monthly Premium", "monthlyPremium", "e.g. $50.00"],
-                ] as const
-              ).map(([label, key, placeholder]) => {
-                if (key === "carrier") {
-                  return (
-                    <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
-                      <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Carrier</label>
-                      <AppSelect
-                        value={underwritingData.carrier}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setUnderwritingData((prev) => ({ ...prev, carrier: v, productLevel: "" }));
-                        }}
-                        style={uwFieldStyle}
-                      >
-                        <option value="">Select carrier</option>
-                        {uwCarriers.map((c) => (
-                          <option key={c.id} value={c.name}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </AppSelect>
-                    </div>
-                  );
-                }
-                if (key === "productLevel") {
-                  return (
-                    <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
-                      <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level</label>
-                      <AppSelect
-                        value={underwritingData.productLevel}
-                        onChange={(e) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
-                        disabled={!underwritingData.carrier.trim() || uwProductsLoading}
-                        style={{ ...uwFieldStyle, opacity: !underwritingData.carrier.trim() || uwProductsLoading ? 0.7 : 1 }}
-                      >
-                        <option value="">
-                          {uwProductsLoading
-                            ? "Loading products…"
-                            : underwritingData.carrier.trim() && uwProducts.length === 0
-                              ? "No products for this carrier"
-                              : "Select product level"}
-                        </option>
-                        {uwProducts.map((p) => (
-                          <option key={p.id} value={p.name}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </AppSelect>
-                    </div>
-                  );
-                }
-                return (
-                  <div key={key} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 12 }}>
-                    <label style={{ fontWeight: 800, display: "block", marginBottom: 8 }}>{label}</label>
-                    <input
-                      value={underwritingData[key as keyof typeof underwritingData]}
-                      onChange={(e) =>
-                        setUnderwritingData((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      placeholder={placeholder}
-                      style={{ width: "100%", border: `1px solid ${T.border}`, borderRadius: 8, padding: "9px 10px" }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{ marginTop: 12, fontSize: 12, color: T.textMuted, textAlign: "center" }}>
-              Clicking "Save & Verify All" will save entered fields to verification panel and mark them as verified.
-            </div>
-            <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setShowUnderwritingModal(false)}
-                disabled={underwritingSaving}
-                style={{
-                  border: `1px solid ${T.border}`,
-                  backgroundColor: "#fff",
-                  color: T.textDark,
-                  borderRadius: 8,
-                  padding: "10px 14px",
-                  fontWeight: 700,
-                  cursor: underwritingSaving ? "not-allowed" : "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleUnderwritingSaveAndVerify();
-                }}
-                disabled={underwritingSaving}
-                style={{
-                  border: "none",
-                  backgroundColor: underwritingSaving ? T.border : "#16a34a",
-                  color: "#fff",
-                  borderRadius: 8,
-                  padding: "10px 14px",
-                  fontWeight: 700,
-                  cursor: underwritingSaving ? "not-allowed" : "pointer",
-                }}
-              >
-                {underwritingSaving ? "Saving..." : "Save & Verify All"}
-              </button>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 14, color: "#4b5563", textAlign: "center", marginBottom: 8 }}>
+                Clicking &quot;Save &amp; Verify All&quot; will save all fields below to the verification panel and mark them as
+                verified.
+              </div>
+              <div style={{ display: "flex", gap: 8, width: "100%" }}>
+                <button
+                  type="button"
+                  disabled={underwritingSaving}
+                  style={{
+                    border: `1px solid ${T.border}`,
+                    background: "#fff",
+                    borderRadius: 8,
+                    fontSize: 18,
+                    padding: "10px 24px",
+                    flex: 1,
+                    cursor: underwritingSaving ? "not-allowed" : "pointer",
+                  }}
+                  onClick={() => setShowUnderwritingModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={underwritingSaving}
+                  style={{
+                    border: "none",
+                    background: underwritingSaving ? T.border : "#16a34a",
+                    color: "#fff",
+                    borderRadius: 8,
+                    fontSize: 18,
+                    padding: "10px 24px",
+                    flex: 1,
+                    cursor: underwritingSaving ? "not-allowed" : "pointer",
+                  }}
+                  onClick={() => {
+                    void handleUnderwritingSaveAndVerify();
+                  }}
+                >
+                  {underwritingSaving ? "Saving..." : "Save & Verify All"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

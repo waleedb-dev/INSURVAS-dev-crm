@@ -537,14 +537,12 @@ function mapSelectOptions(values: string[], allLabel: string) {
   return [{ value: "All", label: allLabel }, ...sorted.map((v) => ({ value: v, label: v }))];
 }
 
-/*
- * Unused while post-create Slack / GHL / notify-eligible-agents are disabled (fe-create-lead only).
- * See commented body of `notifySlackTransferPortalLead`.
- */
-// const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
-// const FE_SLACK_NOTIFICATION_EDGE_FUNCTION = "fe-slack-notification" as const;
-// const FE_GHL_CREATE_CONTACT_EDGE_FUNCTION = "fe-ghl-create-contact" as const;
-// const TEST_BPO_CHANNEL = "#test-bpo" as const;
+const TRANSFER_PORTAL_LEAD_VENDOR = "Ascendra BPO";
+/** Production Insurvas app (Slack “View Application” and similar deep links). No trailing slash. */
+const INSURVAS_APP_ORIGIN = "https://app.insurvas.com";
+const FE_SLACK_NOTIFICATION_EDGE_FUNCTION = "fe-slack-notification" as const;
+const FE_GHL_CREATE_CONTACT_EDGE_FUNCTION = "fe-ghl-create-contact" as const;
+const TEST_BPO_CHANNEL = "#test-bpo" as const;
 
 type SsnDuplicateRule = {
   stage_name: string;
@@ -700,6 +698,32 @@ async function insertDailyDealFlowEntry(
           .maybeSingle()
       ).data?.name || null
     : null;
+
+  // Build initial quote text from form values
+  const initialQuoteParts: string[] = [];
+  if (row.payload.carrier?.trim()) {
+    initialQuoteParts.push(row.payload.carrier.trim());
+  }
+  if (row.payload.productType?.trim()) {
+    initialQuoteParts.push(row.payload.productType.trim());
+  }
+  if (Number.isFinite(monthly) && monthly > 0) {
+    initialQuoteParts.push(`Premium: $${monthly.toLocaleString()}`);
+  }
+  if (Number.isFinite(face) && face > 0) {
+    initialQuoteParts.push(`Face: $${face.toLocaleString()}`);
+  }
+  if (row.payload.draftDate?.trim()) {
+    initialQuoteParts.push(`Draft: ${row.payload.draftDate.trim()}`);
+  }
+
+  const initialQuote = initialQuoteParts.length > 0
+    ? `Original Quote: ${initialQuoteParts.join(" | ")}`
+    : null;
+
+  // Insert only basic fields + initial_quote
+  // carrier, product_type, monthly_premium, face_amount, draft_date are left NULL
+  // to be filled by the sales agent after the call
   const { error } = await supabase.from("daily_deal_flow").insert({
     submission_id: row.submissionId,
     client_phone_number: row.payload.phone || null,
@@ -707,11 +731,10 @@ async function insertDailyDealFlowEntry(
     call_center_id: row.callCenterId || null,
     date: flowDate,
     insured_name: insuredName,
-    carrier: row.payload.carrier || null,
-    product_type: row.payload.productType || null,
-    draft_date: row.payload.draftDate || null,
-    monthly_premium: Number.isFinite(monthly) ? monthly : null,
-    face_amount: Number.isFinite(face) ? face : null,
+    initial_quote: initialQuote,
+    // Note: carrier, product_type, draft_date, monthly_premium, face_amount
+    // are intentionally left NULL here - they will be populated by the agent
+    // when they submit the call update form
   });
   if (error) console.warn("daily_deal_flow insert:", error.message);
 }
@@ -725,14 +748,9 @@ async function notifySlackTransferPortalLead(
     payload: TransferLeadFormData;
     callCenterName: string;
     callCenterId?: string | null;
-  }
+  },
 ) {
-  // Outbound edge calls disabled: use `fe-create-lead` only (`postFeCreateLeadAtFixedUrl` after insert/update).
-  void supabase;
-  void params;
-
-  /*
-  const { leadId, submissionId, leadUniqueId, payload, callCenterName, callCenterId } = params;
+  const { leadId, submissionId, payload, callCenterName, callCenterId } = params;
   try {
     const customerName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
     const transferPortalMessage = `A new Application Submission:
@@ -741,29 +759,22 @@ Customer Name: ${customerName}
 Customer Number: ${payload.phone || "N/A"}
 Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`;
 
-    const { error: transferPortalError } = await supabase.functions.invoke(
-      FE_SLACK_NOTIFICATION_EDGE_FUNCTION,
-      {
-        body: {
-          channel: TEST_BPO_CHANNEL,
-          message: transferPortalMessage,
-        },
+    const { error: transferPortalError } = await supabase.functions.invoke(FE_SLACK_NOTIFICATION_EDGE_FUNCTION, {
+      body: {
+        channel: TEST_BPO_CHANNEL,
+        message: transferPortalMessage,
       },
-    );
+    });
     if (transferPortalError) console.warn("fe-slack-notification (transfer-portal):", transferPortalError.message);
 
     const { data: centerRow } = callCenterId
-      ? await supabase
-          .from("call_centers")
-          .select("name, slack_channel")
-          .eq("id", callCenterId)
-          .maybeSingle()
+      ? await supabase.from("call_centers").select("name, slack_channel").eq("id", callCenterId).maybeSingle()
       : { data: null as { name?: string | null; slack_channel?: string | null } | null };
     const centerName = (centerRow?.name || callCenterName || TRANSFER_PORTAL_LEAD_VENDOR).trim();
-    const centerSlackChannel = TEST_BPO_CHANNEL;
+    const centerSlackChannel = centerRow?.slack_channel?.trim() || TEST_BPO_CHANNEL;
 
     if (centerSlackChannel) {
-      const agentPortalUrl = `https://crm-agent-portal.vercel.app/dashboard/sales_agent_licensed/transfer-leads/${encodeURIComponent(leadId)}`;
+      const agentPortalUrl = `${INSURVAS_APP_ORIGIN}/dashboard/sales_agent_licensed/transfer-leads/${encodeURIComponent(leadId)}`;
       const centerMessage = `New Application Submission:
 
 Call Center Name: ${centerName}
@@ -792,16 +803,13 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
         },
       ];
 
-      const { error: centerSlackError } = await supabase.functions.invoke(
-        FE_SLACK_NOTIFICATION_EDGE_FUNCTION,
-        {
-          body: {
-            channel: centerSlackChannel,
-            message: centerMessage,
-            blocks: centerBlocks,
-          },
+      const { error: centerSlackError } = await supabase.functions.invoke(FE_SLACK_NOTIFICATION_EDGE_FUNCTION, {
+        body: {
+          channel: centerSlackChannel,
+          message: centerMessage,
+          blocks: centerBlocks,
         },
-      );
+      });
       if (centerSlackError) console.warn("fe-slack-notification (center):", centerSlackError.message);
     }
 
@@ -851,7 +859,6 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
   } catch (e) {
     console.warn("post-create notifications failed", e);
   }
-  */
 }
 
 export default function CallCenterLeadIntakePage({
@@ -868,8 +875,9 @@ export default function CallCenterLeadIntakePage({
   const canEditLeadPipeline = permissionKeys.has("action.lead_pipeline.update");
   const isCallCenterTransferRole =
     currentRole === "call_center_agent" || currentRole === "call_center_admin";
-  // Only call center agents (not admins) can update their own drafts
+  // Only call center agents (not admins) auto-open drafts from grid / certain flows; admins use explicit "Edit draft" in the menu
   const isCallCenterAgentOnly = currentRole === "call_center_agent";
+  const isCallCenterAdmin = currentRole === "call_center_admin";
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
   const [leads, setLeads] = useState<IntakeLead[]>([]);
@@ -912,6 +920,7 @@ export default function CallCenterLeadIntakePage({
   const [duplicateRuleMessage, setDuplicateRuleMessage] = useState<string>("");
   const [duplicateIsAddable, setDuplicateIsAddable] = useState<boolean>(true);
   const [callCenterName, setCallCenterName] = useState("");
+  const [callCenterDid, setCallCenterDid] = useState("");
   const [pendingDeleteLead, setPendingDeleteLead] = useState<{ rowId: string; name: string } | null>(null);
   const [deletingLead, setDeletingLead] = useState(false);
   const [claimModalOpen, setClaimModalOpen] = useState(false);
@@ -924,6 +933,7 @@ export default function CallCenterLeadIntakePage({
   }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
   const [claimSelection, setClaimSelection] = useState<ClaimSelections>(DEFAULT_CLAIM_SELECTION);
   const [isRetentionOnlyMode, setIsRetentionOnlyMode] = useState(false);
+  const [claimSessionUserId, setClaimSessionUserId] = useState<string | null>(null);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const itemsPerPage = 7;
@@ -935,17 +945,25 @@ export default function CallCenterLeadIntakePage({
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.user?.id) {
-        if (!cancelled) setCallCenterName("");
+        if (!cancelled) {
+          setCallCenterName("");
+          setCallCenterDid("");
+        }
         return;
       }
       const { data } = await supabase
         .from("users")
-        .select("call_centers(name)")
+        .select("call_centers(name, did)")
         .eq("id", session.user.id)
         .maybeSingle();
-      const row = data as { call_centers?: { name?: string } | null } | null;
-      const name = row?.call_centers?.name;
-      if (!cancelled) setCallCenterName(typeof name === "string" ? name.trim() : "");
+      const row = data as { call_centers?: { name?: string; did?: string | null } | null } | null;
+      const center = row?.call_centers;
+      const name = center?.name;
+      const did = center?.did;
+      if (!cancelled) {
+        setCallCenterName(typeof name === "string" ? name.trim() : "");
+        setCallCenterDid(typeof did === "string" ? did.trim() : "");
+      }
     };
     void loadCallCenterName();
     return () => {
@@ -1097,6 +1115,7 @@ export default function CallCenterLeadIntakePage({
       ...DEFAULT_CLAIM_SELECTION,
       workflowType: "retention",
       isRetentionCall: true,
+      retentionType: "new_sale",
     };
 
     setClaimLeadContext(context);
@@ -1151,6 +1170,19 @@ export default function CallCenterLeadIntakePage({
       setClaimModalLoading(false);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!cancelled) setClaimSessionUserId(session?.user?.id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     refreshLeads();
@@ -1608,18 +1640,15 @@ export default function CallCenterLeadIntakePage({
       }
     }
 
-    setToast({
-      message: feCreateLeadSyncError
-        ? `Lead saved. fe-create-lead sync failed: ${feCreateLeadSyncError}`
-        : "Lead saved successfully",
-      type: feCreateLeadSyncError ? "error" : "success",
-    });
-    setCreateLeadFormInitialData(null);
-    setCreateLeadUnlockAfterDuplicate(false);
-    setShowCreateLead(false);
+    // fe-create-lead errors only: success UX is the transfer modal on the form (do not close the form here).
+    if (feCreateLeadSyncError) {
+      setToast({
+        message: `Lead saved. fe-create-lead sync failed: ${feCreateLeadSyncError}`,
+        type: "error",
+      });
+    }
     createDraftRowIdRef.current = null;
-    setPage(1);
-    await refreshLeads();
+    void refreshLeads();
     return true;
   };
 
@@ -1659,7 +1688,7 @@ export default function CallCenterLeadIntakePage({
     } = await supabase.auth.getSession();
 
     if (!session?.user?.id) {
-      setToast({ message: "You are not logged in", type: "error" });
+      if (!isAuto) setToast({ message: "You are not logged in", type: "error" });
       return;
     }
 
@@ -1730,7 +1759,8 @@ export default function CallCenterLeadIntakePage({
       }
       const { error } = await updateQuery;
       if (error) {
-        setToast({ message: error.message || "Failed to save draft", type: "error" });
+        if (isAuto) console.warn("Auto-save draft failed:", error.message);
+        else setToast({ message: error.message || "Failed to save draft", type: "error" });
         return;
       }
       if (isAuto) return;
@@ -1754,7 +1784,8 @@ export default function CallCenterLeadIntakePage({
       .single();
 
     if (error) {
-      setToast({ message: error.message || "Failed to save draft", type: "error" });
+      if (isAuto) console.warn("Auto-save draft failed:", error.message);
+      else setToast({ message: error.message || "Failed to save draft", type: "error" });
       return;
     }
 
@@ -1939,47 +1970,50 @@ export default function CallCenterLeadIntakePage({
     }
 
     let feCreateLeadDraftSubmitSyncError: string | null = null;
-    if (wasDraftBeforeUpdate && updatedLead?.id) {
-      const submissionId = String(updatedLead.submission_id || "").trim() || buildSubmissionId(callCenterName);
-      const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
-      await insertDailyDealFlowEntry(supabase, {
-        submissionId,
-        leadVendor: callCenterName,
-        leadName,
-        payload,
-        callCenterId: userProfile?.call_center_id || null,
-      });
+    if (updatedLead?.id) {
+      const submissionIdForNotify = String(updatedLead.submission_id || "").trim() || buildSubmissionId(callCenterName);
+
+      if (wasDraftBeforeUpdate) {
+        const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
+        await insertDailyDealFlowEntry(supabase, {
+          submissionId: submissionIdForNotify,
+          leadVendor: callCenterName,
+          leadName,
+          payload,
+          callCenterId: userProfile?.call_center_id || null,
+        });
+        try {
+          await postFeCreateLeadAtFixedUrl(
+            supabase,
+            buildFeCreateLeadBodyFromIntakePayload(payload, {
+              submissionId: submissionIdForNotify,
+              leadVendor: callCenterName,
+            }),
+            "[CallCenterLeadIntake:draft-submit]",
+          );
+        } catch (feErr) {
+          feCreateLeadDraftSubmitSyncError = feErr instanceof Error ? feErr.message : String(feErr);
+          console.warn("[CallCenterLeadIntake] fe-create-lead failed after draft submit", feErr);
+        }
+      }
+
       void notifySlackTransferPortalLead(supabase, {
         leadId: updatedLead.id,
-        submissionId,
+        submissionId: submissionIdForNotify,
         leadUniqueId,
         payload,
         callCenterName,
         callCenterId: userProfile?.call_center_id || null,
       });
-      try {
-        await postFeCreateLeadAtFixedUrl(
-          supabase,
-          buildFeCreateLeadBodyFromIntakePayload(payload, {
-            submissionId,
-            leadVendor: callCenterName,
-          }),
-          "[CallCenterLeadIntake:draft-submit]",
-        );
-      } catch (feErr) {
-        feCreateLeadDraftSubmitSyncError = feErr instanceof Error ? feErr.message : String(feErr);
-        console.warn("[CallCenterLeadIntake] fe-create-lead failed after draft submit", feErr);
-      }
     }
 
-    setToast({
-      message: feCreateLeadDraftSubmitSyncError
-        ? `Lead updated. fe-create-lead sync failed: ${feCreateLeadDraftSubmitSyncError}`
-        : "Lead updated successfully",
-      type: feCreateLeadDraftSubmitSyncError ? "error" : "success",
-    });
-    setEditingLead(null);
-    await refreshLeads();
+    if (feCreateLeadDraftSubmitSyncError) {
+      setToast({
+        message: `Lead updated. fe-create-lead sync failed: ${feCreateLeadDraftSubmitSyncError}`,
+        type: "error",
+      });
+    }
+    void refreshLeads();
     return true;
   };
 
@@ -1992,7 +2026,7 @@ export default function CallCenterLeadIntakePage({
     } = await supabase.auth.getSession();
 
     if (!session?.user?.id) {
-      setToast({ message: "Authentication required", type: "error" });
+      if (!isAuto) setToast({ message: "Authentication required", type: "error" });
       return;
     }
 
@@ -2059,7 +2093,8 @@ export default function CallCenterLeadIntakePage({
     const { error } = await query;
 
     if (error) {
-      setToast({ message: error.message || "Failed to save draft", type: "error" });
+      if (isAuto) console.warn("Auto-save draft failed:", error.message);
+      else setToast({ message: error.message || "Failed to save draft", type: "error" });
       return;
     }
 
@@ -2113,6 +2148,8 @@ export default function CallCenterLeadIntakePage({
             setCreateLeadFormInitialData(null);
             setCreateLeadUnlockAfterDuplicate(false);
             setShowCreateLead(false);
+            setPage(1);
+            void refreshLeads();
           }}
           onSubmit={handleCreateLead}
           onSaveDraft={handleCreateDraftLead}
@@ -2120,6 +2157,7 @@ export default function CallCenterLeadIntakePage({
           initialData={createLeadFormInitialData ?? undefined}
           unlockAfterDuplicateRemount={createLeadUnlockAfterDuplicate}
           centerName={callCenterName}
+          centerDid={callCenterDid}
         />
         {showDuplicateDialog && duplicateLeadMatch && (
           <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -2209,12 +2247,16 @@ export default function CallCenterLeadIntakePage({
     return (
       <>
         <TransferLeadApplicationForm
-          onBack={() => setEditingLead(null)}
+          onBack={() => {
+            setEditingLead(null);
+            void refreshLeads();
+          }}
           onSubmit={handleUpdateLead}
           onSaveDraft={handleUpdateDraftLead}
           initialData={editingLead.formData}
           submitButtonLabel="Update Lead"
           centerName={callCenterName}
+          centerDid={callCenterDid}
         />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </>
@@ -2224,7 +2266,6 @@ export default function CallCenterLeadIntakePage({
   if (viewingLead) {
     // Only users with edit permission OR call center agents (not admins) can edit
     // Call center admins are explicitly blocked from editing
-    const isCallCenterAdmin = currentRole === "call_center_admin";
     const canEditAsCallCenterAgent = isCallCenterAgentOnly; // Only agents, not admins
     const effectiveCanEdit = (canEditTransferLeads || canEditLeadPipeline) && !isCallCenterAdmin || canEditAsCallCenterAgent;
     return (
@@ -3144,13 +3185,16 @@ export default function CallCenterLeadIntakePage({
                                 canEditTransferLeads
                                   ? [
                                       { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                      { label: "Edit Lead", onClick: () => void handleEditLead(lead.rowId) },
+                                      {
+                                        label: lead.isDraft ? "Edit draft" : "Edit Lead",
+                                        onClick: () => void handleEditLead(lead.rowId),
+                                      },
                                       { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
                                     ]
-                                  : isCallCenterAgentOnly && lead.isDraft
+                                  : lead.isDraft && (isCallCenterAgentOnly || isCallCenterAdmin)
                                     ? [
                                         { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                        { label: "Update Lead", onClick: () => void openLeadInForm(lead.rowId) },
+                                        { label: "Edit draft", onClick: () => void openLeadInForm(lead.rowId) },
                                       ]
                                     : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
                               }
@@ -3260,6 +3304,7 @@ export default function CallCenterLeadIntakePage({
           void handleClaimAndOpenLead();
         }}
         retentionOnly={isRetentionOnlyMode}
+        sessionUserId={claimSessionUserId}
       />
       <style jsx>{`
         .lead-action-btn {

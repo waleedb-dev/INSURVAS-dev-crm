@@ -14,6 +14,14 @@ interface CreateUserRequest {
   /** Set when role is sales_agent_unlicensed */
   unlicensed_sales_subtype?: string | null;
   permissions?: string[];
+  /** Optional: override destination for welcome email. If not provided, email goes to the created user. */
+  welcome_email_to?: string | null;
+}
+
+interface SendWelcomeEmailInput {
+  toEmail: string;
+  fullName: string;
+  tempPassword: string;
 }
 
 function getBearerToken(req: Request): string | null {
@@ -22,10 +30,24 @@ function getBearerToken(req: Request): string | null {
   return auth.slice(7).trim();
 }
 
-function getDefaultPasswordFromFullName(fullName: string): string {
-  const rawFirstName = (fullName || "").trim().split(/\s+/)[0] || "user";
-  const normalizedFirstName = rawFirstName.toLowerCase();
-  return `${normalizedFirstName}123!`;
+/** Temp password: sanitized first name + YYYYMMDD (UTC) + 6 random digits + symbol. */
+function generateTempPassword(fullName: string): string {
+  const rawFirst = (fullName || "").trim().split(/\s+/)[0] || "user";
+  const lettersOnly = rawFirst.replace(/[^a-zA-Z]/g, "");
+  const lower = (lettersOnly || "user").slice(0, 24).toLowerCase();
+  const namePart = lower.length > 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : "User";
+
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const mo = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const da = String(now.getUTCDate()).padStart(2, "0");
+  const datePart = `${y}${mo}${da}`;
+
+  const rand = new Uint32Array(1);
+  crypto.getRandomValues(rand);
+  const numPart = String(rand[0] % 1_000_000).padStart(6, "0");
+
+  return `${namePart}${datePart}${numPart}!`;
 }
 
 function normalizeUnlicensedSubtype(roleKey: string | undefined, raw: unknown): string | null {
@@ -34,6 +56,56 @@ function normalizeUnlicensedSubtype(roleKey: string | undefined, raw: unknown): 
   const s = String(raw);
   if (s === "buffer_agent" || s === "retention_agent") return s;
   return null;
+}
+
+async function sendWelcomeEmailViaMailtrap({
+  toEmail,
+  fullName,
+  tempPassword,
+}: SendWelcomeEmailInput): Promise<{ ok: boolean; error?: string }> {
+  const apiToken =
+    Deno.env.get("MAILTRAP") ||
+    Deno.env.get("MAILTRAP_API_TOKEN") ||
+    "";
+
+  if (!apiToken) {
+    return { ok: false, error: "MAILTRAP token is missing" };
+  }
+
+  const payload = {
+    from: {
+      email: "hello@demomailtrap.co",
+      name: "Insurvas CRM",
+    },
+    to: [{ email: toEmail }],
+    subject: "Your Insurvas account is ready",
+    text: `Hello ${fullName},
+
+Your Insurvas account has been created.
+
+Login email: ${toEmail}
+Temporary password: ${tempPassword}
+
+Please sign in and update your password after first login.
+`,
+    category: "User Onboarding",
+  };
+
+  const response = await fetch("https://send.api.mailtrap.io/api/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return { ok: false, error: `Mailtrap send failed (${response.status}): ${errorText}` };
+  }
+
+  return { ok: true };
 }
 
 Deno.serve(async (req: Request) => {
@@ -103,7 +175,7 @@ Deno.serve(async (req: Request) => {
     const roleKey = (roleRow as { key: string }).key;
     const unlicensedSubtype = normalizeUnlicensedSubtype(roleKey, body.unlicensed_sales_subtype);
 
-    const tempPassword = getDefaultPasswordFromFullName(body.full_name);
+    const tempPassword = generateTempPassword(body.full_name);
     const { data: createdAuth, error: createAuthError } = await adminClient.auth.admin.createUser({
       email: body.email,
       password: tempPassword,
@@ -153,12 +225,22 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const emailResult = await sendWelcomeEmailViaMailtrap({
+      toEmail: body.welcome_email_to || body.email,
+      fullName: body.full_name,
+      tempPassword,
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
         user: { id: userId, email: body.email, full_name: body.full_name },
         temp_password: tempPassword,
-        message: "User created successfully",
+        message: emailResult.ok
+          ? "User created successfully"
+          : "User created successfully, but welcome email failed to send",
+        email_sent: emailResult.ok,
+        email_error: emailResult.ok ? null : emailResult.error,
       }),
       {
         status: 200,
