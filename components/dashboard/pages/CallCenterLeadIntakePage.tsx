@@ -1431,7 +1431,6 @@ export default function CallCenterLeadIntakePage({
       const { data: existing, error: existingError } = await supabase
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, social, stage, created_at")
-        .eq("submitted_by", currentUserId)
         .eq("is_draft", false)
         .in("phone", variants)
         .order("created_at", { ascending: false });
@@ -1451,7 +1450,6 @@ export default function CallCenterLeadIntakePage({
       const { data: existing, error: existingError } = await supabase
         .from("leads")
         .select("id, lead_unique_id, first_name, last_name, phone, social, stage, created_at")
-        .eq("submitted_by", currentUserId)
         .eq("is_draft", false)
         .in("social", variants)
         .order("created_at", { ascending: false });

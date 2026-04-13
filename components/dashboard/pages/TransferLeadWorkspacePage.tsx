@@ -18,8 +18,7 @@ import {
   type ClaimLeadContext,
   type ClaimSelections,
 } from "./transferLeadParity";
-
-const TRANSFER_CHECK_API_URL = "https://livetransferchecker.vercel.app/api/transfer-check";
+import { runTransferCheck, TRANSFER_CHECK_CLEAR_USER_MESSAGE } from "@/lib/transferCheckApi";
 
 type TransferCheckApiResponse = {
   data?: Record<string, unknown>;
@@ -218,21 +217,17 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       setTransferCheckError(null);
 
       try {
-        const response = await fetch(TRANSFER_CHECK_API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: cleanPhone }),
-        });
-        let data: TransferCheckApiResponse = {};
-        try {
-          data = (await response.json()) as TransferCheckApiResponse;
-        } catch {
-          data = { message: "Invalid response from transfer check service." };
-        }
+        const { ok: transferOk, status: transferStatus, data: rawTransfer } = await runTransferCheck(
+          supabase,
+          cleanPhone,
+        );
+        const data = rawTransfer as TransferCheckApiResponse;
         if (cancelled) return;
 
-        if (!response.ok) {
-          const errText = data.message || `Failed to check phone number (${response.status})`;
+        if (!transferOk) {
+          const errText =
+            String(data.message ?? "").trim() ||
+            `Failed to check phone number (${transferStatus})`;
           setTransferCheckError(errText);
           return;
         }
@@ -266,16 +261,13 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           return;
         }
 
-        const modalDataRows = transferCheckDataEntriesForModal(data.data);
         const rootMessage = String(data.message ?? "").trim();
         if (data.warnings?.policy) {
           setTransferCheckMessage(
             data.warningMessage || rootMessage || "Policy warning — see details below.",
           );
-        } else if (modalDataRows.length > 0) {
-          setTransferCheckMessage("Transfer check passed.");
         } else {
-          setTransferCheckMessage(rootMessage || "Transfer check passed.");
+          setTransferCheckMessage(TRANSFER_CHECK_CLEAR_USER_MESSAGE);
         }
       } catch (error) {
         if (cancelled) return;
