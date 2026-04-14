@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Phone, Search, User } from "lucide-react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { runDncLookup } from "@/lib/dncLookupApi";
 import { runTransferCheck } from "@/lib/transferCheckApi";
 
 function normalizePhone10(value: string): string | null {
@@ -41,7 +42,7 @@ type CrmDuplicateSummary = {
   has_match?: boolean;
   rule_message?: string;
   error?: string;
-  /** From CRM `leads` when the match is a single row (or SSN-narrowed to one). */
+  /** From CRM `leads` when the match is unambiguous. */
   matched_contact_name?: string;
 };
 
@@ -55,19 +56,38 @@ function pickCrmDuplicateMessage(crm: CrmDuplicateSummary | undefined): string {
   return "";
 }
 
-function dncSummary(dnc: { message?: string } | undefined): string {
-  const msg = String(dnc?.message ?? "").trim();
-  if (!msg) return "";
-  return msg;
+function summarizeDncLookupEdge(
+  data: Record<string, unknown> | null,
+  httpOk: boolean,
+): { line: string; tone: "muted" | "ok" | "warn" | "danger" } {
+  if (!data) return { line: "—", tone: "muted" };
+  if (!httpOk) {
+    const m = String(data.message ?? data.error ?? "dnc-lookup request failed").trim();
+    return { line: m || "dnc-lookup failed", tone: "danger" };
+  }
+  const cs = String(data.callStatus ?? "").trim();
+  const msg = String(data.message ?? "").trim();
+  const flags = data.flags as Record<string, unknown> | undefined;
+  const bits: string[] = [];
+  if (flags?.isTcpa === true) bits.push("TCPA");
+  if (flags?.isDnc === true) bits.push("DNC");
+  if (flags?.isInvalid === true) bits.push("invalid");
+  if (flags?.isClean === true) bits.push("clean");
+  const flagStr = bits.length ? ` (${bits.join(", ")})` : "";
+  const line = (cs ? `[${cs}] ` : "") + (msg || "—") + flagStr;
+  if (cs === "DANGER" || cs === "ERROR") return { line, tone: "danger" };
+  if (cs === "WARNING" || cs === "INVALID") return { line, tone: "warn" };
+  return { line, tone: "ok" };
 }
 
 export default function TransferCheckTesterPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [phoneInput, setPhoneInput] = useState("");
-  const [socialInput, setSocialInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawPayload, setRawPayload] = useState<Record<string, unknown> | null>(null);
+  const [dncLookupPayload, setDncLookupPayload] = useState<Record<string, unknown> | null>(null);
+  const [dncLookupHttpOk, setDncLookupHttpOk] = useState(false);
   const [displayPhone, setDisplayPhone] = useState<string | null>(null);
 
   const runSearch = async () => {
@@ -75,30 +95,38 @@ export default function TransferCheckTesterPage() {
     if (!clean) {
       setError("Enter a valid 10-digit US mobile number (or 11 digits starting with 1).");
       setRawPayload(null);
+      setDncLookupPayload(null);
       setDisplayPhone(null);
       return;
     }
     setLoading(true);
     setError(null);
     setRawPayload(null);
+    setDncLookupPayload(null);
+    setDncLookupHttpOk(false);
     setDisplayPhone(clean);
     try {
-      const { ok, status, data } = await runTransferCheck(supabase, clean, {
-        phoneRaw: phoneInput.trim(),
-        social: socialInput.trim() || undefined,
-      });
-      if (!ok) {
+      const [transferRes, dncRes] = await Promise.all([
+        runTransferCheck(supabase, clean, {
+          phoneRaw: phoneInput.trim(),
+        }),
+        runDncLookup(supabase, clean),
+      ]);
+
+      setRawPayload(transferRes.data);
+      setDncLookupPayload(dncRes.data);
+      setDncLookupHttpOk(dncRes.ok);
+
+      if (!transferRes.ok) {
         const msg =
-          String(data.message ?? data.error ?? "").trim() ||
-          `Request failed (${status}).`;
+          String(transferRes.data.message ?? transferRes.data.error ?? "").trim() ||
+          `transfer-check failed (${transferRes.status}).`;
         setError(msg);
-        setRawPayload(data);
-        return;
       }
-      setRawPayload(data as Record<string, unknown>);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Transfer check failed.");
+      setError(e instanceof Error ? e.message : "Request failed.");
       setRawPayload(null);
+      setDncLookupPayload(null);
     } finally {
       setLoading(false);
     }
@@ -109,114 +137,91 @@ export default function TransferCheckTesterPage() {
       ? (rawPayload.data as Record<string, unknown>)
       : undefined;
   const rootMessage = rawPayload ? String(rawPayload.message ?? "").trim() : "";
-  const dnc = rawPayload?.dnc as { message?: string } | undefined;
-  const dncText = dncSummary(dnc);
   const crmDup = rawPayload?.crm_duplicate as CrmDuplicateSummary | undefined;
   const crmDuplicateMessage = pickCrmDuplicateMessage(crmDup);
   const agencyStatus = pickPolicyStatus(apiData, rootMessage);
   const customerName =
     String(crmDup?.matched_contact_name ?? "").trim() || pickCustomerName(apiData);
-  const showDncWarning = !error && displayPhone && rawPayload && !dncText && !loading;
+  const dncEdge = summarizeDncLookupEdge(dncLookupPayload, dncLookupHttpOk);
+
+  const dncBannerBg =
+    dncEdge.tone === "danger"
+      ? "#fef2f2"
+      : dncEdge.tone === "warn"
+        ? "#fffbeb"
+        : dncEdge.tone === "ok"
+          ? "#f0fdf4"
+          : T.rowBg;
+  const dncBannerBorder =
+    dncEdge.tone === "danger"
+      ? "#fecaca"
+      : dncEdge.tone === "warn"
+        ? "#fde68a"
+        : dncEdge.tone === "ok"
+          ? "#bbf7d0"
+          : T.borderLight;
+  const dncBannerColor =
+    dncEdge.tone === "danger" ? "#991b1b" : dncEdge.tone === "warn" ? "#92400e" : dncEdge.tone === "ok" ? "#166534" : T.textMid;
 
   const infoRows: [string, string][] = [
     ["Mobile number", displayPhone ? displayPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3") : "—"],
     ["Name", customerName],
+    ["DNC / TCPA (dnc-lookup)", dncEdge.line],
   ];
   if (crmDuplicateMessage) {
     infoRows.push(["CRM duplicate", crmDuplicateMessage]);
-    infoRows.push(["Agency / TCPA", agencyStatus]);
+    infoRows.push(["Agency / TCPA (transfer-check)", agencyStatus]);
   } else {
-    infoRows.push(["Policy status", agencyStatus]);
+    infoRows.push(["Agency / TCPA (transfer-check)", agencyStatus]);
   }
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 8px 48px" }}>
       <h1 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 800, color: T.textDark }}>Search user by mobile number</h1>
       <p style={{ margin: "0 0 20px", fontSize: 13, color: T.textMuted, lineHeight: 1.5 }}>
-        Calls the <strong>transfer-check</strong> Edge Function (same path as Transfer Leads phone check). Optional SSN
-        narrows CRM duplicate policy when multiple leads share the phone.
+        Runs <strong>dnc-lookup</strong> (RealValidito + Blacklist Alliance) and <strong>transfer-check</strong> (agency
+        API + CRM duplicate) in parallel.
       </p>
 
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
           gap: 10,
+          alignItems: "stretch",
+          flexWrap: "wrap",
           marginBottom: 16,
         }}
       >
         <div
           style={{
+            flex: "1 1 220px",
             display: "flex",
+            alignItems: "center",
             gap: 10,
-            alignItems: "stretch",
-            flexWrap: "wrap",
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: `1px solid ${T.border}`,
+            backgroundColor: T.cardBg,
           }}
         >
-          <div
+          <Phone size={20} color={T.textMuted} aria-hidden />
+          <input
+            type="tel"
+            value={phoneInput}
+            onChange={(e) => setPhoneInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void runSearch()}
+            placeholder="(555) 123-4567"
             style={{
-              flex: "1 1 220px",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: `1px solid ${T.border}`,
-              backgroundColor: T.cardBg,
+              flex: 1,
+              border: "none",
+              outline: "none",
+              fontSize: 15,
+              fontWeight: 600,
+              color: T.textDark,
+              background: "transparent",
+              minWidth: 0,
             }}
-          >
-            <Phone size={20} color={T.textMuted} aria-hidden />
-            <input
-              type="tel"
-              value={phoneInput}
-              onChange={(e) => setPhoneInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void runSearch()}
-              placeholder="(555) 123-4567"
-              style={{
-                flex: 1,
-                border: "none",
-                outline: "none",
-                fontSize: 15,
-                fontWeight: 600,
-                color: T.textDark,
-                background: "transparent",
-                minWidth: 0,
-              }}
-            />
-          </div>
-          <div
-            style={{
-              flex: "1 1 200px",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: `1px solid ${T.border}`,
-              backgroundColor: T.cardBg,
-            }}
-          >
-            <span style={{ fontSize: 12, fontWeight: 800, color: T.textMuted, whiteSpace: "nowrap" }}>SSN</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              value={socialInput}
-              onChange={(e) => setSocialInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void runSearch()}
-              placeholder="Optional (multi-match)"
-              style={{
-                flex: 1,
-                border: "none",
-                outline: "none",
-                fontSize: 14,
-                fontWeight: 600,
-                color: T.textDark,
-                background: "transparent",
-                minWidth: 0,
-              }}
-            />
-          </div>
+          />
         </div>
         <button
           type="button"
@@ -259,42 +264,24 @@ export default function TransferCheckTesterPage() {
         </div>
       )}
 
-      {showDncWarning && (
+      {displayPhone && dncLookupPayload && !loading && (
         <div
           style={{
             marginBottom: 16,
             padding: "12px 14px",
             borderRadius: 10,
-            backgroundColor: "#eff6ff",
-            border: `1px solid #bfdbfe`,
-            color: "#1e40af",
+            backgroundColor: dncBannerBg,
+            border: `1px solid ${dncBannerBorder}`,
+            color: dncBannerColor,
             fontSize: 13,
             lineHeight: 1.45,
           }}
         >
-          Could not verify DNC status from the response (no <code style={{ fontSize: 12 }}>dnc.message</code>). Policy
-          fields may still be present below.
+          <strong style={{ fontWeight: 800 }}>dnc-lookup:</strong> {dncEdge.line}
         </div>
       )}
 
-      {dncText && !error && displayPhone && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "12px 14px",
-            borderRadius: 10,
-            backgroundColor: T.blueFaint,
-            border: `1px solid ${T.borderLight}`,
-            color: T.textMid,
-            fontSize: 13,
-            lineHeight: 1.45,
-          }}
-        >
-          <strong style={{ color: T.textDark }}>DNC / screening:</strong> {dncText}
-        </div>
-      )}
-
-      {displayPhone && rawPayload && !error && (
+      {displayPhone && rawPayload && !loading && (
         <div
           style={{
             borderRadius: 12,
@@ -350,7 +337,14 @@ export default function TransferCheckTesterPage() {
                   maxHeight: 280,
                 }}
               >
-                {JSON.stringify(rawPayload, null, 2)}
+                {JSON.stringify(
+                  {
+                    transfer_check: rawPayload,
+                    dnc_lookup: dncLookupPayload,
+                  },
+                  null,
+                  2,
+                )}
               </pre>
             </details>
           </div>
