@@ -70,12 +70,12 @@ const determineFinalStatus = (
 const determineCallResultStatus = (
   applicationSubmitted: boolean | null,
   sentToUnderwriting: boolean | null,
-  originalStatus?: string,
+  originalCallResult?: string,
 ) => {
   if (applicationSubmitted === true) {
-    return sentToUnderwriting === true ? "Underwriting" : "Pending Approval";
+    return sentToUnderwriting === true ? "Underwriting" : "Submitted";
   }
-  return originalStatus || "Not Submitted";
+  return originalCallResult || "Not Submitted";
 };
 
 serve(async (req) => {
@@ -104,6 +104,7 @@ serve(async (req) => {
       agent,
       licensed_agent_account,
       status,
+      call_result,
       carrier,
       product_type,
       draft_date,
@@ -128,10 +129,6 @@ serve(async (req) => {
       generated_note = null,
       manual_note = null,
       quick_disposition_tag = null,
-      coverage_amount = null,
-      carrier_attempted_1 = null,
-      carrier_attempted_2 = null,
-      carrier_attempted_3 = null,
     } = body;
 
     if (!submission_id) throw new Error("Missing required field: submission_id");
@@ -151,7 +148,7 @@ serve(async (req) => {
     const resolvedPhone = leadData?.phone ?? client_phone_number ?? null;
 
     const finalStatus = determineFinalStatus(application_submitted, sent_to_underwriting, status);
-    const callResultStatus = determineCallResultStatus(
+    const callResultStatus = call_result || determineCallResultStatus(
       application_submitted,
       sent_to_underwriting,
       status,
@@ -218,27 +215,10 @@ serve(async (req) => {
       draft_date,
       monthly_premium,
       face_amount,
-      coverage_amount,
       notes,
-      dq_reason,
-      new_draft_date,
-      disposition_path,
-      generated_note,
-      manual_note,
-      quick_disposition_tag,
-      policy_number,
-      carrier_audit,
-      product_type_carrier,
-      level_or_gi,
       from_callback,
       is_callback,
       is_retention_call,
-      application_submitted,
-      call_source,
-      sent_to_underwriting,
-      carrier_attempted_1,
-      carrier_attempted_2,
-      carrier_attempted_3,
       updated_at: getCurrentTimestampEST(),
     };
 

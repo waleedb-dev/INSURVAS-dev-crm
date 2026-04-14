@@ -22,11 +22,11 @@ import {
 const cardStyle = {
   border: `1px solid ${T.border}`,
   borderRadius: 12,
-  padding: 14,
+  padding: 10,
   backgroundColor: T.pageBg,
 } as const;
 
-const stackStyle = { display: "flex", flexDirection: "column" as const, gap: 10 };
+const stackStyle = { display: "flex", flexDirection: "column" as const, gap: 8 };
 
 const POST_COMPLETE_NODE_KEY = "__post_complete__";
 
@@ -514,12 +514,12 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
           <div
             style={{
               border: `1px solid ${T.borderLight}`,
-              borderRadius: 10,
-              padding: 12,
+              borderRadius: 8,
+              padding: 10,
               backgroundColor: "#f0fdf4",
             }}
           >
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#166534" }}>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#166534" }}>
               Disposition detail is saved to notes below. You can still change the selections above; notes update
               automatically. Edit wording in Notes if needed. Use Clear to start over.
             </p>
