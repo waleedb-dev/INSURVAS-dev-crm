@@ -963,6 +963,7 @@ export default function TransferLeadApplicationForm({
       const { ok: transferOk, status: transferStatus, data: rawTransfer } = await runTransferCheck(
         supabase,
         cleanPhone,
+        { phoneRaw: formData.phone, social: formData.social },
       );
       const data = rawTransfer as TransferCheckApiResponse;
 
@@ -1024,8 +1025,15 @@ export default function TransferLeadApplicationForm({
         setDncStatus("clear");
         // Do not surface raw API `message` / `dnc.message` in the modal (still used above for TCPA detection only).
         const rootMessage = String(data.message ?? "").trim();
+        const crmDup = (data as { crm_duplicate?: { has_match?: boolean; rule_message?: string } }).crm_duplicate;
+        const serverDupRule =
+          crmDup?.has_match === true && String(crmDup.rule_message ?? "").trim()
+            ? String(crmDup.rule_message).trim()
+            : "";
         const dupRuleForModal = dup.match && dup.ruleMessage.trim() ? dup.ruleMessage.trim() : "";
-        if (dupRuleForModal) {
+        if (serverDupRule) {
+          setDncMessage(serverDupRule);
+        } else if (dupRuleForModal) {
           setDncMessage(dupRuleForModal);
         } else if (data.warnings?.policy) {
           setDncMessage(

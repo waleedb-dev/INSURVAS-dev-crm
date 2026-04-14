@@ -39,9 +39,17 @@ async function parseFunctionsErrorBody(error: Error & { context?: Response }): P
  * (explicit `Authorization: Bearer <access_token>`). Raw `fetch` to `/functions/v1/...` is easy
  * to misconfigure and triggers gateway `401 Invalid JWT` if headers don’t match what Supabase expects.
  */
+export type RunTransferCheckOptions = {
+  /** Raw phone input (extra `leads.phone` variants), same as `TransferLeadApplicationForm` `formData.phone`. */
+  phoneRaw?: string;
+  /** SSN / social — when multiple CRM rows share the phone, narrows duplicate policy like the form. */
+  social?: string;
+};
+
 export async function runTransferCheck(
   supabase: SupabaseClient,
   phone10: string,
+  options?: RunTransferCheckOptions,
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const {
     data: { session: initialSession },
@@ -59,9 +67,15 @@ export async function runTransferCheck(
     };
   }
 
+  const body: Record<string, string> = { phone: phone10 };
+  const raw = options?.phoneRaw?.trim();
+  if (raw) body.phone_raw = raw;
+  const soc = options?.social?.trim();
+  if (soc) body.social = soc;
+
   const invoke = (token: string) =>
     supabase.functions.invoke("transfer-check", {
-      body: { phone: phone10 },
+      body,
       headers: {
         Authorization: `Bearer ${token}`,
       },

@@ -1,0 +1,37 @@
+Phone	Stage (in CRM)
+2017726000
+Transfer API
+2017726001
+Chargeback Fix API
+2017726002
+Incomplete Transfer
+2017726003
+Returned To Center - DQ
+2017726004
+Previously Sold BPO
+2017726005
+DQ'd Can't be sold
+2017726006
+Needs BPO Callback
+2017726007
+Application Withdrawn
+2017726008
+Declined Underwriting
+2017726009
+Pending Approval
+2017726010
+Pending Manual Action
+2017726011
+GI DQ
+2017726012
+Fulfilled Carrier Requirement
+2017726013
+Pending Failed Payment Fix
+2017726014
+New Submission
+2017726015
+Chargeback DQ
+4803316701
+Pending Approval (center B)
+4803316702
+Returned To Center - DQ (center B)

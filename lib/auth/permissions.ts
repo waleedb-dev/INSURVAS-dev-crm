@@ -88,6 +88,7 @@ export function canAccessPage(
     | "assigning"
     | "lead-pipeline"
     | "call-center-lead-intake"
+    | "transfer-check-tester"
     | "commissions"
     | "policies"
     | "users-access"
@@ -124,7 +125,7 @@ export function canAccessPage(
     return permissionKeys.has("page.lead_pipeline.access");
   }
 
-  if (page === "call-center-lead-intake") {
+  if (page === "call-center-lead-intake" || page === "transfer-check-tester") {
     return permissionKeys.has("page.transfer_leads.access");
   }
 
