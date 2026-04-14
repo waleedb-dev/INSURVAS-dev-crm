@@ -54,10 +54,24 @@ type CrmPhoneMatchPayload = {
   lead_ids?: string[];
   stages?: string[];
   error?: string | null;
-  scenario?: "no_match" | "single" | "multi_no_ssn" | "multi_ssn_mismatch" | "multi_ssn_resolved";
+  scenario?:
+    | "no_match"
+    | "single"
+    | "multi_no_ssn"
+    | "multi_ssn_mismatch"
+    | "multi_ssn_resolved"
+    | "multi_phone_stage_only";
   ssn_digits_provided?: boolean;
   /** True when the anchor SSN came from phone-matched CRM rows (request did not need `social`). */
   ssn_matched_from_crm?: boolean;
+  /** Debug details: why this precedence winner was selected. */
+  decision_log?: string[];
+  winner?: {
+    lead_id: string;
+    stage: string;
+    precedence_rank: number;
+    is_addable: boolean;
+  };
 };
 
 function norm(s: string) {
@@ -116,9 +130,16 @@ function minBy<T>(items: T[], score: (x: T) => number): T | undefined {
 function resolveDuplicatePolicy(
   leads: { id: string; stage: string | null }[],
   rules: RuleRow[],
-): { is_addable: boolean; message: string } {
+): {
+  is_addable: boolean;
+  message: string;
+  decision_log: string[];
+  winner?: { lead_id: string; stage: string; precedence_rank: number; is_addable: boolean };
+} {
+  const decision_log: string[] = [];
   if (!leads.length) {
-    return { is_addable: true, message: "" };
+    decision_log.push("No leads in scope for duplicate resolution.");
+    return { is_addable: true, message: "", decision_log };
   }
 
   type Ann = { lead: { id: string; stage: string | null }; rule?: RuleRow; rank: number };
@@ -127,23 +148,42 @@ function resolveDuplicatePolicy(
     const rank = rule?.precedence_rank ?? DEFAULT_RANK;
     return { lead, rule, rank };
   });
+  for (const a of annotated) {
+    const stage = String(a.lead.stage ?? "").trim() || "(empty stage)";
+    if (!a.rule) {
+      decision_log.push(`Lead ${a.lead.id} stage "${stage}": no active rule (default rank ${DEFAULT_RANK}).`);
+    } else {
+      decision_log.push(
+        `Lead ${a.lead.id} stage "${stage}": rule "${a.rule.stage_name}" rank=${a.rank} addable=${a.rule.is_addable}.`,
+      );
+    }
+  }
 
   const withRules = annotated.filter((a) => a.rule);
-  const blocking = withRules.filter((a) => a.rule!.is_addable === false);
-  if (blocking.length) {
-    const winner = minBy(blocking, (b) => b.rank)!;
-    return { is_addable: false, message: winner.rule!.message };
+  if (withRules.length) {
+    const winner = minBy(withRules, (x) => x.rank)!;
+    const winnerStage = String(winner.lead.stage ?? "").trim();
+    decision_log.push(
+      `Winner: lead ${winner.lead.id} stage "${winnerStage || "(empty stage)"}" by lowest precedence_rank=${winner.rank}.`,
+    );
+    return {
+      is_addable: winner.rule!.is_addable,
+      message: winner.rule!.message,
+      decision_log,
+      winner: {
+        lead_id: winner.lead.id,
+        stage: winnerStage,
+        precedence_rank: winner.rank,
+        is_addable: winner.rule!.is_addable,
+      },
+    };
   }
 
-  const allowing = withRules.filter((a) => a.rule!.is_addable === true);
-  if (allowing.length) {
-    const winner = minBy(allowing, (b) => b.rank)!;
-    return { is_addable: true, message: winner.rule!.message };
-  }
-
+  decision_log.push("No matching stage rules found; default allow.");
   return {
     is_addable: true,
     message: "A lead already exists for this phone; review stage before submitting.",
+    decision_log,
   };
 }
 
@@ -272,6 +312,7 @@ async function computeCrmPhoneMatch(
           stages: rows.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
           scenario: "multi_ssn_mismatch",
           ssn_digits_provided: true,
+          decision_log: ["Request SSN did not match any phone-matched lead SSN."],
         };
       }
       if (anchorRes.reason === "ambiguous") {
@@ -285,6 +326,7 @@ async function computeCrmPhoneMatch(
           stages: rows.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
           scenario: "multi_no_ssn",
           ssn_digits_provided: false,
+          decision_log: ["Phone matched multiple leads with conflicting SSNs; SSN required to disambiguate."],
         };
       }
       // no_ssn_on_phone
@@ -306,18 +348,37 @@ async function computeCrmPhoneMatch(
           stages: stage ? [stage] : [],
           scenario: "single",
           ssn_digits_provided: false,
+          decision_log: resolved.decision_log,
+          ...(resolved.winner ? { winner: resolved.winner } : {}),
         };
       }
-      return {
+      const resolvedPhoneOnly = resolveDuplicatePolicy(
+        rows.map((c) => ({ id: c.id, stage: c.stage })),
+        rules,
+      );
+      const winnerLeadPhone = resolvedPhoneOnly.winner
+        ? rows.find((c) => c.id === resolvedPhoneOnly.winner!.lead_id) ?? rows[0]
+        : rows[0];
+      const stagePhone = String(resolvedPhoneOnly.winner?.stage ?? winnerLeadPhone.stage ?? "").trim();
+      const matchedRulePhone = ruleForLeadStage(stagePhone || winnerLeadPhone.stage, rules);
+      const ruleMessagePhone =
+        `${resolvedPhoneOnly.message}${stagePhone ? ` Stage: ${stagePhone}.` : ""}` +
+        ghlSuffix(stagePhone, matchedRulePhone) +
+        ` (${rows.length} lead(s) on this phone; no full SSN on file — stage precedence only.)`;
+           return {
         has_match: true,
         match_count: rows.length,
-        is_addable: true,
-        rule_message:
-          `This phone is on file for ${rows.length} leads with no full SSN on record. Enter the customer's full SSN to continue.`,
+        is_addable: resolvedPhoneOnly.is_addable,
+        rule_message: ruleMessagePhone,
         lead_ids: rows.map((r) => r.id),
         stages: rows.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
-        scenario: "multi_no_ssn",
+        scenario: "multi_phone_stage_only",
         ssn_digits_provided: false,
+        decision_log: [
+          "No full SSN on any phone-matched lead — applied stage precedence across those rows only.",
+          ...resolvedPhoneOnly.decision_log,
+        ],
+        ...(resolvedPhoneOnly.winner ? { winner: resolvedPhoneOnly.winner } : {}),
       };
     }
 
@@ -367,15 +428,17 @@ async function computeCrmPhoneMatch(
       cohort.map((c) => ({ id: c.id, stage: c.stage })),
       rules,
     );
-    const detail = cohort[0];
-    const stage = String(detail.stage || "").trim();
-    const matchedRule = ruleForLeadStage(detail.stage, rules);
+    const winnerLead = resolved.winner
+      ? cohort.find((c) => c.id === resolved.winner!.lead_id) ?? cohort[0]
+      : cohort[0];
+    const stage = String(resolved.winner?.stage ?? winnerLead.stage ?? "").trim();
+    const matchedRule = ruleForLeadStage(stage || winnerLead.stage, rules);
     const ruleMessage =
       `${resolved.message}${stage ? ` Stage: ${stage}.` : ""}` +
       ghlSuffix(stage, matchedRule) +
       ` (${cohort.length} lead(s) in CRM share this SSN.)`;
     const matched_contact_name =
-      cohort.length === 1 ? formatContactName(detail.first_name, detail.last_name) : undefined;
+      cohort.length === 1 ? formatContactName(winnerLead.first_name, winnerLead.last_name) : undefined;
 
     return {
       has_match: true,
@@ -387,6 +450,8 @@ async function computeCrmPhoneMatch(
       stages: cohort.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
       scenario: cohort.length === 1 ? "single" : "multi_ssn_resolved",
       ssn_digits_provided: requestNine.length === 9,
+      decision_log: resolved.decision_log,
+      ...(resolved.winner ? { winner: resolved.winner } : {}),
       ...(anchorSource === "crm" ? { ssn_matched_from_crm: true } : {}),
     };
   } catch (e) {

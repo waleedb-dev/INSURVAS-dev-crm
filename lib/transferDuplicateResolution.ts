@@ -49,8 +49,8 @@ function minBy<T>(items: T[], score: (x: T) => number): T | undefined {
 }
 
 /**
- * Among blocking rules, highest priority = lowest precedence_rank.
- * If none block, among allowing rules, highest priority = lowest precedence_rank.
+ * Absolute precedence: the lowest precedence_rank always wins across all matched rules.
+ * The winner's is_addable/message is the final decision.
  * Leads with no rule default to addable at DEFAULT_RANK (do not override explicit rules).
  */
 export function resolveDuplicatePolicy(
@@ -81,24 +81,14 @@ export function resolveDuplicatePolicy(
   }
 
   const withRules = annotated.filter((a) => a.rule);
-  const blocking = withRules.filter((a) => a.rule!.is_addable === false);
-  if (blocking.length) {
-    const winner = minBy(blocking, (b) => b.rank)!;
+  if (withRules.length) {
+    const winner = minBy(withRules, (x) => x.rank)!;
     const msg = winner.rule!.message;
+    const decision = winner.rule!.is_addable ? "ALLOW" : "BLOCK";
     log.push(
-      `Decision: BLOCK — highest-priority blocking stage among ${blocking.length} candidate(s) is rank ${winner.rank} (${String(winner.lead.stage || "").trim()}).`,
+      `Decision: ${decision} — absolute precedence winner is rank ${winner.rank} (${String(winner.lead.stage || "").trim()}).`,
     );
-    return { isAddable: false, message: msg, log };
-  }
-
-  const allowing = withRules.filter((a) => a.rule!.is_addable === true);
-  if (allowing.length) {
-    const winner = minBy(allowing, (b) => b.rank)!;
-    const msg = winner.rule!.message;
-    log.push(
-      `Decision: ALLOW — highest-priority allowing rule is rank ${winner.rank} (${String(winner.lead.stage || "").trim()}).`,
-    );
-    return { isAddable: true, message: msg, log };
+    return { isAddable: winner.rule!.is_addable, message: msg, log };
   }
 
   log.push("Decision: ALLOW — no rule rows matched; default addable.");

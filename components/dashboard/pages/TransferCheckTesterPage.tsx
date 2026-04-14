@@ -14,18 +14,10 @@ function normalizePhone10(value: string): string | null {
   return null;
 }
 
-function pickCustomerName(data: Record<string, unknown> | undefined): string {
-  if (!data || typeof data !== "object") return "—";
-  const preferred = ["Name", "Customer Name", "Full Name", "Insured Name", "Customer", "First Name"];
-  for (const k of preferred) {
-    const v = data[k];
-    if (v != null && String(v).trim()) return String(v).trim();
-  }
-  for (const [k, v] of Object.entries(data)) {
-    if (!/name/i.test(k) || k.toLowerCase().includes("user")) continue;
-    if (v != null && String(v).trim() && typeof v !== "object") return String(v).trim();
-  }
-  return "—";
+function isDncTcpaLitigator(data: Record<string, unknown> | null, httpOk: boolean): boolean {
+  if (!data || !httpOk) return false;
+  const flags = data.flags as { isTcpa?: boolean } | undefined;
+  return flags?.isTcpa === true;
 }
 
 type CrmDuplicateSummary = {
@@ -34,6 +26,13 @@ type CrmDuplicateSummary = {
   error?: string;
   /** From CRM `leads` when the match is unambiguous. */
   matched_contact_name?: string;
+  winner?: {
+    lead_id?: string;
+    stage?: string;
+    precedence_rank?: number;
+    is_addable?: boolean;
+  };
+  decision_log?: string[];
 };
 
 /** Prefer server CRM copy when present (edge `crm_phone_match.rule_message`). */
@@ -79,6 +78,9 @@ export default function TransferCheckTesterPage() {
   const [dncLookupPayload, setDncLookupPayload] = useState<Record<string, unknown> | null>(null);
   const [dncLookupHttpOk, setDncLookupHttpOk] = useState(false);
   const [displayPhone, setDisplayPhone] = useState<string | null>(null);
+  const [tcpaBlocked, setTcpaBlocked] = useState(false);
+  const [tcpaModalOpen, setTcpaModalOpen] = useState(false);
+  const [tcpaModalMessage, setTcpaModalMessage] = useState("");
 
   const runSearch = async () => {
     const clean = normalizePhone10(phoneInput);
@@ -87,6 +89,8 @@ export default function TransferCheckTesterPage() {
       setRawPayload(null);
       setDncLookupPayload(null);
       setDisplayPhone(null);
+      setTcpaBlocked(false);
+      setTcpaModalOpen(false);
       return;
     }
     setLoading(true);
@@ -94,22 +98,59 @@ export default function TransferCheckTesterPage() {
     setRawPayload(null);
     setDncLookupPayload(null);
     setDncLookupHttpOk(false);
+    setTcpaBlocked(false);
+    setTcpaModalOpen(false);
+    setTcpaModalMessage("");
     setDisplayPhone(clean);
     try {
-      const [transferRes, dncRes] = await Promise.all([
-        runTransferCheck(supabase, clean, {
-          phoneRaw: phoneInput.trim(),
-        }),
-        runDncLookup(supabase, clean),
-      ]);
-
-      setRawPayload(transferRes.data);
-      setDncLookupPayload(dncRes.data);
+      const dncRes = await runDncLookup(supabase, clean);
+      const dncData =
+        dncRes.data && typeof dncRes.data === "object" && !Array.isArray(dncRes.data)
+          ? (dncRes.data as Record<string, unknown>)
+          : null;
+      setDncLookupPayload(dncData);
       setDncLookupHttpOk(dncRes.ok);
+
+      if (!dncRes.ok) {
+        const msg =
+          String(dncData?.message ?? dncData?.error ?? "").trim() ||
+          `dnc-check failed (${dncRes.status}).`;
+        setError(msg);
+        return;
+      }
+
+      const dncCallStatus = String(dncData?.callStatus ?? "");
+      if (dncCallStatus === "ERROR") {
+        setError(
+          String(dncData?.message ?? "").trim() ||
+            "Screening could not be completed. Do not treat this number as safe.",
+        );
+        return;
+      }
+
+      if (isDncTcpaLitigator(dncData, true)) {
+        setTcpaBlocked(true);
+        setTcpaModalMessage(
+          String(dncData?.message ?? "").trim() ||
+            "This number is flagged as a TCPA litigator. Contact and transfer-check are not permitted.",
+        );
+        setTcpaModalOpen(true);
+        return;
+      }
+
+      const transferRes = await runTransferCheck(supabase, clean, {
+        phoneRaw: phoneInput.trim(),
+      });
+
+      setRawPayload(
+        transferRes.data && typeof transferRes.data === "object" && !Array.isArray(transferRes.data)
+          ? (transferRes.data as Record<string, unknown>)
+          : null,
+      );
 
       if (!transferRes.ok) {
         const msg =
-          String(transferRes.data.message ?? transferRes.data.error ?? "").trim() ||
+          String(transferRes.data?.message ?? transferRes.data?.error ?? "").trim() ||
           `transfer-check failed (${transferRes.status}).`;
         setError(msg);
       }
@@ -125,18 +166,19 @@ export default function TransferCheckTesterPage() {
   const rootMessage = rawPayload ? String(rawPayload.message ?? "").trim() : "";
   const crmDup = rawPayload?.crm_phone_match as CrmDuplicateSummary | undefined;
   const crmDuplicateMessage = pickCrmDuplicateMessage(crmDup);
-  const transferCheckLine =
-    [rootMessage, crmDuplicateMessage].find((s) => String(s ?? "").trim().length > 0)?.trim() || "—";
-  const customerName =
-    String(crmDup?.matched_contact_name ?? "").trim() ||
-    pickCustomerName(
-      rawPayload &&
-        typeof rawPayload.data === "object" &&
-        rawPayload.data !== null &&
-        !Array.isArray(rawPayload.data)
-        ? (rawPayload.data as Record<string, unknown>)
-        : undefined,
-    );
+  const transferCheckLine = tcpaBlocked
+    ? "Not run — TCPA litigator (dnc-check). CRM transfer-check is skipped."
+    : [rootMessage, crmDuplicateMessage].find((s) => String(s ?? "").trim().length > 0)?.trim() || "—";
+  const winnerSummary =
+    !tcpaBlocked &&
+    crmDup?.winner &&
+    typeof crmDup.winner === "object"
+      ? `${String(crmDup.winner.stage ?? "—")} (rank ${String(crmDup.winner.precedence_rank ?? "—")}, ${crmDup.winner.is_addable ? "addable" : "blocked"})`
+      : "";
+  const decisionLogLines =
+    !tcpaBlocked && Array.isArray(crmDup?.decision_log)
+      ? crmDup.decision_log.map((x) => String(x ?? "").trim()).filter(Boolean)
+      : [];
   const dncEdge = summarizeDncLookupEdge(dncLookupPayload, dncLookupHttpOk);
 
   const dncBannerBg =
@@ -160,18 +202,18 @@ export default function TransferCheckTesterPage() {
 
   const infoRows: [string, string][] = [
     ["Mobile number", displayPhone ? displayPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3") : "—"],
-    ["Name", customerName],
     ["dnc-check", dncEdge.line],
     ["transfer-check", transferCheckLine],
+    ...(winnerSummary ? ([["precedence winner", winnerSummary]] as [string, string][]) : []),
   ];
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 8px 48px" }}>
       <h1 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 800, color: T.textDark }}>Search user by mobile number</h1>
       <p style={{ margin: "0 0 20px", fontSize: 13, color: T.textMuted, lineHeight: 1.5 }}>
-        Runs <strong>dnc-check</strong> and <strong>transfer-check</strong> in parallel. <strong>Transfer-check</strong> is
-        CRM-only: phone match → SSN cohort → <code style={{ fontSize: 12 }}>crm_phone_match</code> / stage precedence
-        (see raw JSON).
+        <strong>dnc-check</strong> runs first. If a <strong>TCPA litigator</strong> is flagged,{" "}
+        <strong>transfer-check</strong> is skipped and a blocking alert is shown. Otherwise <strong>transfer-check</strong>{" "}
+        runs (CRM-only: phone → SSN cohort → <code style={{ fontSize: 12 }}>crm_phone_match</code> / stage precedence).
       </p>
 
       <div
@@ -272,7 +314,7 @@ export default function TransferCheckTesterPage() {
         </div>
       )}
 
-      {displayPhone && rawPayload && !loading && (
+      {displayPhone && dncLookupPayload && !loading && (tcpaBlocked || rawPayload) && (
         <div
           style={{
             borderRadius: 12,
@@ -312,6 +354,24 @@ export default function TransferCheckTesterPage() {
                 <span style={{ color: T.textDark, fontWeight: 600 }}>{value}</span>
               </div>
             ))}
+            {decisionLogLines.length > 0 && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  borderRadius: 8,
+                  backgroundColor: "#f8fafc",
+                  border: `1px solid ${T.borderLight}`,
+                }}
+              >
+                <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 800, color: T.textMuted }}>Precedence trace</p>
+                {decisionLogLines.map((line, idx) => (
+                  <p key={`${idx}-${line.slice(0, 24)}`} style={{ margin: "0 0 6px", fontSize: 12, color: T.textDark }}>
+                    {line}
+                  </p>
+                ))}
+              </div>
+            )}
             <details style={{ marginTop: 12 }}>
               <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textMuted }}>
                 Raw API JSON
@@ -330,14 +390,159 @@ export default function TransferCheckTesterPage() {
               >
                 {JSON.stringify(
                   {
-                    transfer_check: rawPayload,
+                    transfer_check: tcpaBlocked ? null : rawPayload,
                     dnc_lookup: dncLookupPayload,
+                    ...(tcpaBlocked ? { note: "transfer-check skipped: TCPA litigator (dnc-check)." } : {}),
                   },
                   null,
                   2,
                 )}
               </pre>
             </details>
+          </div>
+        </div>
+      )}
+
+      {tcpaModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tcpa-tester-modal-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            zIndex: 3800,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 760,
+              maxHeight: "90vh",
+              overflow: "auto",
+              backgroundColor: "#fff",
+              borderRadius: 20,
+              border: `2px solid ${T.danger}`,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+            }}
+          >
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: `1px solid ${T.borderLight}`,
+                backgroundColor: "#fef2f2",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  backgroundColor: "#dc2626",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <p
+                  style={{
+                    margin: "0 0 4px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: T.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  CRITICAL ALERT
+                </p>
+                <h4
+                  id="tcpa-tester-modal-title"
+                  style={{
+                    margin: 0,
+                    fontSize: 18,
+                    fontWeight: 800,
+                    color: "#dc2626",
+                  }}
+                >
+                  TCPA LITIGATOR DETECTED
+                </h4>
+              </div>
+            </div>
+
+            <div style={{ padding: "24px", textAlign: "center" }}>
+              <div style={{ padding: "16px 0" }}>
+                <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
+                  This number is flagged as a TCPA litigator
+                </p>
+                <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
+                  Proceeding with this lead may result in legal issues. Transfers and contact attempts are prohibited.
+                </p>
+                <p style={{ fontSize: 14, color: T.textMid, margin: "12px 0 0", lineHeight: 1.6 }}>
+                  CRM transfer-check was not run for this number.
+                </p>
+                {tcpaModalMessage ? (
+                  <p style={{ marginTop: 14, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{tcpaModalMessage}</p>
+                ) : null}
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: "16px 24px",
+                borderTop: `1px solid ${T.borderLight}`,
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 12,
+                backgroundColor: "#fafcff",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setTcpaModalOpen(false)}
+                style={{
+                  height: 42,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  backgroundColor: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#233217";
+                  e.currentTarget.style.color = "#233217";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.color = T.textDark;
+                }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
