@@ -801,7 +801,7 @@ export default function TransferLeadCallFixForm({
         draft_date: draftDate || null,
         monthly_premium: monthlyPremium ? Number(monthlyPremium) : null,
         face_amount: coverageAmount ? Number(coverageAmount) : null,
-        notes: notes || null,
+        notes: finalNotes,
         from_callback: callSource === "Agent Callback",
         is_callback: submissionId.startsWith("CB") || submissionId.startsWith("CBB"),
         is_retention_call: isRetentionCall,
