@@ -121,16 +121,76 @@ type TransferCheckApiResponse = {
   message?: string;
 };
 
-function formatTransferCheckValue(value: unknown): string {
-  if (value === null || value === undefined) return "—";
-  if (typeof value === "object") return JSON.stringify(value, null, 2);
-  return String(value);
+/**
+ * Edge `transfer-check` returns `{ phone, message, crm_phone_match, ... }` at top level.
+ * Tolerate legacy shapes that nest under `data`.
+ */
+function transferCheckResponsePayload(
+  tc: TransferCheckApiResponse | null | undefined,
+): Record<string, unknown> | undefined {
+  if (!tc || typeof tc !== "object") return undefined;
+  const r = tc as unknown as Record<string, unknown>;
+  if (
+    r.crm_phone_match !== undefined ||
+    typeof r.phone === "string" ||
+    typeof r.status === "string"
+  ) {
+    return r;
+  }
+  const inner = r.data;
+  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+    return inner as Record<string, unknown>;
+  }
+  return r;
 }
 
-/** Omit `dnc` from API `data` in the modal — DNC is used only for TCPA logic, not shown to agents. */
-function transferCheckDataEntriesForModal(data: Record<string, unknown> | undefined): [string, unknown][] {
-  if (!data || typeof data !== "object") return [];
-  return Object.entries(data).filter(([k]) => k.toLowerCase() !== "dnc");
+type CrmMatchModalShape = {
+  has_match?: boolean;
+  is_addable?: boolean;
+  rule_message?: string;
+  error?: string;
+};
+
+/** Human-readable line from transfer-check (same as edge `message`, usually mirrors CRM rule copy). */
+function transferCheckDisplayMessage(tc: TransferCheckApiResponse | null | undefined): string {
+  const payload = transferCheckResponsePayload(tc);
+  if (!payload) return "";
+  const top = String(payload.message ?? "").trim();
+  if (top) return top;
+  const crm = payload.crm_phone_match as CrmMatchModalShape | undefined;
+  return String(crm?.rule_message ?? "").trim();
+}
+
+/** Single transfer message for DNC / clear / DQ modals (no raw JSON). */
+function TransferCheckResultPanel({ transferCheckState }: { transferCheckState: TransferCheckApiResponse | null }) {
+  const msg = transferCheckDisplayMessage(transferCheckState);
+  if (!msg) return null;
+  return (
+    <div
+      style={{
+        textAlign: "left",
+        marginTop: 16,
+        padding: 14,
+        borderRadius: 12,
+        border: `1px solid ${T.borderLight}`,
+        backgroundColor: "#f8fafc",
+      }}
+    >
+      <p
+        style={{
+          fontWeight: 800,
+          fontSize: 12,
+          color: T.textMuted,
+          margin: "0 0 8px",
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+          letterSpacing: "0.02em",
+        }}
+      >
+        transfer-check
+      </p>
+      <p style={{ fontSize: 14, color: T.textDark, margin: 0, lineHeight: 1.55 }}>{msg}</p>
+    </div>
+  );
 }
 
 const REQUIRED_FORM_KEYS: Array<keyof TransferLeadFormData> = [
@@ -1057,7 +1117,7 @@ export default function TransferLeadApplicationForm({
       const isDncList = dncFlags?.isDnc === true;
       const isInvalidPhone = dncFlags?.isInvalid === true;
 
-      // Message precedence (single winner): invalid phone → DNC list → CRM transfer block → transfer clear (TCPA handled before transfer-check).
+      // Invalid phone first, then CRM is_addable (always wins over DNC advisory), then DNC list, then clear.
       if (isInvalidPhone) {
         setIsCustomerBlocked(true);
         setBlockReason("Invalid phone (screening)");
@@ -1071,6 +1131,20 @@ export default function TransferLeadApplicationForm({
           type: "error",
         });
         return { status: "error", duplicateBlocksPhone };
+      }
+
+      if (crmBlocksTransfer) {
+        const rm = String(crmMatchGate?.rule_message ?? "").trim();
+        setIsCustomerBlocked(true);
+        setBlockReason(rm || "CRM transfer rules block this submission.");
+        setDncStatus("agency_dq");
+        setDncMessage(rm || "This transfer is not permitted based on CRM stage rules.");
+        setShowDncModal(true);
+        setToast({
+          message: rm || "This transfer is not permitted based on CRM stage rules.",
+          type: "error",
+        });
+        return { status: "agency_dq", duplicateBlocksPhone };
       }
 
       if (isDncList) {
@@ -1087,20 +1161,6 @@ export default function TransferLeadApplicationForm({
           type: "warning",
         });
         return { status: "dnc", duplicateBlocksPhone };
-      }
-
-      if (crmBlocksTransfer) {
-        const rm = String(crmMatchGate?.rule_message ?? "").trim();
-        setIsCustomerBlocked(true);
-        setBlockReason(rm || "CRM transfer rules block this submission.");
-        setDncStatus("agency_dq");
-        setDncMessage(rm || "This transfer is not permitted based on CRM stage rules.");
-        setShowDncModal(true);
-        setToast({
-          message: rm || "This transfer is not permitted based on CRM stage rules.",
-          type: "error",
-        });
-        return { status: "agency_dq", duplicateBlocksPhone };
       }
 
       setDncStatus("clear");
@@ -3046,6 +3106,7 @@ export default function TransferLeadApplicationForm({
                   {dncMessage ? (
                     <p style={{ marginTop: 14, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{dncMessage}</p>
                   ) : null}
+                  <TransferCheckResultPanel transferCheckState={transferCheckData} />
                 </div>
               )}
 
@@ -3057,76 +3118,14 @@ export default function TransferLeadApplicationForm({
                   <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
                     This submission cannot proceed for this phone number.
                   </p>
-                  {transferCheckData?.data && transferCheckDataEntriesForModal(transferCheckData.data).length > 0 ? (
-                    <div
-                      style={{
-                        marginTop: 16,
-                        padding: 14,
-                        backgroundColor: "#f8fafc",
-                        borderRadius: 12,
-                        border: `1px solid ${T.borderLight}`,
-                        textAlign: "left",
-                      }}
-                    >
-                      <p style={{ fontWeight: 800, fontSize: 12, color: T.textMuted, margin: "0 0 8px" }}>API details</p>
-                      {transferCheckDataEntriesForModal(transferCheckData.data).map(([k, v]) => (
-                        <div
-                          key={k}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "minmax(100px, 38%) 1fr",
-                            gap: 8,
-                            fontSize: 13,
-                            marginBottom: 6,
-                          }}
-                        >
-                          <span style={{ color: T.textMuted, fontWeight: 700 }}>{k}</span>
-                          <span style={{ color: T.textDark, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                            {formatTransferCheckValue(v)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+                  <TransferCheckResultPanel transferCheckState={transferCheckData} />
                 </div>
               )}
 
               {dncStatus === "clear" && (
                 <div style={{ textAlign: "left" }}>
                   <p style={{ fontSize: 15, color: T.textMid, margin: "0 0 16px", lineHeight: 1.55 }}>{dncMessage}</p>
-                  {transferCheckData?.data && transferCheckDataEntriesForModal(transferCheckData.data).length > 0 ? (
-                    <div
-                      style={{
-                        backgroundColor: "#f8fafc",
-                        padding: 16,
-                        borderRadius: 12,
-                        border: `1px solid ${T.borderLight}`,
-                        marginBottom: 12,
-                      }}
-                    >
-                      <p style={{ fontWeight: 800, fontSize: 13, color: T.textDark, margin: "0 0 12px" }}>
-                        Policy / transfer details
-                      </p>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {transferCheckDataEntriesForModal(transferCheckData.data).map(([k, v]) => (
-                          <div
-                            key={k}
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "minmax(120px, 40%) 1fr",
-                              gap: 8,
-                              fontSize: 13,
-                            }}
-                          >
-                            <span style={{ color: T.textMuted, fontWeight: 700 }}>{k}</span>
-                            <span style={{ color: T.textDark, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                              {formatTransferCheckValue(v)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+                  <TransferCheckResultPanel transferCheckState={transferCheckData} />
                 </div>
               )}
 
