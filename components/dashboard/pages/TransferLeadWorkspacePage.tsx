@@ -444,26 +444,25 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       !tcpaCheckCompleted ||
       tcpaBlocked ||
       agencyDqBlocked ||
-      dncListBlocked ||
+      (dncListBlocked && !transferCheckModalDismissed) ||
       phoneInvalidBlocked ||
       !!transferCheckError ||
       (tcpaCheckCompleted &&
         !tcpaBlocked &&
         !agencyDqBlocked &&
-        !dncListBlocked &&
         !phoneInvalidBlocked &&
         !transferCheckError &&
         !transferCheckModalDismissed));
 
-  const transferCheckModalCritical =
-    tcpaBlocked || agencyDqBlocked || dncListBlocked || phoneInvalidBlocked;
+  /** TCPA, CRM DQ, invalid phone: hard stop. DNC is advisory — workspace can continue after acknowledge. */
+  const transferCheckModalCritical = tcpaBlocked || agencyDqBlocked || phoneInvalidBlocked;
   const transferCheckModalLoading = needsTransferCheckModal && (tcpaChecking || !tcpaCheckCompleted);
+  const transferCheckModalDncAdvisory = dncListBlocked && !transferCheckModalLoading;
   const transferCheckModalError = !!transferCheckError && !transferCheckModalLoading;
   const transferCheckModalClear =
     tcpaCheckCompleted &&
     !tcpaBlocked &&
     !agencyDqBlocked &&
-    !dncListBlocked &&
     !phoneInvalidBlocked &&
     !transferCheckError &&
     !transferCheckModalLoading;
@@ -792,7 +791,11 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               overflow: "auto",
               backgroundColor: "#fff",
               borderRadius: 20,
-              border: transferCheckModalCritical ? `2px solid ${T.danger}` : `1.5px solid ${T.border}`,
+              border: transferCheckModalCritical
+                ? `2px solid ${T.danger}`
+                : transferCheckModalDncAdvisory
+                  ? "2px solid #f59e0b"
+                  : `1.5px solid ${T.border}`,
               boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
             }}
           >
@@ -800,7 +803,11 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               style={{
                 padding: "20px 24px",
                 borderBottom: `1px solid ${T.borderLight}`,
-                backgroundColor: transferCheckModalCritical ? "#fef2f2" : "#fff",
+                backgroundColor: transferCheckModalCritical
+                  ? "#fef2f2"
+                  : transferCheckModalDncAdvisory
+                    ? "#fffbeb"
+                    : "#fff",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -816,7 +823,9 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                     ? "#dc2626"
                     : transferCheckModalError
                       ? "#b45309"
-                      : "#233217",
+                      : transferCheckModalDncAdvisory
+                        ? "#d97706"
+                        : "#233217",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -824,7 +833,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                 }}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  {transferCheckModalCritical || transferCheckModalError ? (
+                  {transferCheckModalCritical || transferCheckModalError || transferCheckModalDncAdvisory ? (
                     <>
                       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                       <line x1="12" y1="9" x2="12" y2="13" />
@@ -849,11 +858,13 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                 >
                   {transferCheckModalCritical
                     ? "CRITICAL ALERT"
-                    : transferCheckModalError
-                      ? "CHECK FAILED"
-                      : transferCheckModalLoading
-                        ? "TRANSFER CHECK"
-                        : "TRANSFER CHECK"}
+                    : transferCheckModalDncAdvisory
+                      ? "DNC NOTICE"
+                      : transferCheckModalError
+                        ? "CHECK FAILED"
+                        : transferCheckModalLoading
+                          ? "TRANSFER CHECK"
+                          : "TRANSFER CHECK"}
                 </p>
                 <h4
                   style={{
@@ -862,9 +873,11 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                     fontWeight: 800,
                     color: transferCheckModalCritical
                       ? "#dc2626"
-                      : transferCheckModalError
+                      : transferCheckModalDncAdvisory
                         ? "#b45309"
-                        : "#233217",
+                        : transferCheckModalError
+                          ? "#b45309"
+                          : "#233217",
                   }}
                 >
                   {transferCheckModalLoading
@@ -874,7 +887,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                       : phoneInvalidBlocked
                         ? "INVALID PHONE"
                         : dncListBlocked
-                          ? "DNC — DO NOT CALL"
+                          ? "DNC LIST MATCH"
                           : agencyDqBlocked
                             ? "CUSTOMER NOT ELIGIBLE (DQ)"
                             : transferCheckModalError
@@ -918,11 +931,12 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
 
               {dncListBlocked && !transferCheckModalLoading && (
                 <div style={{ padding: "16px 0" }}>
-                  <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
+                  <p style={{ color: "#b45309", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
                     This number is on a do-not-call list
                   </p>
                   <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
-                    Contact is not permitted unless you have a valid exemption.
+                    Screening flagged DNC. You can continue in this workspace if you have a valid exemption and follow
+                    compliance. TCPA litigator hits still block the session.
                   </p>
                   {transferCheckMessage ? (
                     <p style={{ marginTop: 14, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>
@@ -974,7 +988,9 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                 </div>
               )}
 
-              {transferCheckModalClear && transferCheckModalDismissed === false && (
+              {transferCheckModalClear &&
+                transferCheckModalDismissed === false &&
+                !dncListBlocked && (
                 <div style={{ textAlign: "left" }}>
                   <p style={{ fontSize: 15, color: T.textMid, margin: "0 0 16px", lineHeight: 1.55 }}>{transferCheckMessage}</p>
                   {transferCheckData?.data && transferCheckDataEntriesForModal(transferCheckData.data).length > 0 ? (

@@ -26,13 +26,6 @@ type CrmDuplicateSummary = {
   error?: string;
   /** From CRM `leads` when the match is unambiguous. */
   matched_contact_name?: string;
-  winner?: {
-    lead_id?: string;
-    stage?: string;
-    precedence_rank?: number;
-    is_addable?: boolean;
-  };
-  decision_log?: string[];
 };
 
 /** Prefer server CRM copy when present (edge `crm_phone_match.rule_message`). */
@@ -169,16 +162,6 @@ export default function TransferCheckTesterPage() {
   const transferCheckLine = tcpaBlocked
     ? "Not run — TCPA litigator (dnc-check). CRM transfer-check is skipped."
     : [rootMessage, crmDuplicateMessage].find((s) => String(s ?? "").trim().length > 0)?.trim() || "—";
-  const winnerSummary =
-    !tcpaBlocked &&
-    crmDup?.winner &&
-    typeof crmDup.winner === "object"
-      ? `${String(crmDup.winner.stage ?? "—")} (rank ${String(crmDup.winner.precedence_rank ?? "—")}, ${crmDup.winner.is_addable ? "addable" : "blocked"})`
-      : "";
-  const decisionLogLines =
-    !tcpaBlocked && Array.isArray(crmDup?.decision_log)
-      ? crmDup.decision_log.map((x) => String(x ?? "").trim()).filter(Boolean)
-      : [];
   const dncEdge = summarizeDncLookupEdge(dncLookupPayload, dncLookupHttpOk);
 
   const dncBannerBg =
@@ -204,7 +187,6 @@ export default function TransferCheckTesterPage() {
     ["Mobile number", displayPhone ? displayPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3") : "—"],
     ["dnc-check", dncEdge.line],
     ["transfer-check", transferCheckLine],
-    ...(winnerSummary ? ([["precedence winner", winnerSummary]] as [string, string][]) : []),
   ];
 
   return (
@@ -354,51 +336,6 @@ export default function TransferCheckTesterPage() {
                 <span style={{ color: T.textDark, fontWeight: 600 }}>{value}</span>
               </div>
             ))}
-            {decisionLogLines.length > 0 && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 12,
-                  borderRadius: 8,
-                  backgroundColor: "#f8fafc",
-                  border: `1px solid ${T.borderLight}`,
-                }}
-              >
-                <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 800, color: T.textMuted }}>Precedence trace</p>
-                {decisionLogLines.map((line, idx) => (
-                  <p key={`${idx}-${line.slice(0, 24)}`} style={{ margin: "0 0 6px", fontSize: 12, color: T.textDark }}>
-                    {line}
-                  </p>
-                ))}
-              </div>
-            )}
-            <details style={{ marginTop: 12 }}>
-              <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.textMuted }}>
-                Raw API JSON
-              </summary>
-              <pre
-                style={{
-                  marginTop: 10,
-                  padding: 12,
-                  borderRadius: 8,
-                  backgroundColor: T.rowBg,
-                  border: `1px solid ${T.borderLight}`,
-                  fontSize: 11,
-                  overflow: "auto",
-                  maxHeight: 280,
-                }}
-              >
-                {JSON.stringify(
-                  {
-                    transfer_check: tcpaBlocked ? null : rawPayload,
-                    dnc_lookup: dncLookupPayload,
-                    ...(tcpaBlocked ? { note: "transfer-check skipped: TCPA litigator (dnc-check)." } : {}),
-                  },
-                  null,
-                  2,
-                )}
-              </pre>
-            </details>
           </div>
         </div>
       )}
