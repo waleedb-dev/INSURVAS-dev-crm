@@ -18,11 +18,11 @@ import {
   type ClaimLeadContext,
   type ClaimSelections,
 } from "./transferLeadParity";
+import { runDncLookup } from "@/lib/dncLookupApi";
 import { runTransferCheck, TRANSFER_CHECK_CLEAR_USER_MESSAGE } from "@/lib/transferCheckApi";
 
 type TransferCheckApiResponse = {
   data?: Record<string, unknown>;
-  dnc?: { message?: string };
   warnings?: { policy?: boolean };
   warningMessage?: string;
   message?: string;
@@ -101,6 +101,8 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
   const [tcpaBlocked, setTcpaBlocked] = useState(false);
   const [tcpaBlockReason, setTcpaBlockReason] = useState("");
   const [agencyDqBlocked, setAgencyDqBlocked] = useState(false);
+  const [dncListBlocked, setDncListBlocked] = useState(false);
+  const [phoneInvalidBlocked, setPhoneInvalidBlocked] = useState(false);
   const [transferCheckMessage, setTransferCheckMessage] = useState("");
   const [transferCheckData, setTransferCheckData] = useState<TransferCheckApiResponse | null>(null);
   const [transferCheckError, setTransferCheckError] = useState<string | null>(null);
@@ -174,6 +176,8 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
     setTransferCheckData(null);
     setTransferCheckError(null);
     setAgencyDqBlocked(false);
+    setDncListBlocked(false);
+    setPhoneInvalidBlocked(false);
     setTcpaBlocked(false);
     setTcpaBlockReason("");
     setTransferCheckMessage("");
@@ -188,6 +192,8 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
         setTcpaBlocked(false);
         setTcpaBlockReason("");
         setAgencyDqBlocked(false);
+        setDncListBlocked(false);
+        setPhoneInvalidBlocked(false);
         setTransferCheckMessage("");
         setTransferCheckData(null);
         setTransferCheckError(null);
@@ -201,6 +207,8 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
         setTcpaBlocked(false);
         setTcpaBlockReason("");
         setAgencyDqBlocked(false);
+        setDncListBlocked(false);
+        setPhoneInvalidBlocked(false);
         setTransferCheckMessage("");
         setTransferCheckData(null);
         setTransferCheckError(null);
@@ -212,60 +220,101 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       setTcpaBlocked(false);
       setTcpaBlockReason("");
       setAgencyDqBlocked(false);
+      setDncListBlocked(false);
+      setPhoneInvalidBlocked(false);
       setTransferCheckMessage("");
       setTransferCheckData(null);
       setTransferCheckError(null);
 
       try {
-        const { ok: transferOk, status: transferStatus, data: rawTransfer } = await runTransferCheck(
-          supabase,
-          cleanPhone,
-        );
-        const data = rawTransfer as TransferCheckApiResponse;
+        const [transferRes, dncRes] = await Promise.all([
+          runTransferCheck(supabase, cleanPhone),
+          runDncLookup(supabase, cleanPhone),
+        ]);
         if (cancelled) return;
 
-        if (!transferOk) {
+        if (!dncRes.ok) {
+          const msg =
+            String(dncRes.data.message ?? dncRes.data.error ?? "").trim() ||
+            `Screening request failed (${dncRes.status}).`;
+          setTransferCheckError(msg);
+          return;
+        }
+
+        const dncData = dncRes.data;
+        const dncCallStatus = String(dncData.callStatus ?? "");
+        if (dncCallStatus === "ERROR") {
+          setTransferCheckError(
+            String(dncData.message ?? "").trim() ||
+              "Screening could not be completed. Do not treat this number as safe.",
+          );
+          return;
+        }
+
+        if (!transferRes.ok) {
+          const data = transferRes.data as TransferCheckApiResponse;
           const errText =
             String(data.message ?? "").trim() ||
-            `Failed to check phone number (${transferStatus})`;
+            `Failed to check phone number (${transferRes.status})`;
           setTransferCheckError(errText);
           return;
         }
 
+        const data = transferRes.data as TransferCheckApiResponse;
         setTransferCheckData(data);
 
-        const policyStatus = String(data.data?.["Policy Status"] ?? "");
-        const dncApiMessage = String(data.dnc?.message ?? "");
+        const crmGate = data.crm_phone_match as
+          | { has_match?: boolean; is_addable?: boolean; rule_message?: string }
+          | undefined;
+        const crmBlocksTransfer = crmGate?.has_match === true && crmGate?.is_addable === false;
 
-        const isDQ =
-          policyStatus.toLowerCase().includes("dq") ||
-          policyStatus.toLowerCase().includes("disqualified") ||
-          policyStatus.toLowerCase().includes("already been dq");
+        const dncFlags = dncData.flags as
+          | { isTcpa?: boolean; isDnc?: boolean; isInvalid?: boolean }
+          | undefined;
 
-        const isTCPA =
-          dncApiMessage.toLowerCase().includes("tcpa litigator") ||
-          dncApiMessage.toLowerCase().includes("no contact permitted");
+        const isTCPA = dncFlags?.isTcpa === true;
+        const isDncList = dncFlags?.isDnc === true && !isTCPA;
+        const isInvalidPhone = dncFlags?.isInvalid === true;
 
-        if (isDQ) {
-          setAgencyDqBlocked(true);
-          setTransferCheckMessage("We cannot accept this customer as they have been DQ from our agency.");
-          return;
-        }
-
+        // Message precedence (single winner): TCPA → invalid phone → DNC list → CRM transfer block → clear.
         if (isTCPA) {
           setTcpaBlocked(true);
           setTcpaBlockReason("TCPA Litigator Detected - No Contact Permitted");
           setTransferCheckMessage(
-            "This number is flagged as a TCPA litigator. All transfers and contact attempts are strictly prohibited.",
+            String(dncData.message ?? "").trim() ||
+              "This number is flagged as a TCPA litigator. All transfers and contact attempts are strictly prohibited.",
+          );
+          return;
+        }
+
+        if (isInvalidPhone) {
+          setPhoneInvalidBlocked(true);
+          setTransferCheckMessage(
+            String(dncData.message ?? "").trim() || "This phone number appears to be invalid.",
+          );
+          return;
+        }
+
+        if (isDncList) {
+          setDncListBlocked(true);
+          setTransferCheckMessage(
+            String(dncData.message ?? "").trim() || "Do not call: this number is on a DNC list.",
+          );
+          return;
+        }
+
+        if (crmBlocksTransfer) {
+          setAgencyDqBlocked(true);
+          setTransferCheckMessage(
+            String(crmGate?.rule_message ?? "").trim() ||
+              "This transfer is not permitted based on CRM stage rules.",
           );
           return;
         }
 
         const rootMessage = String(data.message ?? "").trim();
-        if (data.warnings?.policy) {
-          setTransferCheckMessage(
-            data.warningMessage || rootMessage || "Policy warning — see details below.",
-          );
+        if (rootMessage) {
+          setTransferCheckMessage(rootMessage);
         } else {
           setTransferCheckMessage(TRANSFER_CHECK_CLEAR_USER_MESSAGE);
         }
@@ -395,18 +444,29 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       !tcpaCheckCompleted ||
       tcpaBlocked ||
       agencyDqBlocked ||
+      dncListBlocked ||
+      phoneInvalidBlocked ||
       !!transferCheckError ||
       (tcpaCheckCompleted &&
         !tcpaBlocked &&
         !agencyDqBlocked &&
+        !dncListBlocked &&
+        !phoneInvalidBlocked &&
         !transferCheckError &&
         !transferCheckModalDismissed));
 
-  const transferCheckModalCritical = tcpaBlocked || agencyDqBlocked;
+  const transferCheckModalCritical =
+    tcpaBlocked || agencyDqBlocked || dncListBlocked || phoneInvalidBlocked;
   const transferCheckModalLoading = needsTransferCheckModal && (tcpaChecking || !tcpaCheckCompleted);
   const transferCheckModalError = !!transferCheckError && !transferCheckModalLoading;
   const transferCheckModalClear =
-    tcpaCheckCompleted && !tcpaBlocked && !agencyDqBlocked && !transferCheckError && !transferCheckModalLoading;
+    tcpaCheckCompleted &&
+    !tcpaBlocked &&
+    !agencyDqBlocked &&
+    !dncListBlocked &&
+    !phoneInvalidBlocked &&
+    !transferCheckError &&
+    !transferCheckModalLoading;
 
   // Determine progress color based on percentage
   const getProgressColor = (p: number) => {
@@ -808,14 +868,18 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                   }}
                 >
                   {transferCheckModalLoading
-                    ? "RUNNING TCPA LITIGATOR CHECK…"
+                    ? "RUNNING SCREENING & TRANSFER CHECK…"
                     : tcpaBlocked
                       ? "TCPA LITIGATOR DETECTED"
-                      : agencyDqBlocked
-                        ? "CUSTOMER NOT ELIGIBLE (DQ)"
-                        : transferCheckModalError
-                          ? "TRANSFER CHECK FAILED"
-                          : "CHECK PASSED"}
+                      : phoneInvalidBlocked
+                        ? "INVALID PHONE"
+                        : dncListBlocked
+                          ? "DNC — DO NOT CALL"
+                          : agencyDqBlocked
+                            ? "CUSTOMER NOT ELIGIBLE (DQ)"
+                            : transferCheckModalError
+                              ? "TRANSFER CHECK FAILED"
+                              : "CHECK PASSED"}
                 </h4>
               </div>
             </div>
@@ -823,7 +887,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             <div style={{ padding: "24px", textAlign: "center" }}>
               {transferCheckModalLoading && (
                 <p style={{ fontSize: 15, color: T.textMid, margin: 0, lineHeight: 1.55 }}>
-                  Please wait while we verify this phone number against TCPA and transfer rules.
+                  Please wait while we verify this phone number against screening and transfer rules.
                 </p>
               )}
 
@@ -834,6 +898,31 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                   </p>
                   <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
                     Proceeding with this lead may result in legal issues. Transfers and contact attempts are prohibited.
+                  </p>
+                  {transferCheckMessage ? (
+                    <p style={{ marginTop: 14, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>
+                      {transferCheckMessage}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+
+              {phoneInvalidBlocked && !transferCheckModalLoading && (
+                <div style={{ padding: "16px 0" }}>
+                  <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
+                    Invalid phone number
+                  </p>
+                  <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>{transferCheckMessage}</p>
+                </div>
+              )}
+
+              {dncListBlocked && !transferCheckModalLoading && (
+                <div style={{ padding: "16px 0" }}>
+                  <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
+                    This number is on a do-not-call list
+                  </p>
+                  <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
+                    Contact is not permitted unless you have a valid exemption.
                   </p>
                   {transferCheckMessage ? (
                     <p style={{ marginTop: 14, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>
@@ -920,11 +1009,6 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                         ))}
                       </div>
                     </div>
-                  ) : null}
-                  {transferCheckData?.warnings?.policy ? (
-                    <p style={{ fontSize: 13, color: "#b45309", fontWeight: 700, margin: 0 }}>
-                      {transferCheckData.warningMessage || "Policy warning — review details above."}
-                    </p>
                   ) : null}
                 </div>
               )}

@@ -1,4 +1,4 @@
--- Test fixtures: 2 call centers, 2 admins, 2 agents, 18 leads (full Transfer Portal pipeline + 2 center-B samples).
+-- Test fixtures: 2 call centers, 2 admins, 2 agents, 22 leads (Transfer Portal pipeline + center-B + SSN-precedence pairs).
 -- Re-runnable: deletes by fixed UUIDs / test-seed emails / submission_ids.
 --
 -- Login (all accounts): password TestSeed123!
@@ -19,8 +19,14 @@
 --   2017726005 DQ'd Can't be sold    2017726013 Pending Failed Payment Fix
 --   2017726006 Needs BPO Callback    2017726014 New Submission
 --   2017726007 Application Withdrawn 2017726015 Chargeback DQ
+--   2017726080 / 2017726081 — SSN duplicate precedence fixtures (see block comment below)
 --
 -- Center B (test-seed-agent-b):4803316701 Pending Approval | 4803316702 Returned To Center - DQ
+--
+-- SSN duplicate / precedence (same phone + same SSN on file; transfer-check needs phone only — it loads SSN from CRM then queries all leads with that SSN):
+--   2017726080 → crm_phone_match uses Pending Approval (rank 10) over Application Withdrawn (140) across the SSN cohort.
+--   2017726081 + SSN 900701002 → Chargeback DQ (block, rank 20) + Pending Approval (addable, rank 10).
+--     blocking beats allowing → "Customer has already been DQ from our agency."
 
 -- Fixed IDs (stable across re-seeds)
 -- Centers: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1 / aaa2
@@ -371,4 +377,18 @@ insert into public.leads (
   ('test-seed-p4-145', 'test-seed-lu-145', 'test', 'stg new sub', '2017726014', 'New Submission', 4, 145, false, 'cccccccc-cccc-cccc-cccc-cccccccccca1'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'::uuid, current_date, 'BPO Transfer Lead Source', array['test']::text[], false, false),
   ('test-seed-p4-146', 'test-seed-lu-146', 'test', 'stg chg dq', '2017726015', 'Chargeback DQ', 4, 146, false, 'cccccccc-cccc-cccc-cccc-cccccccccca1'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'::uuid, current_date, 'BPO Transfer Lead Source', array['test']::text[], false, false),
   ('test-seed-b-128', 'test-seed-lu-b-128', 'test', 'center b pending', '4803316701', 'Pending Approval', 4, 128, false, 'cccccccc-cccc-cccc-cccc-cccccccccca2'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2'::uuid, current_date, 'BPO Transfer Lead Source', array['test']::text[], false, false),
-  ('test-seed-b-122', 'test-seed-lu-b-122', 'test', 'center b returned', '4803316702', 'Returned To Center - DQ', 4, 122, false, 'cccccccc-cccc-cccc-cccc-cccccccccca2'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2'::uuid, current_date, 'BPO Transfer Lead Source', array['test']::text[], false, false);
+  ('test-seed-b-122', 'test-seed-lu-b-122', 'test', 'center b returned', '4803316702', 'Returned To Center - DQ', 4, 122, false, 'cccccccc-cccc-cccc-cccc-cccccccccca2'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2'::uuid, current_date, 'BPO Transfer Lead Source', array['test']::text[], false, false),
+  -- Precedence: two addable — lower precedence_rank wins (Pending Approval over Application Withdrawn)
+  ('test-seed-ssn-prec-a', 'test-seed-lu-ssn-prec-a', 'test', 'ssn prec pending appr', '2017726080', 'Pending Approval', 4, 128, false, 'cccccccc-cccc-cccc-cccc-cccccccccca1'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'::uuid, current_date, 'BPO Transfer Lead Source', array['test','ssn-precedence']::text[], false, false),
+  ('test-seed-ssn-prec-b', 'test-seed-lu-ssn-prec-b', 'test', 'ssn prec withdrawn', '2017726080', 'Application Withdrawn', 4, 126, false, 'cccccccc-cccc-cccc-cccc-cccccccccca1'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'::uuid, current_date, 'BPO Transfer Lead Source', array['test','ssn-precedence']::text[], false, false),
+  -- Precedence: one blocking + one addable — blocking wins
+  ('test-seed-ssn-blk-a', 'test-seed-lu-ssn-blk-a', 'test', 'ssn blk chargeback dq', '2017726081', 'Chargeback DQ', 4, 146, false, 'cccccccc-cccc-cccc-cccc-cccccccccca1'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'::uuid, current_date, 'BPO Transfer Lead Source', array['test','ssn-precedence']::text[], false, false),
+  ('test-seed-ssn-blk-b', 'test-seed-lu-ssn-blk-b', 'test', 'ssn blk pending appr', '2017726081', 'Pending Approval', 4, 128, false, 'cccccccc-cccc-cccc-cccc-cccccccccca1'::uuid, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'::uuid, current_date, 'BPO Transfer Lead Source', array['test','ssn-precedence']::text[], false, false);
+
+update public.leads
+set social = '900701001'
+where submission_id in ('test-seed-ssn-prec-a', 'test-seed-ssn-prec-b');
+
+update public.leads
+set social = '900701002'
+where submission_id in ('test-seed-ssn-blk-a', 'test-seed-ssn-blk-b');

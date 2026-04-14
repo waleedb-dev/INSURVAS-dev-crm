@@ -1,13 +1,15 @@
 /**
  * Edge function: `transfer-check`
- * 1) Proxies the agency transfer checker (TCPA / policy).
- * 2) Enriches JSON with `crm_duplicate` — same logic as TransferLeadApplicationForm
- *    `checkPhoneDuplicate`: phone variants, `ssn_duplicate_stage_rules` + precedence,
- *    multi-match SSN narrow (optional `social` in body).
  *
- * Body: { phone, phone_raw? (optional, extra DB match variants), social? (optional SSN) }
+ * CRM-only transfer eligibility: phone-first match, then SSN cohort from on-file `social`,
+ * `ssn_duplicate_stage_rules` + precedence. No external agency API.
  *
- * Optional secret: TRANSFER_CHECK_UPSTREAM_URL
+ * Optional body `social` disambiguates when the same phone has different SSNs on file, or supplies SSN when
+ * phone-matched rows have none.
+ *
+ * TCPA / DNC / litigator screening: use `dnc-lookup` (this function does not screen).
+ *
+ * Body: { phone, phone_raw?, social? }
  */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -18,8 +20,10 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DEFAULT_UPSTREAM = "https://livetransferchecker.vercel.app/api/transfer-check";
 const DEFAULT_RANK = 10_000;
+
+/** Aligns with `TRANSFER_CHECK_CLEAR_USER_MESSAGE` in the app when there is no CRM match. */
+const CLEAR_TRANSFER_MESSAGE = "Can be sent, approved";
 
 type RuleRow = {
   stage_name: string;
@@ -40,7 +44,7 @@ type LeadRow = {
   last_name: string | null;
 };
 
-type CrmDuplicatePayload = {
+type CrmPhoneMatchPayload = {
   has_match: boolean;
   match_count?: number;
   is_addable?: boolean;
@@ -52,6 +56,8 @@ type CrmDuplicatePayload = {
   error?: string | null;
   scenario?: "no_match" | "single" | "multi_no_ssn" | "multi_ssn_mismatch" | "multi_ssn_resolved";
   ssn_digits_provided?: boolean;
+  /** True when the anchor SSN came from phone-matched CRM rows (request did not need `social`). */
+  ssn_matched_from_crm?: boolean;
 };
 
 function norm(s: string) {
@@ -67,6 +73,12 @@ function phone10digits(value: string | null | undefined): string | null {
 
 function formatUsPhone10(d: string): string {
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
+
+function formatSsnNineDigits(nine: string): string {
+  const d = normalizeSsnDigits(nine);
+  if (d.length !== 9) return nine;
+  return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
 }
 
 function normalizeSsnDigits(value: string | null | undefined): string {
@@ -131,7 +143,7 @@ function resolveDuplicatePolicy(
 
   return {
     is_addable: true,
-    message: "A lead already exists for this match; review stage before submitting.",
+    message: "A lead already exists for this phone; review stage before submitting.",
   };
 }
 
@@ -149,15 +161,62 @@ function phoneVariants(cleanPhone: string, phoneRaw: string): string[] {
   }
   set.add(cleanPhone);
   set.add(formatUsPhone10(cleanPhone));
+   return Array.from(set).filter(Boolean);
+}
+
+/** Build `social` column variants for `.in("social", …)` (matches app intake / transfer form). */
+function socialQueryVariants(anchorNine: string, phoneRows: LeadRow[]): string[] {
+  const set = new Set<string>();
+  set.add(anchorNine);
+  set.add(formatSsnNineDigits(anchorNine));
+  for (const r of phoneRows) {
+    const t = String(r.social ?? "").trim();
+    if (t && normalizeSsnDigits(t) === anchorNine) set.add(t);
+  }
   return Array.from(set).filter(Boolean);
 }
 
-async function computeCrmDuplicate(
+/**
+ * Decide 9-digit anchor from phone-matched leads; optional request `social` disambiguates conflicting on-file SSNs
+ * or supplies SSN when no phone row has one.
+ */
+function resolveAnchorSsnFromPhoneRows(
+  phoneRows: LeadRow[],
+  socialRaw: string | undefined,
+):
+  | { ok: true; anchor: string; source: "crm" | "request" }
+  | { ok: false; reason: "ambiguous" | "request_mismatch" | "no_ssn_on_phone" } {
+  const requestNine = normalizeSsnDigits(socialRaw ?? "");
+  const fromPhone = phoneRows
+    .map((r) => normalizeSsnDigits(String(r.social ?? "")))
+    .filter((s) => s.length === 9);
+  const uniquePhone = [...new Set(fromPhone)];
+
+  if (requestNine.length === 9) {
+    if (uniquePhone.length === 0) {
+      return { ok: true, anchor: requestNine, source: "request" };
+    }
+    if (uniquePhone.includes(requestNine)) {
+      return { ok: true, anchor: requestNine, source: "request" };
+    }
+    return { ok: false, reason: "request_mismatch" };
+  }
+
+  if (uniquePhone.length === 1) {
+    return { ok: true, anchor: uniquePhone[0], source: "crm" };
+  }
+  if (uniquePhone.length === 0) {
+    return { ok: false, reason: "no_ssn_on_phone" };
+  }
+  return { ok: false, reason: "ambiguous" };
+}
+
+async function computeCrmPhoneMatch(
   supabase: SupabaseClient,
   cleanPhone: string,
   phoneRaw: string,
   socialRaw: string | undefined,
-): Promise<CrmDuplicatePayload> {
+): Promise<CrmPhoneMatchPayload> {
   try {
     const variants = phoneVariants(cleanPhone, phoneRaw);
     const { data: existing, error: leadsError } = await supabase
@@ -198,77 +257,167 @@ async function computeCrmDuplicate(
     }
 
     const rules = (rulesData ?? []) as RuleRow[];
-    const ssnDigits = normalizeSsnDigits(socialRaw ?? "");
+    const requestNine = normalizeSsnDigits(socialRaw ?? "");
 
-    if (rows.length === 1) {
-      const mapped = rows[0];
-      const resolved = resolveDuplicatePolicy([{ id: mapped.id, stage: mapped.stage }], rules);
-      const stage = String(mapped.stage || "").trim();
-      const matchedRule = ruleForLeadStage(mapped.stage, rules);
-      const ruleMessage =
-        `${resolved.message}${stage ? ` Stage: ${stage}.` : ""}` + ghlSuffix(stage, matchedRule);
-      const matched_contact_name = formatContactName(mapped.first_name, mapped.last_name);
-      return {
-        has_match: true,
-        match_count: 1,
-        is_addable: resolved.is_addable,
-        rule_message: ruleMessage,
-        ...(matched_contact_name ? { matched_contact_name } : {}),
-        lead_ids: [mapped.id],
-        stages: stage ? [stage] : [],
-        scenario: "single",
-        ssn_digits_provided: ssnDigits.length === 9,
-      };
-    }
-
-    const narrowed =
-      ssnDigits.length === 9
-        ? rows.filter((c) => normalizeSsnDigits(String(c.social ?? "")) === ssnDigits)
-        : [];
-
-    if (narrowed.length === 0) {
-      const ruleMessage =
-        ssnDigits.length === 9
-          ? `This phone is on file for ${rows.length} leads, but the SSN you entered does not match any of those records. Treating as a different customer (shared or recycled line).`
-          : `This phone is on file for ${rows.length} leads. Enter the customer's full SSN to confirm which record applies (duplicates-of-duplicates check).`;
+    const anchorRes = resolveAnchorSsnFromPhoneRows(rows, socialRaw);
+    if (!anchorRes.ok) {
+      if (anchorRes.reason === "request_mismatch") {
+        return {
+          has_match: true,
+          match_count: rows.length,
+          is_addable: true,
+          rule_message:
+            `This phone is on file for ${rows.length} leads, but the SSN you entered does not match any of those records. Treating as a different customer (shared or recycled line).`,
+          lead_ids: rows.map((r) => r.id),
+          stages: rows.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
+          scenario: "multi_ssn_mismatch",
+          ssn_digits_provided: true,
+        };
+      }
+      if (anchorRes.reason === "ambiguous") {
+        return {
+          has_match: true,
+          match_count: rows.length,
+          is_addable: true,
+          rule_message:
+            `This phone is on file for ${rows.length} leads with different SSNs on record. Enter the customer's full SSN to confirm which record applies.`,
+          lead_ids: rows.map((r) => r.id),
+          stages: rows.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
+          scenario: "multi_no_ssn",
+          ssn_digits_provided: false,
+        };
+      }
+      // no_ssn_on_phone
+      if (rows.length === 1) {
+        const mapped = rows[0];
+        const resolved = resolveDuplicatePolicy([{ id: mapped.id, stage: mapped.stage }], rules);
+        const stage = String(mapped.stage || "").trim();
+        const matchedRule = ruleForLeadStage(mapped.stage, rules);
+        const ruleMessage =
+          `${resolved.message}${stage ? ` Stage: ${stage}.` : ""}` + ghlSuffix(stage, matchedRule);
+        const matched_contact_name = formatContactName(mapped.first_name, mapped.last_name);
+        return {
+          has_match: true,
+          match_count: 1,
+          is_addable: resolved.is_addable,
+          rule_message: ruleMessage,
+          ...(matched_contact_name ? { matched_contact_name } : {}),
+          lead_ids: [mapped.id],
+          stages: stage ? [stage] : [],
+          scenario: "single",
+          ssn_digits_provided: false,
+        };
+      }
       return {
         has_match: true,
         match_count: rows.length,
         is_addable: true,
-        rule_message: ruleMessage,
+        rule_message:
+          `This phone is on file for ${rows.length} leads with no full SSN on record. Enter the customer's full SSN to continue.`,
         lead_ids: rows.map((r) => r.id),
         stages: rows.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
-        scenario: ssnDigits.length === 9 ? "multi_ssn_mismatch" : "multi_no_ssn",
-        ssn_digits_provided: ssnDigits.length === 9,
+        scenario: "multi_no_ssn",
+        ssn_digits_provided: false,
+      };
+    }
+
+    const { anchor, source: anchorSource } = anchorRes;
+    const socialVars = socialQueryVariants(anchor, rows);
+    const { data: cohortRaw, error: cohortError } = await supabase
+      .from("leads")
+      .select("id, lead_unique_id, stage, phone, social, first_name, last_name, created_at")
+      .eq("is_draft", false)
+      .in("social", socialVars)
+      .order("created_at", { ascending: false });
+
+    if (cohortError) {
+      return {
+        has_match: true,
+        match_count: rows.length,
+        error: cohortError.message,
+        lead_ids: rows.map((r) => r.id),
+        stages: rows.map((r) => String(r.stage ?? "").trim()).filter(Boolean),
+      };
+    }
+
+    const cohortList = ((cohortRaw ?? []) as LeadRow[]).filter(
+      (r) => normalizeSsnDigits(String(r.social ?? "")) === anchor,
+    );
+    const cohortById = new Map<string, LeadRow>();
+    for (const r of cohortList) {
+      cohortById.set(r.id, r);
+    }
+    const cohort = Array.from(cohortById.values());
+
+    if (cohort.length === 0) {
+      return {
+        has_match: true,
+        match_count: rows.length,
+        is_addable: true,
+        rule_message: "Matched phone in CRM but could not load leads for the on-file SSN.",
+        lead_ids: rows.map((r) => r.id),
+        stages: rows.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
+        scenario: "multi_no_ssn",
+        ssn_digits_provided: requestNine.length === 9,
+        ...(anchorSource === "crm" ? { ssn_matched_from_crm: true } : {}),
       };
     }
 
     const resolved = resolveDuplicatePolicy(
-      narrowed.map((c) => ({ id: c.id, stage: c.stage })),
+      cohort.map((c) => ({ id: c.id, stage: c.stage })),
       rules,
     );
-    const detail = narrowed[0];
+    const detail = cohort[0];
     const stage = String(detail.stage || "").trim();
+    const matchedRule = ruleForLeadStage(detail.stage, rules);
     const ruleMessage =
-      `${resolved.message}${stage ? ` Stage: ${stage}.` : ""} (${narrowed.length} record(s) share this phone and SSN.)`;
+      `${resolved.message}${stage ? ` Stage: ${stage}.` : ""}` +
+      ghlSuffix(stage, matchedRule) +
+      ` (${cohort.length} lead(s) in CRM share this SSN.)`;
     const matched_contact_name =
-      narrowed.length === 1 ? formatContactName(detail.first_name, detail.last_name) : undefined;
+      cohort.length === 1 ? formatContactName(detail.first_name, detail.last_name) : undefined;
 
     return {
       has_match: true,
-      match_count: rows.length,
+      match_count: cohort.length,
       is_addable: resolved.is_addable,
       rule_message: ruleMessage,
       ...(matched_contact_name ? { matched_contact_name } : {}),
-      lead_ids: rows.map((r) => r.id),
-      stages: rows.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
-      scenario: "multi_ssn_resolved",
-      ssn_digits_provided: true,
+      lead_ids: cohort.map((r) => r.id),
+      stages: cohort.map((r) => String(r.stage ?? "").trim()).filter((s) => s.length > 0),
+      scenario: cohort.length === 1 ? "single" : "multi_ssn_resolved",
+      ssn_digits_provided: requestNine.length === 9,
+      ...(anchorSource === "crm" ? { ssn_matched_from_crm: true } : {}),
     };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "CRM duplicate check failed";
+    const msg = e instanceof Error ? e.message : "CRM phone match check failed";
     return { has_match: false, error: msg, scenario: "no_match" };
   }
+}
+
+function buildTransferCheckResponse(cleanPhone: string, crm: CrmPhoneMatchPayload): Record<string, unknown> {
+  let message = CLEAR_TRANSFER_MESSAGE;
+  let status: string = "cleared";
+
+  if (!crm.has_match) {
+    const err = String(crm.error ?? "").trim();
+    if (err) {
+      message = err;
+      status = "error";
+    }
+  } else {
+    const rm = String(crm.rule_message ?? "").trim();
+    const err = String(crm.error ?? "").trim();
+    message = rm || err || CLEAR_TRANSFER_MESSAGE;
+    status = crm.is_addable === false ? "blocked" : "matched";
+  }
+
+  return {
+    phone: cleanPhone,
+    message,
+    status,
+    crm_phone_match: crm,
+  };
 }
 
 serve(async (req) => {
@@ -341,45 +490,17 @@ serve(async (req) => {
   const phoneRaw = String(body.phone_raw ?? body.phone ?? "");
   const socialOpt = body.social !== undefined ? String(body.social) : undefined;
 
-  const upstream = Deno.env.get("TRANSFER_CHECK_UPSTREAM_URL")?.trim() || DEFAULT_UPSTREAM;
-
-  let upstreamRes: Response;
+  let crmPhoneMatch: CrmPhoneMatchPayload;
   try {
-    upstreamRes = await fetch(upstream, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: cleanPhone }),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Upstream transfer check unreachable";
-    return new Response(JSON.stringify({ message: msg }), {
-      status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const text = await upstreamRes.text();
-  let crmDuplicate: CrmDuplicatePayload;
-  try {
-    crmDuplicate = await computeCrmDuplicate(supabase, cleanPhone, phoneRaw, socialOpt);
+    crmPhoneMatch = await computeCrmPhoneMatch(supabase, cleanPhone, phoneRaw, socialOpt);
   } catch {
-    crmDuplicate = { has_match: false, error: "CRM duplicate check threw", scenario: "no_match" };
+    crmPhoneMatch = { has_match: false, error: "CRM phone match check threw", scenario: "no_match" };
   }
 
-  let merged: Record<string, unknown>;
-  try {
-    const parsed = JSON.parse(text) as Record<string, unknown>;
-    merged = { ...parsed, crm_duplicate: crmDuplicate };
-  } catch {
-    merged = {
-      message: "Upstream returned non-JSON",
-      raw: text,
-      crm_duplicate: crmDuplicate,
-    };
-  }
+  const merged = buildTransferCheckResponse(cleanPhone, crmPhoneMatch);
 
   return new Response(JSON.stringify(merged), {
-    status: upstreamRes.status,
+    status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

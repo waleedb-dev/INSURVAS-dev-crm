@@ -1,9 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/**
- * Shown when the agency transfer-check API returns success (no TCPA litigator / agency DQ block).
- * We intentionally do not surface raw API strings like “Customer not found in system — Approved…”.
- */
+/** Top-level `message` when CRM has no blocking match for this phone (same as edge `CLEAR_TRANSFER_MESSAGE`). */
 export const TRANSFER_CHECK_CLEAR_USER_MESSAGE = "Can be sent, approved";
 
 /** Gateway often returns `{ code: 401, message: "Invalid JWT" }` for expired or mismatched tokens. */

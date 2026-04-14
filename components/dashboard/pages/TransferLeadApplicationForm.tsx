@@ -9,6 +9,7 @@ import { Toast, type ToastType } from "@/components/ui/Toast";
 import { AppSelect } from "@/components/ui/app-select";
 import { TransferStyledSelect as StyledSelect } from "./TransferStyledSelect";
 import { resolveDuplicatePolicy, ruleForLeadStage, type DuplicateStageRule } from "@/lib/transferDuplicateResolution";
+import { runDncLookup } from "@/lib/dncLookupApi";
 import { runTransferCheck, TRANSFER_CHECK_CLEAR_USER_MESSAGE } from "@/lib/transferCheckApi";
 
 export type TransferLeadFormData = {
@@ -113,7 +114,6 @@ const FIXED_BPO_LEAD_SOURCE = "BPO Transfer Lead Source";
 
 type TransferCheckApiResponse = {
   data?: Record<string, unknown>;
-  dnc?: { message?: string };
   warnings?: { policy?: boolean };
   warningMessage?: string;
   message?: string;
@@ -852,7 +852,7 @@ export default function TransferLeadApplicationForm({
         setPhoneDupMatch(null);
         setPhoneDupRuleMessage("No existing lead found for this phone number.");
         setPhoneDupIsAddable(true);
-        const log = [...logPrefix, "Scenario: no CRM phone match — transfer gate defers to agency transfer-check API only."];
+        const log = [...logPrefix, "Scenario: no CRM phone match — transfer-check (CRM) shows cleared."];
         setDuplicateDecisionLog(log);
         console.info("[duplicate-check]", log.join(" | "));
         return { match: null, isAddable: true, ruleMessage: "" };
@@ -960,100 +960,163 @@ export default function TransferLeadApplicationForm({
       const dup = await checkPhoneDuplicate();
       if (dup.match) setShowPhoneDupDetails(true);
 
-      const { ok: transferOk, status: transferStatus, data: rawTransfer } = await runTransferCheck(
-        supabase,
-        cleanPhone,
-        { phoneRaw: formData.phone, social: formData.social },
-      );
-      const data = rawTransfer as TransferCheckApiResponse;
+      const [transferRes, dncRes] = await Promise.all([
+        runTransferCheck(supabase, cleanPhone, { phoneRaw: formData.phone, social: formData.social }),
+        runDncLookup(supabase, cleanPhone),
+      ]);
 
       setIsCustomerBlocked(false);
       setBlockReason("");
 
-      if (transferOk) {
-        setTransferCheckData(data);
-        setTransferCheckCompleted(true);
-
-        const policyStatus = String(data.data?.["Policy Status"] ?? "");
-        const dncApiMessage = String(data.dnc?.message ?? "");
-
-        const isDQ =
-          policyStatus.toLowerCase().includes("dq") ||
-          policyStatus.toLowerCase().includes("disqualified") ||
-          policyStatus.toLowerCase().includes("already been dq");
-
-        const isTCPA =
-          dncApiMessage.toLowerCase().includes("tcpa litigator") ||
-          dncApiMessage.toLowerCase().includes("no contact permitted");
-
-        if (isDQ) {
-          setIsCustomerBlocked(true);
-          setBlockReason("Customer has already been DQ from our agency");
-          setDncStatus("agency_dq");
-          setDncMessage("We cannot accept this customer as they have been DQ from our agency.");
-          setShowDncModal(true);
-          setToast({
-            message: "We cannot accept this customer as they have been DQ from our agency.",
-            type: "error",
-          });
-          return "agency_dq";
-        }
-
-        if (isTCPA) {
-          setIsCustomerBlocked(true);
-          setBlockReason("TCPA Litigator Detected - No Contact Permitted");
-          setDncStatus("tcpa");
-          setDncMessage(
-            "This number is flagged as a TCPA litigator. All transfers and contact attempts are strictly prohibited.",
-          );
-          setShowDncModal(true);
-          setToast({
-            message:
-              "This number is flagged as a TCPA litigator. All transfers and contact attempts are strictly prohibited.",
-            type: "error",
-          });
-          return "tcpa";
-        }
-
-        if (data.warnings?.policy) {
-          setToast({
-            message: data.warningMessage || "Customer has existing policies.",
-            type: "warning",
-          });
-        }
-
-        setDncStatus("clear");
-        // Do not surface raw API `message` / `dnc.message` in the modal (still used above for TCPA detection only).
-        const rootMessage = String(data.message ?? "").trim();
-        const crmDup = (data as { crm_duplicate?: { has_match?: boolean; rule_message?: string } }).crm_duplicate;
-        const serverDupRule =
-          crmDup?.has_match === true && String(crmDup.rule_message ?? "").trim()
-            ? String(crmDup.rule_message).trim()
-            : "";
-        const dupRuleForModal = dup.match && dup.ruleMessage.trim() ? dup.ruleMessage.trim() : "";
-        if (serverDupRule) {
-          setDncMessage(serverDupRule);
-        } else if (dupRuleForModal) {
-          setDncMessage(dupRuleForModal);
-        } else if (data.warnings?.policy) {
-          setDncMessage(
-            data.warningMessage || rootMessage || "Policy warning — see details below.",
-          );
+      if (!dncRes.ok) {
+        if (transferRes.ok) {
+          setTransferCheckData(transferRes.data as TransferCheckApiResponse);
+          setTransferCheckCompleted(true);
         } else {
-          setDncMessage(TRANSFER_CHECK_CLEAR_USER_MESSAGE);
+          setTransferCheckData(null);
+          setTransferCheckCompleted(false);
         }
+        const msg =
+          String(dncRes.data.message ?? dncRes.data.error ?? "").trim() ||
+          `Screening request failed (${dncRes.status}).`;
+        setTransferCheckError(transferRes.ok ? null : String(transferRes.data.message ?? transferRes.data.error ?? ""));
+        setDncStatus("error");
+        setDncMessage(msg);
         setShowDncModal(true);
-        return "clear";
+        return "error";
       }
 
-      const errText =
-        String(data.message ?? "").trim() ||
-        `Failed to check phone number (${transferStatus})`;
-      setTransferCheckError(errText);
-      setDncStatus("error");
-      setDncMessage(errText);
+      const dncData = dncRes.data;
+      const dncCallStatus = String(dncData.callStatus ?? "");
+      if (dncCallStatus === "ERROR") {
+        if (transferRes.ok) {
+          setTransferCheckData(transferRes.data as TransferCheckApiResponse);
+          setTransferCheckCompleted(true);
+        } else {
+          setTransferCheckData(null);
+          setTransferCheckCompleted(false);
+        }
+        const msg =
+          String(dncData.message ?? "").trim() ||
+          "Screening could not be completed. Do not treat this number as safe.";
+        setTransferCheckError(transferRes.ok ? null : String(transferRes.data.message ?? transferRes.data.error ?? ""));
+        setDncStatus("error");
+        setDncMessage(msg);
+        setShowDncModal(true);
+        return "error";
+      }
+
+      if (!transferRes.ok) {
+        const errText =
+          String(transferRes.data.message ?? transferRes.data.error ?? "").trim() ||
+          `transfer-check failed (${transferRes.status})`;
+        setTransferCheckError(errText);
+        setDncStatus("error");
+        setDncMessage(errText);
+        setShowDncModal(true);
+        return "error";
+      }
+
+      const data = transferRes.data as TransferCheckApiResponse;
+      setTransferCheckData(data);
+      setTransferCheckCompleted(true);
+
+      const crmMatchGate = data.crm_phone_match as
+        | { has_match?: boolean; is_addable?: boolean; rule_message?: string }
+        | undefined;
+      const crmBlocksTransfer = crmMatchGate?.has_match === true && crmMatchGate?.is_addable === false;
+
+      const dncFlags = dncData.flags as
+        | { isTcpa?: boolean; isDnc?: boolean; isInvalid?: boolean; isClean?: boolean }
+        | undefined;
+
+      const isTCPA = dncFlags?.isTcpa === true;
+      const isDncList = dncFlags?.isDnc === true && !isTCPA;
+      const isInvalidPhone = dncFlags?.isInvalid === true;
+
+      // Message precedence (single winner): TCPA → invalid phone → DNC list → CRM transfer block → transfer clear.
+      if (isTCPA) {
+        setIsCustomerBlocked(true);
+        setBlockReason("TCPA Litigator Detected - No Contact Permitted");
+        setDncStatus("tcpa");
+        setDncMessage(
+          String(dncData.message ?? "").trim() ||
+            "This number is flagged as a TCPA litigator. All transfers and contact attempts are strictly prohibited.",
+        );
+        setShowDncModal(true);
+        setToast({
+          message:
+            "This number is flagged as a TCPA litigator. All transfers and contact attempts are strictly prohibited.",
+          type: "error",
+        });
+        return "tcpa";
+      }
+
+      if (isInvalidPhone) {
+        setIsCustomerBlocked(true);
+        setBlockReason("Invalid phone (screening)");
+        setDncStatus("error");
+        setDncMessage(
+          String(dncData.message ?? "").trim() || "This phone number appears to be invalid.",
+        );
+        setShowDncModal(true);
+        setToast({
+          message: String(dncData.message ?? "").trim() || "Invalid phone number per screening.",
+          type: "error",
+        });
+        return "error";
+      }
+
+      if (isDncList) {
+        setIsCustomerBlocked(true);
+        setBlockReason("DNC — do not call");
+        setDncStatus("dnc");
+        setDncMessage(
+          String(dncData.message ?? "").trim() ||
+            "Do not call: this number is on a DNC list.",
+        );
+        setShowDncModal(true);
+        setToast({
+          message: String(dncData.message ?? "").trim() || "This number is on a DNC list.",
+          type: "error",
+        });
+        return "dnc";
+      }
+
+      if (crmBlocksTransfer) {
+        const rm = String(crmMatchGate?.rule_message ?? "").trim();
+        setIsCustomerBlocked(true);
+        setBlockReason(rm || "CRM transfer rules block this submission.");
+        setDncStatus("agency_dq");
+        setDncMessage(rm || "This transfer is not permitted based on CRM stage rules.");
+        setShowDncModal(true);
+        setToast({
+          message: rm || "This transfer is not permitted based on CRM stage rules.",
+          type: "error",
+        });
+        return "agency_dq";
+      }
+
+      setDncStatus("clear");
+      const rootMessage = String(data.message ?? "").trim();
+      const crmMatch = (data as { crm_phone_match?: { has_match?: boolean; rule_message?: string } })
+        .crm_phone_match;
+      const serverDupRule =
+        crmMatch?.has_match === true && String(crmMatch.rule_message ?? "").trim()
+          ? String(crmMatch.rule_message).trim()
+          : "";
+      const dupRuleForModal = dup.match && dup.ruleMessage.trim() ? dup.ruleMessage.trim() : "";
+      if (serverDupRule) {
+        setDncMessage(serverDupRule);
+      } else if (dupRuleForModal) {
+        setDncMessage(dupRuleForModal);
+      } else if (rootMessage) {
+        setDncMessage(rootMessage);
+      } else {
+        setDncMessage(TRANSFER_CHECK_CLEAR_USER_MESSAGE);
+      }
       setShowDncModal(true);
-      return "error";
+      return "clear";
     } catch (error) {
       console.error("Transfer check error:", error);
       let message = "Failed to connect to transfer check service.";
@@ -1091,7 +1154,10 @@ export default function TransferLeadApplicationForm({
 
   const duplicateBlocked = Boolean(phoneDupMatch && !phoneDupIsAddable);
   const transferCheckBlocksSubmit =
-    isCustomerBlocked || dncStatus === "tcpa" || dncStatus === "agency_dq";
+    isCustomerBlocked ||
+    dncStatus === "tcpa" ||
+    dncStatus === "agency_dq" ||
+    dncStatus === "dnc";
   const phoneBundleNeedsSsn =
     !isEditMode &&
     phoneDupCandidates.length > 1 &&
@@ -1110,7 +1176,8 @@ export default function TransferLeadApplicationForm({
     Boolean(submitBlockMessage) ||
     (!isEditMode && (!transferCheckCompleted || transferCheckBlocksSubmit));
 
-  const dncModalCritical = dncStatus === "tcpa" || dncStatus === "agency_dq";
+  const dncModalCritical =
+    dncStatus === "tcpa" || dncStatus === "agency_dq" || dncStatus === "dnc";
 
   const checkSsnRules = async (rawSsn: string): Promise<{ blocked: boolean; warning: boolean }> => {
     const ssnDigits = normalizeSsnDigits(rawSsn);
@@ -1618,7 +1685,7 @@ export default function TransferLeadApplicationForm({
                         void onInstantDuplicateCheck({ ...formData, leadUniqueId: computedLeadUniqueId });
                       }
                     }
-                    // Always run agency transfer check even when CRM duplicate is not addable (DQ stages, etc.).
+                    // Always run transfer-check (CRM) even when client-side duplicate check is not addable.
                     const dncResult = await checkDnc();
                     const duplicateBlocksPhone = Boolean(dup.match) && !dup.isAddable;
                     setPhoneGatePassed(dncResult === "clear" && !duplicateBlocksPhone);
@@ -2908,7 +2975,13 @@ export default function TransferLeadApplicationForm({
                     letterSpacing: "0.5px",
                   }}
                 >
-                  {dncModalCritical ? "CRITICAL ALERT" : dncStatus === "error" ? "CHECK FAILED" : "TRANSFER CHECK"}
+                  {dncModalCritical
+                    ? dncStatus === "dnc"
+                      ? "DNC ALERT"
+                      : "CRITICAL ALERT"
+                    : dncStatus === "error"
+                      ? "CHECK FAILED"
+                      : "TRANSFER CHECK"}
                 </p>
                 <h4
                   style={{
@@ -2922,9 +2995,11 @@ export default function TransferLeadApplicationForm({
                     ? "TCPA LITIGATOR DETECTED"
                     : dncStatus === "agency_dq"
                       ? "CUSTOMER NOT ELIGIBLE (DQ)"
-                      : dncStatus === "error"
-                        ? "TRANSFER CHECK FAILED"
-                        : "CHECK PASSED"}
+                      : dncStatus === "dnc"
+                        ? "DNC — DO NOT CALL"
+                        : dncStatus === "error"
+                          ? "TRANSFER CHECK FAILED"
+                          : "CHECK PASSED"}
                 </h4>
               </div>
             </div>
@@ -2937,6 +3012,20 @@ export default function TransferLeadApplicationForm({
                   </p>
                   <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
                     Proceeding with this lead may result in legal issues. Transfers and contact attempts are prohibited.
+                  </p>
+                  {dncMessage ? (
+                    <p style={{ marginTop: 14, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{dncMessage}</p>
+                  ) : null}
+                </div>
+              )}
+
+              {dncStatus === "dnc" && (
+                <div style={{ padding: "16px 0" }}>
+                  <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
+                    This number is on a do-not-call list
+                  </p>
+                  <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
+                    Contact is not permitted unless you have a valid exemption. Use your screening workflow for full detail.
                   </p>
                   {dncMessage ? (
                     <p style={{ marginTop: 14, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{dncMessage}</p>
@@ -3021,11 +3110,6 @@ export default function TransferLeadApplicationForm({
                         ))}
                       </div>
                     </div>
-                  ) : null}
-                  {transferCheckData?.warnings?.policy ? (
-                    <p style={{ fontSize: 13, color: "#b45309", fontWeight: 700, margin: 0 }}>
-                      {transferCheckData.warningMessage || "Policy warning — review details above."}
-                    </p>
                   ) : null}
                 </div>
               )}

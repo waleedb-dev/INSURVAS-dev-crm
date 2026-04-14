@@ -28,16 +28,6 @@ function pickCustomerName(data: Record<string, unknown> | undefined): string {
   return "—";
 }
 
-function pickPolicyStatus(data: Record<string, unknown> | undefined, rootMessage: string): string {
-  if (!data || typeof data !== "object") {
-    return rootMessage.trim() || "—";
-  }
-  const ps = data["Policy Status"] ?? data["policy status"];
-  if (ps != null && String(ps).trim()) return String(ps).trim();
-  if (rootMessage.trim()) return rootMessage.trim();
-  return "—";
-}
-
 type CrmDuplicateSummary = {
   has_match?: boolean;
   rule_message?: string;
@@ -46,7 +36,7 @@ type CrmDuplicateSummary = {
   matched_contact_name?: string;
 };
 
-/** Prefer server CRM copy when a duplicate exists (edge `crm_duplicate.rule_message`). */
+/** Prefer server CRM copy when present (edge `crm_phone_match.rule_message`). */
 function pickCrmDuplicateMessage(crm: CrmDuplicateSummary | undefined): string {
   if (crm?.has_match !== true) return "";
   const msg = String(crm.rule_message ?? "").trim();
@@ -62,8 +52,8 @@ function summarizeDncLookupEdge(
 ): { line: string; tone: "muted" | "ok" | "warn" | "danger" } {
   if (!data) return { line: "—", tone: "muted" };
   if (!httpOk) {
-    const m = String(data.message ?? data.error ?? "dnc-lookup request failed").trim();
-    return { line: m || "dnc-lookup failed", tone: "danger" };
+    const m = String(data.message ?? data.error ?? "dnc-check request failed").trim();
+    return { line: m || "dnc-check failed", tone: "danger" };
   }
   const cs = String(data.callStatus ?? "").trim();
   const msg = String(data.message ?? "").trim();
@@ -132,16 +122,21 @@ export default function TransferCheckTesterPage() {
     }
   };
 
-  const apiData =
-    rawPayload && typeof rawPayload.data === "object" && rawPayload.data !== null && !Array.isArray(rawPayload.data)
-      ? (rawPayload.data as Record<string, unknown>)
-      : undefined;
   const rootMessage = rawPayload ? String(rawPayload.message ?? "").trim() : "";
-  const crmDup = rawPayload?.crm_duplicate as CrmDuplicateSummary | undefined;
+  const crmDup = rawPayload?.crm_phone_match as CrmDuplicateSummary | undefined;
   const crmDuplicateMessage = pickCrmDuplicateMessage(crmDup);
-  const agencyStatus = pickPolicyStatus(apiData, rootMessage);
+  const transferCheckLine =
+    [rootMessage, crmDuplicateMessage].find((s) => String(s ?? "").trim().length > 0)?.trim() || "—";
   const customerName =
-    String(crmDup?.matched_contact_name ?? "").trim() || pickCustomerName(apiData);
+    String(crmDup?.matched_contact_name ?? "").trim() ||
+    pickCustomerName(
+      rawPayload &&
+        typeof rawPayload.data === "object" &&
+        rawPayload.data !== null &&
+        !Array.isArray(rawPayload.data)
+        ? (rawPayload.data as Record<string, unknown>)
+        : undefined,
+    );
   const dncEdge = summarizeDncLookupEdge(dncLookupPayload, dncLookupHttpOk);
 
   const dncBannerBg =
@@ -166,21 +161,17 @@ export default function TransferCheckTesterPage() {
   const infoRows: [string, string][] = [
     ["Mobile number", displayPhone ? displayPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3") : "—"],
     ["Name", customerName],
-    ["DNC / TCPA (dnc-lookup)", dncEdge.line],
+    ["dnc-check", dncEdge.line],
+    ["transfer-check", transferCheckLine],
   ];
-  if (crmDuplicateMessage) {
-    infoRows.push(["CRM duplicate", crmDuplicateMessage]);
-    infoRows.push(["Agency / TCPA (transfer-check)", agencyStatus]);
-  } else {
-    infoRows.push(["Agency / TCPA (transfer-check)", agencyStatus]);
-  }
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 8px 48px" }}>
       <h1 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 800, color: T.textDark }}>Search user by mobile number</h1>
       <p style={{ margin: "0 0 20px", fontSize: 13, color: T.textMuted, lineHeight: 1.5 }}>
-        Runs <strong>dnc-lookup</strong> (RealValidito + Blacklist Alliance) and <strong>transfer-check</strong> (agency
-        API + CRM duplicate) in parallel.
+        Runs <strong>dnc-check</strong> and <strong>transfer-check</strong> in parallel. <strong>Transfer-check</strong> is
+        CRM-only: phone match → SSN cohort → <code style={{ fontSize: 12 }}>crm_phone_match</code> / stage precedence
+        (see raw JSON).
       </p>
 
       <div
@@ -210,7 +201,7 @@ export default function TransferCheckTesterPage() {
             value={phoneInput}
             onChange={(e) => setPhoneInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void runSearch()}
-            placeholder="(555) 123-4567"
+            placeholder="Phone (555) 123-4567"
             style={{
               flex: 1,
               border: "none",
@@ -277,7 +268,7 @@ export default function TransferCheckTesterPage() {
             lineHeight: 1.45,
           }}
         >
-          <strong style={{ fontWeight: 800 }}>dnc-lookup:</strong> {dncEdge.line}
+          <strong style={{ fontWeight: 800 }}>dnc-check:</strong> {dncEdge.line}
         </div>
       )}
 
