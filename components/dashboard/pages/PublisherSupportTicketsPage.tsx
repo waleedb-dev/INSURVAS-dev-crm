@@ -6,15 +6,13 @@ import { useParams } from "next/navigation";
 import { Filter, LifeBuoy, Search } from "lucide-react";
 import { T } from "@/lib/theme";
 import { Card } from "@/components/ui/card";
-import { EmptyState, FilterChip, Input } from "@/components/ui";
+import { FilterChip, Input } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { FieldLabel } from "./daily-deal-flow/ui-primitives";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type TicketStatus = "open" | "in_progress" | "solved";
-type ViewMode = "table" | "kanban";
-
 type TicketRow = {
   id: string;
   lead_id: string;
@@ -190,123 +188,6 @@ function mapSelectOptions(values: string[], allLabel: string) {
   return [{ value: "All", label: allLabel }, ...values.map((value) => ({ value, label: value }))];
 }
 
-function renderSupportKanbanBoard({
-  tickets,
-  expandedId,
-  setExpandedId,
-}: {
-  tickets: TicketRow[];
-  expandedId: string | null;
-  setExpandedId: (id: string | null) => void;
-}) {
-  const columns: Array<{ id: TicketStatus; label: string; accent: string; bg: string }> = [
-    { id: "open", label: "Open", accent: "#0f766e", bg: "#ecfeff" },
-    { id: "in_progress", label: "In progress", accent: "#b45309", bg: "#fffbeb" },
-    { id: "solved", label: "Solved", accent: "#166534", bg: "#f0fdf4" },
-  ];
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 }}>
-      {columns.map((column) => {
-        const columnTickets = tickets.filter((ticket) => ticket.status === column.id);
-        return (
-          <div
-            key={column.id}
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 16,
-              background: T.cardBg,
-              boxShadow: T.shadowSm,
-              minHeight: 520,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                padding: "16px 18px",
-                borderBottom: `1px solid ${T.border}`,
-                background: column.bg,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{column.label}</span>
-              <span
-                style={{
-                  minWidth: 28,
-                  height: 28,
-                  borderRadius: 999,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0 10px",
-                  background: column.accent,
-                  color: "#fff",
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                {columnTickets.length}
-              </span>
-            </div>
-            <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
-              {columnTickets.length === 0 ? (
-                <EmptyState title={`No ${column.label.toLowerCase()} tickets`} description="Try changing your search or filter selections." />
-              ) : (
-                columnTickets.map((ticket) => {
-                  const isOpen = expandedId === ticket.id;
-                  return (
-                    <Card
-                      key={ticket.id}
-                      onClick={() => setExpandedId(isOpen ? null : ticket.id)}
-                      style={{
-                        borderRadius: 16,
-                        border: `1px solid ${T.border}`,
-                        borderBottom: `4px solid ${column.accent}`,
-                        background: `linear-gradient(135deg, color-mix(in srgb, ${column.accent} 14%, ${T.cardBg}) 0%, ${T.cardBg} 78%)`,
-                        boxShadow: isOpen ? T.shadowMd : T.shadowSm,
-                        padding: 18,
-                        cursor: "pointer",
-                        transition: "transform 150ms ease, box-shadow 150ms ease",
-                        transform: isOpen ? "translateY(-2px)" : "none",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 800,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.04em",
-                            color: T.textMuted,
-                          }}
-                        >
-                          {ticket.id.slice(0, 8)}
-                        </span>
-                        <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>
-                          {new Date(ticket.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div style={{ marginTop: 10, fontSize: 16, fontWeight: 800, color: T.textDark, lineHeight: 1.25 }}>{ticket.title}</div>
-                      <div style={{ marginTop: 6, fontSize: 12, color: T.textMid, fontWeight: 600 }}>
-                        Publisher: {joinName(ticket.publisher) || "—"}
-                      </div>
-                      <div style={{ marginTop: 4, fontSize: 12, color: T.textMuted }}>{leadLabelFromTicket(ticket)}</div>
-                    </Card>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export default function PublisherSupportTicketsPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const params = useParams<{ role?: string }>();
@@ -334,7 +215,6 @@ export default function PublisherSupportTicketsPage() {
   const [filterPublisher, setFilterPublisher] = useState("All");
   const [filterAssigned, setFilterAssigned] = useState("All");
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [page, setPage] = useState(1);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
 
@@ -601,7 +481,7 @@ export default function PublisherSupportTicketsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [search, filterDateSingle, filterDateFrom, filterDateTo, filterStatus, filterPublisher, filterAssigned, viewMode]);
+  }, [search, filterDateSingle, filterDateFrom, filterDateTo, filterStatus, filterPublisher, filterAssigned]);
 
   const itemsPerPage = 7;
   const totalPages = Math.max(1, Math.ceil(filteredTickets.length / itemsPerPage));
@@ -748,48 +628,6 @@ export default function PublisherSupportTicketsPage() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: 4,
-                borderRadius: 12,
-                border: `1px solid ${T.border}`,
-                background: T.pageBg,
-                gap: 4,
-              }}
-            >
-              {([
-                { id: "table", label: "Table" },
-                { id: "kanban", label: "Kanban" },
-              ] as const).map((option) => {
-                const active = viewMode === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setViewMode(option.id)}
-                    style={{
-                      height: 34,
-                      padding: "0 14px",
-                      borderRadius: 10,
-                      border: "none",
-                      background: active ? "#233217" : "transparent",
-                      color: active ? "#fff" : T.textMuted,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      fontFamily: T.font,
-                      cursor: "pointer",
-                      boxShadow: active ? "0 2px 8px rgba(35, 50, 23, 0.2)" : "none",
-                      transition: "all 0.15s ease-in-out",
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-
             <button
               type="button"
               onClick={() => setFilterPanelExpanded((value) => !value)}
@@ -1033,15 +871,14 @@ export default function PublisherSupportTicketsPage() {
         )}
       </div>
 
-      {viewMode === "table" ? (
-        <div
-          style={{
-            borderRadius: 16,
-            border: `1px solid ${T.border}`,
-            overflow: "hidden",
-            backgroundColor: T.cardBg,
-          }}
-        >
+      <div
+        style={{
+          borderRadius: 16,
+          border: `1px solid ${T.border}`,
+          overflow: "hidden",
+          backgroundColor: T.cardBg,
+        }}
+      >
           <ShadcnTable>
             <TableHeader style={{ backgroundColor: "#233217" }}>
               <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
@@ -1216,12 +1053,7 @@ export default function PublisherSupportTicketsPage() {
               </button>
             </div>
           </div>
-        </div>
-      ) : (
-        renderSupportKanbanBoard({ tickets: filteredTickets, expandedId, setExpandedId })
-      )}
-
-      {!loading && filteredTickets.length === 0 && viewMode === "kanban" && <div style={{ height: 20 }} />}
+      </div>
 
       {!loading && expandedId && (
         <div
