@@ -5,6 +5,7 @@ import { T } from "@/lib/theme";
 import { callCenterNameInitials as centreNameInitials } from "@/lib/callCenterBranding";
 import { Card } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
+import { Pagination } from "@/components/ui/Pagination";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Search, Filter, Plus, Eye, Edit2, Trash2 } from "lucide-react";
 import UserEditorComponent from "./UserEditorComponent";
@@ -330,11 +331,36 @@ export default function BpoCentersPage() {
   }
 
   async function fetchDirectory() {
-    const [{ data: rolesData, error: rolesError }, { data: centersData, error: centersError }, { data: usersData, error: usersError }] = await Promise.all([
+    const PAGE_SIZE = 1000;
+    const fetchAllRows = async <T,>(makeBaseQuery: () => any): Promise<{ data: T[] | null; error: any | null }> => {
+      const all: T[] = [];
+      for (let offset = 0; ; offset += PAGE_SIZE) {
+        const { data, error } = await makeBaseQuery().range(offset, offset + PAGE_SIZE - 1);
+        if (error) return { data: null, error };
+        const batch = (data ?? []) as T[];
+        all.push(...batch);
+        if (batch.length < PAGE_SIZE) break;
+      }
+      return { data: all, error: null };
+    };
+
+    const [{ data: rolesData, error: rolesError }, centersRes, usersRes] = await Promise.all([
       supabase.from("roles").select("id, key"),
-      supabase.from("call_centers").select("id, name, status, is_active, created_at, did, slack_channel, email, logo_url, region, country").order("name"),
-      supabase.from("users").select("id, full_name, call_center_id, role_id"),
+      fetchAllRows<any>(() =>
+        supabase
+          .from("call_centers")
+          .select("id, name, status, is_active, created_at, did, slack_channel, email, logo_url, region, country")
+          .order("name"),
+      ),
+      fetchAllRows<any>(() =>
+        supabase
+          .from("users")
+          .select("id, full_name, call_center_id, role_id"),
+      ),
     ]);
+
+    const { data: centersData, error: centersError } = centersRes;
+    const { data: usersData, error: usersError } = usersRes;
 
     if (rolesError) {
       console.error("Error fetching roles:", rolesError);
@@ -2202,20 +2228,13 @@ export default function BpoCentersPage() {
               </ShadcnTable>
             </div>
 
-            <div
-              style={{
-                backgroundColor: T.cardBg,
-                padding: "16px 20px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderTop: `1px solid ${T.border}`,
-              }}
-            >
-              <span style={{ fontSize: 13, color: "#233217", fontWeight: 500 }}>
-                Showing {paginatedCenters.length} of {centers.length} centres
-              </span>
-            </div>
+            <Pagination
+              page={currentPage}
+              totalItems={filteredCenters.length}
+              itemsPerPage={itemsPerPage}
+              itemLabel="centres"
+              onPageChange={setPage}
+            />
           </>
         )}
       </div>
