@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useOptionalDashboardContext } from "@/components/dashboard/DashboardContext";
 import CreateLeadTicketModal from "./CreateLeadTicketModal";
 
 type Props = {
@@ -12,6 +13,8 @@ type Props = {
   sessionUserId: string | null;
   isCreation?: boolean;
   previewMode?: boolean;
+  /** Called after a ticket is successfully created (e.g. refresh lead ticket tab). */
+  onTicketCreated?: () => void;
 };
 
 export default function LeadNewTicketButton({
@@ -20,50 +23,42 @@ export default function LeadNewTicketButton({
   sessionUserId,
   isCreation = false,
   previewMode = false,
+  onTicketCreated,
 }: Props) {
+  const dash = useOptionalDashboardContext();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [modalOpen, setModalOpen] = useState(false);
-  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
-  const [userRoleKey, setUserRoleKey] = useState<string | null>(null);
   const [userCallCenterId, setUserCallCenterId] = useState<string | null>(null);
-  const [roleChecked, setRoleChecked] = useState(false);
+  const [centerChecked, setCenterChecked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!sessionUserId) {
-        setIsSystemAdmin(false);
-        setUserRoleKey(null);
         setUserCallCenterId(null);
-        setRoleChecked(true);
+        setCenterChecked(true);
         return;
       }
       const { data, error: rErr } = await supabase
         .from("users")
-        .select("call_center_id, roles(key)")
+        .select("call_center_id")
         .eq("id", sessionUserId)
         .maybeSingle();
       if (cancelled) return;
       if (rErr || !data) {
-        setIsSystemAdmin(false);
-        setUserRoleKey(null);
         setUserCallCenterId(null);
       } else {
-        const rel = data.roles as { key?: string } | { key?: string }[] | null;
-        const key = Array.isArray(rel) ? rel[0]?.key : rel?.key;
-        setUserRoleKey(key ?? null);
-        setIsSystemAdmin(key === "system_admin");
         setUserCallCenterId(data.call_center_id != null ? String(data.call_center_id) : null);
       }
-      setRoleChecked(true);
+      setCenterChecked(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [sessionUserId, supabase]);
 
-  const isCenterAdminSameCenter =
-    userRoleKey === "call_center_admin" &&
+  const isCallCenterAdminSession = dash?.currentRole === "call_center_admin";
+  const isSameCenter =
     !!leadCallCenterId &&
     !!userCallCenterId &&
     leadCallCenterId === userCallCenterId;
@@ -73,9 +68,10 @@ export default function LeadNewTicketButton({
     !previewMode &&
     !isCreation &&
     !!leadId &&
-    (isSystemAdmin || isCenterAdminSameCenter);
+    isCallCenterAdminSession &&
+    isSameCenter;
 
-  if (!roleChecked || !canCreateTicket) return null;
+  if (!centerChecked || !canCreateTicket) return null;
 
   return (
     <>
@@ -110,7 +106,10 @@ export default function LeadNewTicketButton({
         onClose={() => setModalOpen(false)}
         leadId={leadId}
         sessionUserId={sessionUserId}
-        onCreated={() => setModalOpen(false)}
+        onCreated={() => {
+          setModalOpen(false);
+          onTicketCreated?.();
+        }}
       />
     </>
   );

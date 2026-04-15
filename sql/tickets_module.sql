@@ -119,6 +119,27 @@ as $$
           where tf.ticket_id = t.id
             and tf.user_id = p_user_id
         )
+        or (
+          exists (
+            select 1
+            from public.users u_viewer
+            join public.roles r on r.id = u_viewer.role_id
+            where u_viewer.id = p_user_id
+              and r.key = 'call_center_admin'
+              and u_viewer.call_center_id is not null
+          )
+          and exists (
+            select 1
+            from public.leads l
+            join public.users u_pub on u_pub.id = t.publisher_id
+            join public.users u_viewer on u_viewer.id = p_user_id
+            where l.id = t.lead_id
+              and l.call_center_id is not null
+              and l.call_center_id = u_viewer.call_center_id
+              and u_pub.call_center_id is not null
+              and u_pub.call_center_id = l.call_center_id
+          )
+        )
       )
   )
   or exists (

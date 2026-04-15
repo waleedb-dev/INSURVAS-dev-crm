@@ -40,3 +40,8 @@ export function useDashboardContext() {
   return ctx;
 }
 
+/** Same as `useDashboardContext` but returns null outside `DashboardProvider` (for leaf components used in multiple shells). */
+export function useOptionalDashboardContext(): DashboardContextValue | null {
+  return useContext(DashboardContext);
+}
+
