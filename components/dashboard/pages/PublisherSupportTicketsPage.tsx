@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Filter, LifeBuoy, Search } from "lucide-react";
 import { T } from "@/lib/theme";
 import { Card } from "@/components/ui/card";
-import { FilterChip, Input } from "@/components/ui";
+import { FilterChip } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { FieldLabel } from "./daily-deal-flow/ui-primitives";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
@@ -26,19 +25,6 @@ type TicketRow = {
   lead?: { phone: string | null; first_name: string | null; last_name: string | null; lead_unique_id: string | null } | null;
 };
 
-type CommentRow = {
-  id: string;
-  body: string;
-  created_at: string;
-  user_id: string;
-  users?: { full_name: string | null } | { full_name: string | null }[] | null;
-};
-
-type FollowerRow = {
-  user_id: string;
-  users?: { full_name: string | null } | { full_name: string | null }[] | null;
-};
-
 function formatStatus(s: TicketStatus): string {
   if (s === "in_progress") return "In progress";
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -54,15 +40,12 @@ function joinName(rel: unknown): string | null {
   return null;
 }
 
-function isUuid(v: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v.trim());
-}
-
 function leadLabelFromTicket(ticket: TicketRow) {
   const lead = ticket.lead && !Array.isArray(ticket.lead) ? ticket.lead : Array.isArray(ticket.lead) ? ticket.lead[0] : null;
   return (
     lead?.lead_unique_id?.trim() ||
     [lead?.first_name, lead?.last_name].filter(Boolean).join(" ").trim() ||
+    lead?.phone?.trim() ||
     "Lead"
   );
 }
@@ -191,23 +174,13 @@ function mapSelectOptions(values: string[], allLabel: string) {
 
 export default function PublisherSupportTicketsPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const router = useRouter();
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "publisher_manager";
 
-  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
-  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [commentsByTicket, setCommentsByTicket] = useState<Record<string, CommentRow[]>>({});
-  const [followersByTicket, setFollowersByTicket] = useState<Record<string, FollowerRow[]>>({});
-  const [threadLoading, setThreadLoading] = useState(false);
-  const [commentDraft, setCommentDraft] = useState("");
-  const [followerUserId, setFollowerUserId] = useState("");
-  const [actionBusy, setActionBusy] = useState<string | null>(null);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editCommentBody, setEditCommentBody] = useState("");
   const [search, setSearch] = useState("");
   const [filterDateSingle, setFilterDateSingle] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
@@ -218,30 +191,6 @@ export default function PublisherSupportTicketsPage() {
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [page, setPage] = useState(1);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const uid = session?.user?.id ?? null;
-      if (cancelled) return;
-      setSessionUserId(uid);
-      if (!uid) {
-        setIsSystemAdmin(false);
-        return;
-      }
-      const { data } = await supabase.from("users").select("roles(key)").eq("id", uid).maybeSingle();
-      if (cancelled) return;
-      const rel = data?.roles as { key?: string } | { key?: string }[] | null | undefined;
-      const key = Array.isArray(rel) ? rel[0]?.key : rel?.key;
-      setIsSystemAdmin(key === "system_admin");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
@@ -274,128 +223,8 @@ export default function PublisherSupportTicketsPage() {
   }, [supabase]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTickets();
   }, [loadTickets]);
-
-  const loadThread = useCallback(
-    async (ticketId: string) => {
-      setThreadLoading(true);
-      const [cRes, fRes] = await Promise.all([
-        supabase
-          .from("ticket_comments")
-          .select("id, body, created_at, user_id, users(full_name)")
-          .eq("ticket_id", ticketId)
-          .order("created_at", { ascending: true }),
-        supabase.from("ticket_followers").select("user_id, users(full_name)").eq("ticket_id", ticketId),
-      ]);
-      if (!cRes.error) {
-        setCommentsByTicket((prev) => ({ ...prev, [ticketId]: (cRes.data ?? []) as unknown as CommentRow[] }));
-      }
-      if (!fRes.error) {
-        setFollowersByTicket((prev) => ({ ...prev, [ticketId]: (fRes.data ?? []) as unknown as FollowerRow[] }));
-      }
-      setThreadLoading(false);
-    },
-    [supabase],
-  );
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (expandedId) void loadThread(expandedId);
-  }, [expandedId, loadThread]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCommentDraft("");
-    setFollowerUserId("");
-    setEditingCommentId(null);
-    setEditCommentBody("");
-  }, [expandedId]);
-
-  const updateStatus = async (ticketId: string, status: TicketStatus) => {
-    setActionBusy(ticketId);
-    setError(null);
-    const { error: uErr } = await supabase.from("tickets").update({ status }).eq("id", ticketId);
-    setActionBusy(null);
-    if (uErr) setError(uErr.message);
-    else await loadTickets();
-  };
-
-  const postComment = async (ticketId: string) => {
-    if (!sessionUserId || !commentDraft.trim()) return;
-    setActionBusy(`c-${ticketId}`);
-    setError(null);
-    const { error: pErr } = await supabase.from("ticket_comments").insert({
-      ticket_id: ticketId,
-      user_id: sessionUserId,
-      body: commentDraft.trim(),
-    });
-    setActionBusy(null);
-    if (pErr) {
-      setError(pErr.message);
-      return;
-    }
-    setCommentDraft("");
-    await loadThread(ticketId);
-  };
-
-  const saveEditedComment = async (ticketId: string, commentId: string) => {
-    const body = editCommentBody.trim();
-    if (!body) return;
-    setActionBusy(`e-${commentId}`);
-    setError(null);
-    const { error: uErr } = await supabase.from("ticket_comments").update({ body }).eq("id", commentId);
-    setActionBusy(null);
-    if (uErr) {
-      setError(uErr.message);
-      return;
-    }
-    setEditingCommentId(null);
-    await loadThread(ticketId);
-  };
-
-  const deleteComment = async (ticketId: string, commentId: string) => {
-    setActionBusy(`d-${commentId}`);
-    setError(null);
-    const { error: dErr } = await supabase.from("ticket_comments").delete().eq("id", commentId);
-    setActionBusy(null);
-    if (dErr) {
-      setError(dErr.message);
-      return;
-    }
-    await loadThread(ticketId);
-  };
-
-  const addFollower = async (ticketId: string) => {
-    const uid = followerUserId.trim();
-    if (!isUuid(uid)) {
-      setError("Follower must be a valid user UUID.");
-      return;
-    }
-    setActionBusy(`f-${ticketId}`);
-    setError(null);
-    const { error: fErr } = await supabase.from("ticket_followers").insert({ ticket_id: ticketId, user_id: uid });
-    setActionBusy(null);
-    if (fErr) {
-      setError(fErr.message);
-      return;
-    }
-    setFollowerUserId("");
-    await loadThread(ticketId);
-  };
-
-  const removeFollower = async (ticketId: string, userId: string) => {
-    setActionBusy(`rf-${ticketId}`);
-    setError(null);
-    const { error: dErr } = await supabase.from("ticket_followers").delete().eq("ticket_id", ticketId).eq("user_id", userId);
-    setActionBusy(null);
-    if (dErr) {
-      setError(dErr.message);
-      return;
-    }
-    await loadThread(ticketId);
-  };
 
   const publisherOptions = useMemo(
     () => Array.from(new Set(tickets.map((ticket) => joinName(ticket.publisher)).filter(Boolean) as string[])),
@@ -481,7 +310,6 @@ export default function PublisherSupportTicketsPage() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
   }, [search, filterDateSingle, filterDateFrom, filterDateTo, filterStatus, filterPublisher, filterAssigned]);
 
@@ -945,57 +773,54 @@ export default function PublisherSupportTicketsPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedTickets.map((ticket) => {
-                  const isOpen = expandedId === ticket.id;
-                  return (
-                    <TableRow
-                      key={ticket.id}
-                      style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
-                      className="hover:bg-muted/30 transition-all duration-150"
-                      onClick={() => setExpandedId(isOpen ? null : ticket.id)}
-                    >
-                      <TableCell style={{ padding: "14px 20px" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#233217" }}>{ticket.id.slice(0, 8)}</span>
-                      </TableCell>
-                      <TableCell style={{ padding: "14px 20px" }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{ticket.title}</span>
-                      </TableCell>
-                      <TableCell style={{ padding: "14px 20px" }}>
-                        <span style={{ fontSize: 14, color: T.textDark }}>{leadLabelFromTicket(ticket)}</span>
-                      </TableCell>
-                      <TableCell style={{ padding: "14px 20px" }}>
-                        <span style={{ fontSize: 14, color: T.textDark }}>{joinName(ticket.publisher) || "—"}</span>
-                      </TableCell>
-                      <TableCell style={{ padding: "14px 20px" }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: "#233217" }}>{formatStatus(ticket.status)}</span>
-                      </TableCell>
-                      <TableCell style={{ padding: "14px 20px" }}>
-                        <span style={{ fontSize: 14, color: T.textDark }}>{new Date(ticket.created_at).toLocaleDateString()}</span>
-                      </TableCell>
-                      <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setExpandedId(isOpen ? null : ticket.id);
-                          }}
-                          style={{
-                            border: `1px solid ${T.border}`,
-                            borderRadius: 10,
-                            background: T.cardBg,
-                            color: "#233217",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            padding: "6px 14px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          {isOpen ? "Hide" : "View"}
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+                paginatedTickets.map((ticket) => (
+                  <TableRow
+                    key={ticket.id}
+                    style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                    className="hover:bg-muted/30 transition-all duration-150"
+                    onClick={() => router.push(`/dashboard/${routeRole}/support-tickets/${ticket.id}`)}
+                  >
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#233217" }}>{ticket.id.slice(0, 8)}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{ticket.title}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      <span style={{ fontSize: 14, color: T.textDark }}>{leadLabelFromTicket(ticket)}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      <span style={{ fontSize: 14, color: T.textDark }}>{joinName(ticket.publisher) || "—"}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "#233217" }}>{formatStatus(ticket.status)}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "14px 20px" }}>
+                      <span style={{ fontSize: 14, color: T.textDark }}>{new Date(ticket.created_at).toLocaleDateString()}</span>
+                    </TableCell>
+                    <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/dashboard/${routeRole}/support-tickets/${ticket.id}`);
+                        }}
+                        style={{
+                          border: `1px solid ${T.border}`,
+                          borderRadius: 10,
+                          background: T.cardBg,
+                          color: "#233217",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          padding: "6px 14px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        View
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </ShadcnTable>
@@ -1056,314 +881,6 @@ export default function PublisherSupportTicketsPage() {
             </div>
           </div>
       </div>
-
-      {!loading && expandedId && (
-        <div
-          style={{
-            marginTop: 28,
-            padding: 24,
-            borderRadius: 16,
-            border: `1px solid ${T.border}`,
-            background: T.cardBg,
-            boxShadow: T.shadowSm,
-          }}
-          onClick={(e) => e.stopPropagation()}
-          role="presentation"
-        >
-          {(() => {
-            const ticket = tickets.find((row) => row.id === expandedId);
-            if (!ticket) return null;
-            const comments = commentsByTicket[ticket.id] ?? [];
-            const followers = followersByTicket[ticket.id] ?? [];
-            const isAssignee = sessionUserId != null && ticket.assignee_id === sessionUserId;
-            const canManageTicketFields = isAssignee || isSystemAdmin;
-
-            return (
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 24 }}>
-                <div>
-                  <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 800 }}>Ticket detail</h3>
-                  <p style={{ margin: "0 0 8px", fontSize: 14, color: T.textMid }}>
-                    <strong>Lead:</strong>{" "}
-                    <Link href={`/dashboard/${routeRole}/leads/${ticket.lead_id}`} style={{ color: T.blue, fontWeight: 700 }}>
-                      Open lead
-                    </Link>
-                  </p>
-                  <p style={{ margin: "0 0 8px", fontSize: 14, color: T.textMid }}>
-                    <strong>Assignee:</strong>{" "}
-                    <span style={{ color: T.textDark, fontWeight: 600 }}>
-                      {joinName(ticket.assignee) || (ticket.assignee_id ? ticket.assignee_id.slice(0, 8) : "Unassigned")}
-                    </span>
-                  </p>
-                  {ticket.description && (
-                    <p style={{ margin: "12px 0 0", fontSize: 14, color: T.textDark, lineHeight: 1.55 }}>{ticket.description}</p>
-                  )}
-                  {canManageTicketFields && (
-                    <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
-                      <label style={{ fontSize: 13, fontWeight: 700, color: T.textMid }}>Status</label>
-                      <select
-                        value={ticket.status}
-                        disabled={actionBusy === ticket.id}
-                        onChange={(e) => void updateStatus(ticket.id, e.target.value as TicketStatus)}
-                        style={{
-                          padding: "8px 10px",
-                          borderRadius: T.radiusSm,
-                          border: `1px solid ${T.border}`,
-                          fontSize: 13,
-                          fontFamily: T.font,
-                          fontWeight: 600,
-                        }}
-                      >
-                        <option value="open">Open</option>
-                        <option value="in_progress">In progress</option>
-                        <option value="solved">Solved</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  <div>
-                    <h3 style={{ margin: "0 0 10px", fontSize: 16, fontWeight: 800 }}>Comments</h3>
-                    {threadLoading && <p style={{ margin: 0, fontSize: 13, color: T.textMuted }}>Loading thread…</p>}
-                    {!threadLoading && comments.length === 0 && <p style={{ margin: 0, fontSize: 13, color: T.textMuted }}>No comments yet.</p>}
-                    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                      {comments.map((comment) => {
-                        const name = joinName(comment.users) || comment.user_id.slice(0, 8);
-                        const own = sessionUserId === comment.user_id;
-                        const editing = editingCommentId === comment.id;
-                        return (
-                          <li
-                            key={comment.id}
-                            style={{
-                              padding: "12px 14px",
-                              borderRadius: T.radiusMd,
-                              border: `1px solid ${T.border}`,
-                              background: T.pageBg,
-                            }}
-                          >
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{name}</span>
-                              <span style={{ fontSize: 11, color: T.textMuted }}>{new Date(comment.created_at).toLocaleString()}</span>
-                            </div>
-                            {editing ? (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                <textarea
-                                  value={editCommentBody}
-                                  onChange={(e) => setEditCommentBody(e.target.value)}
-                                  rows={3}
-                                  style={{
-                                    width: "100%",
-                                    boxSizing: "border-box",
-                                    padding: 10,
-                                    borderRadius: T.radiusSm,
-                                    border: `1px solid ${T.border}`,
-                                    fontSize: 13,
-                                    fontFamily: T.font,
-                                  }}
-                                />
-                                <div style={{ display: "flex", gap: 8 }}>
-                                  <button
-                                    type="button"
-                                    disabled={actionBusy === `e-${comment.id}`}
-                                    onClick={() => void saveEditedComment(ticket.id, comment.id)}
-                                    style={{
-                                      padding: "6px 12px",
-                                      borderRadius: 8,
-                                      border: "none",
-                                      background: accent,
-                                      color: "#fff",
-                                      fontSize: 12,
-                                      fontWeight: 700,
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingCommentId(null);
-                                      setEditCommentBody("");
-                                    }}
-                                    style={{
-                                      padding: "6px 12px",
-                                      borderRadius: 8,
-                                      border: `1px solid ${T.border}`,
-                                      background: T.cardBg,
-                                      fontSize: 12,
-                                      fontWeight: 600,
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <p style={{ margin: 0, fontSize: 14, color: T.textDark, lineHeight: 1.5 }}>{comment.body}</p>
-                                {own && (
-                                  <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingCommentId(comment.id);
-                                        setEditCommentBody(comment.body);
-                                      }}
-                                      style={{
-                                        padding: "4px 10px",
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        borderRadius: 6,
-                                        border: `1px solid ${T.border}`,
-                                        background: T.cardBg,
-                                        cursor: "pointer",
-                                      }}
-                                    >
-                                      Edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => void deleteComment(ticket.id, comment.id)}
-                                      disabled={actionBusy === `d-${comment.id}`}
-                                      style={{
-                                        padding: "4px 10px",
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        borderRadius: 6,
-                                        border: "1px solid #fecaca",
-                                        background: "#fef2f2",
-                                        color: "#991b1b",
-                                        cursor: "pointer",
-                                      }}
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    {sessionUserId && (
-                      <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                        <textarea
-                          value={commentDraft}
-                          onChange={(e) => setCommentDraft(e.target.value)}
-                          placeholder="Add a comment…"
-                          rows={3}
-                          style={{
-                            width: "100%",
-                            boxSizing: "border-box",
-                            padding: 10,
-                            borderRadius: T.radiusSm,
-                            border: `1px solid ${T.border}`,
-                            fontSize: 13,
-                            fontFamily: T.font,
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void postComment(ticket.id)}
-                          disabled={!commentDraft.trim() || actionBusy === `c-${ticket.id}`}
-                          style={{
-                            alignSelf: "flex-start",
-                            padding: "8px 16px",
-                            borderRadius: T.radiusMd,
-                            border: "none",
-                            background: accent,
-                            color: "#fff",
-                            fontSize: 13,
-                            fontWeight: 700,
-                            cursor: commentDraft.trim() ? "pointer" : "not-allowed",
-                            opacity: commentDraft.trim() ? 1 : 0.5,
-                          }}
-                        >
-                          Post comment
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <h3 style={{ margin: "0 0 10px", fontSize: 16, fontWeight: 800 }}>Followers</h3>
-                    <p style={{ margin: "0 0 10px", fontSize: 12, color: T.textMuted, lineHeight: 1.45 }}>
-                      Only the assignee can add or remove followers. Paste a user UUID.
-                    </p>
-                    <ul style={{ listStyle: "none", margin: "0 0 12px", padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-                      {followers.map((follower) => (
-                        <li
-                          key={follower.user_id}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            fontSize: 13,
-                            padding: "8px 10px",
-                            borderRadius: T.radiusSm,
-                            border: `1px solid ${T.border}`,
-                            background: T.pageBg,
-                          }}
-                        >
-                          <span>{joinName(follower.users) || follower.user_id}</span>
-                          {canManageTicketFields && (
-                            <button
-                              type="button"
-                              onClick={() => void removeFollower(ticket.id, follower.user_id)}
-                              disabled={actionBusy === `rf-${ticket.id}`}
-                              style={{
-                                padding: "4px 8px",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                borderRadius: 6,
-                                border: "none",
-                                background: "#fef2f2",
-                                color: "#b91c1c",
-                                cursor: "pointer",
-                              }}
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                    {canManageTicketFields && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                        <Input
-                          value={followerUserId}
-                          onChange={(e) => setFollowerUserId(e.target.value)}
-                          placeholder="User UUID"
-                          style={{ flex: 1, minWidth: 200, height: 38 }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void addFollower(ticket.id)}
-                          disabled={actionBusy === `f-${ticket.id}`}
-                          style={{
-                            padding: "8px 14px",
-                            borderRadius: T.radiusMd,
-                            border: "none",
-                            background: accent,
-                            color: "#fff",
-                            fontSize: 13,
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Add follower
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
     </div>
   );
 }

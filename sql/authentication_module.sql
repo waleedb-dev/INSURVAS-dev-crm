@@ -75,11 +75,13 @@ set
   name = excluded.name,
   description = excluded.description;
 
--- 6) RLS helper functions
+-- 6) RLS helper functions (all SECURITY DEFINER to bypass RLS and avoid recursion)
 create or replace function public.is_active_user(p_user_id uuid)
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select exists (
     select 1
@@ -120,7 +122,22 @@ as $$
   );
 $$;
 
+create or replace function public.get_user_call_center_id(p_user_id uuid)
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select u.call_center_id from public.users u where u.id = p_user_id;
+$$;
+
+grant execute on function public.get_user_call_center_id(uuid) to authenticated;
+
 -- 7) RLS and policies
+-- IMPORTANT: all policies on public.users MUST use SECURITY DEFINER helper
+-- functions (has_role, has_any_role, get_user_call_center_id) instead of
+-- inline subqueries on public.users, to avoid infinite RLS recursion.
 alter table public.users enable row level security;
 alter table public.roles enable row level security;
 alter table public.call_centers enable row level security;
@@ -137,30 +154,14 @@ create policy users_select_admin_hr
 on public.users
 for select
 to authenticated
-using (
-  exists (
-    select 1
-    from public.users u
-    join public.roles r on r.id = u.role_id
-    where u.id = auth.uid()
-      and (r.key = 'system_admin' or r.key = 'hr')
-  )
-);
+using (public.has_any_role(array['system_admin', 'hr']));
 
 drop policy if exists users_select_system_admin_all on public.users;
 create policy users_select_system_admin_all
 on public.users
 for select
 to authenticated
-using (
-  exists (
-    select 1
-    from public.users u
-    join public.roles r on r.id = u.role_id
-    where u.id = auth.uid()
-      and r.key = 'system_admin'
-  )
-);
+using (public.has_role('system_admin'));
 
 drop policy if exists users_select_call_center_admin_same_center on public.users;
 create policy users_select_call_center_admin_same_center
@@ -168,16 +169,17 @@ on public.users
 for select
 to authenticated
 using (
-  exists (
-    select 1
-    from public.users u_self
-    join public.roles r on r.id = u_self.role_id
-    where u_self.id = auth.uid()
-      and r.key = 'call_center_admin'
-      and u_self.call_center_id is not null
-      and u_self.call_center_id = users.call_center_id
-  )
+  public.has_role('call_center_admin')
+  and public.get_user_call_center_id(auth.uid()) is not null
+  and public.get_user_call_center_id(auth.uid()) = call_center_id
 );
+
+drop policy if exists users_select_publisher_manager on public.users;
+create policy users_select_publisher_manager
+on public.users
+for select
+to authenticated
+using (public.has_role('publisher_manager'));
 
 drop policy if exists users_update_own on public.users;
 create policy users_update_own
@@ -192,24 +194,8 @@ create policy users_update_admin_hr
 on public.users
 for update
 to authenticated
-using (
-  exists (
-    select 1
-    from public.users u
-    join public.roles r on r.id = u.role_id
-    where u.id = auth.uid()
-      and (r.key = 'system_admin' or r.key = 'hr')
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.users u
-    join public.roles r on r.id = u.role_id
-    where u.id = auth.uid()
-      and (r.key = 'system_admin' or r.key = 'hr')
-  )
-);
+using (public.has_any_role(array['system_admin', 'hr']))
+with check (public.has_any_role(array['system_admin', 'hr']));
 
 drop policy if exists users_insert_own on public.users;
 create policy users_insert_own
@@ -217,6 +203,13 @@ on public.users
 for insert
 to authenticated
 with check (id = auth.uid());
+
+drop policy if exists users_insert_admin_hr on public.users;
+create policy users_insert_admin_hr
+on public.users
+for insert
+to authenticated
+with check (public.has_any_role(array['system_admin', 'hr']));
 
 drop policy if exists roles_select_all_authenticated on public.roles;
 create policy roles_select_all_authenticated

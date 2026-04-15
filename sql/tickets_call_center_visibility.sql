@@ -51,5 +51,12 @@ as $$
     join public.roles r on r.id = u.role_id
     where u.id = p_user_id
       and r.key = 'system_admin'
+  )
+  or exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.role_id
+    where u.id = p_user_id
+      and r.key = 'publisher_manager'
   );
 $$;

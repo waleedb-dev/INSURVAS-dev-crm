@@ -1,4 +1,4 @@
--- Publisher Manager role + dashboard permissions (lead pipeline + transfer leads read for center).
+-- Publisher Manager role + dashboard permissions.
 -- Prerequisites: public.roles, public.permissions, public.role_permissions from permissions_module.sql.
 -- Safe to run multiple times.
 
@@ -14,15 +14,10 @@ set
   name = excluded.name,
   description = excluded.description;
 
-insert into public.role_permissions (role_id, permission_id)
-select r.id, p.id
-from public.roles r
-cross join public.permissions p
-where r.key = 'publisher_manager'
-  and p.key in (
-    'page.lead_pipeline.access',
-    'action.lead_pipeline.update',
-    'page.transfer_leads.access',
-    'action.transfer_leads.view_call_center'
-  )
-on conflict (role_id, permission_id) do nothing;
+-- Publisher Manager should have access to the Support queue only.
+-- The dashboard currently gates Support queue by role (`publisher_manager`) rather than permission keys,
+-- so we intentionally clear all permission-key-based access here.
+delete from public.role_permissions rp
+using public.roles r
+where rp.role_id = r.id
+  and r.key = 'publisher_manager';
