@@ -19,6 +19,9 @@ import {
 interface Role { id: string; name: string; key: string; }
 interface BpoCenter { id: string; name: string; }
 interface Permission { id: string; name: string; key: string; }
+interface DepartmentRow { id: string; name: string; }
+
+type BpoStaffRoleKey = "call_center_admin" | "call_center_agent" | "publisher_manager";
 
 interface UserEditorProps {
   user?: {
@@ -32,8 +35,8 @@ interface UserEditorProps {
   };
   onClose: () => void;
   onSubmit: (data: any) => void;
-  presetRoleKey?: "call_center_admin" | "call_center_agent";
-  allowedRoleKeys?: Array<"call_center_admin" | "call_center_agent">;
+  presetRoleKey?: BpoStaffRoleKey;
+  allowedRoleKeys?: BpoStaffRoleKey[];
   presetCenterId?: string;
   lockRole?: boolean;
   lockCenter?: boolean;
@@ -146,6 +149,8 @@ export default function UserEditorComponent({
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string>(user?.roleId ?? "");
   const [selectedCenterId, setSelectedCenterId] = useState<string>("");
+  const [departments, setDepartments] = useState<DepartmentRow[]>([]);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
   const [unlicensedSalesSubtype, setUnlicensedSalesSubtype] = useState<"" | UnlicensedSalesSubtype>(() => {
     const s = user?.unlicensedSalesSubtype;
     return s && isUnlicensedSalesSubtype(s) ? s : "";
@@ -162,12 +167,16 @@ export default function UserEditorComponent({
 
   const currentRole = roles.find(r => r.id === selectedRoleId);
   const selectableRoles = useMemo(
-    () => (allowedRoleKeys && allowedRoleKeys.length > 0
-      ? roles.filter((role) => allowedRoleKeys.includes(role.key as "call_center_admin" | "call_center_agent"))
-      : roles),
+    () =>
+      allowedRoleKeys && allowedRoleKeys.length > 0
+        ? roles.filter((role) => (allowedRoleKeys as readonly string[]).includes(role.key))
+        : roles,
     [roles, allowedRoleKeys],
   );
-  const isCallCenterRole = currentRole?.key === "call_center_admin" || currentRole?.key === "call_center_agent";
+  /** Call center admin/agent are scoped to a BPO centre; publisher_manager is department-only. */
+  const isCallCenterScopedRole =
+    currentRole?.key === "call_center_admin" || currentRole?.key === "call_center_agent";
+  const isPublisherManagerRole = currentRole?.key === "publisher_manager";
   const isUnlicensedSalesRole = currentRole?.key === "sales_agent_unlicensed";
 
   const selectedPermissionCount = useMemo(() => {
@@ -186,13 +195,15 @@ export default function UserEditorComponent({
 
   useEffect(() => {
     async function fetchData() {
-      const [{ data: rolesData }, { data: centersData }, { data: permissionsData }] = await Promise.all([
+      const [{ data: rolesData }, { data: centersData }, { data: permissionsData }, { data: departmentsData }] = await Promise.all([
         supabase.from("roles").select("id, name, key").order("name"),
         supabase.from("call_centers").select("id, name").order("name"),
         supabase.from("permissions").select("id, key, description").order("key"),
+        supabase.from("departments").select("id, name").order("name"),
       ]);
       if (rolesData) setRoles(rolesData);
       if (centersData) setCenters(centersData);
+      if (departmentsData) setDepartments(departmentsData as DepartmentRow[]);
       if (permissionsData) setPermissions(permissionsData.map((p: any) => ({
         id: p.id,
         key: p.key,
@@ -206,11 +217,17 @@ export default function UserEditorComponent({
       if (user?.id) {
         const { data: userRow } = await supabase
           .from("users")
-          .select("call_center_id, unlicensed_sales_subtype")
+          .select("call_center_id, unlicensed_sales_subtype, department_id")
           .eq("id", user.id)
           .maybeSingle();
-        if (userRow?.call_center_id) {
+        const loadRoleKey = rolesData?.find((r) => r.id === user.roleId)?.key;
+        if (loadRoleKey === "publisher_manager") {
+          setSelectedCenterId("");
+        } else if (userRow?.call_center_id) {
           setSelectedCenterId(String(userRow.call_center_id));
+        }
+        if (userRow && "department_id" in userRow && userRow.department_id) {
+          setSelectedDepartmentId(String(userRow.department_id));
         }
         const st = userRow?.unlicensed_sales_subtype;
         if (st && isUnlicensedSalesSubtype(st)) {
@@ -231,10 +248,12 @@ export default function UserEditorComponent({
 
   useEffect(() => {
     if (!presetCenterId || user?.id) return;
+    const rk = roles.find((r) => r.id === selectedRoleId)?.key;
+    if (rk === "publisher_manager") return;
     if (selectedCenterId !== presetCenterId) {
       setSelectedCenterId(presetCenterId);
     }
-  }, [presetCenterId, selectedCenterId, user?.id]);
+  }, [presetCenterId, selectedCenterId, user?.id, selectedRoleId, roles]);
 
   useEffect(() => {
     async function fetchEffectivePermissions() {
@@ -276,7 +295,8 @@ export default function UserEditorComponent({
     if (!selectedRoleId) return false;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) return false;
-    if (isCallCenterRole && !selectedCenterId) return false;
+    if (isCallCenterScopedRole && !selectedCenterId) return false;
+    if (isPublisherManagerRole && !selectedDepartmentId) return false;
     if (isUnlicensedSalesRole && !unlicensedSalesSubtype) return false;
     return true;
   };
@@ -316,7 +336,8 @@ export default function UserEditorComponent({
           full_name: fullName,
           phone,
           role_id: selectedRoleId,
-          call_center_id: isCallCenterRole ? selectedCenterId : null,
+          call_center_id: isCallCenterScopedRole ? selectedCenterId : null,
+          department_id: isPublisherManagerRole ? selectedDepartmentId : null,
           unlicensed_sales_subtype:
             isUnlicensedSalesRole && unlicensedSalesSubtype ? unlicensedSalesSubtype : null,
           permissions: Array.from(selectedPermissions),
@@ -345,7 +366,7 @@ export default function UserEditorComponent({
           email,
           phone,
           roleId: selectedRoleId,
-          centerId: isCallCenterRole ? selectedCenterId : null,
+          centerId: isCallCenterScopedRole ? selectedCenterId : null,
           permissions: Array.from(selectedPermissions),
           isUpdate: true
         });
@@ -355,7 +376,8 @@ export default function UserEditorComponent({
           full_name: fullName,
           phone,
           role_id: selectedRoleId,
-          call_center_id: isCallCenterRole ? selectedCenterId : null,
+          call_center_id: isCallCenterScopedRole ? selectedCenterId : null,
+          department_id: isPublisherManagerRole ? selectedDepartmentId : null,
           unlicensed_sales_subtype:
             isUnlicensedSalesRole && unlicensedSalesSubtype ? unlicensedSalesSubtype : null,
           permissions: Array.from(selectedPermissions),
@@ -407,7 +429,7 @@ export default function UserEditorComponent({
           email,
           phone,
           roleId: selectedRoleId,
-          centerId: isCallCenterRole ? selectedCenterId : null,
+          centerId: isCallCenterScopedRole ? selectedCenterId : null,
           permissions: Array.from(selectedPermissions).filter((id) => !rolePermissionIds.has(id)),
           isUpdate: false
         });
@@ -616,14 +638,17 @@ export default function UserEditorComponent({
                           setSelectedRoleId(v);
                           const rk = roles.find((r) => r.id === v)?.key;
                           if (rk !== "sales_agent_unlicensed") setUnlicensedSalesSubtype("");
-                          if (rk !== "call_center_admin" && rk !== "call_center_agent") setSelectedCenterId("");
+                          if (rk !== "call_center_admin" && rk !== "call_center_agent") {
+                            setSelectedCenterId("");
+                          }
+                          if (rk !== "publisher_manager") setSelectedDepartmentId("");
                         }}
                         options={selectableRoles.map(r => ({ value: r.id, label: r.name }))}
                         placeholder="Select a role..."
                         disabled={lockRole}
                       />
                     </div>
-                    {isCallCenterRole && (
+                    {isCallCenterScopedRole && (
                       <div>
                         <label style={labelStyle}>BPO Centre <span style={{ color: "#dc2626" }}>*</span></label>
                         <StyledSelect
@@ -632,6 +657,17 @@ export default function UserEditorComponent({
                           options={centers.map(c => ({ value: c.id, label: c.name }))}
                           placeholder="Select a centre..."
                           disabled={lockCenter}
+                        />
+                      </div>
+                    )}
+                    {isPublisherManagerRole && (
+                      <div>
+                        <label style={labelStyle}>Department <span style={{ color: "#dc2626" }}>*</span></label>
+                        <StyledSelect
+                          value={selectedDepartmentId}
+                          onValueChange={setSelectedDepartmentId}
+                          options={departments.map((d) => ({ value: d.id, label: d.name }))}
+                          placeholder="Select a department..."
                         />
                       </div>
                     )}

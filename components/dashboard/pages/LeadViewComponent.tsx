@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { LayoutDashboard, Phone, FileText, Shield, LifeBuoy } from "lucide-react";
+import { LayoutDashboard, Phone, FileText, Shield } from "lucide-react";
 import { POLICY_SCHEMA_SECTIONS, policyDisplayValue, type PolicyRow } from "@/lib/policy-schema";
 import { buildDraftFromPolicyRow, payloadFromDraft } from "@/lib/policy-form-utils";
 import { EmptyState, Toast } from "@/components/ui";
@@ -10,7 +10,7 @@ import PolicyFormFields from "./PolicyFormFields";
 import { getCurrentUserPermissionKeys, type PermissionKey } from "@/lib/auth/permissions";
 import { LeadCard, InfoField, InfoGrid, formatCurrency, formatBool, formatDate } from "./LeadCard";
 import { LeadEditForm, useLeadEdit } from "./LeadEditForm";
-import LeadTicketsTab from "./LeadTicketsTab";
+import LeadNewTicketButton from "./LeadNewTicketButton";
 
 interface Lead {
   name: string;
@@ -48,7 +48,7 @@ interface LeadViewProps {
   previewMode?: boolean;
 }
 
-type TabType = "Overview" | "Call updates" | "Notes" | "Support tickets" | "Policy & coverage";
+type TabType = "Overview" | "Call updates" | "Notes" | "Policy & coverage";
 type PipelineOption = { id: number; name: string; stages: string[] };
 
 // Build tab config dynamically based on permissions
@@ -58,7 +58,6 @@ function useTabConfig(showPolicyTab: boolean): { id: TabType; label: string; ico
       { id: "Overview", label: "Overview", icon: LayoutDashboard },
       { id: "Call updates", label: "Call updates", icon: Phone },
       { id: "Notes", label: "Notes", icon: FileText },
-      { id: "Support tickets", label: "Support tickets", icon: LifeBuoy },
     ];
     if (showPolicyTab) {
       tabs.push({ id: "Policy & coverage", label: "Policy & coverage", icon: Shield });
@@ -763,6 +762,13 @@ export default function LeadViewComponent({
                   Edit Lead
                 </button>
               )}
+              <LeadNewTicketButton
+                leadId={rowUuid}
+                leadCallCenterId={leadRow?.call_center_id != null ? String(leadRow.call_center_id) : null}
+                sessionUserId={sessionUserId}
+                isCreation={isCreation}
+                previewMode={previewMode}
+              />
               {effectiveCanEditLead && (
                 <button
                   type="button"
@@ -836,18 +842,6 @@ export default function LeadViewComponent({
               isCreation={isCreation}
               previewMode={previewMode}
               canEditLead={effectiveCanEditLead}
-            />
-          </div>
-        )}
-
-        {activeTab === "Support tickets" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <LeadTicketsTab
-              leadId={rowUuid}
-              leadCallCenterId={leadRow?.call_center_id != null ? String(leadRow.call_center_id) : null}
-              sessionUserId={sessionUserId}
-              isCreation={isCreation}
-              previewMode={previewMode}
             />
           </div>
         )}

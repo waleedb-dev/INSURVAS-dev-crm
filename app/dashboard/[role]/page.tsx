@@ -19,6 +19,7 @@ import UplineCarrierStatesManagementPage from "@/components/dashboard/pages/Upli
 import ProductGuidePage from "@/components/dashboard/pages/ProductGuidePage";
 import AnnouncementsPage from "@/components/dashboard/pages/AnnouncementsPage";
 import TransferCheckTesterPage from "@/components/dashboard/pages/TransferCheckTesterPage";
+import PublisherSupportTicketsPage from "@/components/dashboard/pages/PublisherSupportTicketsPage";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 export default function RoleDashboardPage() {
@@ -68,6 +69,7 @@ export default function RoleDashboardPage() {
       {activePage === "lead-pipeline" && (
         <LeadPipelinePage canUpdateActions={canEditLeadPipeline} />
       )}
+      {activePage === "support-tickets" && <PublisherSupportTicketsPage />}
       {activePage === "call-center-lead-intake" && (
         <CallCenterLeadIntakePage
           canCreateLeads={permissionKeys.has("action.transfer_leads.create")}

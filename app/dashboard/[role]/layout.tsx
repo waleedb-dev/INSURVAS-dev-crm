@@ -18,6 +18,7 @@ const ALL_PAGES: DashPage[] = [
   "dashboard",
   "daily-deal-flow",
   "lead-pipeline",
+  "support-tickets",
   "call-center-lead-intake",
   "transfer-check-tester",
   "users-access",
