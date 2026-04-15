@@ -127,7 +127,7 @@ export function canAccessPage(
   }
 
   if (page === "support-tickets") {
-    return role === "publisher_manager" || role === "system_admin";
+    return role === "publisher_manager" || role === "system_admin" || role === "call_center_admin";
   }
 
   if (page === "call-center-lead-intake" || page === "transfer-check-tester") {
