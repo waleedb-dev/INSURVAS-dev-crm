@@ -89,7 +89,7 @@ export function TransferStyledSelect({
 export const transferSelectLabelStyle = {
   fontSize: 12,
   fontWeight: 700,
-  color: T.textMuted,
+  color: "#1f2937",
   marginBottom: 6,
   display: "block" as const,
   textTransform: "uppercase" as const,

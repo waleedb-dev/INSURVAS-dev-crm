@@ -167,13 +167,39 @@ export default function TransferLeadSsnPolicyCards({ leadRowId, supabase }: Prop
             borderRadius: 16,
             border: `1.5px solid ${T.border}`,
             padding: "20px 24px",
-            color: T.textMuted,
-            fontWeight: 600,
-            fontSize: 13,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
           }}
+          role="status"
+          aria-label="Loading policy and backup quote data"
         >
-          Loading policy & backup quote from lead data…
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                border: "2px solid rgba(35, 50, 23, 0.2)",
+                borderTopColor: T.blue,
+                animation: "spin 1s linear infinite",
+              }}
+            />
+            <span style={{ color: T.textMuted, fontWeight: 600, fontSize: 13 }}>
+              Loading policy & backup quote data…
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ height: 12, borderRadius: 6, backgroundColor: T.pageBg, width: "60%" }} />
+            <div style={{ height: 12, borderRadius: 6, backgroundColor: T.pageBg, width: "80%" }} />
+            <div style={{ height: 12, borderRadius: 6, backgroundColor: T.pageBg, width: "40%" }} />
+          </div>
         </div>
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }

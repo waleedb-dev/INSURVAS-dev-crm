@@ -508,6 +508,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
         <button
           type="button"
           onClick={() => router.back()}
+          aria-label="Go back"
           style={{
             position: "absolute",
             top: 12,
@@ -521,6 +522,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             lineHeight: 1,
             transition: "all 0.2s",
             borderRadius: 8,
+            outline: "none",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = T.pageBg;
@@ -530,7 +532,12 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             e.currentTarget.style.backgroundColor = "transparent";
             e.currentTarget.style.color = T.textMuted;
           }}
-          title="Go back"
+          onFocus={(e) => {
+            e.currentTarget.style.boxShadow = "0 0 0 2px rgba(35, 50, 23, 0.2)";
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.boxShadow = "none";
+          }}
         >
           ←
         </button>
@@ -555,36 +562,39 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           <div
             style={{
               backgroundColor: verificationProgress.progress >= 100 ? "#f0fdf4" : T.pageBg,
-              borderRadius: 16,
-              padding: "18px 20px",
-              minWidth: 340,
+              borderRadius: 12,
+              padding: "12px 16px",
+              minWidth: 200,
+              maxWidth: 240,
               border: `1px solid ${verificationProgress.progress >= 100 ? "#86efac" : T.border}`,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
             }}
           >
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 14,
+                alignItems: "baseline",
               }}
             >
               <span
                 style={{
-                  fontSize: 14,
-                  fontWeight: 800,
+                  fontSize: 11,
+                  fontWeight: 600,
                   color: T.textMuted,
                   textTransform: "uppercase",
-                  letterSpacing: "0.8px",
+                  letterSpacing: "0.6px",
                 }}
               >
                 Progress
               </span>
               <span
                 style={{
-                  fontSize: 48,
+                  fontSize: 20,
                   lineHeight: 1,
-                  fontWeight: 800,
+                  fontWeight: 700,
                   color: progressColor,
                 }}
               >
@@ -594,11 +604,10 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
 
             <div
               style={{
-                height: 14,
-                borderRadius: 999,
+                height: 6,
+                borderRadius: 3,
                 backgroundColor: "#e7ebef",
                 overflow: "hidden",
-                marginBottom: 14,
               }}
             >
               <div
@@ -609,7 +618,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                 style={{
                   width: `${verificationProgress.progress}%`,
                   height: "100%",
-                  borderRadius: 999,
+                  borderRadius: 3,
                   backgroundColor: progressColor,
                   transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
@@ -621,18 +630,17 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                gap: 10,
               }}
             >
-              <span style={{ fontSize: 14, fontWeight: 700, color: T.textMuted }}>
-                {verificationProgress.verifiedCount} of {verificationProgress.totalCount} fields verified
+              <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>
+                {verificationProgress.verifiedCount}/{verificationProgress.totalCount} fields
               </span>
               <span
                 style={{
-                  fontSize: 14,
-                  fontWeight: 800,
-                  borderRadius: 10,
-                  padding: "8px 14px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  borderRadius: 6,
+                  padding: "4px 8px",
                   backgroundColor:
                     verificationProgress.progress >= 100
                       ? "#dcfce7"
@@ -650,7 +658,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                 {verificationProgress.progress >= 100
                   ? "Complete"
                   : verificationProgress.progress > 0
-                    ? "Just Started"
+                    ? "In Progress"
                     : "Not Started"}
               </span>
             </div>
@@ -670,9 +678,17 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                     backgroundColor: "#ede9fe",
                     color: "#5b21b6",
                     borderRadius: 8,
-                    padding: "9px 12px",
-                    fontWeight: 700,
+                    padding: "8px 12px",
+                    fontWeight: 600,
                     cursor: "pointer",
+                    transition: "all 0.15s ease-in-out",
+                    outline: "none",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.boxShadow = "0 0 0 2px rgba(35, 50, 23, 0.2)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
                   Claim Retention
@@ -687,9 +703,17 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
                     backgroundColor: T.blue,
                     color: "#fff",
                     borderRadius: 8,
-                    padding: "9px 12px",
-                    fontWeight: 700,
+                    padding: "8px 12px",
+                    fontWeight: 600,
                     cursor: "pointer",
+                    transition: "all 0.15s ease-in-out",
+                    outline: "none",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.boxShadow = "0 0 0 2px rgba(99, 139, 75, 0.4)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
                   Start verification
