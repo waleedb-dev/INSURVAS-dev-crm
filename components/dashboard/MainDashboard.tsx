@@ -1255,9 +1255,23 @@ function usePipelineStages(
         leadsQuery = leadsQuery.eq("submitted_by", userId);
       }
 
-      const { data: leadsData } = viewScope === "none"
-        ? { data: [] as any[] }
-        : await leadsQuery;
+      const PAGE_SIZE = 1000;
+      const fetchAllRows = async (baseQuery: any) => {
+        const all: any[] = [];
+        for (let offset = 0; ; offset += PAGE_SIZE) {
+          const { data, error } = await baseQuery.range(offset, offset + PAGE_SIZE - 1);
+          if (error) throw error;
+          const batch = (data ?? []) as any[];
+          all.push(...batch);
+          if (batch.length < PAGE_SIZE) break;
+        }
+        return all;
+      };
+
+      const leadsData =
+        viewScope === "none"
+          ? ([] as any[])
+          : await fetchAllRows(leadsQuery);
 
       const countMap: Record<number, number> = {};
       const valueMap: Record<number, number> = {};
