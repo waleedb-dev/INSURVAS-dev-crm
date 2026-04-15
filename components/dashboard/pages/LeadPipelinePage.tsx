@@ -455,6 +455,21 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       };
     };
 
+    const PAGE_SIZE = 1000;
+    const fetchAllRows = async (
+      makeBaseQuery: () => any,
+    ): Promise<{ data: Record<string, unknown>[] | null; error: { message?: string } | null }> => {
+      const all: Record<string, unknown>[] = [];
+      for (let offset = 0; ; offset += PAGE_SIZE) {
+        const { data, error } = await makeBaseQuery().range(offset, offset + PAGE_SIZE - 1);
+        if (error) return { data: null, error };
+        const batch = (data ?? []) as Record<string, unknown>[];
+        all.push(...batch);
+        if (batch.length < PAGE_SIZE) break;
+      }
+      return { data: all, error: null };
+    };
+
     if (isTransferPipeline) {
       const transferPipelineId = await resolvePipelineId("Transfer Portal");
       if (!transferPipelineId) {
@@ -462,13 +477,19 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         setLoading(false);
         return;
       }
-      let q: any = supabase.from("leads").select(selectCols).eq("pipeline_id", transferPipelineId).eq("is_draft", false).order("created_at", { ascending: false });
-      if (!canViewAllCenters) {
-        if (callCenterId) q = q.eq("call_center_id", callCenterId);
-        else if (userId) q = q.eq("submitted_by", userId);
-      }
-
-      const { data, error } = await q;
+      const { data, error } = await fetchAllRows(() => {
+        let q: any = supabase
+          .from("leads")
+          .select(selectCols)
+          .eq("pipeline_id", transferPipelineId)
+          .eq("is_draft", false)
+          .order("created_at", { ascending: false });
+        if (!canViewAllCenters) {
+          if (callCenterId) q = q.eq("call_center_id", callCenterId);
+          else if (userId) q = q.eq("submitted_by", userId);
+        }
+        return q;
+      });
 
       if (error || !data || data.length === 0) {
         setLeads([]);
@@ -493,13 +514,19 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       setLoading(false);
       return;
     }
-    let q: any = supabase.from("leads").select(selectCols).eq("pipeline_id", selectedPipelineId).eq("is_draft", false).order("created_at", { ascending: false });
-    if (!canViewAllCenters) {
-      if (callCenterId) q = q.eq("call_center_id", callCenterId);
-      else if (userId) q = q.eq("submitted_by", userId);
-    }
-
-    const { data, error } = await q;
+    const { data, error } = await fetchAllRows(() => {
+      let q: any = supabase
+        .from("leads")
+        .select(selectCols)
+        .eq("pipeline_id", selectedPipelineId)
+        .eq("is_draft", false)
+        .order("created_at", { ascending: false });
+      if (!canViewAllCenters) {
+        if (callCenterId) q = q.eq("call_center_id", callCenterId);
+        else if (userId) q = q.eq("submitted_by", userId);
+      }
+      return q;
+    });
     if (error || !data) {
       setLeads([]);
       setLoading(false);
