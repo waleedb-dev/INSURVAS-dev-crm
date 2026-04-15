@@ -22,6 +22,7 @@ type TicketRow = {
   status: TicketStatus;
   created_at: string;
   publisher?: { full_name: string | null } | { full_name: string | null }[] | null;
+  assignee?: { full_name: string | null } | { full_name: string | null }[] | null;
   lead?: { phone: string | null; first_name: string | null; last_name: string | null; lead_unique_id: string | null } | null;
 };
 
@@ -257,6 +258,7 @@ export default function PublisherSupportTicketsPage() {
         status,
         created_at,
         publisher:users!tickets_publisher_id_fkey(full_name),
+        assignee:users!tickets_assignee_id_fkey(full_name),
         lead:leads(phone, first_name, last_name, lead_unique_id)
       `,
       )
@@ -1085,6 +1087,12 @@ export default function PublisherSupportTicketsPage() {
                     <Link href={`/dashboard/${routeRole}/leads/${ticket.lead_id}`} style={{ color: T.blue, fontWeight: 700 }}>
                       Open lead
                     </Link>
+                  </p>
+                  <p style={{ margin: "0 0 8px", fontSize: 14, color: T.textMid }}>
+                    <strong>Assignee:</strong>{" "}
+                    <span style={{ color: T.textDark, fontWeight: 600 }}>
+                      {joinName(ticket.assignee) || (ticket.assignee_id ? ticket.assignee_id.slice(0, 8) : "Unassigned")}
+                    </span>
                   </p>
                   {ticket.description && (
                     <p style={{ margin: "12px 0 0", fontSize: 14, color: T.textDark, lineHeight: 1.55 }}>{ticket.description}</p>

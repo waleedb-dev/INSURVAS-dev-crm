@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { LifeBuoy, Search } from "lucide-react";
 import { T } from "@/lib/theme";
 import { EmptyState } from "@/components/ui";
@@ -22,14 +22,6 @@ type TicketRow = {
   publisher?: { full_name: string | null } | { full_name: string | null }[] | null;
   assignee?: { full_name: string | null } | { full_name: string | null }[] | null;
   lead?: { phone: string | null; first_name: string | null; last_name: string | null; lead_unique_id: string | null } | null;
-};
-
-type CommentRow = {
-  id: string;
-  body: string;
-  created_at: string;
-  user_id: string;
-  users?: { full_name: string | null } | { full_name: string | null }[] | null;
 };
 
 function formatStatus(s: TicketStatus): string {
@@ -59,15 +51,14 @@ function leadLabelFromTicket(ticket: TicketRow) {
 
 export default function CallCenterSupportTicketsPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const router = useRouter();
+  const params = useParams<{ role?: string }>();
+  const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role || "agent";
+
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [commentsByTicket, setCommentsByTicket] = useState<Record<string, CommentRow[]>>({});
-  const [threadLoading, setThreadLoading] = useState(false);
-  const [commentDraft, setCommentDraft] = useState("");
-  const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"All" | TicketStatus>("All");
   const [page, setPage] = useState(1);
@@ -120,49 +111,6 @@ export default function CallCenterSupportTicketsPage() {
   useEffect(() => {
     void loadTickets();
   }, [loadTickets]);
-
-  const loadThread = useCallback(
-    async (ticketId: string) => {
-      setThreadLoading(true);
-      const { data, error: cErr } = await supabase
-        .from("ticket_comments")
-        .select("id, body, created_at, user_id, users(full_name)")
-        .eq("ticket_id", ticketId)
-        .order("created_at", { ascending: true });
-
-      if (!cErr) {
-        setCommentsByTicket((prev) => ({ ...prev, [ticketId]: (data ?? []) as unknown as CommentRow[] }));
-      }
-      setThreadLoading(false);
-    },
-    [supabase],
-  );
-
-  useEffect(() => {
-    if (expandedId) void loadThread(expandedId);
-  }, [expandedId, loadThread]);
-
-  useEffect(() => {
-    setCommentDraft("");
-  }, [expandedId]);
-
-  const postComment = async (ticketId: string) => {
-    if (!sessionUserId || !commentDraft.trim()) return;
-    setActionBusy(`c-${ticketId}`);
-    setError(null);
-    const { error: pErr } = await supabase.from("ticket_comments").insert({
-      ticket_id: ticketId,
-      user_id: sessionUserId,
-      body: commentDraft.trim(),
-    });
-    setActionBusy(null);
-    if (pErr) {
-      setError(pErr.message);
-      return;
-    }
-    setCommentDraft("");
-    await loadThread(ticketId);
-  };
 
   const filteredTickets = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -442,58 +390,54 @@ export default function CallCenterSupportTicketsPage() {
                 </td>
               </tr>
             ) : (
-              paginatedTickets.map((ticket) => {
-                const isOpen = expandedId === ticket.id;
-                const comments = commentsByTicket[ticket.id] ?? [];
-                return (
-                  <TableRow
-                    key={ticket.id}
-                    style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
-                    className="hover:bg-muted/30 transition-all duration-150"
-                    onClick={() => setExpandedId(isOpen ? null : ticket.id)}
-                  >
-                    <TableCell style={{ padding: "14px 20px" }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#233217" }}>{ticket.id.slice(0, 8)}</span>
-                    </TableCell>
-                    <TableCell style={{ padding: "14px 20px" }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{ticket.title}</span>
-                    </TableCell>
-                    <TableCell style={{ padding: "14px 20px" }}>
-                      <span style={{ fontSize: 14, color: T.textDark }}>{leadLabelFromTicket(ticket)}</span>
-                    </TableCell>
-                    <TableCell style={{ padding: "14px 20px" }}>
-                      <span style={{ fontSize: 14, color: T.textDark }}>{joinName(ticket.publisher) || "—"}</span>
-                    </TableCell>
-                    <TableCell style={{ padding: "14px 20px" }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "#233217" }}>{formatStatus(ticket.status)}</span>
-                    </TableCell>
-                    <TableCell style={{ padding: "14px 20px" }}>
-                      <span style={{ fontSize: 14, color: T.textDark }}>{new Date(ticket.created_at).toLocaleDateString()}</span>
-                    </TableCell>
-                    <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpandedId(isOpen ? null : ticket.id);
-                        }}
-                        style={{
-                          border: `1px solid ${T.border}`,
-                          borderRadius: 10,
-                          background: T.cardBg,
-                          color: "#233217",
-                          fontSize: 12,
-                          fontWeight: 600,
-                          padding: "6px 14px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {isOpen ? "Hide" : "View"}
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              paginatedTickets.map((ticket) => (
+                <TableRow
+                  key={ticket.id}
+                  style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
+                  className="hover:bg-muted/30 transition-all duration-150"
+                  onClick={() => router.push(`/dashboard/${routeRole}/support-tickets/${ticket.id}`)}
+                >
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#233217" }}>{ticket.id.slice(0, 8)}</span>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{ticket.title}</span>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <span style={{ fontSize: 14, color: T.textDark }}>{leadLabelFromTicket(ticket)}</span>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <span style={{ fontSize: 14, color: T.textDark }}>{joinName(ticket.publisher) || "—"}</span>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#233217" }}>{formatStatus(ticket.status)}</span>
+                  </TableCell>
+                  <TableCell style={{ padding: "14px 20px" }}>
+                    <span style={{ fontSize: 14, color: T.textDark }}>{new Date(ticket.created_at).toLocaleDateString()}</span>
+                  </TableCell>
+                  <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/dashboard/${routeRole}/support-tickets/${ticket.id}`);
+                      }}
+                      style={{
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 10,
+                        background: T.cardBg,
+                        color: "#233217",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: "6px 14px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      View
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </ShadcnTable>
@@ -554,115 +498,6 @@ export default function CallCenterSupportTicketsPage() {
           </div>
         </div>
       </div>
-
-      {!loading && expandedId && (
-        <div
-          style={{
-            marginTop: 28,
-            padding: 24,
-            borderRadius: 16,
-            border: `1px solid ${T.border}`,
-            background: T.cardBg,
-            boxShadow: T.shadowSm,
-          }}
-          onClick={(e) => e.stopPropagation()}
-          role="presentation"
-        >
-          {(() => {
-            const ticket = tickets.find((row) => row.id === expandedId);
-            if (!ticket) return null;
-            const comments = commentsByTicket[ticket.id] ?? [];
-
-            return (
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 24 }}>
-                <div>
-                  <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 800 }}>Ticket detail</h3>
-                  <p style={{ margin: "0 0 8px", fontSize: 14, color: T.textMid }}>
-                    <strong>Lead:</strong>{" "}
-                    <Link href={`/dashboard/call_center_admin/leads/${ticket.lead_id}`} style={{ color: T.blue, fontWeight: 700 }}>
-                      {leadLabelFromTicket(ticket)}
-                    </Link>
-                  </p>
-                  <p style={{ margin: "0 0 8px", fontSize: 13, color: T.textMuted }}>ID: {ticket.id}</p>
-                  {ticket.description ? (
-                    <p style={{ margin: "12px 0 0", fontSize: 14, color: T.textDark, lineHeight: 1.55 }}>{ticket.description}</p>
-                  ) : (
-                    <p style={{ margin: "12px 0 0", fontSize: 13, color: T.textMuted }}>No description.</p>
-                  )}
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  <div>
-                    <h3 style={{ margin: "0 0 10px", fontSize: 16, fontWeight: 800 }}>Comments</h3>
-                    {threadLoading && <p style={{ margin: 0, fontSize: 13, color: T.textMuted }}>Loading thread...</p>}
-                    {!threadLoading && comments.length === 0 && <p style={{ margin: 0, fontSize: 13, color: T.textMuted }}>No comments yet.</p>}
-                    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                      {comments.map((comment) => {
-                        const name = joinName(comment.users) || comment.user_id.slice(0, 8);
-                        return (
-                          <li
-                            key={comment.id}
-                            style={{
-                              padding: "12px 14px",
-                              borderRadius: T.radiusMd,
-                              border: `1px solid ${T.border}`,
-                              background: T.pageBg,
-                            }}
-                          >
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{name}</span>
-                              <span style={{ fontSize: 11, color: T.textMuted }}>{new Date(comment.created_at).toLocaleString()}</span>
-                            </div>
-                            <p style={{ margin: 0, fontSize: 14, color: T.textDark, lineHeight: 1.5 }}>{comment.body}</p>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    {sessionUserId && (
-                      <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                        <textarea
-                          value={commentDraft}
-                          onChange={(e) => setCommentDraft(e.target.value)}
-                          placeholder="Add a comment..."
-                          rows={3}
-                          style={{
-                            width: "100%",
-                            boxSizing: "border-box",
-                            padding: 10,
-                            borderRadius: T.radiusSm,
-                            border: `1px solid ${T.border}`,
-                            fontSize: 13,
-                            fontFamily: T.font,
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void postComment(ticket.id)}
-                          disabled={!commentDraft.trim() || actionBusy === `c-${ticket.id}`}
-                          style={{
-                            alignSelf: "flex-start",
-                            padding: "8px 16px",
-                            borderRadius: T.radiusMd,
-                            border: "none",
-                            background: commentDraft.trim() && actionBusy !== `c-${ticket.id}` ? accent : T.border,
-                            color: "#fff",
-                            fontSize: 13,
-                            fontWeight: 700,
-                            cursor: commentDraft.trim() ? "pointer" : "not-allowed",
-                            opacity: commentDraft.trim() ? 1 : 0.5,
-                          }}
-                        >
-                          Post comment
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
     </div>
   );
 }
