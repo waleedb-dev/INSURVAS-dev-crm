@@ -26,13 +26,17 @@ import {
   ChevronDown,
   Menu,
   BookOpen,
+  Phone,
+  LifeBuoy,
 } from "lucide-react";
 import { callCenterNameInitials, displayCallCenterName } from "@/lib/callCenterBranding";
 
 export type DashPage =
   | "dashboard" | "nearest-events"
   | "daily-deal-flow" | "lead-pipeline"
+  | "support-tickets"
   | "call-center-lead-intake"
+  | "transfer-check-tester"
   | "users-access" | "pipeline-management"
   | "carrier-management" | "bpo-centres"
   | "commissions" | "policies" | "carrier-updates"
@@ -75,7 +79,13 @@ const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Overview", icon: <LayoutDashboard size={22} strokeWidth={1.8} /> },
   { id: "daily-deal-flow", label: "Daily Deal Flow", icon: <Briefcase size={22} strokeWidth={1.8} /> },
   { id: "lead-pipeline", label: "Lead Pipeline", icon: <GitBranch size={22} strokeWidth={1.8} /> },
+  { id: "support-tickets", label: "Support queue", icon: <LifeBuoy size={22} strokeWidth={1.8} /> },
   { id: "call-center-lead-intake", label: "Transfer Leads", icon: <ArrowLeftRight size={22} strokeWidth={1.8} /> },
+  {
+    id: "transfer-check-tester",
+    label: "Transfer check (test)",
+    icon: <Phone size={22} strokeWidth={1.8} />,
+  },
   {
     id: "carrier-updates",
     label: "Carrier Updates",
@@ -107,7 +117,9 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "nearest-events": "Nearest Events",
   "daily-deal-flow": "Daily Deal Flow",
   "lead-pipeline": "Lead Pipeline",
+  "support-tickets": "Support queue",
   "call-center-lead-intake": "Transfer Leads",
+  "transfer-check-tester": "Transfer check (test)",
   "users-access": "Users & Access",
   "pipeline-management": "Pipelines",
   "carrier-management": "Carriers",

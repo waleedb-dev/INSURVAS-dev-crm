@@ -6,6 +6,7 @@ export const ROLE_KEYS = [
   "sales_agent_unlicensed",
   "call_center_admin",
   "call_center_agent",
+  "publisher_manager",
   "hr",
   "accounting",
 ] as const;
@@ -36,6 +37,7 @@ export const ROLE_TITLES: Record<RoleKey, string> = {
   sales_agent_unlicensed: "Unlicensed Sales Console",
   call_center_admin: "Call Center Operations Console",
   call_center_agent: "Call Center Agent Workspace",
+  publisher_manager: "Publisher Management Console",
   hr: "HR Operations Console",
   accounting: "Accounting Console",
 };
@@ -48,6 +50,7 @@ export const ROLE_SUMMARIES: Record<RoleKey, string> = {
   sales_agent_unlicensed: "Verification/disposition workflow for assigned leads.",
   call_center_admin: "Center performance and oversight of call-center submissions.",
   call_center_agent: "Lead submission and follow-up on your own transferred leads.",
+  publisher_manager: "Support tickets from call center admins and publisher-management workflows.",
   hr: "User lifecycle, onboarding, and role administration tasks.",
   accounting: "Commission, deal tracker, and financial-status visibility.",
 };

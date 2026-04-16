@@ -87,7 +87,9 @@ export function canAccessPage(
     | "daily-deal-flow"
     | "assigning"
     | "lead-pipeline"
+    | "support-tickets"
     | "call-center-lead-intake"
+    | "transfer-check-tester"
     | "commissions"
     | "policies"
     | "users-access"
@@ -124,7 +126,11 @@ export function canAccessPage(
     return permissionKeys.has("page.lead_pipeline.access");
   }
 
-  if (page === "call-center-lead-intake") {
+  if (page === "support-tickets") {
+    return role === "publisher_manager" || role === "system_admin" || role === "call_center_admin";
+  }
+
+  if (page === "call-center-lead-intake" || page === "transfer-check-tester") {
     return permissionKeys.has("page.transfer_leads.access");
   }
 

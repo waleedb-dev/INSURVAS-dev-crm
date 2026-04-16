@@ -14,6 +14,8 @@ interface ManageUserRequest {
   phone?: string;
   role_id?: string;
   call_center_id?: string | null;
+  /** Set when role is publisher_manager */
+  department_id?: string | null;
   /** Set when role is sales_agent_unlicensed */
   unlicensed_sales_subtype?: string | null;
   permissions?: string[];
@@ -107,6 +109,8 @@ Deno.serve(async (req: Request) => {
       }
       const roleKey = (roleRow as { key: string }).key;
       const unlicensedSubtype = normalizeUnlicensedSubtype(roleKey, body.unlicensed_sales_subtype);
+      const departmentId = roleKey === "publisher_manager" ? (body.department_id ?? null) : null;
+      const callCenterId = roleKey === "publisher_manager" ? null : (body.call_center_id ?? null);
 
       const { error: updateErr } = await adminClient
         .from("users")
@@ -114,7 +118,8 @@ Deno.serve(async (req: Request) => {
           full_name: body.full_name,
           phone: body.phone || null,
           role_id: body.role_id,
-          call_center_id: body.call_center_id ?? null,
+          call_center_id: callCenterId,
+          department_id: departmentId,
           status: "active",
           unlicensed_sales_subtype: unlicensedSubtype,
         })

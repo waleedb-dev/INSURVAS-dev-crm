@@ -347,6 +347,7 @@ function getLeadViewScope(role: RoleKey | null, permissions: Set<PermissionKey>)
   // Default scope based on role if no specific permission set
   if (role === "call_center_agent" || role === "sales_agent_unlicensed") return "own";
   if (role === "call_center_admin") return "call_center";
+  if (role === "publisher_manager") return "call_center";
   if (role === "sales_agent_licensed") return "own";
   
   return "none";

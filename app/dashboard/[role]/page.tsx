@@ -18,6 +18,9 @@ import IMOManagementPage from "@/components/dashboard/pages/IMOManagementPage";
 import UplineCarrierStatesManagementPage from "@/components/dashboard/pages/UplineCarrierStatesManagementPage";
 import ProductGuidePage from "@/components/dashboard/pages/ProductGuidePage";
 import AnnouncementsPage from "@/components/dashboard/pages/AnnouncementsPage";
+import TransferCheckTesterPage from "@/components/dashboard/pages/TransferCheckTesterPage";
+import PublisherSupportTicketsPage from "@/components/dashboard/pages/PublisherSupportTicketsPage";
+import CallCenterSupportTicketsPage from "@/components/dashboard/pages/CallCenterSupportTicketsPage";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 export default function RoleDashboardPage() {
@@ -67,12 +70,16 @@ export default function RoleDashboardPage() {
       {activePage === "lead-pipeline" && (
         <LeadPipelinePage canUpdateActions={canEditLeadPipeline} />
       )}
+      {activePage === "support-tickets" && (
+        currentRole === "call_center_admin" ? <CallCenterSupportTicketsPage /> : <PublisherSupportTicketsPage />
+      )}
       {activePage === "call-center-lead-intake" && (
         <CallCenterLeadIntakePage
           canCreateLeads={permissionKeys.has("action.transfer_leads.create")}
           canViewTransferClaimReclaimVisit={canViewTransferClaimReclaimVisit}
         />
       )}
+      {activePage === "transfer-check-tester" && <TransferCheckTesterPage />}
       {activePage === "users-access" && <UsersAccessPage />}
       {activePage === "pipeline-management" && <PipelineSettingsPage />}
       {activePage === "carrier-management" && <CarrierManagementPage />}

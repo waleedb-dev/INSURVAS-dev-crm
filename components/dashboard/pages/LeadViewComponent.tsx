@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { LayoutDashboard, Phone, FileText, Shield } from "lucide-react";
+import { LayoutDashboard, Phone, FileText, Shield, LifeBuoy } from "lucide-react";
 import { POLICY_SCHEMA_SECTIONS, policyDisplayValue, type PolicyRow } from "@/lib/policy-schema";
 import { buildDraftFromPolicyRow, payloadFromDraft } from "@/lib/policy-form-utils";
 import { EmptyState, Toast } from "@/components/ui";
@@ -10,6 +10,8 @@ import PolicyFormFields from "./PolicyFormFields";
 import { getCurrentUserPermissionKeys, type PermissionKey } from "@/lib/auth/permissions";
 import { LeadCard, InfoField, InfoGrid, formatCurrency, formatBool, formatDate } from "./LeadCard";
 import { LeadEditForm, useLeadEdit } from "./LeadEditForm";
+import LeadNewTicketButton from "./LeadNewTicketButton";
+import LeadCallCenterSupportTicketsTab from "./LeadCallCenterSupportTicketsTab";
 
 interface Lead {
   name: string;
@@ -47,22 +49,28 @@ interface LeadViewProps {
   previewMode?: boolean;
 }
 
-type TabType = "Overview" | "Call updates" | "Notes" | "Policy & coverage";
+type TabType = "Overview" | "Call updates" | "Notes" | "Support tickets" | "Policy & coverage";
 type PipelineOption = { id: number; name: string; stages: string[] };
 
 // Build tab config dynamically based on permissions
-function useTabConfig(showPolicyTab: boolean): { id: TabType; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] {
+function useTabConfig(
+  showPolicyTab: boolean,
+  showSupportTicketsTab: boolean,
+): { id: TabType; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] {
   return useMemo(() => {
     const tabs: { id: TabType; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
       { id: "Overview", label: "Overview", icon: LayoutDashboard },
       { id: "Call updates", label: "Call updates", icon: Phone },
       { id: "Notes", label: "Notes", icon: FileText },
     ];
+    if (showSupportTicketsTab) {
+      tabs.push({ id: "Support tickets", label: "Support tickets", icon: LifeBuoy });
+    }
     if (showPolicyTab) {
       tabs.push({ id: "Policy & coverage", label: "Policy & coverage", icon: Shield });
     }
     return tabs;
-  }, [showPolicyTab]);
+  }, [showPolicyTab, showSupportTicketsTab]);
 }
 
 function TabNavigation({
@@ -217,6 +225,8 @@ export default function LeadViewComponent({
   const [userPermissionKeys, setUserPermissionKeys] = useState<Set<PermissionKey>>(new Set());
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [ccAdminForThisLead, setCcAdminForThisLead] = useState(false);
+  const [ticketsRefreshKey, setTicketsRefreshKey] = useState(0);
 
   const [callResultsRows, setCallResultsRows] = useState<LeadRow[]>([]);
   const [callUpdatesLoading, setCallUpdatesLoading] = useState(false);
@@ -329,6 +339,31 @@ export default function LeadViewComponent({
     };
   }, [supabase]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (previewMode || isCreation || !sessionUserId || !leadRow) {
+      setCcAdminForThisLead(false);
+      return;
+    }
+    const leadCc = leadRow.call_center_id != null ? String(leadRow.call_center_id) : null;
+    (async () => {
+      const { data, error } = await supabase.from("users").select("call_center_id, roles(key)").eq("id", sessionUserId).maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        setCcAdminForThisLead(false);
+        return;
+      }
+      const rel = data.roles as { key?: string } | { key?: string }[] | null;
+      const key = Array.isArray(rel) ? rel[0]?.key : rel?.key;
+      const userCc = data.call_center_id != null ? String(data.call_center_id) : null;
+      const ok = key === "call_center_admin" && !!leadCc && !!userCc && leadCc === userCc;
+      setCcAdminForThisLead(ok);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUserId, leadRow, previewMode, isCreation, supabase]);
+
   // Check edit permission from Supabase (falls back to prop if permissions still loading)
   const effectiveCanEditLead = useMemo(() => {
     // If prop is explicitly false, respect it (e.g., for call center admins)
@@ -336,7 +371,6 @@ export default function LeadViewComponent({
     // Use prop value if permissions are still loading
     if (permissionsLoading) return canEditLead ?? true;
     // Check Supabase permissions - has either lead_pipeline.update or transfer_leads.edit
-    console.log("userPermissionKeys", userPermissionKeys);
     const hasEditPermission = userPermissionKeys.has("action.lead_pipeline.update") ||
                               userPermissionKeys.has("action.transfer_leads.edit");
     return hasEditPermission;
@@ -344,9 +378,10 @@ export default function LeadViewComponent({
 
   // Determine if Policy & coverage tab should be shown (requires edit permission)
   const showPolicyTab = effectiveCanEditLead;
+  const showSupportTicketsTab = ccAdminForThisLead;
 
   // Get dynamic tab config based on permissions
-  const tabConfig = useTabConfig(showPolicyTab);
+  const tabConfig = useTabConfig(showPolicyTab, showSupportTicketsTab);
 
   // If active tab is Policy & coverage but user loses permission, switch to Overview
   useEffect(() => {
@@ -354,6 +389,12 @@ export default function LeadViewComponent({
       setActiveTab("Overview");
     }
   }, [activeTab, showPolicyTab]);
+
+  useEffect(() => {
+    if (activeTab === "Support tickets" && !showSupportTicketsTab) {
+      setActiveTab("Overview");
+    }
+  }, [activeTab, showSupportTicketsTab]);
 
   // Lead Edit Form hook
   const {
@@ -761,6 +802,14 @@ export default function LeadViewComponent({
                   Edit Lead
                 </button>
               )}
+              <LeadNewTicketButton
+                leadId={rowUuid}
+                leadCallCenterId={leadRow?.call_center_id != null ? String(leadRow.call_center_id) : null}
+                sessionUserId={sessionUserId}
+                isCreation={isCreation}
+                previewMode={previewMode}
+                onTicketCreated={() => setTicketsRefreshKey((k) => k + 1)}
+              />
               {effectiveCanEditLead && (
                 <button
                   type="button"
@@ -834,6 +883,16 @@ export default function LeadViewComponent({
               isCreation={isCreation}
               previewMode={previewMode}
               canEditLead={effectiveCanEditLead}
+            />
+          </div>
+        )}
+
+        {activeTab === "Support tickets" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <LeadCallCenterSupportTicketsTab
+              leadId={rowUuid}
+              sessionUserId={sessionUserId}
+              refreshKey={ticketsRefreshKey}
             />
           </div>
         )}
