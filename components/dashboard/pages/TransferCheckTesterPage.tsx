@@ -133,9 +133,7 @@ export default function TransferCheckTesterPage() {
         return;
       }
 
-      const transferRes = await runTransferCheck(supabase, clean, {
-        phoneRaw: phoneInput.trim(),
-      });
+      const transferRes = await runTransferCheck(supabase, clean);
 
       setRawPayload(
         transferRes.data && typeof transferRes.data === "object" && !Array.isArray(transferRes.data)
