@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TicketIcon, RefreshCw, ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
 import { T } from "@/lib/theme";
-import { EmptyState } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type TicketStatus = "open" | "in_progress" | "solved";
@@ -27,9 +27,10 @@ type CommentRow = {
   users?: { full_name: string | null } | { full_name: string | null }[] | null;
 };
 
-function formatStatus(s: TicketStatus): string {
-  if (s === "in_progress") return "In progress";
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function formatStatus(s: TicketStatus): { label: string; bg: string; color: string } {
+  if (s === "open") return { label: "Open", bg: "#FEF3C7", color: "#92400E" };
+  if (s === "in_progress") return { label: "In progress", bg: "#DBEAFE", color: "#1E40AF" };
+  return { label: "Solved", bg: "#D1FAE5", color: "#065F46" };
 }
 
 function joinName(rel: unknown): string | null {
@@ -150,32 +151,46 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
           flexWrap: "wrap",
           gap: 12,
+          padding: "16px 20px",
+          background: "#f8faf8",
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
         }}
       >
-        <p style={{ margin: 0, fontSize: 13, color: T.textMuted, lineHeight: 1.5, maxWidth: 720 }}>
-          Tickets your call center raised for this lead (visible to all admins in your center). Use{" "}
-          <strong>New ticket</strong> above to publish another request to your Publisher Manager.
-        </p>
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <p style={{ margin: 0, fontSize: 13, color: T.textMuted, lineHeight: 1.6 }}>
+            Tickets your call center raised for this lead (visible to all admins in your center). Use{" "}
+            <strong style={{ color: T.textDark, fontWeight: 600 }}>New ticket</strong> above to publish another request to your Publisher Manager.
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => void loadTickets()}
           disabled={loading}
+          aria-label="Refresh tickets"
           style={{
-            padding: "8px 16px",
-            borderRadius: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 14px",
+            borderRadius: 8,
             border: `1px solid ${T.border}`,
             background: T.cardBg,
             color: "#233217",
             fontSize: 13,
-            fontWeight: 700,
+            fontWeight: 600,
             cursor: loading ? "wait" : "pointer",
             fontFamily: T.font,
+            outline: "none",
+            transition: "all 0.15s ease-in-out",
           }}
+          className="hover:border-[#233217] focus-visible:ring-2 focus-visible:ring-[#233217]/40"
         >
+          <RefreshCw size={14} style={{ opacity: loading ? 0.5 : 1 }} />
           Refresh
         </button>
       </div>
@@ -196,9 +211,62 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
       )}
 
       {loading ? (
-        <div style={{ padding: 48, textAlign: "center", color: T.textMuted, fontWeight: 600 }}>Loading tickets…</div>
+        <div
+          style={{
+            padding: "48px 20px",
+            textAlign: "center",
+            borderRadius: 12,
+            border: `1px dashed ${T.border}`,
+            background: T.cardBg,
+          }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              border: `3px solid ${T.border}`,
+              borderTopColor: "#233217",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+              margin: "0 auto 12px",
+            }}
+          />
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: T.textMuted }}>Loading tickets…</p>
+        </div>
       ) : tickets.length === 0 ? (
-        <EmptyState title="No support tickets yet" description="When your team publishes a ticket for this lead, it will appear here." emoji="🎫" />
+        <div
+          style={{
+            padding: "48px 20px",
+            textAlign: "center",
+            borderRadius: 12,
+            border: `1px dashed ${T.border}`,
+            background: T.cardBg,
+          }}
+        >
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 14,
+              background: "#f0f7f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px",
+            }}
+          >
+            <TicketIcon size={28} color={T.textMuted} strokeWidth={1.5} />
+          </div>
+          <h3 style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 700, color: T.textDark }}>No support tickets yet</h3>
+          <p style={{ margin: 0, fontSize: 13, color: T.textMuted, lineHeight: 1.5 }}>
+            When your team publishes a ticket for this lead, it will appear here.
+          </p>
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {tickets.map((ticket) => {
@@ -218,6 +286,8 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
                 <button
                   type="button"
                   onClick={() => setExpandedId(open ? null : ticket.id)}
+                  aria-expanded={open}
+                  aria-label={`${open ? "Collapse" : "Expand"} ticket: ${ticket.title}`}
                   style={{
                     width: "100%",
                     display: "flex",
@@ -230,11 +300,14 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
                     cursor: "pointer",
                     textAlign: "left",
                     fontFamily: T.font,
+                    outline: "none",
+                    transition: "background-color 0.15s ease-in-out",
                   }}
+                  className="focus-visible:ring-2 focus-visible:ring-[#233217]/40 focus-visible:ring-inset"
                 >
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: T.textDark, marginBottom: 4 }}>{ticket.title}</div>
-                    <div style={{ fontSize: 12, color: T.textMuted, display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: T.textDark, marginBottom: 4 }}>{ticket.title}</div>
+                    <div style={{ fontSize: 12, color: T.textMuted, display: "flex", flexWrap: "wrap", gap: 8 }}>
                       <span>
                         By {joinName(ticket.publisher) || "—"}
                       </span>
@@ -248,19 +321,27 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
                       )}
                     </div>
                   </div>
-                  <span
-                    style={{
-                      flexShrink: 0,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: "4px 10px",
-                      borderRadius: 8,
-                      background: "#DCEBDC",
-                      color: "#233217",
-                    }}
-                  >
-                    {formatStatus(ticket.status)}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        background: formatStatus(ticket.status).bg,
+                        color: formatStatus(ticket.status).color,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.3px",
+                      }}
+                    >
+                      {formatStatus(ticket.status).label}
+                    </span>
+                    {open ? (
+                      <ChevronUp size={18} color={T.textMuted} />
+                    ) : (
+                      <ChevronDown size={18} color={T.textMuted} />
+                    )}
+                  </div>
                 </button>
                 {open && (
                   <div
@@ -275,7 +356,10 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
                     ) : (
                       <p style={{ margin: "0 0 16px", fontSize: 13, color: T.textMuted }}>No description.</p>
                     )}
-                    <h4 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: T.textDark }}>Comments</h4>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                      <MessageSquare size={16} color={T.textMuted} strokeWidth={2} />
+                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.textDark }}>Comments</h4>
+                    </div>
                     {threadLoading && <p style={{ margin: "0 0 10px", fontSize: 13, color: T.textMuted }}>Loading thread…</p>}
                     {!threadLoading && comments.length === 0 && (
                       <p style={{ margin: "0 0 10px", fontSize: 13, color: T.textMuted }}>No comments yet.</p>
@@ -294,7 +378,7 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
                             }}
                           >
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>{name}</span>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{name}</span>
                               <span style={{ fontSize: 11, color: T.textMuted }}>
                                 {new Date(comment.created_at).toLocaleString()}
                               </span>
@@ -310,21 +394,28 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
                         onChange={(e) => setCommentDraft(e.target.value)}
                         placeholder="Add a comment…"
                         rows={3}
+                        aria-label="Write a comment"
                         style={{
                           width: "100%",
                           boxSizing: "border-box",
                           padding: "10px 12px",
-                          borderRadius: T.radiusSm,
+                          borderRadius: 8,
                           border: `1px solid ${T.border}`,
                           fontSize: 14,
                           fontFamily: T.font,
                           resize: "vertical",
+                          background: T.pageBg,
+                          color: T.textDark,
+                          outline: "none",
+                          transition: "border-color 0.15s ease-in-out",
                         }}
+                        className="focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
                       />
                       <button
                         type="button"
                         disabled={!commentDraft.trim() || actionBusy === `c-${ticket.id}`}
                         onClick={() => void postComment(ticket.id)}
+                        aria-label="Post comment"
                         style={{
                           alignSelf: "flex-start",
                           padding: "8px 16px",
@@ -336,7 +427,10 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
                           fontWeight: 700,
                           cursor: commentDraft.trim() && actionBusy !== `c-${ticket.id}` ? "pointer" : "not-allowed",
                           fontFamily: T.font,
+                          outline: "none",
+                          transition: "all 0.15s ease-in-out",
                         }}
+                        className="focus-visible:ring-2 focus-visible:ring-[#233217]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
                       >
                         {actionBusy === `c-${ticket.id}` ? "Posting…" : "Post comment"}
                       </button>

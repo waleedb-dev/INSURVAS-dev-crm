@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui";
 import { Card } from "@/components/ui/card";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type TicketStatus = "open" | "in_progress" | "solved";
 
@@ -254,6 +255,7 @@ export default function CallCenterSupportTicketsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search tickets..."
+              aria-label="Search tickets"
               style={{
                 height: 38,
                 minWidth: 260,
@@ -268,34 +270,58 @@ export default function CallCenterSupportTicketsPage() {
                 fontFamily: T.font,
                 transition: "all 0.15s ease-in-out",
               }}
+              className="focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
             />
           </div>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as "All" | TicketStatus)}
-            style={{
-              height: 38,
-              borderRadius: 10,
-              border: `1px solid ${T.border}`,
-              backgroundColor: T.pageBg,
-              color: T.textDark,
-              fontSize: 13,
-              fontWeight: 600,
-              padding: "0 12px",
-              fontFamily: T.font,
-            }}
-          >
-            <option value="All">All statuses</option>
-            <option value="open">Open</option>
-            <option value="in_progress">In progress</option>
-            <option value="solved">Solved</option>
-          </select>
+          <Select value={filterStatus} onValueChange={(val) => setFilterStatus(val as "All" | TicketStatus)}>
+            <SelectTrigger
+              aria-label="Filter by status"
+              style={{
+                height: 38,
+                borderRadius: 10,
+                border: `1px solid ${T.border}`,
+                backgroundColor: T.pageBg,
+                color: T.textDark,
+                fontSize: 13,
+                fontWeight: 600,
+                padding: "0 12px",
+                fontFamily: T.font,
+                outline: "none",
+              }}
+              className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+            >
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent
+              style={{
+                borderRadius: 12,
+                border: `1px solid ${T.border}`,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+                backgroundColor: T.cardBg,
+                padding: 6,
+              }}
+            >
+              <SelectItem value="All" style={{ borderRadius: 8, padding: "10px 14px", fontSize: 13, fontWeight: 400, color: T.textDark, cursor: "pointer" }} className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold">
+                All statuses
+              </SelectItem>
+              <SelectItem value="open" style={{ borderRadius: 8, padding: "10px 14px", fontSize: 13, fontWeight: 400, color: T.textDark, cursor: "pointer" }} className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold">
+                Open
+              </SelectItem>
+              <SelectItem value="in_progress" style={{ borderRadius: 8, padding: "10px 14px", fontSize: 13, fontWeight: 400, color: T.textDark, cursor: "pointer" }} className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold">
+                In progress
+              </SelectItem>
+              <SelectItem value="solved" style={{ borderRadius: 8, padding: "10px 14px", fontSize: 13, fontWeight: 400, color: T.textDark, cursor: "pointer" }} className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold">
+                Solved
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <button
           type="button"
           onClick={() => void loadTickets()}
           disabled={loading}
+          aria-label="Refresh tickets"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -312,7 +338,9 @@ export default function CallCenterSupportTicketsPage() {
             cursor: loading ? "wait" : "pointer",
             boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
             transition: "all 0.15s ease-in-out",
+            outline: "none",
           }}
+          className="focus-visible:ring-2 focus-visible:ring-[#233217]/40 focus-visible:ring-offset-2"
         >
           Refresh
         </button>
@@ -422,6 +450,7 @@ export default function CallCenterSupportTicketsPage() {
                         e.stopPropagation();
                         router.push(`/dashboard/${routeRole}/support-tickets/${ticket.id}`);
                       }}
+                      aria-label={`View ticket ${ticket.id.slice(0, 8)}`}
                       style={{
                         border: `1px solid ${T.border}`,
                         borderRadius: 10,
@@ -431,7 +460,10 @@ export default function CallCenterSupportTicketsPage() {
                         fontWeight: 600,
                         padding: "6px 14px",
                         cursor: "pointer",
+                        outline: "none",
+                        transition: "all 0.15s ease-in-out",
                       }}
+                      className="hover:border-[#233217] focus-visible:ring-2 focus-visible:ring-[#233217]/40"
                     >
                       View
                     </button>
@@ -459,6 +491,7 @@ export default function CallCenterSupportTicketsPage() {
             <button
               onClick={() => setPage(page - 1)}
               disabled={page === 1}
+              aria-label="Previous page"
               style={{
                 backgroundColor: "transparent",
                 color: page === 1 ? T.textMuted : "#233217",
@@ -470,7 +503,10 @@ export default function CallCenterSupportTicketsPage() {
                 cursor: page === 1 ? "not-allowed" : "pointer",
                 fontFamily: T.font,
                 opacity: page === 1 ? 0.5 : 1,
+                outline: "none",
+                transition: "all 0.15s ease-in-out",
               }}
+              className="hover:border-[#233217] focus-visible:ring-2 focus-visible:ring-[#233217]/40 disabled:cursor-not-allowed"
             >
               Previous
             </button>
@@ -480,6 +516,7 @@ export default function CallCenterSupportTicketsPage() {
             <button
               onClick={() => setPage(page + 1)}
               disabled={page === totalPages || filteredTickets.length === 0}
+              aria-label="Next page"
               style={{
                 backgroundColor: "transparent",
                 color: page === totalPages || filteredTickets.length === 0 ? T.textMuted : "#233217",
@@ -491,7 +528,10 @@ export default function CallCenterSupportTicketsPage() {
                 cursor: page === totalPages || filteredTickets.length === 0 ? "not-allowed" : "pointer",
                 fontFamily: T.font,
                 opacity: page === totalPages || filteredTickets.length === 0 ? 0.5 : 1,
+                outline: "none",
+                transition: "all 0.15s ease-in-out",
               }}
+              className="hover:border-[#233217] focus-visible:ring-2 focus-visible:ring-[#233217]/40 disabled:cursor-not-allowed"
             >
               Next
             </button>

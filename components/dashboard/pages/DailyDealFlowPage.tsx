@@ -300,10 +300,10 @@ export default function DailyDealFlowPage({
 
     const { data: licensedAgents } = await supabase
       .from("users")
-      .select("full_name")
+      .select("licensed_name")
       .eq("is_licensed", true)
       .eq("status", "active")
-      .not("full_name", "is", null);
+      .not("licensed_name", "is", null);
     const { data: bufferAgents } = await supabase
       .from("users")
       .select("full_name")
@@ -319,15 +319,14 @@ export default function DailyDealFlowPage({
     const { data: salesAgents } = await supabase
       .from("users")
       .select("full_name")
-      .eq("is_licensed", false)
-      .is("unlicensed_sales_subtype", null)
+      .eq("is_licensed", true)
       .eq("status", "active")
       .not("full_name", "is", null);
 
     const vendors = [...new Set(((vendorRows || []) as VendorRow[]).map((r) => r.lead_vendor).filter(Boolean) as string[])];
     const carriers = [...new Set(((carrierRows || []) as CarrierRow[]).map((r) => r.carrier).filter(Boolean) as string[])];
     const stages = (pipelineStages || []).map((s: { name: string }) => s.name).filter(Boolean) as string[];
-    const licensedList = (licensedAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
+    const licensedList = (licensedAgents || []).map((u: { licensed_name: string }) => u.licensed_name).filter(Boolean) as string[];
     const bufferList = (bufferAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
     const retentionList = (retentionAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
     const agentList = (salesAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];

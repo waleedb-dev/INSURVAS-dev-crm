@@ -390,7 +390,7 @@ export default function PublisherSupportTicketsPage() {
             >
               <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
-                <div style={{ fontSize: 26, fontWeight: 800, color, lineHeight: 1.05, wordBreak: "break-all" }}>{value}</div>
+                <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1.05, wordBreak: "break-all" }}>{value}</div>
               </div>
               <div
                 style={{
@@ -439,6 +439,7 @@ export default function PublisherSupportTicketsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search tickets..."
+                aria-label="Search tickets"
                 style={{
                   height: 38,
                   minWidth: 260,
@@ -453,6 +454,7 @@ export default function PublisherSupportTicketsPage() {
                   fontFamily: T.font,
                   transition: "all 0.15s ease-in-out",
                 }}
+                className="focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
               />
             </div>
           </div>
@@ -461,6 +463,7 @@ export default function PublisherSupportTicketsPage() {
             <button
               type="button"
               onClick={() => setFilterPanelExpanded((value) => !value)}
+              aria-label="Toggle filters"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -476,7 +479,9 @@ export default function PublisherSupportTicketsPage() {
                 fontFamily: T.font,
                 cursor: "pointer",
                 transition: "all 0.15s ease-in-out",
+                outline: "none",
               }}
+              className="focus-visible:ring-2 focus-visible:ring-[#233217]/40 focus-visible:border-[#233217]"
             >
               <Filter size={16} />
               Filters
@@ -504,6 +509,7 @@ export default function PublisherSupportTicketsPage() {
             <button
               type="button"
               onClick={() => void loadTickets()}
+              aria-label="Refresh tickets"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -520,7 +526,9 @@ export default function PublisherSupportTicketsPage() {
                 cursor: "pointer",
                 boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
                 transition: "all 0.15s ease-in-out",
+                outline: "none",
               }}
+              className="focus-visible:ring-2 focus-visible:ring-[#233217]/40 focus-visible:ring-offset-2"
             >
               Refresh
             </button>
@@ -683,6 +691,7 @@ export default function PublisherSupportTicketsPage() {
                 <button
                   type="button"
                   onClick={clearFilters}
+                  aria-label="Clear all filters"
                   style={{
                     background: "none",
                     border: "none",
@@ -691,7 +700,10 @@ export default function PublisherSupportTicketsPage() {
                     fontWeight: 600,
                     cursor: "pointer",
                     padding: "4px 0",
+                    outline: "none",
+                    transition: "all 0.15s ease-in-out",
                   }}
+                  className="hover:underline focus-visible:ring-2 focus-visible:ring-[#233217]/40 rounded"
                 >
                   Clear filters
                 </button>
@@ -805,6 +817,7 @@ export default function PublisherSupportTicketsPage() {
                           e.stopPropagation();
                           router.push(`/dashboard/${routeRole}/support-tickets/${ticket.id}`);
                         }}
+                        aria-label={`View ticket ${ticket.id.slice(0, 8)}`}
                         style={{
                           border: `1px solid ${T.border}`,
                           borderRadius: 10,
@@ -814,7 +827,10 @@ export default function PublisherSupportTicketsPage() {
                           fontWeight: 600,
                           padding: "6px 14px",
                           cursor: "pointer",
+                          outline: "none",
+                          transition: "all 0.15s ease-in-out",
                         }}
+                        className="hover:border-[#233217] focus-visible:ring-2 focus-visible:ring-[#233217]/40"
                       >
                         View
                       </button>
@@ -842,6 +858,7 @@ export default function PublisherSupportTicketsPage() {
               <button
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1}
+                aria-label="Previous page"
                 style={{
                   backgroundColor: "transparent",
                   color: page === 1 ? T.textMuted : "#233217",
@@ -853,7 +870,10 @@ export default function PublisherSupportTicketsPage() {
                   cursor: page === 1 ? "not-allowed" : "pointer",
                   fontFamily: T.font,
                   opacity: page === 1 ? 0.5 : 1,
+                  outline: "none",
+                  transition: "all 0.15s ease-in-out",
                 }}
+                className="hover:border-[#233217] focus-visible:ring-2 focus-visible:ring-[#233217]/40 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
@@ -863,6 +883,7 @@ export default function PublisherSupportTicketsPage() {
               <button
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages || filteredTickets.length === 0}
+                aria-label="Next page"
                 style={{
                   backgroundColor: "transparent",
                   color: page === totalPages || filteredTickets.length === 0 ? T.textMuted : "#233217",
@@ -874,7 +895,10 @@ export default function PublisherSupportTicketsPage() {
                   cursor: page === totalPages || filteredTickets.length === 0 ? "not-allowed" : "pointer",
                   fontFamily: T.font,
                   opacity: page === totalPages || filteredTickets.length === 0 ? 0.5 : 1,
+                  outline: "none",
+                  transition: "all 0.15s ease-in-out",
                 }}
+                className="hover:border-[#233217] focus-visible:ring-2 focus-visible:ring-[#233217]/40 disabled:cursor-not-allowed"
               >
                 Next
               </button>

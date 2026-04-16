@@ -79,7 +79,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Overview", icon: <LayoutDashboard size={22} strokeWidth={1.8} /> },
   { id: "daily-deal-flow", label: "Daily Deal Flow", icon: <Briefcase size={22} strokeWidth={1.8} /> },
   { id: "lead-pipeline", label: "Lead Pipeline", icon: <GitBranch size={22} strokeWidth={1.8} /> },
-  { id: "support-tickets", label: "Support queue", icon: <LifeBuoy size={22} strokeWidth={1.8} /> },
+  { id: "support-tickets", label: "Support Tickets", icon: <LifeBuoy size={22} strokeWidth={1.8} /> },
   { id: "call-center-lead-intake", label: "Transfer Leads", icon: <ArrowLeftRight size={22} strokeWidth={1.8} /> },
   {
     id: "transfer-check-tester",
@@ -117,7 +117,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "nearest-events": "Nearest Events",
   "daily-deal-flow": "Daily Deal Flow",
   "lead-pipeline": "Lead Pipeline",
-  "support-tickets": "Support queue",
+  "support-tickets": "Support Tickets",
   "call-center-lead-intake": "Transfer Leads",
   "transfer-check-tester": "Transfer Checker",
   "users-access": "Users & Access",

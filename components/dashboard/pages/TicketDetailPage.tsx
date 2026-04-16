@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, LifeBuoy, MessageSquare, UserPlus, X, Check } from "lucide-react";
+import { ArrowLeft, ChevronRight, MessageSquare, Pencil, UserPlus, X } from "lucide-react";
 import { T } from "@/lib/theme";
 import { Card } from "@/components/ui/card";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -43,11 +43,15 @@ type UserOption = {
   id: string;
   full_name: string | null;
   email: string | null;
+  roles?: { key: string }[];
 };
 
-function formatStatus(s: TicketStatus): string {
-  if (s === "in_progress") return "In progress";
-  return s.charAt(0).toUpperCase() + s.slice(1);
+const EXCLUDED_FOLLOWER_ROLES = ["call_center_admin", "call_center_agent"];
+
+function formatStatus(s: TicketStatus): { label: string; bg: string; color: string } {
+  if (s === "open") return { label: "Open", bg: "#FEF3C7", color: "#92400E" };
+  if (s === "in_progress") return { label: "In progress", bg: "#DBEAFE", color: "#1E40AF" };
+  return { label: "Solved", bg: "#D1FAE5", color: "#065F46" };
 }
 
 function joinName(rel: unknown): string | null {
@@ -96,7 +100,7 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
   const [actionBusy, setActionBusy] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [selectedFollowerId, setSelectedFollowerId] = useState<string>("");
-  const [statusEditing, setStatusEditing] = useState(false);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
 
   // Load session and check role
   useEffect(() => {
@@ -128,10 +132,17 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
   const loadUsers = useCallback(async () => {
     const { data, error: uErr } = await supabase
       .from("users")
-      .select("id, full_name, email")
+      .select("id, full_name, email, roles(key)")
       .order("full_name", { ascending: true });
     if (!uErr && data) {
-      setUsers(data as UserOption[]);
+      const filtered = (data as unknown as UserOption[]).filter((user) => {
+        const roles = user.roles;
+        if (!roles) return true;
+        const roleArray = Array.isArray(roles) ? roles : [roles];
+        const roleKeys = roleArray.map((r: { key?: string }) => r.key).filter(Boolean);
+        return !roleKeys.some((key) => EXCLUDED_FOLLOWER_ROLES.includes(key!));
+      });
+      setUsers(filtered);
     }
   }, [supabase]);
 
@@ -233,7 +244,7 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
       setError(uErr.message);
       return;
     }
-    setStatusEditing(false);
+    setStatusModalOpen(false);
     await loadTicket();
   };
 
@@ -278,29 +289,32 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
   if (loading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 24, fontFamily: T.font, color: T.textDark }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button
             onClick={onBack}
             style={{
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
-              gap: 8,
-              padding: "8px 14px",
-              borderRadius: 10,
-              border: `1px solid ${T.border}`,
-              background: T.cardBg,
-              color: T.textDark,
+              gap: 6,
+              background: "none",
+              border: "none",
+              color: T.textMuted,
               fontSize: 13,
-              fontWeight: 700,
-              fontFamily: T.font,
+              fontWeight: 600,
               cursor: "pointer",
+              padding: "4px 8px",
+              borderRadius: 6,
+              transition: "all 0.15s ease-in-out",
+              outline: "none",
             }}
+            className="hover:text-[#233217] hover:bg-[#f6faf6] focus-visible:ring-2 focus-visible:ring-[#233217]/40"
           >
-            <ArrowLeft size={16} />
-            Back
+            <ArrowLeft size={14} />
+            Support Tickets
           </button>
+          <ChevronRight size={14} color={T.textMuted} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: T.textMuted }}>Loading...</span>
         </div>
-        <div style={{ padding: 60, textAlign: "center", color: T.textMuted }}>Loading ticket...</div>
       </div>
     );
   }
@@ -308,27 +322,31 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
   if (!ticket) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 24, fontFamily: T.font, color: T.textDark }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button
             onClick={onBack}
             style={{
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
-              gap: 8,
-              padding: "8px 14px",
-              borderRadius: 10,
-              border: `1px solid ${T.border}`,
-              background: T.cardBg,
-              color: T.textDark,
+              gap: 6,
+              background: "none",
+              border: "none",
+              color: T.textMuted,
               fontSize: 13,
-              fontWeight: 700,
-              fontFamily: T.font,
+              fontWeight: 600,
               cursor: "pointer",
+              padding: "4px 8px",
+              borderRadius: 6,
+              transition: "all 0.15s ease-in-out",
+              outline: "none",
             }}
+            className="hover:text-[#233217] hover:bg-[#f6faf6] focus-visible:ring-2 focus-visible:ring-[#233217]/40"
           >
-            <ArrowLeft size={16} />
-            Back
+            <ArrowLeft size={14} />
+            Support Tickets
           </button>
+          <ChevronRight size={14} color={T.textMuted} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: T.textMuted }}>Not found</span>
         </div>
         <EmptyState title="Ticket not found" description="The ticket you are looking for does not exist or you do not have access to it." emoji="🎫" />
       </div>
@@ -356,212 +374,100 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button
             onClick={onBack}
             style={{
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
-              gap: 8,
-              padding: "8px 14px",
-              borderRadius: 10,
-              border: `1px solid ${T.border}`,
-              background: T.cardBg,
-              color: T.textDark,
+              gap: 6,
+              background: "none",
+              border: "none",
+              color: T.textMuted,
               fontSize: 13,
-              fontWeight: 700,
-              fontFamily: T.font,
+              fontWeight: 600,
               cursor: "pointer",
+              padding: "4px 8px",
+              borderRadius: 6,
               transition: "all 0.15s ease-in-out",
+              outline: "none",
+            }}
+            className="hover:text-[#233217] hover:bg-[#f6faf6] focus-visible:ring-2 focus-visible:ring-[#233217]/40"
+          >
+            <ArrowLeft size={14} />
+            Support Tickets
+          </button>
+          <ChevronRight size={14} color={T.textMuted} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#233217" }}>
+            {ticket.title.slice(0, 40)}{ticket.title.length > 40 ? "..." : ""}
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "5px 10px",
+              borderRadius: 6,
+              background: formatStatus(ticket.status).bg,
+              color: formatStatus(ticket.status).color,
+              textTransform: "uppercase",
+              letterSpacing: "0.4px",
             }}
           >
-            <ArrowLeft size={16} />
-            Back to tickets
-          </button>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {isPublisherManager && statusEditing ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Select value={ticket.status} onValueChange={(val) => updateStatus(val as TicketStatus)}>
-                <SelectTrigger
-                  style={{
-                    width: 140,
-                    height: 38,
-                    borderRadius: 10,
-                    border: `1px solid ${T.border}`,
-                    backgroundColor: T.cardBg,
-                    color: T.textDark,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    paddingLeft: 14,
-                    paddingRight: 12,
-                    transition: "all 0.15s ease-in-out",
-                  }}
-                  className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent
-                  style={{
-                    borderRadius: 12,
-                    border: `1px solid ${T.border}`,
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-                    backgroundColor: T.cardBg,
-                    padding: 6,
-                  }}
-                >
-                  <SelectItem
-                    value="open"
-                    style={{
-                      borderRadius: 8,
-                      padding: "10px 14px",
-                      fontSize: 13,
-                      fontWeight: 400,
-                      color: T.textDark,
-                      cursor: "pointer",
-                    }}
-                    className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
-                  >
-                    Open
-                  </SelectItem>
-                  <SelectItem
-                    value="in_progress"
-                    style={{
-                      borderRadius: 8,
-                      padding: "10px 14px",
-                      fontSize: 13,
-                      fontWeight: 400,
-                      color: T.textDark,
-                      cursor: "pointer",
-                    }}
-                    className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
-                  >
-                    In progress
-                  </SelectItem>
-                  <SelectItem
-                    value="solved"
-                    style={{
-                      borderRadius: 8,
-                      padding: "10px 14px",
-                      fontSize: 13,
-                      fontWeight: 400,
-                      color: T.textDark,
-                      cursor: "pointer",
-                    }}
-                    className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
-                  >
-                    Solved
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <button
-                onClick={() => setStatusEditing(false)}
-                style={{
-                  padding: "6px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <X size={18} color={T.textMuted} />
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 800,
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  background: "#DCEBDC",
-                  color: accent,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                {formatStatus(ticket.status)}
-              </span>
-              {isPublisherManager && (
-                <button
-                  onClick={() => setStatusEditing(true)}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 8,
-                    border: `1px solid ${T.border}`,
-                    background: T.cardBg,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: T.textDark,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  Edit
-                </button>
-              )}
-            </div>
+            {formatStatus(ticket.status).label}
+          </span>
+          {isPublisherManager && (
+            <button
+              onClick={() => setStatusModalOpen(true)}
+              aria-label="Edit ticket status"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: `1px solid ${T.border}`,
+                background: T.cardBg,
+                fontSize: 12,
+                fontWeight: 600,
+                color: T.textDark,
+                cursor: "pointer",
+                outline: "none",
+                transition: "all 0.15s ease-in-out",
+              }}
+              className="hover:border-[#233217] focus-visible:ring-2 focus-visible:ring-[#233217]/40"
+            >
+              <Pencil size={13} />
+              Edit
+            </button>
           )}
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 380px)", gap: 24 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 320px)", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Card
             style={{
               borderRadius: 16,
               border: `1px solid ${T.border}`,
               background: T.cardBg,
               boxShadow: T.shadowSm,
-              padding: "24px",
+              padding: "20px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 12,
-                  background: `color-mix(in srgb, ${accent} 15%, transparent)`,
-                  color: accent,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <LifeBuoy size={24} strokeWidth={2} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <h1 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 800, color: T.textDark, lineHeight: 1.2 }}>{ticket.title}</h1>
-                <div style={{ fontSize: 13, color: T.textMuted, display: "flex", flexWrap: "wrap", gap: 12 }}>
-                  <span>ID: {ticket.id}</span>
-                  <span>·</span>
-                  <span>Created: {formatDateTime(ticket.created_at)}</span>
-                </div>
-              </div>
+            <div style={{ marginBottom: 12 }}>
+              <h1 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: T.textDark, lineHeight: 1.3 }}>{ticket.title}</h1>
+              <p style={{ margin: 0, fontSize: 12, color: T.textMuted }}>
+                Created {formatDateTime(ticket.created_at)}
+              </p>
             </div>
 
             {ticket.description ? (
-              <div
-                style={{
-                  padding: "16px",
-                  borderRadius: 12,
-                  background: "#fafdfb",
-                  border: `1px solid ${T.border}`,
-                }}
-              >
-                <p style={{ margin: 0, fontSize: 14, color: T.textDark, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{ticket.description}</p>
-              </div>
+              <p style={{ margin: 0, fontSize: 14, color: T.textDark, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{ticket.description}</p>
             ) : (
-              <p style={{ margin: 0, fontSize: 14, color: T.textMuted }}>No description provided.</p>
+              <p style={{ margin: 0, fontSize: 13, color: T.textMuted }}>No description provided.</p>
             )}
           </Card>
 
@@ -571,47 +477,36 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
               border: `1px solid ${T.border}`,
               background: T.cardBg,
               boxShadow: T.shadowSm,
-              padding: "24px",
+              padding: "16px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  background: `color-mix(in srgb, ${accent} 15%, transparent)`,
-                  color: accent,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <MessageSquare size={20} strokeWidth={2} />
-              </div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>Comments</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <MessageSquare size={16} color={T.textMuted} strokeWidth={2} />
+              <h2 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.textDark }}>Comments ({comments.length})</h2>
             </div>
 
-            {threadLoading && <p style={{ margin: 0, fontSize: 14, color: T.textMuted }}>Loading comments...</p>}
+            {threadLoading && (
+              <div style={{ padding: 16, textAlign: "center" }}>
+                <p style={{ margin: 0, fontSize: 13, color: T.textMuted }}>Loading...</p>
+              </div>
+            )}
 
             {!threadLoading && comments.length === 0 && (
               <div
                 style={{
-                  padding: "32px 24px",
-                  borderRadius: 12,
+                  padding: "16px 12px",
+                  borderRadius: 8,
                   background: "#fafdfb",
                   border: `1px dashed ${T.border}`,
                   textAlign: "center",
                 }}
               >
-                <MessageSquare size={32} color={T.textMuted} style={{ marginBottom: 12, opacity: 0.5 }} />
-                <p style={{ margin: 0, fontSize: 14, color: T.textMuted }}>No comments yet.</p>
-                <p style={{ margin: "8px 0 0", fontSize: 13, color: T.textMuted }}>Be the first to add a comment.</p>
+                <p style={{ margin: 0, fontSize: 13, color: T.textMuted }}>No comments yet.</p>
               </div>
             )}
 
             {!threadLoading && comments.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
                 {comments.map((comment) => {
                   const name = joinName(comment.users) || comment.user_id.slice(0, 8);
                   const isCurrentUser = comment.user_id === sessionUserId;
@@ -620,22 +515,22 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
                       key={comment.id}
                       style={{
                         display: "flex",
-                        gap: 12,
+                        gap: 10,
                         alignItems: "flex-start",
                       }}
                     >
                       <div
                         style={{
-                          width: 36,
-                          height: 36,
+                          width: 28,
+                          height: 28,
                           borderRadius: "50%",
                           background: isCurrentUser ? accent : T.border,
                           color: isCurrentUser ? "#fff" : T.textDark,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: 12,
-                          fontWeight: 800,
+                          fontSize: 10,
+                          fontWeight: 700,
                           flexShrink: 0,
                         }}
                       >
@@ -644,8 +539,8 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
                       <div
                         style={{
                           flex: 1,
-                          padding: "14px 16px",
-                          borderRadius: 12,
+                          padding: "10px 12px",
+                          borderRadius: 8,
                           background: isCurrentUser ? "#f0f7f0" : T.pageBg,
                           border: `1px solid ${isCurrentUser ? "#c5e3c5" : T.border}`,
                         }}
@@ -655,15 +550,15 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
-                            gap: 12,
-                            marginBottom: 8,
+                            gap: 8,
+                            marginBottom: 4,
                             flexWrap: "wrap",
                           }}
                         >
-                          <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{name}</span>
-                          <span style={{ fontSize: 12, color: T.textMuted }}>{formatDateTime(comment.created_at)}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{name}</span>
+                          <span style={{ fontSize: 10, color: T.textMuted }}>{formatDateTime(comment.created_at)}</span>
                         </div>
-                        <p style={{ margin: 0, fontSize: 14, color: T.textDark, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{comment.body}</p>
+                        <p style={{ margin: 0, fontSize: 13, color: T.textDark, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{comment.body}</p>
                       </div>
                     </div>
                   );
@@ -672,152 +567,144 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
             )}
 
             {sessionUserId && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <textarea
                   value={commentDraft}
                   onChange={(e) => setCommentDraft(e.target.value)}
-                  placeholder="Add a comment..."
-                  rows={4}
+                  placeholder="Write a comment..."
+                  rows={2}
+                  aria-label="Write a comment"
                   style={{
                     width: "100%",
                     boxSizing: "border-box",
-                    padding: "14px 16px",
-                    borderRadius: 12,
+                    padding: "8px 10px",
+                    borderRadius: 8,
                     border: `1px solid ${T.border}`,
-                    fontSize: 14,
+                    fontSize: 13,
                     fontFamily: T.font,
                     resize: "vertical",
                     background: T.pageBg,
+                    outline: "none",
                     transition: "border-color 0.15s ease-in-out",
                   }}
+                  className="focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
                 />
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <button
-                    type="button"
-                    onClick={() => void postComment()}
-                    disabled={!commentDraft.trim() || actionBusy}
-                    style={{
-                      padding: "10px 20px",
-                      borderRadius: 10,
-                      border: "none",
-                      background: commentDraft.trim() && !actionBusy ? accent : T.border,
-                      color: "#fff",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      fontFamily: T.font,
-                      cursor: commentDraft.trim() && !actionBusy ? "pointer" : "not-allowed",
-                      opacity: commentDraft.trim() && !actionBusy ? 1 : 0.6,
-                      transition: "all 0.15s ease-in-out",
-                    }}
-                  >
-                    {actionBusy ? "Posting..." : "Post comment"}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => void postComment()}
+                  disabled={!commentDraft.trim() || actionBusy}
+                  aria-label="Post comment"
+                  style={{
+                    alignSelf: "flex-end",
+                    padding: "6px 14px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: commentDraft.trim() && !actionBusy ? accent : T.border,
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    fontFamily: T.font,
+                    cursor: commentDraft.trim() && !actionBusy ? "pointer" : "not-allowed",
+                    opacity: commentDraft.trim() && !actionBusy ? 1 : 0.6,
+                    transition: "all 0.15s ease-in-out",
+                    outline: "none",
+                  }}
+                  className="focus-visible:ring-2 focus-visible:ring-[#233217]/40 disabled:cursor-not-allowed"
+                >
+                  {actionBusy ? "Posting..." : "Post"}
+                </button>
               </div>
             )}
           </Card>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Card
             style={{
               borderRadius: 16,
               border: `1px solid ${T.border}`,
               background: T.cardBg,
               boxShadow: T.shadowSm,
-              padding: "20px",
+              padding: "16px",
             }}
           >
             <h3
               style={{
-                margin: "0 0 16px",
-                fontSize: 12,
-                fontWeight: 800,
+                margin: "0 0 12px",
+                fontSize: 11,
+                fontWeight: 700,
                 color: T.textMuted,
                 textTransform: "uppercase",
                 letterSpacing: "0.5px",
               }}
             >
-              Ticket Details
+              Details
             </h3>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>
                   Lead
                 </div>
                 <Link
                   href={`/dashboard/${routeRole}/leads/${ticket.lead_id}`}
                   style={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: T.blue,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#2d6a2d",
                     textDecoration: "none",
                   }}
+                  className="hover:underline"
                 >
                   {leadLabel}
                 </Link>
               </div>
 
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
-                  Publisher
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{publisherName}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
-                  Assignee
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{assigneeName}</div>
-              </div>
-
-              <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
-                  Created
-                </div>
-                <div style={{ fontSize: 14, color: T.textDark }}>{formatDateTime(ticket.created_at)}</div>
-              </div>
-
-              {ticket.updated_at !== ticket.created_at && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
-                    Last Updated
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>
+                    Publisher
                   </div>
-                  <div style={{ fontSize: 14, color: T.textDark }}>{formatDateTime(ticket.updated_at)}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{publisherName}</div>
                 </div>
-              )}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>
+                    Assignee
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{assigneeName}</div>
+                </div>
+              </div>
             </div>
           </Card>
 
-          {/* Followers Section */}
           <Card
             style={{
               borderRadius: 16,
               border: `1px solid ${T.border}`,
               background: T.cardBg,
               boxShadow: T.shadowSm,
-              padding: "20px",
+              padding: "16px",
             }}
           >
             <h3
               style={{
-                margin: "0 0 16px",
-                fontSize: 12,
-                fontWeight: 800,
+                margin: "0 0 12px",
+                fontSize: 11,
+                fontWeight: 700,
                 color: T.textMuted,
                 textTransform: "uppercase",
                 letterSpacing: "0.5px",
               }}
             >
-              Followers
+              Followers ({followers.length})
             </h3>
 
-            {followers.length === 0 ? (
-              <p style={{ margin: "0 0 16px", fontSize: 14, color: T.textMuted }}>No followers yet.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {followers.length === 0 && (
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: T.textMuted }}>No followers.</p>
+            )}
+
+            {followers.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
                 {followers.map((follower) => {
                   const name = joinName(follower.users) || follower.user_id.slice(0, 8);
                   return (
@@ -827,47 +714,50 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        padding: "10px 12px",
-                        borderRadius: 10,
+                        padding: "6px 8px",
+                        borderRadius: 8,
                         background: T.pageBg,
                         border: `1px solid ${T.border}`,
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <div
                           style={{
-                            width: 28,
-                            height: 28,
+                            width: 24,
+                            height: 24,
                             borderRadius: "50%",
                             background: accent,
                             color: "#fff",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: 700,
                           }}
                         >
                           {name.charAt(0).toUpperCase()}
                         </div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark }}>{name}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{name}</span>
                       </div>
                       {isPublisherManager && (
                         <button
                           onClick={() => void removeFollower(follower.user_id)}
                           disabled={actionBusy}
+                          aria-label={`Remove ${name}`}
                           style={{
-                            padding: "4px 8px",
-                            borderRadius: 6,
+                            padding: 4,
+                            borderRadius: 4,
                             border: "none",
                             background: "transparent",
                             cursor: "pointer",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
+                            outline: "none",
                           }}
+                          className="focus-visible:ring-2 focus-visible:ring-red-500/40"
                         >
-                          <X size={16} color="#991b1b" />
+                          <X size={14} color="#991b1b" />
                         </button>
                       )}
                     </div>
@@ -877,138 +767,204 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
             )}
 
             {isPublisherManager && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <Select value={selectedFollowerId} onValueChange={(val) => setSelectedFollowerId(val || "")}>
                   <SelectTrigger
                     style={{
                       width: "100%",
-                      height: 38,
-                      borderRadius: 10,
+                      height: 34,
+                      borderRadius: 8,
                       border: `1px solid ${T.border}`,
                       backgroundColor: T.cardBg,
                       color: selectedFollowerId ? T.textDark : T.textMuted,
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 500,
-                      paddingLeft: 14,
-                      paddingRight: 12,
-                      transition: "all 0.15s ease-in-out",
+                      paddingLeft: 10,
+                      paddingRight: 8,
                     }}
                     className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
                   >
-                    <SelectValue placeholder="Select a user to add..." />
+                    <SelectValue placeholder="Add follower..." />
                   </SelectTrigger>
                   <SelectContent
                     style={{
-                      borderRadius: 12,
+                      borderRadius: 10,
                       border: `1px solid ${T.border}`,
                       boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
                       backgroundColor: T.cardBg,
-                      padding: 6,
-                      maxHeight: 300,
+                      padding: 4,
                     }}
                   >
                     {availableUsers.length === 0 ? (
-                      <div style={{ padding: "12px 16px", fontSize: 13, color: T.textMuted }}>No available users</div>
+                      <div style={{ padding: "8px 12px", fontSize: 12, color: T.textMuted }}>No users</div>
                     ) : (
                       availableUsers.map((user) => (
                         <SelectItem
                           key={user.id}
                           value={user.id}
                           style={{
-                            borderRadius: 8,
-                            padding: "10px 14px",
-                            fontSize: 13,
+                            borderRadius: 6,
+                            padding: "8px 10px",
+                            fontSize: 12,
                             fontWeight: 400,
                             color: T.textDark,
                             cursor: "pointer",
                           }}
-                          className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+                          className="hover:bg-[#DCEBDC] focus:bg-[#DCEBDC] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white"
                         >
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                            <span style={{ fontWeight: 600 }}>{user.full_name || "Unnamed"}</span>
-                            {user.email && <span style={{ fontSize: 11, color: T.textMuted }}>{user.email}</span>}
-                          </div>
+                          <span style={{ fontWeight: 600 }}>{user.full_name || "Unnamed"}</span>
                         </SelectItem>
                       ))
                     )}
                   </SelectContent>
                 </Select>
-                <button
-                  onClick={() => void addFollower()}
-                  disabled={!selectedFollowerId || actionBusy}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    padding: "10px 16px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: selectedFollowerId && !actionBusy ? accent : T.border,
-                    color: "#fff",
-                    fontSize: 14,
-                    fontWeight: 700,
-                    fontFamily: T.font,
-                    cursor: selectedFollowerId && !actionBusy ? "pointer" : "not-allowed",
-                    opacity: selectedFollowerId && !actionBusy ? 1 : 0.6,
-                    transition: "all 0.15s ease-in-out",
-                  }}
-                >
-                  <UserPlus size={16} />
-                  {actionBusy ? "Adding..." : "Add follower"}
-                </button>
+                {selectedFollowerId && (
+                  <button
+                    onClick={() => void addFollower()}
+                    disabled={!selectedFollowerId || actionBusy}
+                    aria-label="Add follower"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: accent,
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      fontFamily: T.font,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease-in-out",
+                      outline: "none",
+                    }}
+                    className="focus-visible:ring-2 focus-visible:ring-[#233217]/40"
+                  >
+                    <UserPlus size={14} />
+                    {actionBusy ? "Adding..." : "Add"}
+                  </button>
+                )}
               </div>
             )}
           </Card>
+        </div>
+      </div>
 
-          {routeRole !== "publisher_manager" && (
-            <Card
-              style={{
-                borderRadius: 16,
-                border: `1px solid ${T.border}`,
-                background: T.cardBg,
-                boxShadow: T.shadowSm,
-                padding: "20px",
-              }}
-            >
-              <h3
+      {statusModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgba(0,0,0,0.4)",
+              backdropFilter: "blur(4px)",
+            }}
+            onClick={() => setStatusModalOpen(false)}
+          />
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              maxWidth: 400,
+              background: T.cardBg,
+              borderRadius: 16,
+              border: `1px solid ${T.border}`,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+              padding: 24,
+              zIndex: 101,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: T.textDark }}>Edit Status</h2>
+              <button
+                onClick={() => setStatusModalOpen(false)}
+                aria-label="Close"
                 style={{
-                  margin: "0 0 12px",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  color: T.textMuted,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 6,
+                  borderRadius: 8,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  outline: "none",
+                  transition: "all 0.15s ease-in-out",
                 }}
+                className="hover:bg-[#f0f0f0] focus-visible:ring-2 focus-visible:ring-[#233217]/40"
               >
-                Quick Links
-              </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <Link
-                  href={`/dashboard/${routeRole}/leads/${ticket.lead_id}`}
+                <X size={18} color={T.textMuted} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+              {(["open", "in_progress", "solved"] as TicketStatus[]).map((status) => (
+                <button
+                  key={status}
+                  onClick={() => void updateStatus(status)}
+                  disabled={actionBusy || ticket.status === status}
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 8,
-                    padding: "10px 14px",
+                    gap: 12,
+                    padding: "12px 16px",
                     borderRadius: 10,
-                    background: "#fafdfb",
-                    border: `1px solid ${T.border}`,
-                    color: T.textDark,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    textDecoration: "none",
+                    border: `1px solid ${ticket.status === status ? formatStatus(status).color : T.border}`,
+                    background: ticket.status === status ? formatStatus(status).bg : T.cardBg,
+                    cursor: ticket.status === status ? "default" : "pointer",
                     transition: "all 0.15s ease-in-out",
+                    outline: "none",
+                    opacity: ticket.status === status ? 1 : 0.8,
                   }}
+                  className={`${ticket.status !== status ? "hover:border-[#233217] focus-visible:ring-2 focus-visible:ring-[#233217]/40" : ""}`}
                 >
-                  <ArrowLeft size={16} />
-                  View Lead Details
-                </Link>
-              </div>
-            </Card>
-          )}
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: formatStatus(status).color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: ticket.status === status ? formatStatus(status).color : T.textDark,
+                    }}
+                  >
+                    {formatStatus(status).label}
+                  </span>
+                  {ticket.status === status && (
+                    <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: formatStatus(status).color }}>
+                      Current
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {actionBusy && (
+              <p style={{ margin: 0, fontSize: 12, color: T.textMuted, textAlign: "center" }}>
+                Updating...
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
