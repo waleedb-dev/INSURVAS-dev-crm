@@ -83,7 +83,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "call-center-lead-intake", label: "Transfer Leads", icon: <ArrowLeftRight size={22} strokeWidth={1.8} /> },
   {
     id: "transfer-check-tester",
-    label: "Transfer check (test)",
+    label: "Transfer Checker",
     icon: <Phone size={22} strokeWidth={1.8} />,
   },
   {
@@ -119,7 +119,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "lead-pipeline": "Lead Pipeline",
   "support-tickets": "Support queue",
   "call-center-lead-intake": "Transfer Leads",
-  "transfer-check-tester": "Transfer check (test)",
+  "transfer-check-tester": "Transfer Checker",
   "users-access": "Users & Access",
   "pipeline-management": "Pipelines",
   "carrier-management": "Carriers",
