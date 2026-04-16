@@ -90,6 +90,7 @@ export function canAccessPage(
     | "support-tickets"
     | "call-center-lead-intake"
     | "transfer-check-tester"
+    | "crm-sync"
     | "commissions"
     | "policies"
     | "users-access"
@@ -132,6 +133,10 @@ export function canAccessPage(
 
   if (page === "call-center-lead-intake" || page === "transfer-check-tester") {
     return permissionKeys.has("page.transfer_leads.access");
+  }
+
+  if (page === "crm-sync") {
+    return role === "system_admin";
   }
 
   if (page === "commissions") {
