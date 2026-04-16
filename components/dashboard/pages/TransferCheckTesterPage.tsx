@@ -50,14 +50,16 @@ function summarizeDncLookupEdge(
   const cs = String(data.callStatus ?? "").trim();
   const msg = String(data.message ?? "").trim();
   const flags = data.flags as Record<string, unknown> | undefined;
+  const isDnc = flags?.isDnc === true;
   const bits: string[] = [];
   if (flags?.isTcpa === true) bits.push("TCPA");
   if (flags?.isDnc === true) bits.push("DNC");
   if (flags?.isInvalid === true) bits.push("invalid");
   if (flags?.isClean === true) bits.push("clean");
   const flagStr = bits.length ? ` (${bits.join(", ")})` : "";
-  const line = (cs ? `[${cs}] ` : "") + (msg || "—") + flagStr;
+  const line = (isDnc ? "" : cs ? `[${cs}] ` : "") + (msg || "—") + flagStr;
   if (cs === "DANGER" || cs === "ERROR") return { line, tone: "danger" };
+  if (isDnc) return { line, tone: "muted" };
   if (cs === "WARNING" || cs === "INVALID") return { line, tone: "warn" };
   return { line, tone: "ok" };
 }
@@ -131,9 +133,7 @@ export default function TransferCheckTesterPage() {
         return;
       }
 
-      const transferRes = await runTransferCheck(supabase, clean, {
-        phoneRaw: phoneInput.trim(),
-      });
+      const transferRes = await runTransferCheck(supabase, clean);
 
       setRawPayload(
         transferRes.data && typeof transferRes.data === "object" && !Array.isArray(transferRes.data)
@@ -271,23 +271,6 @@ export default function TransferCheckTesterPage() {
           }}
         >
           {error}
-        </div>
-      )}
-
-      {displayPhone && dncLookupPayload && !loading && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "12px 14px",
-            borderRadius: 10,
-            backgroundColor: dncBannerBg,
-            border: `1px solid ${dncBannerBorder}`,
-            color: dncBannerColor,
-            fontSize: 13,
-            lineHeight: 1.45,
-          }}
-        >
-          <strong style={{ fontWeight: 800 }}>dnc-check:</strong> {dncEdge.line}
         </div>
       )}
 
