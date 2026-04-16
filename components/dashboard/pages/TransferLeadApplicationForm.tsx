@@ -564,9 +564,6 @@ const tabSections: Record<TabType, string> = {
 
 export type TransferLeadSaveDraftMeta = { source: "auto" | "manual" };
 
-/** Debounce for autosave after form changes (phone gate passed). */
-const AUTO_DRAFT_DEBOUNCE_MS = 2_500;
-
 export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
@@ -654,6 +651,8 @@ export default function TransferLeadApplicationForm({
   const [showTransferSubmitGate, setShowTransferSubmitGate] = useState(false);
   const [isSubmittingInTransferModal, setIsSubmittingInTransferModal] = useState(false);
   const [didCopied, setDidCopied] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [leaveSavingDraft, setLeaveSavingDraft] = useState(false);
   const displayBpoName = (centerName || "").trim() || "BPO";
   const displayCenterDid = (centerDid || "").trim();
 
@@ -1231,6 +1230,57 @@ export default function TransferLeadApplicationForm({
     if (isEditMode) setPhoneGatePassed(true);
   }, [isEditMode]);
 
+  const lastSavedDraftSnapshotRef = useRef<string>("");
+
+  const currentDraftSnapshot = useMemo(
+    () => JSON.stringify({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true }),
+    [formData, computedLeadUniqueId],
+  );
+
+  useEffect(() => {
+    if (!lastSavedDraftSnapshotRef.current) lastSavedDraftSnapshotRef.current = currentDraftSnapshot;
+  }, [currentDraftSnapshot]);
+
+  const hasUnsavedDraftChanges =
+    Boolean(onSaveDraft) &&
+    phoneGatePassed &&
+    !showTransferSubmitGate &&
+    currentDraftSnapshot !== lastSavedDraftSnapshotRef.current;
+
+  const saveDraftNow = useCallback(
+    async (opts?: { thenLeave?: boolean }) => {
+      if (!onSaveDraft) return;
+      const payload: TransferLeadFormData = { ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true };
+      try {
+        await onSaveDraft(payload, { source: "manual" });
+        lastSavedDraftSnapshotRef.current = JSON.stringify(payload);
+        setToast({ message: "Draft saved", type: "success" });
+        if (opts?.thenLeave) onBack();
+      } catch (e) {
+        setToast({ message: e instanceof Error ? e.message : "Failed to save draft", type: "error" });
+      }
+    },
+    [onSaveDraft, formData, computedLeadUniqueId, onBack],
+  );
+
+  const requestLeave = useCallback(() => {
+    if (!hasUnsavedDraftChanges) {
+      onBack();
+      return;
+    }
+    setLeaveConfirmOpen(true);
+  }, [hasUnsavedDraftChanges, onBack]);
+
+  useEffect(() => {
+    if (!hasUnsavedDraftChanges) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsavedDraftChanges]);
+
   const duplicateBlocked = Boolean(phoneDupMatch && !phoneDupIsAddable);
   /** TCPA and CRM DQ block submission; DNC is advisory — intake can continue with proper compliance. */
   const transferCheckBlocksSubmit =
@@ -1591,44 +1641,12 @@ export default function TransferLeadApplicationForm({
     }
   }, [phoneGatePassed, activeTab]);
 
-  const lastAutoDraftSnapshotRef = useRef<string>("");
-
-  useEffect(() => {
-    if (!onSaveDraft || !phoneGatePassed || showTransferSubmitGate) return;
-    // Editing a submitted lead: only manual "Save Draft" should demote to draft — no autosave.
-    if (isEditMode && !formData.isDraft) return;
-
-    const payload: TransferLeadFormData = { ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true };
-    const snapshot = JSON.stringify(payload);
-
-    const timer = window.setTimeout(() => {
-      if (JSON.stringify({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true }) !== snapshot) {
-        return;
-      }
-      if (snapshot === lastAutoDraftSnapshotRef.current) return;
-      lastAutoDraftSnapshotRef.current = snapshot;
-      void Promise.resolve(onSaveDraft(payload, { source: "auto" })).catch((err) => {
-        console.warn("Auto-save draft failed:", err);
-        lastAutoDraftSnapshotRef.current = "";
-      });
-    }, AUTO_DRAFT_DEBOUNCE_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    formData,
-    computedLeadUniqueId,
-    onSaveDraft,
-    phoneGatePassed,
-    isEditMode,
-    showTransferSubmitGate,
-  ]);
-
   return (
     <div style={{ fontFamily: T.font, minHeight: "100vh", paddingBottom: 40 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: 24, gap: 16 }}>
         <button
-          onClick={onBack}
+          onClick={requestLeave}
           style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: 10, width: 40, height: 40, cursor: "pointer", color: T.textMid, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -3230,7 +3248,7 @@ export default function TransferLeadApplicationForm({
         flexWrap: "wrap",
       }}>
         <button
-          onClick={onBack}
+          onClick={requestLeave}
           style={{
             height: 42,
             padding: "0 20px",
@@ -3345,7 +3363,7 @@ export default function TransferLeadApplicationForm({
 
         {phoneGatePassed && onSaveDraft && (
           <button
-            onClick={() => void onSaveDraft({ ...formData, leadUniqueId: computedLeadUniqueId, isDraft: true }, { source: "manual" })}
+            onClick={() => void saveDraftNow()}
             style={{
               height: 42,
               padding: "0 20px",
@@ -3401,6 +3419,122 @@ export default function TransferLeadApplicationForm({
           }}
         >
           {hoveredFieldInfo.info}
+        </div>
+      )}
+
+      {leaveConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="leave-draft-modal-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            zIndex: 10060,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 560,
+              backgroundColor: "#fff",
+              borderRadius: 18,
+              border: `1px solid ${T.borderLight}`,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "18px 20px",
+                borderBottom: `1px solid ${T.borderLight}`,
+                backgroundColor: "#f8fafc",
+              }}
+            >
+              <h3 id="leave-draft-modal-title" style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.textDark }}>
+                Save draft before leaving?
+              </h3>
+              <p style={{ margin: "6px 0 0", fontSize: 13, fontWeight: 600, color: T.textMid, lineHeight: 1.45 }}>
+                You have unsaved changes. You can save a draft now, or leave without saving.
+              </p>
+            </div>
+
+            <div style={{ padding: 20, display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setLeaveConfirmOpen(false)}
+                disabled={leaveSavingDraft}
+                style={{
+                  height: 40,
+                  padding: "0 14px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  backgroundColor: "#fff",
+                  color: T.textDark,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: leaveSavingDraft ? "not-allowed" : "pointer",
+                }}
+              >
+                Stay
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLeaveConfirmOpen(false);
+                  onBack();
+                }}
+                disabled={leaveSavingDraft}
+                style={{
+                  height: 40,
+                  padding: "0 14px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  backgroundColor: "#fff",
+                  color: T.textDark,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: leaveSavingDraft ? "not-allowed" : "pointer",
+                }}
+              >
+                Leave without saving
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  if (leaveSavingDraft) return;
+                  setLeaveSavingDraft(true);
+                  try {
+                    await saveDraftNow({ thenLeave: true });
+                  } finally {
+                    setLeaveSavingDraft(false);
+                    setLeaveConfirmOpen(false);
+                  }
+                }}
+                style={{
+                  height: 40,
+                  padding: "0 16px",
+                  borderRadius: 10,
+                  border: "none",
+                  backgroundColor: "#233217",
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: leaveSavingDraft ? "not-allowed" : "pointer",
+                  opacity: leaveSavingDraft ? 0.8 : 1,
+                }}
+              >
+                {leaveSavingDraft ? "Saving…" : "Save draft and leave"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
