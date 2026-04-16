@@ -17,6 +17,7 @@ import {
   fetchDealTrackerByPolicyNumbers,
   type DealTrackerRow,
 } from "@/lib/supabase/dealTrackerClient";
+import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import {
   AlertTriangle,
   ArrowRight,
@@ -25,6 +26,7 @@ import {
   Database,
   Link2,
   ListChecks,
+  Lock,
   RefreshCw,
   Search,
   X,
@@ -313,6 +315,79 @@ function computeStatus(
 }
 
 export default function CrmSyncOperationsPage() {
+  const { currentRole } = useDashboardContext();
+  if (currentRole !== "system_admin") {
+    return <AccessRestricted />;
+  }
+  return <CrmSyncOperationsPageInner />;
+}
+
+function AccessRestricted() {
+  return (
+    <div
+      style={{
+        fontFamily: T.font,
+        padding: "60px 20px",
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 520,
+          padding: "32px 28px",
+          borderRadius: 20,
+          border: `1px solid ${T.border}`,
+          background: T.cardBg,
+          textAlign: "center",
+          boxShadow: "0 12px 32px rgba(15, 23, 13, 0.06)",
+        }}
+      >
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 16,
+            background: "#eef5ee",
+            color: "#233217",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 16,
+          }}
+        >
+          <Lock size={24} />
+        </div>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: 20,
+            fontWeight: 800,
+            color: "#233217",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          Restricted to system admins
+        </h2>
+        <p
+          style={{
+            margin: "10px 0 0",
+            fontSize: 13,
+            color: T.textMuted,
+            fontWeight: 500,
+            lineHeight: 1.55,
+          }}
+        >
+          CRM Sync Operations can overwrite lead stages across every pipeline. Only system
+          administrators are permitted to run comparisons and sync from Deal Tracker. Please
+          contact an admin if you need access.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function CrmSyncOperationsPageInner() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
 
   const [rows, setRows] = useState<LeadPolicyRow[]>([]);
