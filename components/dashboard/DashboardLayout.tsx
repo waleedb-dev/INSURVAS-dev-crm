@@ -28,6 +28,7 @@ import {
   BookOpen,
   Phone,
   LifeBuoy,
+  RefreshCw,
 } from "lucide-react";
 import { callCenterNameInitials, displayCallCenterName } from "@/lib/callCenterBranding";
 
@@ -37,6 +38,7 @@ export type DashPage =
   | "support-tickets"
   | "call-center-lead-intake"
   | "transfer-check-tester"
+  | "crm-sync"
   | "users-access" | "pipeline-management"
   | "carrier-management" | "bpo-centres"
   | "commissions" | "policies" | "carrier-updates"
@@ -87,6 +89,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: <Phone size={22} strokeWidth={1.8} />,
   },
   {
+    id: "crm-sync",
+    label: "CRM Sync Operations",
+    icon: <RefreshCw size={22} strokeWidth={1.8} />,
+  },
+  {
     id: "carrier-updates",
     label: "Carrier Updates",
     icon: <DollarSign size={22} strokeWidth={1.8} />,
@@ -120,6 +127,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "support-tickets": "Support Tickets",
   "call-center-lead-intake": "Transfer Leads",
   "transfer-check-tester": "Transfer Checker",
+  "crm-sync": "CRM Sync Operations",
   "users-access": "Users & Access",
   "pipeline-management": "Pipelines",
   "carrier-management": "Carriers",
