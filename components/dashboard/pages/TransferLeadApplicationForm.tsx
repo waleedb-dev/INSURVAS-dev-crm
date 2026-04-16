@@ -119,6 +119,17 @@ type TransferCheckApiResponse = {
   warnings?: { policy?: boolean };
   warningMessage?: string;
   message?: string;
+  phone?: string;
+  status?: string;
+  crm_phone_match?: {
+    has_match?: boolean;
+    is_addable?: boolean;
+    rule_message?: string;
+    matched_contact_name?: string;
+    stages?: string[];
+    lead_ids?: string[];
+    scenario?: string;
+  };
 };
 
 /**
