@@ -244,6 +244,7 @@ type Props = {
   retentionOptions: string[];
   licensedOptions: string[];
   carrierOptions: string[];
+  statusOptions: string[];
   groupBy: string;
   groupBySecondary: string;
 };
@@ -293,6 +294,7 @@ export function DdfGroupedGrid({
   retentionOptions,
   licensedOptions,
   carrierOptions,
+  statusOptions,
   groupBy,
   groupBySecondary,
 }: Props) {
@@ -528,7 +530,7 @@ export function DdfGroupedGrid({
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.retention_agent || ""} onValueChange={(v) => patchDraft({ retention_agent: v })} options={retentionOptions.map((v) => ({ value: v, label: v }))} /> : row.retention_agent || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.agent || ""} onValueChange={(v) => patchDraft({ agent: v })} options={agentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getAgentBadgeStyle(row.agent)}>{row.agent || "N/A"}</span>}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.licensed_agent_account || ""} onValueChange={(v) => patchDraft({ licensed_agent_account: v })} options={licensedOptions.map((v) => ({ value: v, label: v }))} /> : row.licensed_agent_account || "N/A"}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.status || ""} onValueChange={(v) => patchDraft({ status: v })} options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", row.status)}>{row.status || "N/A"}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.status || ""} onValueChange={(v) => patchDraft({ status: v })} options={statusOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", row.status)}>{row.status || "N/A"}</span>}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.call_result || ""} onValueChange={(v) => patchDraft({ call_result: v })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("result", row.call_result)}>{row.call_result || "N/A"}</span>}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.carrier || ""} onValueChange={(v) => patchDraft({ carrier: v, product_type: "" })} options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))} /> : row.carrier || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.product_type || ""} onValueChange={(v) => patchDraft({ product_type: v })} options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))} /> : row.product_type || "N/A"}</TableCell>
@@ -1055,7 +1057,7 @@ export function DdfGroupedGrid({
                       <StyledSelect
                         value={draft.status || ""}
                         onValueChange={(v) => patchDraft({ status: v })}
-                        options={STATUS_OPTIONS.map((v) => ({ value: v, label: v }))}
+                        options={statusOptions.map((v) => ({ value: v, label: v }))}
                         placeholder="Select status"
                       />
                     </div>

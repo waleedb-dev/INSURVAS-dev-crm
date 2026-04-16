@@ -186,6 +186,7 @@ export default function DailyDealFlowPage({
   const [retentionOptions, setRetentionOptions] = useState<string[]>([]);
   const [licensedOptions, setLicensedOptions] = useState<string[]>([]);
   const [carrierOptionsDynamic, setCarrierOptionsDynamic] = useState<string[]>([]);
+  const [statusOptionsDynamic, setStatusOptionsDynamic] = useState<string[]>([]);
   const hasWritePermissions = canProcessActions;
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
@@ -295,18 +296,25 @@ export default function DailyDealFlowPage({
     const { data: retentionRows } = await supabase.from("daily_deal_flow").select("retention_agent").not("retention_agent", "is", null);
     const { data: licensedRows } = await supabase.from("daily_deal_flow").select("licensed_agent_account").not("licensed_agent_account", "is", null);
     const { data: carrierRows } = await supabase.from("daily_deal_flow").select("carrier").not("carrier", "is", null);
+    const { data: pipelineStages } = await supabase
+      .from("pipeline_stages")
+      .select("name")
+      .eq("pipeline_id", 4)
+      .order("position", { ascending: true });
     const vendors = [...new Set(((vendorRows || []) as VendorRow[]).map((r) => r.lead_vendor).filter(Boolean) as string[])];
     const buffers = [...new Set(((bufferRows || []) as BufferRow[]).map((r) => r.buffer_agent).filter(Boolean) as string[])];
     const agents = [...new Set(((agentRows || []) as AgentRow[]).map((r) => r.agent).filter(Boolean) as string[])];
     const retention = [...new Set(((retentionRows || []) as RetentionRow[]).map((r) => r.retention_agent).filter(Boolean) as string[])];
     const licensed = [...new Set(((licensedRows || []) as LicensedRow[]).map((r) => r.licensed_agent_account).filter(Boolean) as string[])];
     const carriers = [...new Set(((carrierRows || []) as CarrierRow[]).map((r) => r.carrier).filter(Boolean) as string[])];
+    const stages = (pipelineStages || []).map((s: { name: string }) => s.name).filter(Boolean) as string[];
     setLeadVendorOptions(vendors);
     setBufferAgentOptions(buffers);
     setAgentOptions(agents);
     setRetentionOptions(retention);
     setLicensedOptions(licensed);
     setCarrierOptionsDynamic(carriers);
+    setStatusOptionsDynamic(stages);
   }, [supabase]);
 
   const fetchData = useCallback(async (page = 1, showRefreshToast = false) => {
@@ -440,7 +448,7 @@ export default function DailyDealFlowPage({
     setToast({ message: `Exported ${data.length} records`, type: "success" });
   };
 
-  const statusOptions = [{ value: "All", label: "All Status" }, ...STATUS_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
+  const statusOptions = [{ value: "All", label: "All Status" }, ...statusOptionsDynamic.map(v => ({ value: v, label: v }))];
   const carrierOptions = [{ value: "All", label: "All Carriers" }, ...CARRIER_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
   const callResultOptions = [{ value: "All", label: "All Results" }, ...CALL_RESULT_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
   const laCallbackOptions = [{ value: "All", label: "All Callbacks" }, ...LA_CALLBACK_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
@@ -958,6 +966,7 @@ export default function DailyDealFlowPage({
           retentionOptions={retentionOptions}
           licensedOptions={licensedOptions}
           carrierOptions={carrierOptionsDynamic}
+          statusOptions={statusOptionsDynamic}
           groupBy={groupBy}
           groupBySecondary={groupBySecondary}
         />
