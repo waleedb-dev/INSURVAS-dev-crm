@@ -192,11 +192,6 @@ export default function TransferCheckTesterPage() {
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 8px 48px" }}>
       <h1 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 800, color: T.textDark }}>Search user by mobile number</h1>
-      <p style={{ margin: "0 0 20px", fontSize: 13, color: T.textMuted, lineHeight: 1.5 }}>
-        <strong>dnc-check</strong> runs first. If a <strong>TCPA litigator</strong> is flagged,{" "}
-        <strong>transfer-check</strong> is skipped and a blocking alert is shown. Otherwise <strong>transfer-check</strong>{" "}
-        runs (CRM-only: phone → SSN cohort → <code style={{ fontSize: 12 }}>crm_phone_match</code> / stage precedence).
-      </p>
 
       <div
         style={{
