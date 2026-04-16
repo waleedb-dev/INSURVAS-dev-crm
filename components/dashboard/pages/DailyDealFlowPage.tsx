@@ -291,28 +291,52 @@ export default function DailyDealFlowPage({
 
   const loadDistinct = useCallback(async () => {
     const { data: vendorRows } = await supabase.from("daily_deal_flow").select("lead_vendor").not("lead_vendor", "is", null);
-    const { data: bufferRows } = await supabase.from("daily_deal_flow").select("buffer_agent").not("buffer_agent", "is", null);
-    const { data: agentRows } = await supabase.from("daily_deal_flow").select("agent").not("agent", "is", null);
-    const { data: retentionRows } = await supabase.from("daily_deal_flow").select("retention_agent").not("retention_agent", "is", null);
-    const { data: licensedRows } = await supabase.from("daily_deal_flow").select("licensed_agent_account").not("licensed_agent_account", "is", null);
     const { data: carrierRows } = await supabase.from("daily_deal_flow").select("carrier").not("carrier", "is", null);
     const { data: pipelineStages } = await supabase
       .from("pipeline_stages")
       .select("name")
       .eq("pipeline_id", 4)
       .order("position", { ascending: true });
+
+    const { data: licensedAgents } = await supabase
+      .from("users")
+      .select("full_name")
+      .eq("is_licensed", true)
+      .eq("status", "active")
+      .not("full_name", "is", null);
+    const { data: bufferAgents } = await supabase
+      .from("users")
+      .select("full_name")
+      .eq("unlicensed_sales_subtype", "buffer_agent")
+      .eq("status", "active")
+      .not("full_name", "is", null);
+    const { data: retentionAgents } = await supabase
+      .from("users")
+      .select("full_name")
+      .eq("unlicensed_sales_subtype", "retention_agent")
+      .eq("status", "active")
+      .not("full_name", "is", null);
+    const { data: salesAgents } = await supabase
+      .from("users")
+      .select("full_name")
+      .eq("is_licensed", false)
+      .is("unlicensed_sales_subtype", null)
+      .eq("status", "active")
+      .not("full_name", "is", null);
+
     const vendors = [...new Set(((vendorRows || []) as VendorRow[]).map((r) => r.lead_vendor).filter(Boolean) as string[])];
-    const buffers = [...new Set(((bufferRows || []) as BufferRow[]).map((r) => r.buffer_agent).filter(Boolean) as string[])];
-    const agents = [...new Set(((agentRows || []) as AgentRow[]).map((r) => r.agent).filter(Boolean) as string[])];
-    const retention = [...new Set(((retentionRows || []) as RetentionRow[]).map((r) => r.retention_agent).filter(Boolean) as string[])];
-    const licensed = [...new Set(((licensedRows || []) as LicensedRow[]).map((r) => r.licensed_agent_account).filter(Boolean) as string[])];
     const carriers = [...new Set(((carrierRows || []) as CarrierRow[]).map((r) => r.carrier).filter(Boolean) as string[])];
     const stages = (pipelineStages || []).map((s: { name: string }) => s.name).filter(Boolean) as string[];
+    const licensedList = (licensedAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
+    const bufferList = (bufferAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
+    const retentionList = (retentionAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
+    const agentList = (salesAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
+
     setLeadVendorOptions(vendors);
-    setBufferAgentOptions(buffers);
-    setAgentOptions(agents);
-    setRetentionOptions(retention);
-    setLicensedOptions(licensed);
+    setBufferAgentOptions(bufferList);
+    setAgentOptions(agentList);
+    setRetentionOptions(retentionList);
+    setLicensedOptions(licensedList);
     setCarrierOptionsDynamic(carriers);
     setStatusOptionsDynamic(stages);
   }, [supabase]);
