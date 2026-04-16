@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TicketIcon, RefreshCw, ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
 import { T } from "@/lib/theme";
+import { EmptyState } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type TicketStatus = "open" | "in_progress" | "solved";
