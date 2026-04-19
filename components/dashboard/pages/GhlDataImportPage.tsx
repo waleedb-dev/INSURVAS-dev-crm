@@ -42,9 +42,15 @@ type ImportResult = {
   contactName: string;
   phone: string;
   opportunityId: string;
-  status: "inserted" | "skipped" | "error";
+  status: "inserted" | "skipped" | "error" | "duplicate";
   reason?: string;
   leadId?: string;
+};
+
+type DuplicateRow = {
+  rowIndex: number;
+  row: XlsxRow;
+  reason: string;
 };
 
 type ImportProgress = {
@@ -53,6 +59,7 @@ type ImportProgress = {
   inserted: number;
   skipped: number;
   errors: number;
+  duplicates: number;
 };
 
 const MAX_PARALLEL_REQUESTS = 5;
@@ -148,8 +155,9 @@ function GhlDataImportPageInner() {
   const [parseError, setParseError] = useState<string | null>(null);
 
   const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState<ImportProgress>({ total: 0, processed: 0, inserted: 0, skipped: 0, errors: 0 });
+  const [progress, setProgress] = useState<ImportProgress>({ total: 0, processed: 0, inserted: 0, skipped: 0, errors: 0, duplicates: 0 });
   const [results, setResults] = useState<ImportResult[]>([]);
+  const [duplicateRows, setDuplicateRows] = useState<DuplicateRow[]>([]);
   const [importComplete, setImportComplete] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
@@ -216,7 +224,7 @@ function GhlDataImportPageInner() {
     setParsedRows([]);
     setImportComplete(false);
     setResults([]);
-    setProgress({ total: 0, processed: 0, inserted: 0, skipped: 0, errors: 0 });
+    setProgress({ total: 0, processed: 0, inserted: 0, skipped: 0, errors: 0, duplicates: 0 });
   }, []);
 
   const parseFile = useCallback(async () => {
@@ -357,7 +365,7 @@ function GhlDataImportPageInner() {
       stageByKey.set(`${s.pipeline_id}::${s.name.toLowerCase()}`, s.id);
     }
 
-    const newProgress: ImportProgress = { total: parsedRows.length, processed: 0, inserted: 0, skipped: 0, errors: 0 };
+    const newProgress: ImportProgress = { total: parsedRows.length, processed: 0, inserted: 0, skipped: 0, errors: 0, duplicates: 0 };
     const newResults: ImportResult[] = [];
 
     const { data: existingLeads } = await supabase
@@ -452,68 +460,74 @@ function GhlDataImportPageInner() {
 
           let insertedLead: { id: string } | null = null;
           let insertError: string | null = null;
-          let attempts = 0;
-          const maxAttempts = 10;
           let currentUniqueId = leadUniqueId;
 
-          while (attempts < maxAttempts) {
-            const leadRow: Record<string, unknown> = {
-              first_name: firstName,
-              last_name: lastName,
-              phone,
-              submission_id: opportunityId,
-              contact_id: contactId,
-              lead_unique_id: currentUniqueId,
-              is_duplicate: currentUniqueId !== baseUniqueId,
-              pipeline_id: pipelineId,
-              stage_id: stageId,
-              stage: stageName,
-              call_center_id: selectedCallCenter.id,
-              submitted_by: submittedBy,
-              lead_source: selectedCallCenter.name,
-            };
+          const leadRow: Record<string, unknown> = {
+            first_name: firstName,
+            last_name: lastName,
+            phone,
+            submission_id: opportunityId,
+            contact_id: contactId,
+            lead_unique_id: currentUniqueId,
+            is_duplicate: currentUniqueId !== baseUniqueId,
+            pipeline_id: pipelineId,
+            stage_id: stageId,
+            stage: stageName,
+            call_center_id: selectedCallCenter.id,
+            submitted_by: submittedBy,
+            lead_source: selectedCallCenter.name,
+          };
 
-            if (leadValue != null && !isNaN(leadValue)) {
-              leadRow.lead_value = leadValue;
-            }
-
-            const result = await supabase
-              .from("leads")
-              .insert(leadRow)
-              .select("id")
-              .single();
-
-            if (!result.error && result.data) {
-              insertedLead = result.data;
-              existingUniqueIds.add(currentUniqueId);
-              break;
-            }
-
-            const errMsg = result.error?.message || "";
-            if (errMsg.includes("leads_lead_unique_id_unique_idx") || errMsg.includes("duplicate key")) {
-              attempts++;
-              existingUniqueIds.add(currentUniqueId);
-              const newSuffix = `_dup_${opportunityId}_retry_${attempts}`;
-              currentUniqueId = baseUniqueId + newSuffix;
-              existingUniqueIds.add(currentUniqueId);
-              continue;
-            }
-
-            insertError = result.error?.message || "Insert failed";
-            break;
+          if (leadValue != null && !isNaN(leadValue)) {
+            leadRow.lead_value = leadValue;
           }
 
-          if (!insertedLead) {
+          const result = await supabase
+            .from("leads")
+            .insert(leadRow)
+            .select("id")
+            .single();
+
+          if (!result.error && result.data) {
+            insertedLead = result.data;
+            existingUniqueIds.add(currentUniqueId);
+          } else {
+            const errMsg = result.error?.message || "";
+            if (errMsg.includes("leads_lead_unique_id_unique_idx") || errMsg.includes("duplicate key")) {
+              newResults.push({
+                rowIndex: index,
+                contactName,
+                phone,
+                opportunityId,
+                status: "duplicate",
+                reason: `Duplicate lead_unique_id: ${currentUniqueId}`,
+              });
+              newProgress.duplicates++;
+            } else {
+              insertError = result.error?.message || "Insert failed";
+              newResults.push({
+                rowIndex: index,
+                contactName,
+                phone,
+                opportunityId,
+                status: "error",
+                reason: insertError || "Insert failed",
+              });
+              newProgress.errors++;
+            }
+          }
+
+          if (!insertedLead && insertError) {
             newResults.push({
               rowIndex: index,
               contactName,
               phone,
               opportunityId,
               status: "error",
-              reason: insertError || "Failed after multiple attempts",
+              reason: insertError,
             });
             newProgress.errors++;
-          } else {
+          } else if (insertedLead) {
             leadIdMap.set(String(index), insertedLead.id);
             newResults.push({
               rowIndex: index,
@@ -566,6 +580,19 @@ function GhlDataImportPageInner() {
     const workers = Array.from({ length: MAX_PARALLEL_REQUESTS }, () => processNext());
     await Promise.all(workers);
 
+    const duplicateItems: DuplicateRow[] = [];
+    for (const result of newResults) {
+      if (result.status === "duplicate") {
+        const originalRow = parsedRows[result.rowIndex - 2];
+        duplicateItems.push({
+          rowIndex: result.rowIndex,
+          row: originalRow,
+          reason: result.reason || "Duplicate lead_unique_id",
+        });
+      }
+    }
+    setDuplicateRows(duplicateItems);
+
     setImportComplete(true);
     setImporting(false);
   }, [parsedRows, selectedCallCenter, pipelines, stages, supabase]);
@@ -582,10 +609,34 @@ function GhlDataImportPageInner() {
     setImportComplete(false);
     setImportError(null);
     setResults([]);
-    setProgress({ total: 0, processed: 0, inserted: 0, skipped: 0, errors: 0 });
+    setDuplicateRows([]);
+    setProgress({ total: 0, processed: 0, inserted: 0, skipped: 0, errors: 0, duplicates: 0 });
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const downloadDuplicates = () => {
+    if (duplicateRows.length === 0) return;
+
+    const jsonl = duplicateRows
+      .map(item => JSON.stringify({
+        row_index: item.rowIndex,
+        original_row: item.row,
+        reason: item.reason,
+        imported_at: new Date().toISOString(),
+      }))
+      .join("\n");
+
+    const blob = new Blob([jsonl], { type: "application/jsonl" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ghl_import_duplicates_${Date.now()}.jsonl`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const progressPercent = progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
@@ -903,7 +954,7 @@ function GhlDataImportPageInner() {
                 <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
                 <span style={{ fontSize: 15, fontWeight: 800, color: "#166534" }}>Import Complete</span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
                 <div style={{ textAlign: "center", padding: 10, backgroundColor: "#fff", borderRadius: 8 }}>
                   <div style={{ fontSize: 20, fontWeight: 800, color: "#16a34a" }}>{progress.inserted}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase" }}>Inserted</div>
@@ -916,7 +967,36 @@ function GhlDataImportPageInner() {
                   <div style={{ fontSize: 20, fontWeight: 800, color: "#dc2626" }}>{progress.errors}</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase" }}>Errors</div>
                 </div>
+                <div style={{ textAlign: "center", padding: 10, backgroundColor: "#fff", borderRadius: 8 }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#9333ea" }}>{progress.duplicates}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase" }}>Duplicates</div>
+                </div>
               </div>
+              {progress.duplicates > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={downloadDuplicates}
+                    style={{
+                      height: 36,
+                      padding: "0 16px",
+                      borderRadius: 8,
+                      border: "1px solid #9333ea",
+                      backgroundColor: "#fff",
+                      color: "#9333ea",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      fontFamily: T.font,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    Download Duplicates ({progress.duplicates})
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -944,13 +1024,14 @@ function GhlDataImportPageInner() {
                   padding: "10px 12px",
                   borderRadius: 8,
                   marginBottom: 6,
-                  backgroundColor: result.status === "inserted" ? "#f0fdf4" : result.status === "skipped" ? "#fffbeb" : "#fef2f2",
-                  border: `1px solid ${result.status === "inserted" ? "#bbf7d0" : result.status === "skipped" ? "#fde68a" : "#fecaca"}`,
+                  backgroundColor: result.status === "inserted" ? "#f0fdf4" : result.status === "skipped" ? "#fffbeb" : result.status === "duplicate" ? "#f3e8ff" : "#fef2f2",
+                  border: `1px solid ${result.status === "inserted" ? "#bbf7d0" : result.status === "skipped" ? "#fde68a" : result.status === "duplicate" ? "#c084fc" : "#fecaca"}`,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {result.status === "inserted" && <CheckCircle2 size={14} style={{ color: "#16a34a", flexShrink: 0 }} />}
                   {result.status === "skipped" && <AlertCircle size={14} style={{ color: "#d97706", flexShrink: 0 }} />}
+                  {result.status === "duplicate" && <AlertCircle size={14} style={{ color: "#9333ea", flexShrink: 0 }} />}
                   {result.status === "error" && <AlertCircle size={14} style={{ color: "#dc2626", flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: T.textDark, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -962,7 +1043,7 @@ function GhlDataImportPageInner() {
                   </div>
                 </div>
                 {result.reason && (
-                  <div style={{ marginTop: 4, fontSize: 11, color: result.status === "error" ? "#dc2626" : "#d97706" }}>
+                  <div style={{ marginTop: 4, fontSize: 11, color: result.status === "error" ? "#dc2626" : result.status === "duplicate" ? "#9333ea" : "#d97706" }}>
                     {result.reason}
                   </div>
                 )}
