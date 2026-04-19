@@ -448,45 +448,72 @@ function GhlDataImportPageInner() {
 
           const baseUniqueId = `${phone}_${contactName.replace(/ /g, "_")}`;
           const leadUniqueId = generateUniqueLeadId(baseUniqueId, index, opportunityId);
+          const isDup = baseUniqueId !== leadUniqueId;
 
-          const leadRow: Record<string, unknown> = {
-            first_name: firstName,
-            last_name: lastName,
-            phone,
-            submission_id: opportunityId,
-            contact_id: contactId,
-            lead_unique_id: leadUniqueId,
-            is_duplicate: baseUniqueId !== leadUniqueId,
-            pipeline_id: pipelineId,
-            stage_id: stageId,
-            stage: stageName,
-            call_center_id: selectedCallCenter.id,
-            submitted_by: submittedBy,
-            lead_source: selectedCallCenter.name,
-          };
+          let insertedLead: { id: string } | null = null;
+          let insertError: string | null = null;
+          let attempts = 0;
+          const maxAttempts = 10;
+          let currentUniqueId = leadUniqueId;
 
-          if (leadValue != null && !isNaN(leadValue)) {
-            leadRow.lead_value = leadValue;
+          while (attempts < maxAttempts) {
+            const leadRow: Record<string, unknown> = {
+              first_name: firstName,
+              last_name: lastName,
+              phone,
+              submission_id: opportunityId,
+              contact_id: contactId,
+              lead_unique_id: currentUniqueId,
+              is_duplicate: currentUniqueId !== baseUniqueId,
+              pipeline_id: pipelineId,
+              stage_id: stageId,
+              stage: stageName,
+              call_center_id: selectedCallCenter.id,
+              submitted_by: submittedBy,
+              lead_source: selectedCallCenter.name,
+            };
+
+            if (leadValue != null && !isNaN(leadValue)) {
+              leadRow.lead_value = leadValue;
+            }
+
+            const result = await supabase
+              .from("leads")
+              .insert(leadRow)
+              .select("id")
+              .single();
+
+            if (!result.error && result.data) {
+              insertedLead = result.data;
+              existingUniqueIds.add(currentUniqueId);
+              break;
+            }
+
+            const errMsg = result.error?.message || "";
+            if (errMsg.includes("leads_lead_unique_id_unique_idx") || errMsg.includes("duplicate key")) {
+              attempts++;
+              existingUniqueIds.add(currentUniqueId);
+              const newSuffix = `_dup_${opportunityId}_retry_${attempts}`;
+              currentUniqueId = baseUniqueId + newSuffix;
+              existingUniqueIds.add(currentUniqueId);
+              continue;
+            }
+
+            insertError = result.error?.message || "Insert failed";
+            break;
           }
 
-          const { data: insertedLead, error: insertError } = await supabase
-            .from("leads")
-            .insert(leadRow)
-            .select("id")
-            .single();
-
-          if (insertError || !insertedLead) {
+          if (!insertedLead) {
             newResults.push({
               rowIndex: index,
               contactName,
               phone,
               opportunityId,
               status: "error",
-              reason: insertError?.message || "Insert failed",
+              reason: insertError || "Failed after multiple attempts",
             });
             newProgress.errors++;
           } else {
-            existingUniqueIds.add(leadUniqueId);
             leadIdMap.set(String(index), insertedLead.id);
             newResults.push({
               rowIndex: index,
