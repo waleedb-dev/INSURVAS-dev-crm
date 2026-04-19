@@ -22,6 +22,7 @@ const ALL_PAGES: DashPage[] = [
   "call-center-lead-intake",
   "transfer-check-tester",
   "crm-sync",
+  "ghl-data-import",
   "users-access",
   "nearest-events",
   "pipeline-management",

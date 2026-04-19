@@ -91,6 +91,7 @@ export function canAccessPage(
     | "call-center-lead-intake"
     | "transfer-check-tester"
     | "crm-sync"
+    | "ghl-data-import"
     | "commissions"
     | "policies"
     | "users-access"
@@ -135,7 +136,7 @@ export function canAccessPage(
     return permissionKeys.has("page.transfer_leads.access");
   }
 
-  if (page === "crm-sync") {
+  if (page === "crm-sync" || page === "ghl-data-import") {
     return role === "system_admin";
   }
 

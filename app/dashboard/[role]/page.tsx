@@ -20,6 +20,7 @@ import ProductGuidePage from "@/components/dashboard/pages/ProductGuidePage";
 import AnnouncementsPage from "@/components/dashboard/pages/AnnouncementsPage";
 import TransferCheckTesterPage from "@/components/dashboard/pages/TransferCheckTesterPage";
 import CrmSyncOperationsPage from "@/components/dashboard/pages/CrmSyncOperationsPage";
+import GhlDataImportPage from "@/components/dashboard/pages/GhlDataImportPage";
 import PublisherSupportTicketsPage from "@/components/dashboard/pages/PublisherSupportTicketsPage";
 import CallCenterSupportTicketsPage from "@/components/dashboard/pages/CallCenterSupportTicketsPage";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
@@ -82,6 +83,7 @@ export default function RoleDashboardPage() {
       )}
       {activePage === "transfer-check-tester" && <TransferCheckTesterPage />}
       {activePage === "crm-sync" && <CrmSyncOperationsPage />}
+      {activePage === "ghl-data-import" && <GhlDataImportPage />}
       {activePage === "users-access" && <UsersAccessPage />}
       {activePage === "pipeline-management" && <PipelineSettingsPage />}
       {activePage === "carrier-management" && <CarrierManagementPage />}

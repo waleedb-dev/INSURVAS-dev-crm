@@ -753,19 +753,18 @@ async function notifySlackTransferPortalLead(
   const { leadId, submissionId, payload, callCenterName, callCenterId } = params;
   try {
     const customerName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
-    const transferPortalMessage = `A new Application Submission:
-Call Center Name: ${callCenterName || TRANSFER_PORTAL_LEAD_VENDOR}
-Customer Name: ${customerName}
-Customer Number: ${payload.phone || "N/A"}
-Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`;
-
-    const { error: transferPortalError } = await supabase.functions.invoke(FE_SLACK_NOTIFICATION_EDGE_FUNCTION, {
-      body: {
-        channel: TEST_BPO_CHANNEL,
-        message: transferPortalMessage,
-      },
-    });
-    if (transferPortalError) console.warn("fe-slack-notification (transfer-portal):", transferPortalError.message);
+    // [DISABLED] const transferPortalMessage = `A new Application Submission:
+    // Call Center Name: ${callCenterName || TRANSFER_PORTAL_LEAD_VENDOR}
+    // Customer Name: ${customerName}
+    // Customer Number: ${payload.phone || "N/A"}
+    // Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`;
+    // const { error: transferPortalError } = await supabase.functions.invoke(FE_SLACK_NOTIFICATION_EDGE_FUNCTION, {
+    //   body: {
+    //     channel: TEST_BPO_CHANNEL,
+    //     message: transferPortalMessage,
+    //   },
+    // });
+    // if (transferPortalError) console.warn("fe-slack-notification (transfer-portal):", transferPortalError.message);
 
     const { data: centerRow } = callCenterId
       ? await supabase.from("call_centers").select("name, slack_channel").eq("id", callCenterId).maybeSingle()
@@ -815,16 +814,42 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
 
     if (payload.carrier && payload.state && centerName) {
       try {
-        const { error: notifyError } = await supabase.functions.invoke("notify-eligible-agents", {
-          body: {
-            carrier: payload.carrier,
-            state: payload.state,
-            lead_vendor: centerName,
-            language: "English",
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const token = session?.access_token || "";
+        const stateFullName = (() => {
+          const t = payload.state.trim().toUpperCase();
+          const MAP: Record<string, string> = {
+            AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+            CO: "Colorado", CT: "Connecticut", DE: "Delaware", DC: "District of Columbia",
+            FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois",
+            IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+            ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota",
+            MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada",
+            NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York",
+            NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma",
+            OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina",
+            SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont",
+            VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
+          };
+          return MAP[t] || payload.state;
+        })();
+        const notifyRes = await fetch("https://gqhcjqxcvhgwsqfqgekh.supabase.co/functions/v1/notify-eligible-agents", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
+          body: JSON.stringify({
+            carrier: payload.carrier,
+            state: stateFullName,
+            lead_vendor: centerName,
+            language: payload.language,
+          }),
         });
-        if (notifyError) {
-          console.warn("notify-eligible-agents:", notifyError.message);
+        if (!notifyRes.ok) {
+          console.warn("notify-eligible-agents: HTTP", notifyRes.status);
         }
       } catch (notifyError) {
         console.warn(
@@ -834,28 +859,28 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
       }
     }
 
-    if (centerName && payload.phone) {
-      const { error: ghlError } = await supabase.functions.invoke(FE_GHL_CREATE_CONTACT_EDGE_FUNCTION, {
-        body: {
-          lead_vendor: centerName,
-          first_name: payload.firstName || null,
-          last_name: payload.lastName || null,
-          phone_number: payload.phone,
-          email: null,
-          date_of_birth: payload.dateOfBirth || null,
-          state: payload.state || null,
-          city: payload.city || null,
-          street_address: payload.street1 || null,
-          zip_code: payload.zipCode || null,
-          carrier: payload.carrier || null,
-          product_type: payload.productType || null,
-          monthly_premium: payload.monthlyPremium || null,
-          coverage_amount: payload.coverageAmount || null,
-          submission_id: submissionId || leadId,
-        },
-      });
-      if (ghlError) console.warn("fe-ghl-create-contact:", ghlError.message);
-    }
+    // [DISABLED] if (centerName && payload.phone) {
+    //   const { error: ghlError } = await supabase.functions.invoke(FE_GHL_CREATE_CONTACT_EDGE_FUNCTION, {
+    //     body: {
+    //       lead_vendor: centerName,
+    //       first_name: payload.firstName || null,
+    //       last_name: payload.lastName || null,
+    //       phone_number: payload.phone,
+    //       email: null,
+    //       date_of_birth: payload.dateOfBirth || null,
+    //       state: payload.state || null,
+    //       city: payload.city || null,
+    //       street_address: payload.street1 || null,
+    //       zip_code: payload.zipCode || null,
+    //       carrier: payload.carrier || null,
+    //       product_type: payload.productType || null,
+    //       monthly_premium: payload.monthlyPremium || null,
+    //       coverage_amount: payload.coverageAmount || null,
+    //       submission_id: submissionId || leadId,
+    //     },
+    //   });
+    //   if (ghlError) console.warn("fe-ghl-create-contact:", ghlError.message);
+    // }
   } catch (e) {
     console.warn("post-create notifications failed", e);
   }
@@ -1628,19 +1653,19 @@ export default function CallCenterLeadIntakePage({
         callCenterName,
         callCenterId: userProfile?.call_center_id || null,
       });
-      try {
-        await postFeCreateLeadAtFixedUrl(
-          supabase,
-          buildFeCreateLeadBodyFromIntakePayload(payload, {
-            submissionId: generatedSubmissionId,
-            leadVendor: callCenterName,
-          }),
-          "[CallCenterLeadIntake]",
-        );
-      } catch (feErr) {
-        feCreateLeadSyncError = feErr instanceof Error ? feErr.message : String(feErr);
-        console.warn("[CallCenterLeadIntake] fe-create-lead failed after insert", feErr);
-      }
+      // [DISABLED] try {
+      //   await postFeCreateLeadAtFixedUrl(
+      //     supabase,
+      //     buildFeCreateLeadBodyFromIntakePayload(payload, {
+      //       submissionId: generatedSubmissionId,
+      //       leadVendor: callCenterName,
+      //     }),
+      //     "[CallCenterLeadIntake]",
+      //   );
+      // } catch (feErr) {
+      //   feCreateLeadSyncError = feErr instanceof Error ? feErr.message : String(feErr);
+      //   console.warn("[CallCenterLeadIntake] fe-create-lead failed after insert", feErr);
+      // }
     }
 
     // fe-create-lead errors only: success UX is the transfer modal on the form (do not close the form here).
@@ -1985,19 +2010,19 @@ export default function CallCenterLeadIntakePage({
           payload,
           callCenterId: userProfile?.call_center_id || null,
         });
-        try {
-          await postFeCreateLeadAtFixedUrl(
-            supabase,
-            buildFeCreateLeadBodyFromIntakePayload(payload, {
-              submissionId: submissionIdForNotify,
-              leadVendor: callCenterName,
-            }),
-            "[CallCenterLeadIntake:draft-submit]",
-          );
-        } catch (feErr) {
-          feCreateLeadDraftSubmitSyncError = feErr instanceof Error ? feErr.message : String(feErr);
-          console.warn("[CallCenterLeadIntake] fe-create-lead failed after draft submit", feErr);
-        }
+        // [DISABLED] try {
+        //   await postFeCreateLeadAtFixedUrl(
+        //     supabase,
+        //     buildFeCreateLeadBodyFromIntakePayload(payload, {
+        //       submissionId: submissionIdForNotify,
+        //       leadVendor: callCenterName,
+        //     }),
+        //     "[CallCenterLeadIntake:draft-submit]",
+        //   );
+        // } catch (feErr) {
+        //   feCreateLeadDraftSubmitSyncError = feErr instanceof Error ? feErr.message : String(feErr);
+        //   console.warn("[CallCenterLeadIntake] fe-create-lead failed after draft submit", feErr);
+        // }
       }
 
       void notifySlackTransferPortalLead(supabase, {

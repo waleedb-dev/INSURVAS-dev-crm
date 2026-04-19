@@ -29,6 +29,7 @@ import {
   Phone,
   LifeBuoy,
   RefreshCw,
+  Upload,
 } from "lucide-react";
 import { callCenterNameInitials, displayCallCenterName } from "@/lib/callCenterBranding";
 
@@ -39,6 +40,7 @@ export type DashPage =
   | "call-center-lead-intake"
   | "transfer-check-tester"
   | "crm-sync"
+  | "ghl-data-import"
   | "users-access" | "pipeline-management"
   | "carrier-management" | "bpo-centres"
   | "commissions" | "policies" | "carrier-updates"
@@ -94,6 +96,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: <RefreshCw size={22} strokeWidth={1.8} />,
   },
   {
+    id: "ghl-data-import",
+    label: "GHL Data Import",
+    icon: <Upload size={22} strokeWidth={1.8} />,
+  },
+  {
     id: "carrier-updates",
     label: "Carrier Updates",
     icon: <DollarSign size={22} strokeWidth={1.8} />,
@@ -128,6 +135,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "call-center-lead-intake": "Transfer Leads",
   "transfer-check-tester": "Transfer Checker",
   "crm-sync": "CRM Sync Operations",
+  "ghl-data-import": "GHL Data Import",
   "users-access": "Users & Access",
   "pipeline-management": "Pipelines",
   "carrier-management": "Carriers",

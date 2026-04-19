@@ -195,9 +195,10 @@ function TransferCheckResultPanel({ transferCheckState }: { transferCheckState: 
           margin: "0 0 8px",
           fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
           letterSpacing: "0.02em",
+          textTransform: "uppercase",
         }}
       >
-        transfer-check
+        TRANSFER CHECK
       </p>
       <p style={{ fontSize: 14, color: T.textDark, margin: 0, lineHeight: 1.55 }}>{msg}</p>
     </div>
@@ -1159,15 +1160,28 @@ export default function TransferLeadApplicationForm({
 
       if (isDncList) {
         setDncStatus("dnc");
-        setDncMessage(
-          String(dncData.message ?? "").trim() ||
-            "Do not call: this number is on a DNC list.",
-        );
+        const rootMessage = String(data.message ?? "").trim();
+        const crmMatch = (data as { crm_phone_match?: { has_match?: boolean; rule_message?: string } })
+          .crm_phone_match;
+        const serverDupRule =
+          crmMatch?.has_match === true && String(crmMatch.rule_message ?? "").trim()
+            ? String(crmMatch.rule_message).trim()
+            : "";
+        const dupRuleForModal = dup.match && dup.ruleMessage.trim() ? dup.ruleMessage.trim() : "";
+        if (serverDupRule) {
+          setDncMessage(serverDupRule);
+        } else if (dupRuleForModal) {
+          setDncMessage(dupRuleForModal);
+        } else if (rootMessage) {
+          setDncMessage(rootMessage);
+        } else {
+          setDncMessage("Do not call: this number is on a DNC list.");
+        }
         setShowDncModal(true);
         setToast({
           message:
             String(dncData.message ?? "").trim() ||
-            "DNC flag: you can still save this lead — follow exemption and consent rules before contacting.",
+              "DNC flag: you can still save this lead — follow exemption and consent rules before contacting.",
           type: "warning",
         });
         return { status: "dnc", duplicateBlocksPhone };
@@ -3124,7 +3138,7 @@ export default function TransferLeadApplicationForm({
               )}
 
               {dncStatus === "dnc" && (
-                <div style={{ padding: "16px 0" }}>
+                <div style={{ padding: "16px 0", textAlign: "center" }}>
                   <p style={{ color: "#b45309", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
                     This number is on a do-not-call list
                   </p>
@@ -3132,29 +3146,23 @@ export default function TransferLeadApplicationForm({
                     Screening flagged DNC. You can still complete and save this lead in the CRM — only contact if you have a
                     valid exemption and follow your compliance workflow. TCPA litigator hits still block intake entirely.
                   </p>
-                  {dncMessage ? (
-                    <p style={{ marginTop: 14, fontSize: 13, color: T.textMuted, fontWeight: 600, lineHeight: 1.45 }}>{dncMessage}</p>
-                  ) : null}
-                  <TransferCheckResultPanel transferCheckState={transferCheckData} />
                 </div>
               )}
 
               {dncStatus === "agency_dq" && (
-                <div style={{ padding: "16px 0" }}>
+                <div style={{ padding: "16px 0", textAlign: "center" }}>
                   <p style={{ color: "#dc2626", fontWeight: 800, fontSize: 22, margin: "0 0 12px" }}>
                     {blockReason || "Customer has already been DQ from our agency"}
                   </p>
                   <p style={{ fontSize: 14, color: T.textMid, margin: 0, lineHeight: 1.6 }}>
                     This submission cannot proceed for this phone number.
                   </p>
-                  <TransferCheckResultPanel transferCheckState={transferCheckData} />
                 </div>
               )}
 
               {dncStatus === "clear" && (
-                <div style={{ textAlign: "left" }}>
-                  <p style={{ fontSize: 15, color: T.textMid, margin: "0 0 16px", lineHeight: 1.55 }}>{dncMessage}</p>
-                  <TransferCheckResultPanel transferCheckState={transferCheckData} />
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 15, color: T.textMid, margin: 0, lineHeight: 1.55 }}>{dncMessage}</p>
                 </div>
               )}
 
