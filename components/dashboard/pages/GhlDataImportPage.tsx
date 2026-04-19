@@ -494,15 +494,31 @@ function GhlDataImportPageInner() {
           } else {
             const errMsg = result.error?.message || "";
             if (errMsg.includes("leads_lead_unique_id_unique_idx") || errMsg.includes("duplicate key")) {
-              newResults.push({
-                rowIndex: index,
-                contactName,
-                phone,
-                opportunityId,
-                status: "duplicate",
-                reason: `Duplicate lead_unique_id: ${currentUniqueId}`,
-              });
-              newProgress.duplicates++;
+              const oppSuffix = opportunityId.slice(-4);
+              const newUniqueId = `${currentUniqueId}_${oppSuffix}`;
+              leadRow.lead_unique_id = newUniqueId;
+              leadRow.is_duplicate = true;
+
+              const retryResult = await supabase
+                .from("leads")
+                .insert(leadRow)
+                .select("id")
+                .single();
+
+              if (!retryResult.error && retryResult.data) {
+                insertedLead = retryResult.data;
+                existingUniqueIds.add(newUniqueId);
+              } else {
+                newResults.push({
+                  rowIndex: index,
+                  contactName,
+                  phone,
+                  opportunityId,
+                  status: "duplicate",
+                  reason: `Duplicate lead_unique_id: ${currentUniqueId} (retry also failed: ${retryResult.error?.message})`,
+                });
+                newProgress.duplicates++;
+              }
             } else {
               insertError = result.error?.message || "Insert failed";
               newResults.push({
