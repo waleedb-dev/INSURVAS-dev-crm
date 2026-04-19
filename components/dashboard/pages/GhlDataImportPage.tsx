@@ -360,10 +360,35 @@ function GhlDataImportPageInner() {
     const newProgress: ImportProgress = { total: parsedRows.length, processed: 0, inserted: 0, skipped: 0, errors: 0 };
     const newResults: ImportResult[] = [];
 
+    const { data: existingLeads } = await supabase
+      .from("leads")
+      .select("lead_unique_id")
+      .not("lead_unique_id", "is", null);
+
+    const existingUniqueIds = new Set((existingLeads || []).map((r: { lead_unique_id: string }) => r.lead_unique_id));
+
     const rowsWithIndex = parsedRows.map((row, idx) => ({ row, index: idx + 2 }));
     const queue = [...rowsWithIndex];
     const inProgress: Set<number> = new Set();
     const leadIdMap = new Map<string, string>();
+    const usedIdsThisRun = new Set<string>();
+
+    const generateUniqueLeadId = (baseId: string, rowIndex: number, oppId: string): string => {
+      if (!existingUniqueIds.has(baseId) && !usedIdsThisRun.has(baseId)) {
+        usedIdsThisRun.add(baseId);
+        return baseId;
+      }
+      let suffix = `_dup_${oppId}`;
+      let candidate = baseId + suffix;
+      let attempt = 0;
+      while (existingUniqueIds.has(candidate) || usedIdsThisRun.has(candidate)) {
+        attempt++;
+        suffix = `_dup_${oppId}_${attempt}`;
+        candidate = baseId + suffix;
+      }
+      usedIdsThisRun.add(candidate);
+      return candidate;
+    };
 
     const processNext = async (): Promise<void> => {
       while (queue.length > 0 && inProgress.size < MAX_PARALLEL_REQUESTS && !abortRef.current) {
@@ -421,13 +446,17 @@ function GhlDataImportPageInner() {
 
           const stageId = stageByKey.get(`${pipelineId}::${stageName.toLowerCase()}`) || null;
 
+          const baseUniqueId = `${phone}_${contactName.replace(/ /g, "_")}`;
+          const leadUniqueId = generateUniqueLeadId(baseUniqueId, index, opportunityId);
+
           const leadRow: Record<string, unknown> = {
             first_name: firstName,
             last_name: lastName,
             phone,
             submission_id: opportunityId,
             contact_id: contactId,
-            lead_unique_id: `${phone}_${contactName.replace(/ /g, "_")}`,
+            lead_unique_id: leadUniqueId,
+            is_duplicate: baseUniqueId !== leadUniqueId,
             pipeline_id: pipelineId,
             stage_id: stageId,
             stage: stageName,
@@ -457,6 +486,7 @@ function GhlDataImportPageInner() {
             });
             newProgress.errors++;
           } else {
+            existingUniqueIds.add(leadUniqueId);
             leadIdMap.set(String(index), insertedLead.id);
             newResults.push({
               rowIndex: index,
