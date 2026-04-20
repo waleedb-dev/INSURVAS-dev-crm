@@ -61,7 +61,8 @@ type Props = {
   leadName: string;
   leadPhone?: string;
   leadVendor?: string;
-  /** When set, empty “Agent who took the call” / “Licensed Agent Account” picklists default like TransferLeadClaimModal. */
+  callCenterId?: string | null;
+  /** When set, empty "Agent who took the call" / "Licensed Agent Account" picklists default like TransferLeadClaimModal. */
   sessionUserId?: string | null;
 };
 
@@ -110,6 +111,7 @@ export default function TransferLeadCallFixForm({
   leadName,
   leadPhone,
   leadVendor,
+  callCenterId = null,
   sessionUserId = null,
 }: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -136,6 +138,7 @@ export default function TransferLeadCallFixForm({
   const [carrierAttempted1, setCarrierAttempted1] = useState("");
   const [carrierAttempted2, setCarrierAttempted2] = useState("");
   const [carrierAttempted3, setCarrierAttempted3] = useState("");
+  const [centerInfo, setCenterInfo] = useState<{ name: string | null; slack_channel: string | null } | null>(null);
   const [claimAgentsLoading, setClaimAgentsLoading] = useState(true);
   const [claimAgents, setClaimAgents] = useState<{
     bufferAgents: AgentOption[];
@@ -167,12 +170,16 @@ export default function TransferLeadCallFixForm({
     () =>
       Array.from(
         new Set(
-          [...claimAgents.bufferAgents.map((row) => row.name), bufferAgent]
+          [
+            ...claimAgents.bufferAgents.map((row) => row.name),
+            ...claimAgents.licensedAgents.map((row) => row.name),
+            bufferAgent,
+          ]
             .map((name) => name.trim())
             .filter(Boolean),
         ),
       ),
-    [claimAgents.bufferAgents, bufferAgent],
+    [claimAgents.bufferAgents, claimAgents.licensedAgents, bufferAgent],
   );
   const licensedAgentOptions = useMemo(
     () =>
@@ -489,6 +496,22 @@ export default function TransferLeadCallFixForm({
       setNotes(getNoteText(reasonStatus, statusReason, leadName || "[Client Name]", newDraftDate));
     }
   }, [reasonStatus, statusReason, newDraftDate, leadName]);
+
+  useEffect(() => {
+    if (!callCenterId) return;
+    const loadCenterInfo = async () => {
+      const { data } = await supabase
+        .from("call_centers")
+        .select("name, slack_channel")
+        .eq("id", callCenterId)
+        .maybeSingle();
+      if (data) {
+        console.log(`[Center] Name: "${data.name}", Slack Channel: ${data.slack_channel}`);
+        setCenterInfo({ name: data.name, slack_channel: data.slack_channel });
+      }
+    };
+    void loadCenterInfo();
+  }, [callCenterId, supabase]);
 
   const handleStatusReasonChange = (reason: string) => {
     setStatusReason(reason);
@@ -807,29 +830,25 @@ export default function TransferLeadCallFixForm({
         is_retention_call: isRetentionCall,
       });
 
-      if (applicationSubmitted === true) {
-        await invokeOptionalFunction("slack-notification", {
-          channel: "#test-bpo",
+      await invokeOptionalFunction("center-notification", {
           submissionId,
           leadData: { customer_full_name: leadName },
           callResult: {
-            application_submitted: true,
+            application_submitted: applicationSubmitted,
+            sent_to_underwriting: sentToUnderwriting,
             status: finalStatus,
-            call_source: callSource,
             buffer_agent: bufferAgent || null,
             agent_who_took_call: agentWhoTookCall || null,
-            licensed_agent_account: licensedAgentAccount || null,
             carrier: carrier || null,
             product_type: productType || null,
             draft_date: draftDate || null,
-            monthly_premium: monthlyPremium ? Number(monthlyPremium) : null,
-            face_amount: coverageAmount ? Number(coverageAmount) : null,
-            sent_to_underwriting: sentToUnderwriting,
+            monthly_premium: monthlyPremium || null,
+            face_amount: coverageAmount || null,
             dq_reason: showStatusReasonDropdown ? statusReason || null : null,
             notes: notes || null,
           },
+          callCenterId: callCenterId,
         });
-      }
 
       setToast({
         message: verifiedSyncWarning
@@ -864,107 +883,234 @@ export default function TransferLeadCallFixForm({
         icon="📞"
         title="Update Call Result"
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontSize: 16, color: T.textDark, fontWeight: 700, marginBottom: 2 }}>Was the application submitted?</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={() => setApplicationSubmitted(true)}
-            style={{
-              border: `1.5px solid ${applicationSubmitted === true ? T.blue : T.border}`,
-              backgroundColor: applicationSubmitted === true ? T.blueFaint : "#fff",
-              color: applicationSubmitted === true ? T.blue : T.textDark,
-              borderRadius: 8,
-              padding: "8px 12px",
-              fontWeight: 600,
-              cursor: "pointer",
-              outline: "none",
-              transition: "all 0.15s ease-in-out",
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.boxShadow = "0 0 0 2px rgba(99, 139, 75, 0.4)";
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          >
-            Yes - Submitted
-          </button>
-          <button
-            type="button"
-            onClick={() => setApplicationSubmitted(false)}
-            style={{
-              border: `1.5px solid ${applicationSubmitted === false ? T.blue : T.border}`,
-              backgroundColor: applicationSubmitted === false ? T.blueFaint : "#fff",
-              color: applicationSubmitted === false ? T.blue : T.textDark,
-              borderRadius: 8,
-              padding: "8px 12px",
-              fontWeight: 600,
-              cursor: "pointer",
-              outline: "none",
-              transition: "all 0.15s ease-in-out",
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.boxShadow = "0 0 0 2px rgba(99, 139, 75, 0.4)";
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          >
-            No - Not Submitted
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push(`/dashboard/${role}/retention-flow?leadRowId=${leadRowId}`)}
-            aria-label="Open app fix flow"
-            style={{
-              border: `1.5px solid ${T.blue}`,
-              backgroundColor: "#fff",
-              color: T.blue,
-              borderRadius: 8,
-              padding: "8px 14px",
-              fontWeight: 600,
-              cursor: "pointer",
-              outline: "none",
-              transition: "all 0.15s ease-in-out",
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.boxShadow = "0 0 0 2px rgba(99, 139, 75, 0.4)";
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          >
-            App Fix
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.4px" }}>Was the application submitted?</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setApplicationSubmitted(true)}
+              style={{
+                flex: 1,
+                minWidth: 140,
+                border: `1.5px solid ${applicationSubmitted === true ? "#233217" : T.border}`,
+                backgroundColor: applicationSubmitted === true ? T.blueFaint : "#fff",
+                color: applicationSubmitted === true ? T.textDark : T.textMid,
+                borderRadius: T.radiusMd,
+                padding: "14px 16px",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+                outline: "none",
+                transition: "all 0.15s ease-in-out",
+                boxShadow: applicationSubmitted === true ? "0 2px 8px rgba(35, 50, 23, 0.1)" : "none",
+              }}
+              onMouseEnter={(e) => {
+                if (applicationSubmitted !== true) {
+                  e.currentTarget.style.borderColor = T.blue;
+                  e.currentTarget.style.backgroundColor = T.blueFaint;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (applicationSubmitted !== true) {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.backgroundColor = "#fff";
+                }
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.2)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow = applicationSubmitted === true ? "0 2px 8px rgba(35, 50, 23, 0.1)" : "none";
+              }}
+              onMouseDown={(e) => {
+                if (applicationSubmitted !== true) {
+                  e.currentTarget.style.transform = "scale(0.98)";
+                }
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = "scale(1)";
+              }}
+            >
+              Yes - Submitted
+            </button>
+            <button
+              type="button"
+              onClick={() => setApplicationSubmitted(false)}
+              style={{
+                flex: 1,
+                minWidth: 140,
+                border: `1.5px solid ${applicationSubmitted === false ? "#233217" : T.border}`,
+                backgroundColor: applicationSubmitted === false ? T.blueFaint : "#fff",
+                color: applicationSubmitted === false ? T.textDark : T.textMid,
+                borderRadius: T.radiusMd,
+                padding: "14px 16px",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+                outline: "none",
+                transition: "all 0.15s ease-in-out",
+                boxShadow: applicationSubmitted === false ? "0 2px 8px rgba(35, 50, 23, 0.1)" : "none",
+              }}
+              onMouseEnter={(e) => {
+                if (applicationSubmitted !== false) {
+                  e.currentTarget.style.borderColor = T.blue;
+                  e.currentTarget.style.backgroundColor = T.blueFaint;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (applicationSubmitted !== false) {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.backgroundColor = "#fff";
+                }
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.2)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow = applicationSubmitted === false ? "0 2px 8px rgba(35, 50, 23, 0.1)" : "none";
+              }}
+              onMouseDown={(e) => {
+                if (applicationSubmitted !== false) {
+                  e.currentTarget.style.transform = "scale(0.98)";
+                }
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = "scale(1)";
+              }}
+            >
+              No - Not Submitted
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(`/dashboard/${role}/retention-flow?leadRowId=${leadRowId}`)}
+              aria-label="Open app fix flow"
+              style={{
+                flex: 1,
+                minWidth: 100,
+                border: `1.5px solid ${T.blue}`,
+                backgroundColor: "#fff",
+                color: T.blue,
+                borderRadius: T.radiusMd,
+                padding: "14px 16px",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+                outline: "none",
+                transition: "all 0.15s ease-in-out",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = T.blueFaint;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#fff";
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.2)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow = "none";
+              }}
+              onMouseDown={(e) => {
+                e.currentTarget.style.transform = "scale(0.98)";
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = "scale(1)";
+              }}
+            >
+              App Fix
+            </button>
+          </div>
         </div>
 
         <div>
-          <label style={transferSelectLabelStyle}>
-            Call Source *
-          </label>
-          <TransferStyledSelect
-            value={callSource}
-            onValueChange={setCallSource}
-            error={!callSource}
-            placeholder="Select call source (required)"
-            options={[
-              { value: "BPO Transfer", label: "BPO Transfer" },
-              { value: "Agent Callback", label: "Agent Callback" },
-            ]}
-          />
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.4px" }}>Call Source *</div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <label
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "14px 16px",
+                borderRadius: T.radiusMd,
+                border: `1.5px solid ${callSource === "BPO Transfer" ? "#233217" : T.border}`,
+                backgroundColor: callSource === "BPO Transfer" ? T.blueFaint : "#fff",
+                cursor: "pointer",
+                transition: "all 0.15s ease-in-out",
+              }}
+              onMouseEnter={(e) => {
+                if (callSource !== "BPO Transfer") {
+                  e.currentTarget.style.borderColor = T.blue;
+                  e.currentTarget.style.backgroundColor = T.blueFaint;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (callSource !== "BPO Transfer") {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.backgroundColor = "#fff";
+                }
+              }}
+            >
+              <input
+                type="radio"
+                name="callSource"
+                value="BPO Transfer"
+                checked={callSource === "BPO Transfer"}
+                onChange={() => setCallSource("BPO Transfer")}
+                style={{ width: 18, height: 18, cursor: "pointer", accentColor: T.blue }}
+              />
+              <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>BPO Transfer</span>
+            </label>
+            <label
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "14px 16px",
+                borderRadius: T.radiusMd,
+                border: `1.5px solid ${callSource === "Agent Callback" ? "#233217" : T.border}`,
+                backgroundColor: callSource === "Agent Callback" ? T.blueFaint : "#fff",
+                cursor: "pointer",
+                transition: "all 0.15s ease-in-out",
+              }}
+              onMouseEnter={(e) => {
+                if (callSource !== "Agent Callback") {
+                  e.currentTarget.style.borderColor = T.blue;
+                  e.currentTarget.style.backgroundColor = T.blueFaint;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (callSource !== "Agent Callback") {
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.backgroundColor = "#fff";
+                }
+              }}
+            >
+              <input
+                type="radio"
+                name="callSource"
+                value="Agent Callback"
+                checked={callSource === "Agent Callback"}
+                onChange={() => setCallSource("Agent Callback")}
+                style={{ width: 18, height: 18, cursor: "pointer", accentColor: T.blue }}
+              />
+              <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>Agent Callback</span>
+            </label>
+          </div>
           {!callSource && (
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Call source is required</p>
+            <p style={{ margin: "8px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Call source is required</p>
           )}
         </div>
 
         {showSubmittedFields && (
           <>
-            <div style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, backgroundColor: "#f5f7fa" }}>
-              <div style={{ fontSize: 16, color: T.textDark, fontWeight: 800, marginBottom: 10 }}>Call Information</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusMd, padding: 20, backgroundColor: "#fff" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark, marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.4px" }}>Call Information</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div>
-                  <label style={transferSelectLabelStyle}>
+                  <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
                     Buffer Agent
                   </label>
                   <TransferStyledSelect
@@ -983,7 +1129,7 @@ export default function TransferLeadCallFixForm({
                 </div>
 
                 <div>
-                  <label style={transferSelectLabelStyle}>
+                  <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
                     Agent who took the call
                   </label>
                   <TransferStyledSelect
@@ -1004,13 +1150,13 @@ export default function TransferLeadCallFixForm({
               </div>
             </div>
 
-            <div style={{ border: "1px solid #bbf7d0", borderRadius: 12, padding: 14, backgroundColor: "#f0fdf4" }}>
-              <div style={{ fontSize: 16, color: "#166534", fontWeight: 800, marginBottom: 10 }}>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusMd, padding: 20, backgroundColor: T.blueFaint }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark, marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.4px" }}>
                 Application Submitted Details <span style={{ color: "#dc2626" }}>* All fields required</span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div>
-                <label style={transferSelectLabelStyle}>
+                <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
                   Licensed Agent Account *
                 </label>
                 <TransferStyledSelect
@@ -1031,7 +1177,7 @@ export default function TransferLeadCallFixForm({
               </div>
 
               <div>
-                <label style={transferSelectLabelStyle}>
+                <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
                   Carrier Name *
                 </label>
                 <TransferStyledSelect
@@ -1045,7 +1191,7 @@ export default function TransferLeadCallFixForm({
               </div>
 
               <div>
-                <label style={transferSelectLabelStyle}>
+                <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
                   Product Type *
                 </label>
                 <TransferStyledSelect
@@ -1068,49 +1214,79 @@ export default function TransferLeadCallFixForm({
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
                   Draft Date *
                 </label>
-                <input type="date" value={draftDate} onChange={(e) => setDraftDate(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!draftDate ? "#fca5a5" : T.border}` }} />
+                <input type="date" value={draftDate} onChange={(e) => setDraftDate(e.target.value)} style={{ width: "100%", padding: "12px 14px", borderRadius: T.radiusSm, border: `1.5px solid ${!draftDate ? "#fca5a5" : T.border}`, fontSize: 14, fontFamily: T.font, outline: "none", transition: "all 0.15s ease-in-out" }} />
                 {!draftDate && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Draft Date is required</p>}
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
                   Monthly Premium *
                 </label>
-                <input type="number" value={monthlyPremium} onChange={(e) => setMonthlyPremium(e.target.value)} placeholder="0.00" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!monthlyPremium ? "#fca5a5" : T.border}` }} />
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                  <input type="number" value={monthlyPremium} onChange={(e) => setMonthlyPremium(e.target.value)} placeholder="0.00" style={{ width: "100%", padding: "12px 14px 12px 28px", borderRadius: T.radiusSm, border: `1.5px solid ${!monthlyPremium ? "#fca5a5" : T.border}`, fontSize: 14, fontFamily: T.font, outline: "none", transition: "all 0.15s ease-in-out" }} />
+                </div>
                 {!monthlyPremium && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Monthly Premium is required</p>}
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+                <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
                   Coverage Amount *
                 </label>
-                <input type="number" value={coverageAmount} onChange={(e) => setCoverageAmount(e.target.value)} placeholder="0.00" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${!coverageAmount ? "#fca5a5" : T.border}` }} />
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, fontWeight: 600, color: T.textMuted }}>$</span>
+                  <input type="number" value={coverageAmount} onChange={(e) => setCoverageAmount(e.target.value)} placeholder="0.00" style={{ width: "100%", padding: "12px 14px 12px 28px", borderRadius: T.radiusSm, border: `1.5px solid ${!coverageAmount ? "#fca5a5" : T.border}`, fontSize: 14, fontFamily: T.font, outline: "none", transition: "all 0.15s ease-in-out" }} />
+                </div>
                 {!coverageAmount && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Coverage Amount is required</p>}
               </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, display: "block", marginBottom: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.4px" }}>
                     Sent to Underwriting *
-                  </label>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  </div>
+                  <div style={{ display: "flex", gap: 12 }}>
                     <button
                       type="button"
                       onClick={() => setSentToUnderwriting(true)}
-                      style={{ border: `1.5px solid ${sentToUnderwriting === true ? T.blue : T.border}`, backgroundColor: sentToUnderwriting === true ? T.blueFaint : "#fff", color: sentToUnderwriting === true ? T.blue : T.textDark, borderRadius: 8, padding: "8px 12px", fontWeight: 600, cursor: "pointer", outline: "none", transition: "all 0.15s ease-in-out" }}
-                      onFocus={(e) => { e.currentTarget.style.boxShadow = "0 0 0 2px rgba(99, 139, 75, 0.4)"; }}
-                      onBlur={(e) => { e.currentTarget.style.boxShadow = "none"; }}
+                      style={{ flex: 1, border: `1.5px solid ${sentToUnderwriting === true ? "#233217" : T.border}`, backgroundColor: sentToUnderwriting === true ? T.blueFaint : "#fff", color: sentToUnderwriting === true ? T.textDark : T.textMid, borderRadius: T.radiusSm, padding: "12px 16px", fontWeight: 700, fontSize: 14, cursor: "pointer", outline: "none", transition: "all 0.15s ease-in-out" }}
+                      onMouseEnter={(e) => {
+                        if (sentToUnderwriting !== true) {
+                          e.currentTarget.style.borderColor = T.blue;
+                          e.currentTarget.style.backgroundColor = T.blueFaint;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (sentToUnderwriting !== true) {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.backgroundColor = "#fff";
+                        }
+                      }}
+                      onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.98)"; }}
+                      onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
                     >
                       Yes
                     </button>
                     <button
                       type="button"
                       onClick={() => setSentToUnderwriting(false)}
-                      style={{ border: `1.5px solid ${sentToUnderwriting === false ? T.blue : T.border}`, backgroundColor: sentToUnderwriting === false ? T.blueFaint : "#fff", color: sentToUnderwriting === false ? T.blue : T.textDark, borderRadius: 8, padding: "8px 12px", fontWeight: 600, cursor: "pointer", outline: "none", transition: "all 0.15s ease-in-out" }}
-                      onFocus={(e) => { e.currentTarget.style.boxShadow = "0 0 0 2px rgba(99, 139, 75, 0.4)"; }}
-                      onBlur={(e) => { e.currentTarget.style.boxShadow = "none"; }}
+                      style={{ flex: 1, border: `1.5px solid ${sentToUnderwriting === false ? "#233217" : T.border}`, backgroundColor: sentToUnderwriting === false ? T.blueFaint : "#fff", color: sentToUnderwriting === false ? T.textDark : T.textMid, borderRadius: T.radiusSm, padding: "12px 16px", fontWeight: 700, fontSize: 14, cursor: "pointer", outline: "none", transition: "all 0.15s ease-in-out" }}
+                      onMouseEnter={(e) => {
+                        if (sentToUnderwriting !== false) {
+                          e.currentTarget.style.borderColor = T.blue;
+                          e.currentTarget.style.backgroundColor = T.blueFaint;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (sentToUnderwriting !== false) {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.backgroundColor = "#fff";
+                        }
+                      }}
+                      onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.98)"; }}
+                      onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
                     >
                       No
                     </button>
@@ -1124,117 +1300,157 @@ export default function TransferLeadCallFixForm({
 
         {showNotSubmittedFields && (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div>
-                <label style={transferSelectLabelStyle}>
-                  Agent Who Took Call *
-                </label>
-                <TransferStyledSelect
-                  value={agentWhoTookCall}
-                  onValueChange={setAgentWhoTookCall}
-                  error={!agentWhoTookCall}
-                  disabled={claimAgentsLoading || licensedAgentOptions.length === 0}
-                  placeholder={
-                    claimAgentsLoading
-                      ? "Loading licensed agents..."
-                      : licensedAgentOptions.length > 0
-                        ? "Select licensed agent"
-                        : "No licensed agents found"
-                  }
-                  options={licensedAgentOptions.map((option) => ({ value: option, label: option }))}
-                />
-                {!agentWhoTookCall && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Agent who took the call is required</p>}
-              </div>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusMd, padding: 20, backgroundColor: "#fff" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div>
+                  <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
+                    Agent Who Took Call *
+                  </label>
+                  <TransferStyledSelect
+                    value={agentWhoTookCall}
+                    onValueChange={setAgentWhoTookCall}
+                    error={!agentWhoTookCall}
+                    disabled={claimAgentsLoading || licensedAgentOptions.length === 0}
+                    placeholder={
+                      claimAgentsLoading
+                        ? "Loading licensed agents..."
+                        : licensedAgentOptions.length > 0
+                          ? "Select licensed agent"
+                          : "No licensed agents found"
+                    }
+                    options={licensedAgentOptions.map((option) => ({ value: option, label: option }))}
+                  />
+                  {!agentWhoTookCall && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Agent who took the call is required</p>}
+                </div>
 
-              <div>
-                <label style={transferSelectLabelStyle}>
-                  Disposition *
-                </label>
-                <TransferStyledSelect
-                  value={status}
-                  onValueChange={setStatus}
-                  disabled={transferStagesLoading || statusOptions.length === 0}
-                  error={!status}
-                  placeholder={
-                    transferStagesLoading
-                      ? "Loading dispositions..."
-                      : statusOptions.length > 0
-                        ? "Select disposition"
-                        : "No transfer stages configured"
-                  }
-                  options={statusOptions.map((opt) => ({ value: opt.stageName, label: opt.label }))}
-                />
-                {!status && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Disposition is required</p>}
+                <div>
+                  <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
+                    Disposition *
+                  </label>
+                  <TransferStyledSelect
+                    value={status}
+                    onValueChange={setStatus}
+                    disabled={transferStagesLoading || statusOptions.length === 0}
+                    error={!status}
+                    placeholder={
+                      transferStagesLoading
+                        ? "Loading dispositions..."
+                        : statusOptions.length > 0
+                          ? "Select disposition"
+                          : "No transfer stages configured"
+                    }
+                    options={statusOptions.map((opt) => ({ value: opt.stageName, label: opt.label }))}
+                  />
+                  {!status && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Disposition is required</p>}
+                </div>
               </div>
             </div>
 
             {showStatusReasonDropdown && reasons.length > 0 && (
-              <div>
-                <label style={transferSelectLabelStyle}>
+              <div style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusMd, padding: 20, backgroundColor: "#fff" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.4px" }}>
                   Reason
-                </label>
-                <TransferStyledSelect
-                  value={statusReason}
-                  onValueChange={handleStatusReasonChange}
-                  error={!statusReason}
-                  placeholder="Select reason"
-                  options={reasons.map((option) => ({ value: option, label: option }))}
-                />
-                {!statusReason && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Reason is required</p>}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {reasons.map((reason) => (
+                    <label
+                      key={reason}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "12px 16px",
+                        borderRadius: T.radiusSm,
+                        border: `1.5px solid ${statusReason === reason ? "#233217" : T.border}`,
+                        backgroundColor: statusReason === reason ? T.blueFaint : "#fff",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease-in-out",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (statusReason !== reason) {
+                          e.currentTarget.style.borderColor = T.blue;
+                          e.currentTarget.style.backgroundColor = T.blueFaint;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (statusReason !== reason) {
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.backgroundColor = "#fff";
+                        }
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="statusReason"
+                        value={reason}
+                        checked={statusReason === reason}
+                        onChange={() => handleStatusReasonChange(reason)}
+                        style={{ width: 18, height: 18, cursor: "pointer", accentColor: T.blue }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>{reason}</span>
+                    </label>
+                  ))}
+                </div>
+                {!statusReason && <p style={{ margin: "8px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Reason is required</p>}
               </div>
             )}
 
             {requiresDraftDate && (
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+              <div style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusMd, padding: 20, backgroundColor: "#fff" }}>
+                <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
                   New Draft Date
                 </label>
                 <input
                   type="date"
                   value={newDraftDate}
                   onChange={(e) => setNewDraftDate(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}` }}
+                  style={{ width: "100%", padding: "12px 14px", borderRadius: T.radiusSm, border: `1.5px solid ${T.border}`, fontSize: 14, fontFamily: T.font, outline: "none", transition: "all 0.15s ease-in-out" }}
                 />
                 {!newDraftDate && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>New Draft Date is required</p>}
               </div>
             )}
 
             {showCarrierAttemptedFields && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                <div>
-                  <label style={transferSelectLabelStyle}>
-                    Carrier Attempted #1 *
-                  </label>
-                  <TransferStyledSelect
-                    value={carrierAttempted1}
-                    onValueChange={setCarrierAttempted1}
-                    error={!carrierAttempted1}
-                    placeholder="Select"
-                    options={carrierOptions.map((option) => ({ value: option, label: option }))}
-                  />
-                  {!carrierAttempted1 && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Carrier Attempted #1 is required</p>}
+              <div style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusMd, padding: 20, backgroundColor: "#fff" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.textDark, marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                  Carriers Attempted
                 </div>
-                <div>
-                  <label style={transferSelectLabelStyle}>
-                    Carrier Attempted #2
-                  </label>
-                  <TransferStyledSelect
-                    value={carrierAttempted2}
-                    onValueChange={setCarrierAttempted2}
-                    placeholder="Select"
-                    options={carrierOptions.map((option) => ({ value: option, label: option }))}
-                  />
-                </div>
-                <div>
-                  <label style={transferSelectLabelStyle}>
-                    Carrier Attempted #3
-                  </label>
-                  <TransferStyledSelect
-                    value={carrierAttempted3}
-                    onValueChange={setCarrierAttempted3}
-                    placeholder="Select"
-                    options={carrierOptions.map((option) => ({ value: option, label: option }))}
-                  />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                  <div>
+                    <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
+                      Carrier Attempted #1 *
+                    </label>
+                    <TransferStyledSelect
+                      value={carrierAttempted1}
+                      onValueChange={setCarrierAttempted1}
+                      error={!carrierAttempted1}
+                      placeholder="Select"
+                      options={carrierOptions.map((option) => ({ value: option, label: option }))}
+                    />
+                    {!carrierAttempted1 && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>Carrier Attempted #1 is required</p>}
+                  </div>
+                  <div>
+                    <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
+                      Carrier Attempted #2
+                    </label>
+                    <TransferStyledSelect
+                      value={carrierAttempted2}
+                      onValueChange={setCarrierAttempted2}
+                      placeholder="Select"
+                      options={carrierOptions.map((option) => ({ value: option, label: option }))}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...transferSelectLabelStyle, marginBottom: 8 }}>
+                      Carrier Attempted #3
+                    </label>
+                    <TransferStyledSelect
+                      value={carrierAttempted3}
+                      onValueChange={setCarrierAttempted3}
+                      placeholder="Select"
+                      options={carrierOptions.map((option) => ({ value: option, label: option }))}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -1255,8 +1471,8 @@ export default function TransferLeadCallFixForm({
           />
         )}
 
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "block" }}>
+        <div style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusMd, padding: 20, backgroundColor: "#fff" }}>
+          <label style={{ fontSize: 13, fontWeight: 700, color: T.textDark, marginBottom: 8, display: "block", textTransform: "uppercase", letterSpacing: "0.4px" }}>
             Notes
           </label>
           <textarea
@@ -1265,39 +1481,52 @@ export default function TransferLeadCallFixForm({
             onChange={(e) => setNotes(e.target.value)}
             style={{
               width: "100%",
-              padding: "10px 12px",
-              borderRadius: 8,
+              padding: "12px 14px",
+              borderRadius: T.radiusSm,
               border: `1.5px solid ${T.border}`,
               resize: "vertical",
               fontFamily: T.font,
+              fontSize: 14,
+              color: T.textDark,
+              outline: "none",
+              transition: "all 0.15s ease-in-out",
+              boxSizing: "border-box",
             }}
             placeholder={
               showStructuredDisposition
-                ? "Notes update when you finish the disposition steps above. Edit or add to this text anytime — it stays when you use Clear on the wizard."
+                ? "Disposition detail is saved to notes below. You can still change the selections above; notes update automatically. Edit wording in Notes if needed. Use Clear to start over."
                 : showStatusReasonDropdown && statusReason && statusReason !== "Other"
                   ? "Note has been auto-populated. You can edit if needed."
                   : showStatusReasonDropdown && statusReason === "Other"
                     ? "Please enter a custom message."
                     : "Why the call got dropped or application was not submitted? Please provide the reason (required)"
             }
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = T.blue;
+              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.15)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = T.border;
+              e.currentTarget.style.boxShadow = "none";
+            }}
           />
           {applicationSubmitted === false && showStatusReasonDropdown && statusReason && statusReason !== "Other" && (
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+            <p style={{ margin: "8px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
               Note has been auto-populated based on selected reason. You can edit if needed.
             </p>
           )}
           {applicationSubmitted === false && showStatusReasonDropdown && statusReason === "Other" && (
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+            <p style={{ margin: "8px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
               Please enter a custom message for this reason.
             </p>
           )}
           {applicationSubmitted === false && showStructuredDisposition && notes.trim().length > 0 && (
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+            <p style={{ margin: "8px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
               This field is fully editable. Add context here even after applying the disposition above.
             </p>
           )}
           {applicationSubmitted === false && !dispositionNotesOk && (
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>
+            <p style={{ margin: "8px 0 0", fontSize: 12, color: "#b91c1c", fontWeight: 700 }}>
               {showStructuredDisposition
                 ? "Complete the disposition wizard (or load an existing saved disposition) and ensure notes are filled in."
                 : "Notes are required"}
@@ -1305,16 +1534,49 @@ export default function TransferLeadCallFixForm({
           )}
         </div>
 
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: T.textDark, fontWeight: 600 }}>
-          <input 
-            type="checkbox" 
-            checked={isRetentionCall} 
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 12, fontSize: 14, color: T.textDark, fontWeight: 600, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={isRetentionCall}
             onChange={(e) => setIsRetentionCall(e.target.checked)}
+            style={{ width: 18, height: 18, cursor: "pointer", accentColor: T.blue }}
           />
           Mark as retention call
         </label>
 
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            style={{
+              border: `1.5px solid ${T.border}`,
+              backgroundColor: "#fff",
+              color: T.textDark,
+              borderRadius: T.radiusSm,
+              padding: "12px 20px",
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: "pointer",
+              outline: "none",
+              transition: "all 0.15s ease-in-out",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = T.blue;
+              e.currentTarget.style.backgroundColor = T.blueFaint;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = T.border;
+              e.currentTarget.style.backgroundColor = "#fff";
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.transform = "scale(0.98)";
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+            }}
+          >
+            Cancel
+          </button>
           <button
             type="button"
             onClick={() => void save()}
@@ -1323,20 +1585,48 @@ export default function TransferLeadCallFixForm({
               border: "none",
               backgroundColor: loading || !canSubmit ? T.border : T.blue,
               color: "#fff",
-              borderRadius: 8,
-              padding: "10px 14px",
-              fontWeight: 600,
+              borderRadius: T.radiusSm,
+              padding: "12px 24px",
+              fontWeight: 700,
+              fontSize: 14,
               cursor: loading || !canSubmit ? "not-allowed" : "pointer",
               outline: "none",
               transition: "all 0.15s ease-in-out",
+              boxShadow: loading || !canSubmit ? "none" : "0 2px 8px rgba(35, 50, 23, 0.15)",
             }}
             onFocus={(e) => {
               if (!loading && canSubmit) {
-                e.currentTarget.style.boxShadow = "0 0 0 2px rgba(99, 139, 75, 0.4)";
+                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 139, 75, 0.3)";
               }
             }}
             onBlur={(e) => {
-              e.currentTarget.style.boxShadow = "none";
+              if (!loading && canSubmit) {
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(35, 50, 23, 0.15)";
+              }
+            }}
+            onMouseEnter={(e) => {
+              if (!loading && canSubmit) {
+                e.currentTarget.style.backgroundColor = T.blueHover;
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.2)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loading && canSubmit) {
+                e.currentTarget.style.backgroundColor = T.blue;
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(35, 50, 23, 0.15)";
+              }
+            }}
+            onMouseDown={(e) => {
+              if (!loading && canSubmit) {
+                e.currentTarget.style.transform = "scale(0.98)";
+              }
+            }}
+            onMouseUp={(e) => {
+              if (!loading && canSubmit) {
+                e.currentTarget.style.transform = "translateY(-1px) scale(1)";
+              }
             }}
           >
             {loading ? "Saving..." : "Save Call Result"}

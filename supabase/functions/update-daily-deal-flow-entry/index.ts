@@ -147,6 +147,19 @@ serve(async (req) => {
       null;
     const resolvedPhone = leadData?.phone ?? client_phone_number ?? null;
 
+    const centerName = leadData?.call_centers?.name ?? null;
+    let slackChannel = "#test-bpo";
+    if (centerName) {
+      const { data: centerData } = await supabase
+        .from("call_centers")
+        .select("slack_channel")
+        .ilike("name", centerName)
+        .maybeSingle();
+      if (centerData?.slack_channel) {
+        slackChannel = centerData.slack_channel;
+      }
+    }
+
     const finalStatus = determineFinalStatus(application_submitted, sent_to_underwriting, status);
     const callResultStatus = call_result || determineCallResultStatus(
       application_submitted,
@@ -259,25 +272,21 @@ serve(async (req) => {
           method: "POST",
           headers: invokeHeaders,
           body: JSON.stringify({
-            channel: "#test-bpo",
-            submissionId: finalSubmissionId,
-            leadData: { customer_full_name: resolvedInsuredName },
+            leadData: {
+              customer_full_name: resolvedInsuredName,
+              phone: resolvedPhone,
+            },
             callResult: {
               application_submitted,
-              status: finalStatus,
-              call_source,
-              buffer_agent,
-              agent_who_took_call: agent,
-              licensed_agent_account,
+              sent_to_underwriting,
               carrier,
               product_type,
               draft_date,
               monthly_premium,
               face_amount,
-              sent_to_underwriting,
-              notes,
-              lead_vendor: resolvedLeadVendor,
             },
+            channel: slackChannel,
+            channelOverride: "#submission-portal",
           }),
         });
       } catch (slackError) {

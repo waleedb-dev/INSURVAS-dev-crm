@@ -1097,6 +1097,7 @@ export default function CallCenterLeadIntakePage({
       phone: lead.phone,
       source: lead.source,
       submissionId: lead.submissionId,
+      callCenterId: null,
     };
     const initialSelection: ClaimSelections = { ...DEFAULT_CLAIM_SELECTION };
 
@@ -1134,6 +1135,7 @@ export default function CallCenterLeadIntakePage({
       phone: lead.phone,
       source: lead.source,
       submissionId: lead.submissionId,
+      callCenterId: null,
     };
     // Pre-select retention workflow
     const initialSelection: ClaimSelections = {

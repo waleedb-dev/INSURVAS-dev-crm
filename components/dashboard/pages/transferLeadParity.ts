@@ -60,6 +60,7 @@ export type ClaimLeadContext = {
   phone: string;
   source: string;
   submissionId: string | null;
+  callCenterId: string | null;
 };
 
 type VerificationSessionRow = {
@@ -204,28 +205,22 @@ export async function fetchClaimAgents(supabase: SupabaseClient): Promise<{
     roleKey: row.roleKey,
   });
 
-  /** Direct to Licensed — sales roles + anyone flagged `users.is_licensed` (except pure call-center roles) */
+  /** Direct to Licensed — all sales agents (licensed and unlicensed) */
   const licensedAgents = normalized
-    .filter((row) => {
-      if (LICENSED_CLAIM_ROLE_KEYS.has(row.roleKey)) return true;
-      if (!row.isLicensedProfile) return false;
-      if (row.roleKey === "call_center_agent" || row.roleKey === "call_center_admin") return false;
-      return (
+    .filter(
+      (row) =>
         row.roleKey === "sales_agent_unlicensed" ||
-        row.roleKey === "sales_agent_licensed" ||
-        row.roleKey === "sales_manager" ||
-        row.roleKey === "sales_admin"
-      );
-    })
+        row.roleKey === "sales_agent_licensed",
+    )
     .map(toOption)
     .sort(byName);
 
-  /** Buffer to Licensed — unlicensed sales users designated as buffer (unset subtype treated as buffer for legacy rows) */
+  /** Buffer to Licensed — all sales agents (licensed and unlicensed) */
   const bufferAgents = normalized
     .filter(
       (row) =>
-        row.roleKey === "sales_agent_unlicensed" &&
-        (row.unlicensedSubtype === null || row.unlicensedSubtype === "buffer_agent"),
+        row.roleKey === "sales_agent_unlicensed" ||
+        row.roleKey === "sales_agent_licensed",
     )
     .map(toOption)
     .sort(byName);
@@ -295,6 +290,7 @@ async function seedVerificationItemsFallback(
     ["account_type", "banking", lead.bank_account_type],
     ["additional_notes", "additional", lead.additional_information],
     ["lead_vendor", "additional", lead.lead_source],
+    ["call_dropped", "outcome", ""],
   ] as const;
 
   const insertRows = items.map(([fieldName, category, value]) => ({

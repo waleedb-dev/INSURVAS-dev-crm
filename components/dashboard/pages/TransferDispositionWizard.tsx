@@ -28,6 +28,102 @@ const cardStyle = {
 
 const stackStyle = { display: "flex", flexDirection: "column" as const, gap: 8 };
 
+function RadioOption({
+  label,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 14px",
+        borderRadius: T.radiusMd,
+        border: `1.5px solid ${selected ? T.accentBlue : T.border}`,
+        backgroundColor: selected ? "#EEF5EE" : "#fff",
+        cursor: "pointer",
+        textAlign: "left" as const,
+        transition: "all 0.15s ease-in-out",
+        width: "100%",
+      }}
+    >
+      <div
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          border: `2px solid ${selected ? T.accentBlue : T.border}`,
+          backgroundColor: selected ? T.accentBlue : "transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          transition: "all 0.15s ease-in-out",
+        }}
+      >
+        {selected && (
+          <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#fff" }} />
+        )}
+      </div>
+      <span
+        style={{
+          fontSize: 14,
+          fontWeight: selected ? 700 : 500,
+          color: selected ? T.textDark : T.textDark,
+          fontFamily: T.font,
+        }}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function RadioOptionGroup({
+  label,
+  options,
+  value,
+  onChange,
+  showAll = false,
+}: {
+  label: string;
+  options: { value: string; label: string; sort_order?: number }[];
+  value: string;
+  onChange: (value: string) => void;
+  showAll?: boolean;
+}) {
+  const sorted = [...options].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  return (
+    <div>
+      <label style={transferSelectLabelStyle}>{label}</label>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+        {sorted.map((opt) => {
+          const isSelected = value === opt.value;
+          if (showAll || isSelected) {
+            return (
+              <RadioOption
+                key={opt.value}
+                label={opt.label}
+                selected={isSelected}
+                onSelect={() => onChange(opt.value)}
+              />
+            );
+          }
+          return null;
+        })}
+      </div>
+    </div>
+  );
+}
+
 const POST_COMPLETE_NODE_KEY = "__post_complete__";
 
 export type DispositionWizardPayload = {
@@ -349,13 +445,45 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
         return (
           <div key={`${step.node_key}-${step.option_key}-${index}`}>
             <label style={transferSelectLabelStyle}>{nodeLabel}</label>
-            <TransferStyledSelect
-              disabled
-              value={step.option_key}
-              onValueChange={() => {}}
-              options={[{ value: step.option_key, label: step.option_label }]}
-              placeholder=""
-            />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 14px",
+                borderRadius: T.radiusMd,
+                border: `1.5px solid ${T.border}`,
+                backgroundColor: "#EEF5EE",
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  border: `2px solid ${T.accentBlue}`,
+                  backgroundColor: T.accentBlue,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#fff" }} />
+              </div>
+              <span
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: T.textDark,
+                  fontFamily: T.font,
+                }}
+              >
+                {step.option_label}
+              </span>
+            </div>
           </div>
         );
       }
@@ -406,23 +534,21 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
         const node = flow.nodes[step.node_key];
         const nodeLabel = node?.node_label ?? "Choice";
         const opts = node?.options ?? [];
-        const sorted = [...opts].sort((a, b) => a.sort_order - b.sort_order);
         return (
-          <div key={`${step.node_key}-${step.option_key}-${index}-pc`}>
-            <label style={transferSelectLabelStyle}>{nodeLabel}</label>
-            <TransferStyledSelect
-              value={step.option_key}
-              onValueChange={(key) => {
-                if (!key) return;
-                handlePostCompleteChoiceChange(index, key);
-              }}
-              options={sorted.map((opt) => ({
-                value: opt.option_key,
-                label: opt.option_label,
-              }))}
-              placeholder=""
-            />
-          </div>
+          <RadioOptionGroup
+            key={`${step.node_key}-${step.option_key}-${index}-pc`}
+            label={nodeLabel}
+            options={opts.map((opt) => ({
+              value: opt.option_key,
+              label: opt.option_label,
+            }))}
+            value={step.option_key}
+            onChange={(key) => {
+              if (!key) return;
+              handlePostCompleteChoiceChange(index, key);
+            }}
+            showAll={true}
+          />
         );
       }
       if (step.kind === "carrier_multi") {
@@ -493,37 +619,8 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
         {header}
         <div style={stackStyle}>
           {postCompletePathSteps}
-          {completedTemplateKey ? (
-            <div>
-              <label style={transferSelectLabelStyle}>Generated note</label>
-              <div
-                style={{
-                  ...transferReadonlyFieldStyle,
-                  whiteSpace: "pre-wrap",
-                  height: "auto",
-                  minHeight: 42,
-                  alignItems: "flex-start",
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                }}
-              >
-                {generatedPreview || "(no template body)"}
-              </div>
-            </div>
-          ) : null}
-          <div
-            style={{
-              border: `1px solid ${T.borderLight}`,
-              borderRadius: 8,
-              padding: 10,
-              backgroundColor: "#f0fdf4",
-            }}
-          >
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#166534" }}>
-              Disposition detail is saved to notes below. You can still change the selections above; notes update
-              automatically. Edit wording in Notes if needed. Use Clear to start over.
-            </p>
-          </div>
+          
+          
         </div>
       </div>
     );
@@ -536,22 +633,7 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
         {header}
         <div style={stackStyle}>
           {lockedPathSteps}
-          <div>
-            <label style={transferSelectLabelStyle}>Generated note</label>
-            <div
-              style={{
-                ...transferReadonlyFieldStyle,
-                whiteSpace: "pre-wrap",
-                height: "auto",
-                minHeight: 42,
-                alignItems: "flex-start",
-                paddingTop: 10,
-                paddingBottom: 10,
-              }}
-            >
-              {preview || "(no template body)"}
-            </div>
-          </div>
+          
           <div>
             <label style={transferSelectLabelStyle}>Required manual detail *</label>
             <textarea
@@ -630,24 +712,21 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
         {header}
         <div style={stackStyle}>
           {lockedPathSteps}
-          <div>
-            <label style={transferSelectLabelStyle}>{currentNode.node_label}</label>
-            <TransferStyledSelect
-              key={currentNode.node_key}
-              value={choiceSelectValue}
-              onValueChange={(key) => {
-                if (!key) return;
-                const opt = currentNode.options.find((o) => o.option_key === key);
-                if (opt) handleChoiceOption(opt);
-                setChoiceSelectValue("");
-              }}
-              options={currentNode.options.map((opt) => ({
-                value: opt.option_key,
-                label: opt.option_label,
-              }))}
-              placeholder="Select an option…"
-            />
-          </div>
+          <RadioOptionGroup
+            label={currentNode.node_label}
+            options={currentNode.options.map((opt) => ({
+              value: opt.option_key,
+              label: opt.option_label,
+            }))}
+            value={choiceSelectValue}
+            onChange={(key) => {
+              if (!key) return;
+              const opt = currentNode.options.find((o) => o.option_key === key);
+              if (opt) handleChoiceOption(opt);
+              setChoiceSelectValue("");
+            }}
+            showAll={true}
+          />
         </div>
       </div>
     );

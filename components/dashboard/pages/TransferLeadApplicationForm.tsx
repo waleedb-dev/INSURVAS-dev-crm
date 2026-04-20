@@ -285,7 +285,7 @@ function calculateAgeFromDob(dateInput: string): string {
   return age >= 0 ? String(age) : "";
 }
 
-function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFormData {
+function buildFormState(initial?: Partial<TransferLeadFormData>, centerNameForLeadSource?: string): TransferLeadFormData {
   const { leadSource: _ls, isDraft: draftFlag, ...fromInitial } = initial ?? {};
   const hasSubmission =
     fromInitial.submissionDate !== undefined && String(fromInitial.submissionDate).trim() !== "";
@@ -338,7 +338,7 @@ function buildFormState(initial?: Partial<TransferLeadFormData>): TransferLeadFo
     stage: "Transfer API",
     ...fromInitial,
     submissionDate: hasSubmission ? String(fromInitial.submissionDate).trim() : getTodayInEasternYyyyMmDd(),
-    leadSource: FIXED_BPO_LEAD_SOURCE,
+    leadSource: centerNameForLeadSource || FIXED_BPO_LEAD_SOURCE,
     isDraft: draftFlag ?? false,
   };
 }
@@ -657,17 +657,12 @@ export default function TransferLeadApplicationForm({
   const displayBpoName = (centerName || "").trim() || "BPO";
   const displayCenterDid = (centerDid || "").trim();
 
-  const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData));
-    // Always force leadSource to the fixed value
-    useEffect(() => {
-      setFormData((prev) => ({ ...prev, leadSource: FIXED_BPO_LEAD_SOURCE }));
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+  const [formData, setFormData] = useState<TransferLeadFormData>(() => buildFormState(initialData, centerName));
 
   useEffect(() => {
     if (!initialData) return;
-    setFormData(buildFormState(initialData));
-  }, [initialData]);
+    setFormData(buildFormState(initialData, centerName));
+  }, [initialData, centerName]);
 
   useEffect(() => {
     if (!formData.dateOfBirth || formData.age.trim()) return;

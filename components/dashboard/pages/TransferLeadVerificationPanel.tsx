@@ -11,7 +11,6 @@ import {
   type VerificationItemRow,
 } from "./transferLeadParity";
 import { useCarrierProductDropdowns, type CarrierProductRow } from "@/lib/useCarrierProductDropdowns";
-import { AppSelect } from "@/components/ui/app-select";
 import {
   Select,
   SelectContent,
@@ -448,6 +447,11 @@ type Props = {
   onProgressChange?: (payload: { verifiedCount: number; totalCount: number; progress: number }) => void;
   /** Opens claim flow to assign another licensed agent (Transfer Leads workspace). */
   onTransferToLicensedAgent?: () => void;
+  leadName?: string;
+  submissionId?: string | null;
+  callCenterId?: string | null;
+  /** Called after call_dropped field is saved. Use to trigger center-transfer-notification. */
+  onCallDropped?: (payload: { submissionId: string | null; leadName: string; callCenterId?: string | null }) => void;
 };
 
 const VERIFICATION_FIELD_SEQUENCE = [
@@ -530,14 +534,8 @@ const FIELD_SECTIONS = {
     "email",
     "street_address",
   ],
-  "Personal Details": [
-    "date_of_birth",
-    "age",
-    "social_security",
-    "driver_license",
-    "birth_state",
-  ],
   "Health & Underwriting": [
+    "date_of_birth",
     "height",
     "weight",
     "tobacco_use",
@@ -547,16 +545,22 @@ const FIELD_SECTIONS = {
     "existing_coverage",
     "previous_applications",
   ],
+  "Personal Details": [
+    "age",
+    "social_security",
+    "driver_license",
+    "birth_state",
+  ],
   "Policy Information": [
     "carrier",
     "product_type",
     "coverage_amount",
     "monthly_premium",
-    "draft_date",
     "future_draft_date",
     "beneficiary_information",
   ],
   "Banking Details": [
+    "draft_date",
     "institution_name",
     "beneficiary_routing",
     "beneficiary_account",
@@ -596,6 +600,10 @@ export default function TransferLeadVerificationPanel({
   showProgressSummary = true,
   onProgressChange,
   onTransferToLicensedAgent,
+  leadName,
+  submissionId,
+  callCenterId,
+  onCallDropped,
 }: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [items, setItems] = useState<VerificationItemRow[]>([]);
@@ -1002,6 +1010,13 @@ export default function TransferLeadVerificationPanel({
         ),
       );
       setDraftValues((prev) => ({ ...prev, [item.id]: value }));
+      if (dropped && onCallDropped) {
+        onCallDropped({
+          submissionId: submissionId ?? null,
+          leadName: leadName ?? "",
+          callCenterId: callCenterId ?? null,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save call outcome.");
     } finally {
@@ -1380,16 +1395,51 @@ export default function TransferLeadVerificationPanel({
             
             if (sectionItems.length === 0) return null;
 
+            const isHealthAndUnderwriting = sectionName === "Health & Underwriting";
+
             return (
               <div key={sectionName} style={{ marginBottom: 8 }}>
-                <CollapsibleSectionHeader
-                  title={sectionName}
-                  verified={stats.verified}
-                  total={stats.total}
-                  progress={stats.progress}
-                  isCollapsed={isCollapsed}
-                  onToggle={() => toggleSection(sectionName)}
-                />
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <CollapsibleSectionHeader
+                      title={sectionName}
+                      verified={stats.verified}
+                      total={stats.total}
+                      progress={stats.progress}
+                      isCollapsed={isCollapsed}
+                      onToggle={() => toggleSection(sectionName)}
+                    />
+                  </div>
+                  {isHealthAndUnderwriting && (
+                    <button
+                      type="button"
+                      onClick={() => setShowUnderwritingModal(true)}
+                      style={{
+                        flexShrink: 0,
+                        border: `1px solid ${T.border}`,
+                        backgroundColor: T.cardBg,
+                        color: T.textDark,
+                        borderRadius: T.radiusSm,
+                        padding: "6px 12px",
+                        fontWeight: 600,
+                        fontSize: 12,
+                        cursor: "pointer",
+                        transition: "all 0.15s ease-in-out",
+                        fontFamily: T.font,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = T.blue;
+                        e.currentTarget.style.backgroundColor = T.blueFaint;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = T.border;
+                        e.currentTarget.style.backgroundColor = T.cardBg;
+                      }}
+                    >
+                      Underwriting
+                    </button>
+                  )}
+                </div>
                 
                 {!isCollapsed && (
                   <div
@@ -1770,62 +1820,91 @@ export default function TransferLeadVerificationPanel({
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(0,0,0,0.45)",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(4px)",
             zIndex: 3700,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: 20,
+            padding: 24,
           }}
         >
           <div
             style={{
-              width: "98vw",
-              maxWidth: "98vw",
-              height: "96vh",
-              maxHeight: "96vh",
+              width: "100%",
+              maxWidth: 1400,
+              height: "90vh",
+              maxHeight: "90vh",
               overflowY: "auto",
-              backgroundColor: "#fff",
-              borderRadius: 14,
+              backgroundColor: T.cardBg,
+              borderRadius: T.radiusLg,
               border: `1px solid ${T.border}`,
-              padding: 20,
+              boxShadow: T.shadowXl,
+              padding: 32,
             }}
           >
-            <h2 style={{ margin: 0, fontSize: 30, color: "#4e6e3a", fontWeight: 800 }}>Underwriting</h2>
-            <p style={{ margin: "8px 0 0", fontSize: 16, color: T.textMuted, fontWeight: 600 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <h2 style={{ margin: 0, fontSize: 28, color: T.textDark, fontWeight: 800 }}>Underwriting</h2>
+              <button
+                type="button"
+                onClick={() => setShowUnderwritingModal(false)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  padding: 8,
+                  borderRadius: T.radiusSm,
+                  color: T.textMuted,
+                  fontSize: 24,
+                  lineHeight: 1,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = T.blueFaint;
+                  e.currentTarget.style.color = T.textDark;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = T.textMuted;
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <p style={{ margin: "0 0 24px", fontSize: 15, color: T.textMuted, fontWeight: 500 }}>
               Please read the following script to the customer and verify all information.
             </p>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.35fr", gap: 24, marginTop: 18, alignItems: "stretch" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 24, marginBottom: 24, alignItems: "stretch" }}>
               <div
                 style={{
-                  backgroundColor: "#f9fafb",
-                  padding: 16,
-                  borderRadius: 12,
+                  backgroundColor: T.blueFaint,
+                  padding: 24,
+                  borderRadius: T.radiusMd,
                   border: `1px solid ${T.border}`,
                   height: "100%",
                   overflowY: "auto",
                 }}
               >
-                <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: 30, fontWeight: 800 }}>Underwriting Questions</h4>
-                <div style={{ fontSize: 24 }}>
-                  <p style={{ fontWeight: 600, marginTop: 0 }}>
+                <h4 style={{ margin: "0 0 20px", fontSize: 20, fontWeight: 800, color: T.textDark }}>Underwriting Questions</h4>
+                <div style={{ fontSize: 15, lineHeight: 1.6 }}>
+                  <p style={{ fontWeight: 600, margin: "0 0 16px", color: T.textMid }}>
                     &quot;I am going to ask you some medical questions and we expect your honesty that is going to save us a lot
                     of time. And, this will help us evaluate which insurance carrier comes back with the maximum benefit at the
                     lowest rates for you.&quot;
                   </p>
-                  <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, marginBottom: 12 }}>
-                    <p style={{ marginTop: 0, fontWeight: 800, fontSize: 24 }}>Question 1:</p>
-                    <p style={{ fontSize: 22, marginBottom: 0 }}>
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: 16, marginBottom: 12 }}>
+                    <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 15, color: T.textDark }}>Question 1:</p>
+                    <p style={{ margin: 0, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
                       Have you ever been diagnosed or treated for Alzheimer&apos;s Dementia, Congestive heart failure, organ
                       transplant, HIV, AIDS, ARC, Leukemia, Tuberculosis, chronic Respiratory disease, currently paralyzed,
                       amputation due to a disease? Are you currently hospitalized in a nursing facility? Due to a disease are
                       you currently confined to a wheelchair? Are you currently on oxygen?
                     </p>
                   </div>
-                  <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, marginBottom: 12 }}>
-                    <p style={{ marginTop: 0, fontWeight: 800, fontSize: 24 }}>Question 2:</p>
-                    <p style={{ fontSize: 22, marginBottom: 0 }}>
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: 16, marginBottom: 12 }}>
+                    <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 15, color: T.textDark }}>Question 2:</p>
+                    <p style={{ margin: 0, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
                       In the last 5 years, have you had any heart attacks, cancers, Alzheimer&apos;s, dementia, congestive heart
                       failure, kidney failure or an organ removal? Have you ever had any disorders of the kidney, lung, brain,
                       heart, circulatory system or liver? Or In the last 3 years have you been diagnosed and treated for
@@ -1835,43 +1914,45 @@ export default function TransferLeadVerificationPanel({
                       defibrillator, valve replacement, stroke, TIA or paralysis?
                     </p>
                   </div>
-                  <div style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 10, padding: 16 }}>
-                    <p style={{ marginTop: 0, fontWeight: 800, fontSize: 24 }}>Question 3:</p>
-                    <p style={{ fontSize: 22, marginBottom: 0 }}>
+                  <div style={{ background: T.cardBg, border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: 16, marginBottom: 16 }}>
+                    <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 15, color: T.textDark }}>Question 3:</p>
+                    <p style={{ margin: 0, fontSize: 14, color: T.textMid, lineHeight: 1.5 }}>
                       Or if you have any complications from diabetes? Like (Neuropathy, amputation due to diabetes, retinopathy,
                       diabetic coma, etc) Have you been treated or diagnosed with COPD, Bipolar, or schizophrenia?
                     </p>
                   </div>
-                  <div style={{ marginTop: 16, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 12 }}>
-                    <p style={{ marginTop: 0, marginBottom: 8, fontWeight: 800, fontSize: 24 }}>Tobacco Usage:</p>
-                    <p style={{ fontSize: 22 }}>Have you consumed any tobacco or nicotine products in the last 12 months?</p>
-                    <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 24 }}>
+                  <div style={{ background: "#fefce8", border: "1px solid #fde68a", borderRadius: T.radiusSm, padding: 16, marginBottom: 16 }}>
+                    <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 15, color: T.textDark }}>Tobacco Usage:</p>
+                    <p style={{ margin: "0 0 12px", fontSize: 14, color: T.textMid }}>Have you consumed any tobacco or nicotine products in the last 12 months?</p>
+                    <div style={{ display: "flex", gap: 24 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", color: T.textDark }}>
                         <input
                           type="radio"
                           name="uw_tobacco_verify"
                           checked={underwritingData.tobaccoLast12Months === "yes"}
                           onChange={() => setUnderwritingData((prev) => ({ ...prev, tobaccoLast12Months: "yes" }))}
+                          style={{ width: 18, height: 18, accentColor: T.blue }}
                         />
                         Yes
                       </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 24 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", color: T.textDark }}>
                         <input
                           type="radio"
                           name="uw_tobacco_verify"
                           checked={underwritingData.tobaccoLast12Months === "no"}
                           onChange={() => setUnderwritingData((prev) => ({ ...prev, tobaccoLast12Months: "no" }))}
+                          style={{ width: 18, height: 18, accentColor: T.blue }}
                         />
                         No
                       </label>
                     </div>
                   </div>
-                  <p style={{ fontWeight: 600, fontSize: 24, marginTop: 16 }}>
+                  <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 12px", color: T.textMid }}>
                     Lastly, do you have any health conditions or take any prescribed medication on a regular basis?
                   </p>
-                  <div style={{ padding: 16, background: "#fff", borderRadius: 10, border: `1px solid ${T.border}` }}>
-                    <p style={{ marginTop: 0, marginBottom: 8, fontWeight: 800, fontSize: 24 }}>Follow Up:</p>
-                    <ul style={{ margin: 0, paddingLeft: 24, fontSize: 22 }}>
+                  <div style={{ padding: 16, background: T.cardBg, borderRadius: T.radiusSm, border: `1px solid ${T.border}` }}>
+                    <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 15, color: T.textDark }}>Follow Up:</p>
+                    <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: T.textMid }}>
                       <li>How many medications are you taking on a daily basis?</li>
                       <li>Do you know what those medications are for?</li>
                       <li>Do you have your medications, or a list of your medications nearby?</li>
@@ -1882,9 +1963,9 @@ export default function TransferLeadVerificationPanel({
 
               <div
                 style={{
-                  backgroundColor: "#fff",
-                  border: "2px solid #ddd6fe",
-                  borderRadius: 12,
+                  backgroundColor: T.cardBg,
+                  border: `2px solid ${T.border}`,
+                  borderRadius: T.radiusMd,
                   overflow: "hidden",
                   display: "flex",
                   flexDirection: "column",
@@ -1892,11 +1973,11 @@ export default function TransferLeadVerificationPanel({
               >
                 <div
                   style={{
-                    backgroundColor: "#4e6e3a",
+                    backgroundColor: T.blue,
                     color: "#fff",
-                    padding: "8px 16px",
-                    fontWeight: 800,
-                    fontSize: 18,
+                    padding: "12px 20px",
+                    fontWeight: 700,
+                    fontSize: 15,
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -1906,30 +1987,55 @@ export default function TransferLeadVerificationPanel({
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       type="button"
-                      style={{ height: 28, fontSize: 12, padding: "0 10px", borderRadius: 6, border: "none", cursor: "pointer" }}
+                      style={{
+                        height: 32,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: "0 14px",
+                        borderRadius: T.radiusSm,
+                        border: "none",
+                        cursor: "pointer",
+                        backgroundColor: "rgba(255,255,255,0.2)",
+                        color: "#fff",
+                        transition: "all 0.15s ease-in-out",
+                      }}
                       onClick={() => setToolkitUrl("https://insurancetoolkits.com/fex/quoter")}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.3)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.2)";
+                      }}
                     >
                       Quote Tool
                     </button>
                     <button
                       type="button"
                       style={{
-                        height: 28,
-                        fontSize: 12,
-                        padding: "0 10px",
-                        borderRadius: 6,
-                        border: "1px solid #fff",
+                        height: 32,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: "0 14px",
+                        borderRadius: T.radiusSm,
+                        border: "1px solid rgba(255,255,255,0.4)",
                         color: "#fff",
                         background: "transparent",
                         cursor: "pointer",
+                        transition: "all 0.15s ease-in-out",
                       }}
                       onClick={() => setToolkitUrl("https://insurancetoolkits.com/login")}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
                     >
                       Login
                     </button>
                   </div>
                 </div>
-                <div style={{ border: "2px solid #c4b5fd", borderRadius: 10, overflow: "hidden", background: "#fff", flex: 1, minHeight: 600 }}>
+                <div style={{ border: `2px solid ${T.borderLight}`, borderRadius: T.radiusSm, overflow: "hidden", background: T.cardBg, flex: 1, minHeight: 500 }}>
                   <iframe
                     style={{ border: "none", height: "100%", width: "100%" }}
                     src={toolkitUrl}
@@ -1940,256 +2046,413 @@ export default function TransferLeadVerificationPanel({
               </div>
             </div>
 
-            <div style={{ marginTop: 24 }}>
-              <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Health Conditions:</label>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginBottom: 10,
-                  minHeight: underwritingHealthTags.length ? undefined : 0,
-                }}
-              >
-                {underwritingHealthTags.map((tag, i) => (
-                  <span
-                    key={`h-${i}-${tag}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "6px 10px",
-                      borderRadius: 8,
-                      backgroundColor: "#EEF5EE",
-                      border: `1px solid ${T.borderLight}`,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: T.textDark,
-                      fontFamily: T.font,
-                    }}
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      aria-label={`Remove ${tag}`}
-                      onClick={() => setUnderwritingHealthTags((prev) => prev.filter((_, j) => j !== i))}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        padding: 0,
-                        margin: 0,
-                        lineHeight: 1,
-                        fontSize: 16,
-                        fontWeight: 800,
-                        color: T.textMuted,
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <input
-                value={underwritingHealthInput}
-                onChange={(e) => setUnderwritingHealthInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  const parts = toTagParts(underwritingHealthInput);
-                  if (!parts.length) return;
-                  setUnderwritingHealthTags((prev) => mergeUniqueTags(prev, parts));
-                  setUnderwritingHealthInput("");
-                }}
-                placeholder="Type and press Enter to add conditions..."
-                style={{ ...uwModalFieldStyle, fontSize: 18, height: 48, width: "100%", boxSizing: "border-box" }}
-              />
-              <p style={{ margin: "8px 0 0", fontSize: 13, color: T.textMuted, fontWeight: 500 }}>
-                Click on conditions above to add them, or type custom conditions.
-              </p>
-            </div>
-
-            <div style={{ marginTop: 16 }}>
-              <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8, color: "#2563eb" }}>
-                Medications:
-              </label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-                {underwritingMedicationTags.map((tag, i) => (
-                  <span
-                    key={`m-${i}-${tag}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "6px 10px",
-                      borderRadius: 8,
-                      backgroundColor: "#EEF5EE",
-                      border: `1px solid ${T.borderLight}`,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: T.textDark,
-                      fontFamily: T.font,
-                    }}
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      aria-label={`Remove ${tag}`}
-                      onClick={() => setUnderwritingMedicationTags((prev) => prev.filter((_, j) => j !== i))}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        padding: 0,
-                        margin: 0,
-                        lineHeight: 1,
-                        fontSize: 16,
-                        fontWeight: 800,
-                        color: T.textMuted,
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <input
-                value={underwritingMedicationInput}
-                onChange={(e) => setUnderwritingMedicationInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  const parts = toTagParts(underwritingMedicationInput);
-                  if (!parts.length) return;
-                  setUnderwritingMedicationTags((prev) => mergeUniqueTags(prev, parts));
-                  setUnderwritingMedicationInput("");
-                }}
-                placeholder="Type and press Enter to add medications..."
-                style={{ ...uwModalFieldStyle, fontSize: 18, height: 48, width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               <div>
-                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Height:</label>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Health Conditions:</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginBottom: 10,
+                    minHeight: underwritingHealthTags.length ? undefined : 0,
+                  }}
+                >
+                  {underwritingHealthTags.map((tag, i) => (
+                    <span
+                      key={`h-${i}-${tag}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 12px",
+                        borderRadius: T.radiusSm,
+                        backgroundColor: T.blueFaint,
+                        border: `1px solid ${T.border}`,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: T.textDark,
+                        fontFamily: T.font,
+                        transition: "all 0.15s ease-in-out",
+                      }}
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${tag}`}
+                        onClick={() => setUnderwritingHealthTags((prev) => prev.filter((_, j) => j !== i))}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          padding: 0,
+                          margin: 0,
+                          lineHeight: 1,
+                          fontSize: 18,
+                          fontWeight: 700,
+                          color: T.textMuted,
+                          display: "flex",
+                          alignItems: "center",
+                          transition: "color 0.15s ease-in-out",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = T.danger;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = T.textMuted;
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  value={underwritingHealthInput}
+                  onChange={(e) => setUnderwritingHealthInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const parts = toTagParts(underwritingHealthInput);
+                    if (!parts.length) return;
+                    setUnderwritingHealthTags((prev) => mergeUniqueTags(prev, parts));
+                    setUnderwritingHealthInput("");
+                  }}
+                  placeholder="Type and press Enter to add conditions..."
+                  style={{
+                    ...uwModalFieldStyle,
+                    fontSize: 14,
+                    height: 44,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    borderRadius: T.radiusSm,
+                    border: `1.5px solid ${T.border}`,
+                    padding: "0 14px",
+                    color: T.textDark,
+                    backgroundColor: T.cardBg,
+                    outline: "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = T.blue;
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(99, 139, 75, 0.15)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+                <p style={{ margin: "6px 0 0", fontSize: 12, color: T.textMuted, fontWeight: 500 }}>
+                  Type custom conditions and press Enter to add.
+                </p>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Medications:</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                  {underwritingMedicationTags.map((tag, i) => (
+                    <span
+                      key={`m-${i}-${tag}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 12px",
+                        borderRadius: T.radiusSm,
+                        backgroundColor: T.blueFaint,
+                        border: `1px solid ${T.border}`,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: T.textDark,
+                        fontFamily: T.font,
+                        transition: "all 0.15s ease-in-out",
+                      }}
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${tag}`}
+                        onClick={() => setUnderwritingMedicationTags((prev) => prev.filter((_, j) => j !== i))}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          padding: 0,
+                          margin: 0,
+                          lineHeight: 1,
+                          fontSize: 18,
+                          fontWeight: 700,
+                          color: T.textMuted,
+                          display: "flex",
+                          alignItems: "center",
+                          transition: "color 0.15s ease-in-out",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = T.danger;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = T.textMuted;
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  value={underwritingMedicationInput}
+                  onChange={(e) => setUnderwritingMedicationInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const parts = toTagParts(underwritingMedicationInput);
+                    if (!parts.length) return;
+                    setUnderwritingMedicationTags((prev) => mergeUniqueTags(prev, parts));
+                    setUnderwritingMedicationInput("");
+                  }}
+                  placeholder="Type and press Enter to add medications..."
+                  style={{
+                    ...uwModalFieldStyle,
+                    fontSize: 14,
+                    height: 44,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    borderRadius: T.radiusSm,
+                    border: `1.5px solid ${T.border}`,
+                    padding: "0 14px",
+                    color: T.textDark,
+                    backgroundColor: T.cardBg,
+                    outline: "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = T.blue;
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(99, 139, 75, 0.15)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginTop: 24 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Height:</label>
                 <input
                   value={underwritingData.height}
                   onChange={(e) => setUnderwritingData((prev) => ({ ...prev, height: e.target.value }))}
                   placeholder="e.g., 5 ft 10 in"
-                  style={{ ...uwModalFieldStyle, fontSize: 24, height: 48 }}
+                  style={{
+                    ...uwModalFieldStyle,
+                    fontSize: 14,
+                    height: 44,
+                    borderRadius: T.radiusSm,
+                    border: `1.5px solid ${T.border}`,
+                    padding: "0 14px",
+                    color: T.textDark,
+                    backgroundColor: T.cardBg,
+                    outline: "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = T.blue;
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(99, 139, 75, 0.15)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Weight:</label>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Weight:</label>
                 <input
                   value={underwritingData.weight}
                   onChange={(e) => setUnderwritingData((prev) => ({ ...prev, weight: e.target.value }))}
                   placeholder="e.g., 180 lbs"
-                  style={{ ...uwModalFieldStyle, fontSize: 24, height: 48 }}
+                  style={{
+                    ...uwModalFieldStyle,
+                    fontSize: 14,
+                    height: 44,
+                    borderRadius: T.radiusSm,
+                    border: `1.5px solid ${T.border}`,
+                    padding: "0 14px",
+                    color: T.textDark,
+                    backgroundColor: T.cardBg,
+                    outline: "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = T.blue;
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(99, 139, 75, 0.15)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                 />
               </div>
-              <div>
-                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Carrier:</label>
-                <AppSelect
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Carrier:</label>
+                <StyledSelect
                   value={underwritingData.carrier}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setUnderwritingData((prev) => ({ ...prev, carrier: v, productLevel: "" }));
-                  }}
-                  style={{
-                    ...uwModalFieldStyle,
-                    fontSize: 24,
-                    height: 56,
-                    lineHeight: "1.2",
-                    paddingTop: 8,
-                    paddingBottom: 8,
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <option value="">Select carrier</option>
-                  {uwCarriers.map((c) => (
-                    <option key={c.id} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-                </AppSelect>
+                  onValueChange={(val) => setUnderwritingData((prev) => ({ ...prev, carrier: val, productLevel: "" }))}
+                  options={uwCarriers.map((c) => ({ value: c.name, label: c.name }))}
+                  placeholder="Please Select"
+                  disabled={false}
+                  error={false}
+                />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 12, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Product Level:</label>
+                {!underwritingData.carrier.trim() ? (
+                  <div style={{ ...uwModalFieldStyle, fontSize: 14, height: 44, borderRadius: T.radiusSm, display: "flex", alignItems: "center", color: T.textMuted, padding: "0 14px" }}>
+                    Select carrier first
+                  </div>
+                ) : uwProductsLoading ? (
+                  <div style={{ ...uwModalFieldStyle, fontSize: 14, height: 44, borderRadius: T.radiusSm, display: "flex", alignItems: "center", color: T.textMuted, padding: "0 14px" }}>
+                    Loading products…
+                  </div>
+                ) : uwProducts.length === 0 ? (
+                  <div style={{ ...uwModalFieldStyle, fontSize: 14, height: 44, borderRadius: T.radiusSm, display: "flex", alignItems: "center", color: T.textMuted, padding: "0 14px" }}>
+                    No products for this carrier
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {uwProducts.map((product) => (
+                      <label
+                        key={product.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: "12px 16px",
+                          borderRadius: T.radiusSm,
+                          border: `1.5px solid ${underwritingData.productLevel === product.name ? "#233217" : T.border}`,
+                          backgroundColor: underwritingData.productLevel === product.name ? T.blueFaint : T.cardBg,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease-in-out",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (underwritingData.productLevel !== product.name) {
+                            e.currentTarget.style.borderColor = T.blue;
+                            e.currentTarget.style.backgroundColor = T.blueFaint;
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (underwritingData.productLevel !== product.name) {
+                            e.currentTarget.style.borderColor = T.border;
+                            e.currentTarget.style.backgroundColor = T.cardBg;
+                          }
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="productLevel"
+                          value={product.name}
+                          checked={underwritingData.productLevel === product.name}
+                          onChange={() => setUnderwritingData((prev) => ({ ...prev, productLevel: product.name }))}
+                          style={{ width: 18, height: 18, cursor: "pointer", accentColor: T.blue }}
+                        />
+                        <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>
+                          {product.name}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
-                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Product Level:</label>
-                <AppSelect
-                  value={underwritingData.productLevel}
-                  onChange={(e) => setUnderwritingData((prev) => ({ ...prev, productLevel: e.target.value }))}
-                  disabled={!underwritingData.carrier.trim() || uwProductsLoading}
-                  style={{
-                    ...uwModalFieldStyle,
-                    fontSize: 24,
-                    height: 56,
-                    lineHeight: "1.2",
-                    paddingTop: 8,
-                    paddingBottom: 8,
-                    width: "100%",
-                    boxSizing: "border-box",
-                    opacity: !underwritingData.carrier.trim() || uwProductsLoading ? 0.7 : 1,
-                  }}
-                >
-                  <option value="">
-                    {uwProductsLoading
-                      ? "Loading products…"
-                      : underwritingData.carrier.trim() && uwProducts.length === 0
-                        ? "No products for this carrier"
-                        : "Select product level"}
-                  </option>
-                  {uwProducts.map((p) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </AppSelect>
-              </div>
-              <div>
-                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Coverage Amount:</label>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Coverage Amount:</label>
                 <input
                   value={underwritingData.coverageAmount}
                   onChange={(e) => setUnderwritingData((prev) => ({ ...prev, coverageAmount: e.target.value }))}
                   placeholder="e.g., $10,000"
-                  style={{ ...uwModalFieldStyle, fontSize: 24, height: 48 }}
+                  style={{
+                    ...uwModalFieldStyle,
+                    fontSize: 14,
+                    height: 44,
+                    borderRadius: T.radiusSm,
+                    border: `1.5px solid ${T.border}`,
+                    padding: "0 14px",
+                    color: T.textDark,
+                    backgroundColor: T.cardBg,
+                    outline: "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = T.blue;
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(99, 139, 75, 0.15)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: 24, fontWeight: 800, display: "block", marginBottom: 8 }}>Monthly Premium:</label>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Monthly Premium:</label>
                 <input
                   value={underwritingData.monthlyPremium}
                   onChange={(e) => setUnderwritingData((prev) => ({ ...prev, monthlyPremium: e.target.value }))}
                   placeholder="e.g., $50.00"
-                  style={{ ...uwModalFieldStyle, fontSize: 24, height: 48 }}
+                  style={{
+                    ...uwModalFieldStyle,
+                    fontSize: 14,
+                    height: 44,
+                    borderRadius: T.radiusSm,
+                    border: `1.5px solid ${T.border}`,
+                    padding: "0 14px",
+                    color: T.textDark,
+                    backgroundColor: T.cardBg,
+                    outline: "none",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = T.blue;
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(99, 139, 75, 0.15)`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                 />
               </div>
             </div>
 
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 14, color: "#4b5563", textAlign: "center", marginBottom: 8 }}>
-                Clicking &quot;Save &amp; Verify All&quot; will save all fields below to the verification panel and mark them as
-                verified.
+            <div style={{ marginTop: 32, borderTop: `1px solid ${T.borderLight}`, paddingTop: 24 }}>
+              <div style={{ fontSize: 13, color: T.textMuted, textAlign: "center", marginBottom: 16, fontWeight: 500 }}>
+                Clicking &quot;Save &amp; Verify All&quot; will save all fields below to the verification panel and mark them as verified.
               </div>
-              <div style={{ display: "flex", gap: 8, width: "100%" }}>
+              <div style={{ display: "flex", gap: 12, width: "100%" }}>
                 <button
                   type="button"
                   disabled={underwritingSaving}
                   style={{
-                    border: `1px solid ${T.border}`,
-                    background: "#fff",
-                    borderRadius: 8,
-                    fontSize: 18,
-                    padding: "10px 24px",
+                    border: `1.5px solid ${T.border}`,
+                    background: T.cardBg,
+                    borderRadius: T.radiusSm,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    padding: "12px 24px",
                     flex: 1,
                     cursor: underwritingSaving ? "not-allowed" : "pointer",
+                    color: T.textDark,
+                    transition: "all 0.15s ease-in-out",
                   }}
                   onClick={() => setShowUnderwritingModal(false)}
+                  onMouseEnter={(e) => {
+                    if (!underwritingSaving) {
+                      e.currentTarget.style.borderColor = T.blue;
+                      e.currentTarget.style.backgroundColor = T.blueFaint;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.backgroundColor = T.cardBg;
+                  }}
                 >
                   Cancel
                 </button>
@@ -2198,16 +2461,42 @@ export default function TransferLeadVerificationPanel({
                   disabled={underwritingSaving}
                   style={{
                     border: "none",
-                    background: underwritingSaving ? T.border : "#16a34a",
+                    background: underwritingSaving ? T.border : T.blue,
                     color: "#fff",
-                    borderRadius: 8,
-                    fontSize: 18,
-                    padding: "10px 24px",
+                    borderRadius: T.radiusSm,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    padding: "12px 24px",
                     flex: 1,
                     cursor: underwritingSaving ? "not-allowed" : "pointer",
+                    transition: "all 0.15s ease-in-out",
                   }}
                   onClick={() => {
                     void handleUnderwritingSaveAndVerify();
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!underwritingSaving) {
+                      e.currentTarget.style.backgroundColor = T.blueHover;
+                      e.currentTarget.style.transform = "translateY(-1px)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.2)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!underwritingSaving) {
+                      e.currentTarget.style.backgroundColor = T.blue;
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }
+                  }}
+                  onMouseDown={(e) => {
+                    if (!underwritingSaving) {
+                      e.currentTarget.style.transform = "translateY(0) scale(0.98)";
+                    }
+                  }}
+                  onMouseUp={(e) => {
+                    if (!underwritingSaving) {
+                      e.currentTarget.style.transform = "translateY(-1px) scale(1)";
+                    }
                   }}
                 >
                   {underwritingSaving ? "Saving..." : "Save & Verify All"}

@@ -181,14 +181,13 @@ export default function TransferLeadClaimModal({
 }: Props) {
   const valid = useMemo(() => {
     if (retentionOnly || selection.workflowType === "retention") {
-      if (!selection.retentionAgentId || !selection.licensedAgentId) return false;
+      if (!selection.retentionAgentId) return false;
       const effectiveRetentionType = selection.retentionType || "new_sale";
       if (effectiveRetentionType !== "new_sale" && !selection.retentionNotes.trim()) return false;
       return true;
     }
-    if (selection.workflowType === "buffer_only") return Boolean(selection.bufferAgentId);
     if (selection.workflowType === "buffer") {
-      return Boolean(selection.bufferAgentId && selection.licensedAgentId);
+      return Boolean(selection.bufferAgentId);
     }
     if (selection.workflowType === "licensed") return Boolean(selection.licensedAgentId);
     return false;
@@ -222,14 +221,6 @@ export default function TransferLeadClaimModal({
   if (!open) return null;
 
   const setWorkflow = (workflowType: ClaimWorkflowType) => {
-    if (workflowType === "buffer_only") {
-      onChange({
-        ...selection,
-        workflowType: "buffer_only",
-        licensedAgentId: null,
-      });
-      return;
-    }
     if (workflowType === "licensed") {
       const auto = defaultLicensedAgentIdForSession(agents.licensedAgents, sessionUserId);
       const keep =
@@ -380,19 +371,20 @@ export default function TransferLeadClaimModal({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
               gap: 8,
               marginBottom: 14,
             }}
           >
-            <RadioTile active={selection.workflowType === "buffer_only"} label="Buffer" onClick={() => setWorkflow("buffer_only")} />
             <RadioTile active={selection.workflowType === "buffer"} label="Buffer to Licensed" onClick={() => setWorkflow("buffer")} />
             <RadioTile active={selection.workflowType === "licensed"} label="Direct to Licensed" onClick={() => setWorkflow("licensed")} />
             <RadioTile active={selection.workflowType === "retention"} label="Retention Workflow" onClick={() => setWorkflow("retention")} />
           </div>
         )}
 
-        {selection.workflowType === "buffer_only" && (
+        
+
+        {selection.workflowType === "buffer" && (
           <div style={{ marginBottom: 20 }}>
             <FormField label="Buffer Agent" required>
               <StyledSelect
@@ -400,36 +392,12 @@ export default function TransferLeadClaimModal({
                 onValueChange={(val) => onChange({ ...selection, bufferAgentId: val || null })}
                 options={[
                   { value: "", label: "Select buffer agent" },
-                  ...agents.bufferAgents.map((agent) => ({ value: agent.id, label: agent.name })),
+                  ...[...agents.bufferAgents, ...agents.licensedAgents].reduce((acc, agent) => {
+                    if (!acc.some(a => a.id === agent.id)) acc.push(agent);
+                    return acc;
+                  }, [] as AgentOption[]).map((agent) => ({ value: agent.id, label: agent.name })),
                 ]}
                 placeholder="Select buffer agent"
-              />
-            </FormField>
-          </div>
-        )}
-
-        {selection.workflowType === "buffer" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-            <FormField label="Buffer Agent" required>
-              <StyledSelect
-                value={selection.bufferAgentId || ""}
-                onValueChange={(val) => onChange({ ...selection, bufferAgentId: val || null })}
-                options={[
-                  { value: "", label: "Select buffer agent" },
-                  ...agents.bufferAgents.map((agent) => ({ value: agent.id, label: agent.name })),
-                ]}
-                placeholder="Select buffer agent"
-              />
-            </FormField>
-            <FormField label="Licensed Agent" required>
-              <StyledSelect
-                value={selection.licensedAgentId || ""}
-                onValueChange={(val) => onChange({ ...selection, licensedAgentId: val || null })}
-                options={[
-                  { value: "", label: "Select licensed agent" },
-                  ...agents.licensedAgents.map((agent) => ({ value: agent.id, label: agent.name })),
-                ]}
-                placeholder="Select licensed agent"
               />
             </FormField>
           </div>
@@ -453,7 +421,7 @@ export default function TransferLeadClaimModal({
 
         {selection.workflowType === "retention" && (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+            <div style={{ marginBottom: 20 }}>
               <FormField label="Retention Agent" required>
                 <StyledSelect
                   value={selection.retentionAgentId || ""}
@@ -463,17 +431,6 @@ export default function TransferLeadClaimModal({
                     ...agents.retentionAgents.map((agent) => ({ value: agent.id, label: agent.name })),
                   ]}
                   placeholder="Select retention agent"
-                />
-              </FormField>
-              <FormField label="Licensed Agent" required>
-                <StyledSelect
-                  value={selection.licensedAgentId || ""}
-                  onValueChange={(val) => onChange({ ...selection, licensedAgentId: val || null })}
-                  options={[
-                    { value: "", label: "Select licensed agent" },
-                    ...agents.licensedAgents.map((agent) => ({ value: agent.id, label: agent.name })),
-                  ]}
-                  placeholder="Select licensed agent"
                 />
               </FormField>
             </div>

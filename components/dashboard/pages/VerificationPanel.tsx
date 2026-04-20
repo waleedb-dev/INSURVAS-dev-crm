@@ -282,17 +282,8 @@ export function VerificationPanel({
       <div className="space-y-2 border-b border-slate-200 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-slate-900">Verification Panel</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-              onClick={() => setShowUnderwritingModal(true)}
-            >
-              Underwriting
-            </button>
-            <div className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-800">
-              {selectedPolicyView?.callCenter ?? "-"}
-            </div>
+          <div className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-800">
+            {selectedPolicyView?.callCenter ?? "-"}
           </div>
         </div>
         <p className="text-sm text-slate-500">
@@ -347,87 +338,123 @@ export function VerificationPanel({
         ) : verificationItems.length === 0 ? (
           <div className="text-sm text-slate-500">No verification fields yet.</div>
         ) : (
-          <div className="space-y-3">
-            {verificationItems.map((item) => {
-              const itemId = typeof item.id === "string" ? item.id : null;
-              if (!itemId) return null;
-              const fieldName = typeof item.field_name === "string" ? item.field_name : "";
-              const checked = !!item.is_verified;
-              const value = verificationInputValues[itemId] ?? "";
+          <div className="space-y-4">
+            {(() => {
+              const sections: { title: string; fields: string[]; showUnderwritingButton?: boolean }[] = [
+                { title: "Contact Information", fields: ["phone_number", "customer_full_name", "email", "street_1", "street_2", "city", "state", "zip_code"] },
+                { title: "Health & Underwriting", fields: ["date_of_birth", "height", "weight", "tobacco_use", "health_conditions", "medications"], showUnderwritingButton: true },
+                { title: "Personal Details", fields: ["social_security", "driver_license_number", "birth_state"] },
+                { title: "Banking Details", fields: ["bank_account_type", "institution_name", "routing_number", "account_number", "draft_date"] },
+              ];
 
-              return (
-                <div key={itemId} className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <div className="truncate text-xs font-medium text-slate-900" title={fieldName}>
-                      {titleizeKey(fieldName || "Field")}
-                    </div>
-                    <div className="ml-auto flex items-center gap-2">
-                      {fieldName === "phone_number" ? (
+              return sections.map((section) => {
+                const sectionItems = verificationItems.filter((item) => {
+                  const fieldName = typeof item.field_name === "string" ? item.field_name : "";
+                  return section.fields.includes(fieldName);
+                });
+
+                if (sectionItems.length === 0) return null;
+
+                return (
+                  <div key={section.title}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-700" style={{ color: T.textDark }}>{section.title}</h3>
+                      {section.showUnderwritingButton && (
                         <button
                           type="button"
-                          className="inline-flex h-6 items-center gap-1 rounded-md bg-blue-600 px-2 text-[11px] font-bold text-white hover:bg-blue-700 disabled:opacity-50"
-                          onClick={() => void checkDnc(itemId)}
-                          disabled={dncCheckingItemId === itemId}
+                          onClick={() => setShowUnderwritingModal(true)}
+                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition-all hover:border-[#233217] hover:bg-[#EEF5EE]"
                         >
-                          {dncCheckingItemId === itemId ? (
-                            <IconLoader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <IconPhone className="h-3 w-3" />
-                          )}
-                          Check
+                          Underwriting
                         </button>
-                      ) : null}
-                      {fieldName === "phone_number" && phoneDncStatusByItem[itemId] ? (
-                        <span
-                          className={
-                            phoneDncStatusByItem[itemId] === "tcpa"
-                              ? "rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700"
-                              : phoneDncStatusByItem[itemId] === "dnc"
-                                ? "rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800"
-                                : "rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700"
-                          }
-                        >
-                          {phoneDncStatusByItem[itemId].toUpperCase()}
-                        </span>
-                      ) : null}
-                      <div className="text-[11px] text-slate-500">{checked ? "Verified" : "Pending"}</div>
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-slate-300"
-                        checked={checked}
-                        onChange={(e) => void onToggleVerification(itemId, e.target.checked)}
-                      />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {sectionItems.map((item) => {
+                        const itemId = typeof item.id === "string" ? item.id : null;
+                        if (!itemId) return null;
+                        const fieldName = typeof item.field_name === "string" ? item.field_name : "";
+                        const checked = !!item.is_verified;
+                        const value = verificationInputValues[itemId] ?? "";
+
+                        return (
+                          <div key={itemId} className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <div className="truncate text-xs font-medium text-slate-900" title={fieldName}>
+                                {titleizeKey(fieldName || "Field")}
+                              </div>
+                              <div className="ml-auto flex items-center gap-2">
+                                {fieldName === "phone_number" ? (
+                                  <button
+                                    type="button"
+                                    className="inline-flex h-6 items-center gap-1 rounded-md bg-blue-600 px-2 text-[11px] font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                                    onClick={() => void checkDnc(itemId)}
+                                    disabled={dncCheckingItemId === itemId}
+                                  >
+                                    {dncCheckingItemId === itemId ? (
+                                      <IconLoader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <IconPhone className="h-3 w-3" />
+                                    )}
+                                    Check
+                                  </button>
+                                ) : null}
+                                {fieldName === "phone_number" && phoneDncStatusByItem[itemId] ? (
+                                  <span
+                                    className={
+                                      phoneDncStatusByItem[itemId] === "tcpa"
+                                        ? "rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700"
+                                        : phoneDncStatusByItem[itemId] === "dnc"
+                                          ? "rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800"
+                                          : "rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700"
+                                    }
+                                  >
+                                    {phoneDncStatusByItem[itemId].toUpperCase()}
+                                  </span>
+                                ) : null}
+                                <div className="text-[11px] text-slate-500">{checked ? "Verified" : "Pending"}</div>
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 rounded border-slate-300"
+                                  checked={checked}
+                                  onChange={(e) => void onToggleVerification(itemId, e.target.checked)}
+                                />
+                              </div>
+                            </div>
+
+                            <input
+                              value={value}
+                              onChange={(e) => void onUpdateValue(itemId, e.target.value)}
+                              className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-
-                  <input
-                    value={value}
-                    onChange={(e) => void onUpdateValue(itemId, e.target.value)}
-                    className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         )}
       </div>
 
       {showUnderwritingModal ? (
         <div
-          className="fixed inset-0 z-[3800] flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-[3800] flex items-center justify-center bg-black/50 backdrop-blur-sm p-6"
           style={{ fontFamily: T.font }}
         >
-          <div className="flex max-h-[96vh] w-[98vw] max-w-[1400px] flex-col overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
-            <h3 className="text-2xl font-bold text-purple-700">Underwriting</h3>
-            <p className="mt-2 text-base text-slate-600">Please read the following script to the customer and verify all information.</p>
+          <div className="flex max-h-[90vh] w-full max-w-[1400px] flex-col overflow-y-auto rounded-xl border border-[#C8D4BB] bg-white p-8 shadow-xl">
+            <h3 className="text-2xl font-bold" style={{ color: T.textDark }}>Underwriting</h3>
+            <p className="mt-2 text-base" style={{ color: T.textMuted }}>Please read the following script to the customer and verify all information.</p>
 
-            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.35fr]">
-              <div className="max-h-[70vh] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <h4 className="mb-3 text-xl font-bold text-slate-900">Underwriting Questions</h4>
-                <p className="mb-4 text-base font-medium text-slate-800">
+            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.2fr]">
+              <div className="max-h-[70vh] overflow-y-auto rounded-lg border border-[#C8D4BB] bg-[#EEF5EE] p-6">
+                <h4 className="mb-3 text-xl font-bold" style={{ color: T.textDark }}>Underwriting Questions</h4>
+                <p className="mb-4 text-base font-medium" style={{ color: T.textMid }}>
                   &quot;I am going to ask you some medical questions and we expect your honesty that is going to save us a lot of time. And, this will help us evaluate which insurance carrier comes back with the maximum benefit at the lowest rates for you.&quot;
                 </p>
-                <div className="space-y-3 text-sm text-slate-700">
+                <div className="space-y-3 text-sm" style={{ color: T.textMid }}>
                   <p className="font-bold">Question 1–3</p>
                   <p>
                     Use the Insurance Toolkit on the right to quote and confirm product details. Capture health conditions and medications using the fields below.
@@ -435,20 +462,22 @@ export function VerificationPanel({
                 </div>
               </div>
 
-              <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border-2 border-purple-200">
-                <div className="flex flex-shrink-0 items-center justify-between bg-purple-600 px-4 py-2 text-lg font-bold text-white">
+              <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border-2 border-[#C8D4BB]">
+                <div className="flex flex-shrink-0 items-center justify-between px-5 py-3 text-lg font-bold text-white" style={{ backgroundColor: T.blue }}>
                   <span>Insurance Toolkit</span>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      className="rounded-md bg-white/90 px-2 py-1 text-xs font-semibold text-purple-800"
+                      className="rounded-md px-3 py-1.5 text-xs font-semibold transition-all hover:bg-white/20"
+                      style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "#fff" }}
                       onClick={() => setToolkitUrl("https://insurancetoolkits.com/fex/quoter")}
                     >
                       Quote Tool
                     </button>
                     <button
                       type="button"
-                      className="rounded-md border border-white px-2 py-1 text-xs font-semibold text-white hover:bg-purple-700"
+                      className="rounded-md border border-white/40 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-white/10"
+                      style={{ backgroundColor: "transparent" }}
                       onClick={() => setToolkitUrl("https://insurancetoolkits.com/login")}
                     >
                       Login
@@ -526,6 +555,12 @@ export function VerificationPanel({
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xl font-bold text-slate-900">Date of Birth:</label>
+                <div className="flex h-12 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-lg text-slate-800">
+                  {getVerificationFieldValue("date_of_birth") || "—"}
+                </div>
+              </div>
               {(
                 [
                   ["Height", "height", "e.g., 5 ft 10 in"],

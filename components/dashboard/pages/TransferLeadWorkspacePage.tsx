@@ -118,6 +118,16 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
   const [transferCheckData, setTransferCheckData] = useState<TransferCheckApiResponse | null>(null);
   const [transferCheckError, setTransferCheckError] = useState<string | null>(null);
   const [transferCheckModalDismissed, setTransferCheckModalDismissed] = useState(false);
+  const [centerInfo, setCenterInfo] = useState<{ name: string | null; slackChannel: string | null }>({ name: null, slackChannel: null });
+
+  const invokeOptionalFunction = async (functionName: string, body: Record<string, unknown>) => {
+    console.log(`[DEBUG] Invoking ${functionName}:`, JSON.stringify(body, null, 2));
+    const { error } = await supabase.functions.invoke(functionName, { body });
+    if (!error) return;
+    const err = String(error.message || "").toLowerCase();
+    if (err.includes("not found") || err.includes("does not exist") || err.includes("404")) return;
+    throw error;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -140,7 +150,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       try {
         const { data, error: leadError } = await supabase
           .from("leads")
-          .select("id, lead_unique_id, first_name, last_name, phone, lead_source, submission_id")
+          .select("id, lead_unique_id, first_name, last_name, phone, lead_source, submission_id, call_center_id")
           .eq("id", leadRowId)
           .maybeSingle();
         if (leadError || !data) throw new Error(leadError?.message || "Lead not found.");
@@ -152,6 +162,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           phone: String(data.phone || ""),
           source: String(data.lead_source || ""),
           submissionId: data.submission_id ? String(data.submission_id) : null,
+          callCenterId: data.call_center_id ? String(data.call_center_id) : null,
         };
         const loadedAgents = await fetchClaimAgents(supabase);
         // Some environments still have rows where leads.submission_id is empty.
@@ -163,10 +174,21 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
           existingSessionId = existing?.id || null;
         }
 
+        let centerData: { name: string | null; slackChannel: string | null } = { name: null, slackChannel: null };
+        if (context.callCenterId) {
+          const { data: centerRow } = await supabase
+            .from("call_centers")
+            .select("name, slack_channel")
+            .eq("id", context.callCenterId)
+            .maybeSingle();
+          centerData = { name: centerRow?.name ?? null, slackChannel: centerRow?.slack_channel ?? null };
+        }
+
         if (!cancelled) {
           setLead(context);
           setAgents(loadedAgents);
           setSessionId(existingSessionId);
+          setCenterInfo(centerData);
         }
       } catch (err) {
         if (!cancelled) {
@@ -373,6 +395,34 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       // Standard claim workflow
       const found = await findOrCreateVerificationSession(supabase, lead, selection);
       await applyClaimSelectionToSession(supabase, found.sessionId, found.submissionId, selection);
+
+      // Fetch center info inline to ensure it's available
+      let currentCenterInfo = { name: null as string | null, slackChannel: null as string | null };
+      if (lead.callCenterId) {
+        const { data: centerRow } = await supabase
+          .from("call_centers")
+          .select("name, slack_channel")
+          .eq("id", lead.callCenterId)
+          .maybeSingle();
+        if (centerRow) {
+          currentCenterInfo = { name: centerRow.name, slackChannel: centerRow.slack_channel };
+        }
+      }
+
+      // Send center-transfer-notification
+      const bufferAgentName = agents.bufferAgents.find(a => a.id === selection.bufferAgentId)?.name || null;
+      const licensedAgentName = agents.licensedAgents.find(a => a.id === selection.licensedAgentId)?.name || null;
+      // Always use verification_started when claiming - the agent who clicked "Claim and Open" is the one connecting
+      const agentName = selection.workflowType === "licensed" ? licensedAgentName : bufferAgentName;
+      await invokeOptionalFunction("center-transfer-notification", {
+        type: "verification_started",
+        submissionId: found.submissionId,
+        leadData: { customer_full_name: lead.leadName },
+        agentName,
+        slackChannel: currentCenterInfo.slackChannel,
+        centerName: currentCenterInfo.name,
+      });
+
       setSessionId(found.sessionId);
       setOpenClaim(false);
     } catch (err) {
@@ -751,6 +801,31 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             sessionId={sessionId}
             showProgressSummary={false}
             onProgressChange={setVerificationProgress}
+            submissionId={lead.submissionId}
+            leadName={lead.leadName}
+            callCenterId={lead.callCenterId}
+            onCallDropped={async ({ submissionId: subId, leadName: custName, callCenterId: ccId }) => {
+              try {
+                let currentCenterInfo = { name: null as string | null, slackChannel: null as string | null };
+                if (ccId) {
+                  const { data: centerRow } = await supabase
+                    .from("call_centers")
+                    .select("name, slack_channel")
+                    .eq("id", ccId)
+                    .maybeSingle();
+                  currentCenterInfo = { name: centerRow?.name ?? null, slackChannel: centerRow?.slack_channel ?? null };
+                }
+                await invokeOptionalFunction("center-transfer-notification", {
+                  type: "call_dropped",
+                  submissionId: subId,
+                  leadData: { customer_full_name: custName },
+                  slackChannel: currentCenterInfo.slackChannel,
+                  centerName: currentCenterInfo.name,
+                });
+              } catch (err) {
+                console.error("[workspace] Failed to send call_dropped notification:", err);
+              }
+            }}
             onTransferToLicensedAgent={() => {
               if (!canViewTransferClaimReclaimVisit) {
                 setError("Missing permission to transfer this lead.");
@@ -768,6 +843,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               leadName={lead.leadName}
               leadPhone={lead.phone}
               leadVendor={lead.source}
+              callCenterId={lead.callCenterId}
               sessionUserId={sessionUserId}
             />
             <TransferLeadSsnPolicyCards leadRowId={lead.rowId} supabase={supabase} />
