@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import LeadViewComponent from "./LeadViewComponent";
+import CreateLeadModal from "./CreateLeadModal";
 
 type Stage = string;
 
@@ -295,6 +296,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [licensedOwnerOptions, setLicensedOwnerOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
+  const [createLeadModalOpen, setCreateLeadModalOpen] = useState(false);
 
   const resolvePipelineId = useCallback(
     async (pipelineName: string) => {
@@ -1436,7 +1438,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
             {canEditLeadPipeline && (
               <button
-                onClick={() => setShowAddLead(true)}
+                onClick={() => setCreateLeadModalOpen(true)}
                 style={{
                   height: 38,
                   padding: "0 18px",
@@ -1452,10 +1454,27 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#1a2616";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = "0 6px 16px rgba(35, 50, 23, 0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#233217";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.2)";
+                }}
+                onMouseDown={(e) => {
+                  e.currentTarget.style.transform = "scale(0.98)";
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
                 }}
               >
                 <Plus size={16} />
-                Add Lead
+                Create Lead
               </button>
             )}
           </div>
@@ -2183,6 +2202,14 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           {stageDescriptions[hoveredStageTooltip]}
         </div>
       )}
+
+      <CreateLeadModal
+        open={createLeadModalOpen}
+        onClose={() => setCreateLeadModalOpen(false)}
+        onSuccess={() => {
+          void loadLeadsForPipeline();
+        }}
+      />
     </div>
   );
 }

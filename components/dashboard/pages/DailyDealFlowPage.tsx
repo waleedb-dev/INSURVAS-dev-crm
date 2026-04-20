@@ -298,38 +298,40 @@ export default function DailyDealFlowPage({
       .eq("pipeline_id", 4)
       .order("position", { ascending: true });
 
-    const { data: licensedAgents } = await supabase
+    // Fetch all active users with their roles
+    const { data: allUsers, error: usersError } = await supabase
       .from("users")
-      .select("licensed_name")
-      .eq("is_licensed", true)
-      .eq("status", "active")
-      .not("licensed_name", "is", null);
-    const { data: bufferAgents } = await supabase
-      .from("users")
-      .select("full_name")
-      .eq("unlicensed_sales_subtype", "buffer_agent")
-      .eq("status", "active")
-      .not("full_name", "is", null);
-    const { data: retentionAgents } = await supabase
-      .from("users")
-      .select("full_name")
-      .eq("unlicensed_sales_subtype", "retention_agent")
-      .eq("status", "active")
-      .not("full_name", "is", null);
-    const { data: salesAgents } = await supabase
-      .from("users")
-      .select("full_name")
-      .eq("is_licensed", true)
-      .eq("status", "active")
-      .not("full_name", "is", null);
+      .select("full_name, licensed_name, is_licensed, unlicensed_sales_subtype, status")
+      .eq("status", "active");
+
+    if (usersError) {
+      console.error("[DailyDealFlow] Error fetching users:", usersError);
+    }
+
+    console.log("[DailyDealFlow] Fetched users:", allUsers?.length || 0, allUsers);
+
+    // Filter users locally based on their roles
+    const licensedList = (allUsers || [])
+      .filter((u: any) => u.is_licensed && u.licensed_name)
+      .map((u: any) => u.licensed_name);
+    
+    const bufferList = (allUsers || [])
+      .filter((u: any) => u.unlicensed_sales_subtype === "buffer_agent" && u.full_name)
+      .map((u: any) => u.full_name);
+    
+    const retentionList = (allUsers || [])
+      .filter((u: any) => u.unlicensed_sales_subtype === "retention_agent" && u.full_name)
+      .map((u: any) => u.full_name);
+    
+    const agentList = (allUsers || [])
+      .filter((u: any) => u.is_licensed && u.full_name)
+      .map((u: any) => u.full_name);
+
+    console.log("[DailyDealFlow] Agent options:", { licensedList, bufferList, retentionList, agentList });
 
     const vendors = [...new Set(((vendorRows || []) as VendorRow[]).map((r) => r.lead_vendor).filter(Boolean) as string[])];
     const carriers = [...new Set(((carrierRows || []) as CarrierRow[]).map((r) => r.carrier).filter(Boolean) as string[])];
     const stages = (pipelineStages || []).map((s: { name: string }) => s.name).filter(Boolean) as string[];
-    const licensedList = (licensedAgents || []).map((u: { licensed_name: string }) => u.licensed_name).filter(Boolean) as string[];
-    const bufferList = (bufferAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
-    const retentionList = (retentionAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
-    const agentList = (salesAgents || []).map((u: { full_name: string }) => u.full_name).filter(Boolean) as string[];
 
     setLeadVendorOptions(vendors);
     setBufferAgentOptions(bufferList);

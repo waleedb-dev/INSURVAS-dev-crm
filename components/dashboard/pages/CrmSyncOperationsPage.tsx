@@ -314,12 +314,80 @@ function computeStatus(
   return { tone: "mismatch", label: "Stage differs", ghlStage: ghl };
 }
 
+type TabView = "policy-attachment" | "crm-sync";
+
 export default function CrmSyncOperationsPage() {
   const { currentRole } = useDashboardContext();
+  const [activeTab, setActiveTab] = useState<TabView>("crm-sync");
+  
   if (currentRole !== "system_admin") {
     return <AccessRestricted />;
   }
-  return <CrmSyncOperationsPageInner />;
+  
+  return (
+    <div style={{ fontFamily: T.font }}>
+      {/* Tab Navigation */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 20,
+          borderBottom: `1px solid ${T.border}`,
+          paddingBottom: 0,
+        }}
+      >
+        {[
+          { key: "policy-attachment", label: "Policy Attachment & Review", icon: Link2 },
+          { key: "crm-sync", label: "CRM Sync", icon: RefreshCw },
+        ].map(({ key, label, icon: Icon }) => {
+          const isActive = activeTab === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key as TabView)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 20px",
+                borderRadius: "10px 10px 0 0",
+                border: "none",
+                borderBottom: isActive ? "3px solid #233217" : "3px solid transparent",
+                backgroundColor: isActive ? "#EEF5EE" : "transparent",
+                color: isActive ? "#233217" : "#647864",
+                fontSize: 14,
+                fontWeight: isActive ? 700 : 600,
+                fontFamily: T.font,
+                cursor: "pointer",
+                transition: "all 0.15s ease-in-out",
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = "#f5f9f5";
+                  e.currentTarget.style.color = "#233217";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "#647864";
+                }
+              }}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      
+      {activeTab === "policy-attachment" ? (
+        <PolicyAttachmentTab />
+      ) : (
+        <CrmSyncOperationsPageInner />
+      )}
+    </div>
+  );
 }
 
 function AccessRestricted() {
@@ -402,7 +470,13 @@ function CrmSyncOperationsPageInner() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ExternalStatusTone | "all">("all");
+  const [pipelineFilter, setPipelineFilter] = useState<string>("all");
+  const [stageFilter, setStageFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
+  
+  // Pipeline and stage options
+  const [pipelines, setPipelines] = useState<Array<{ id: string; name: string }>>([]);
+  const [stages, setStages] = useState<Array<{ id: number; name: string; pipeline_id: number }>>([]);
 
   const [selectedRow, setSelectedRow] = useState<LeadPolicyRow | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
@@ -432,6 +506,19 @@ function CrmSyncOperationsPageInner() {
   >([]);
   const [bulkFinished, setBulkFinished] = useState(false);
 
+  // Load pipelines and stages
+  useEffect(() => {
+    const fetchOptions = async () => {
+      const [{ data: pipelineData }, { data: stageData }] = await Promise.all([
+        supabase.from("pipelines").select("id, name").order("name"),
+        supabase.from("pipeline_stages").select("id, name, pipeline_id").order("position"),
+      ]);
+      setPipelines(pipelineData || []);
+      setStages(stageData || []);
+    };
+    fetchOptions();
+  }, [supabase]);
+
   const loadRows = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -444,18 +531,29 @@ function CrmSyncOperationsPageInner() {
     const collected: Record<string, unknown>[] = [];
     let from = 0;
     // Safety cap so we never spin forever if the table grows unexpectedly.
-    const MAX_ROWS = 20000;
+    const MAX_ROWS = 50000;
 
     while (collected.length < MAX_ROWS) {
-      const { data: leadRows, error: leadErr } = await supabase
+      let query = supabase
         .from("leads")
         .select(
           "id, lead_unique_id, first_name, last_name, phone, stage, pipeline_id, policy_id, carrier, product_type, monthly_premium, lead_value, lead_source, submission_date, updated_at",
         )
         .not("policy_id", "is", null)
         .neq("policy_id", "")
-        .order("updated_at", { ascending: false })
-        .range(from, from + PAGE_SIZE - 1);
+        .order("updated_at", { ascending: false });
+      
+      // Apply pipeline filter
+      if (pipelineFilter !== "all") {
+        query = query.eq("pipeline_id", pipelineFilter);
+      }
+      
+      // Apply stage filter
+      if (stageFilter !== "all") {
+        query = query.eq("stage", stageFilter);
+      }
+      
+      const { data: leadRows, error: leadErr } = await query.range(from, from + PAGE_SIZE - 1);
 
       if (leadErr) {
         setLoadError(leadErr.message);
@@ -506,7 +604,7 @@ function CrmSyncOperationsPageInner() {
 
   useEffect(() => {
     void loadRows();
-  }, [loadRows]);
+  }, [loadRows, pipelineFilter, stageFilter]);
 
   const [compareProgress, setCompareProgress] = useState<{
     done: number;
@@ -1317,6 +1415,108 @@ function CrmSyncOperationsPageInner() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {/* Status Filter Buttons - Primary */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {(
+              [
+                { key: "all", label: "All Status", tone: "#233217" },
+                { key: "matched", label: "In sync", tone: STATUS_COLORS.matched.color },
+                { key: "mismatch", label: "Differs", tone: STATUS_COLORS.mismatch.color },
+                { key: "missing", label: "Missing", tone: STATUS_COLORS.missing.color },
+                { key: "pending", label: "Not checked", tone: STATUS_COLORS.pending.color },
+              ] as const
+            ).map((opt) => {
+              const active = statusFilter === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setStatusFilter(opt.key)}
+                  style={{
+                    height: 38,
+                    padding: "0 14px",
+                    borderRadius: 10,
+                    border: active ? `2px solid ${opt.tone}` : `1px solid ${T.border}`,
+                    background: active ? `${opt.tone}15` : T.pageBg,
+                    color: active ? opt.tone : T.textMid,
+                    fontSize: 13,
+                    fontWeight: active ? 800 : 600,
+                    cursor: "pointer",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                    boxShadow: active ? `0 2px 8px ${opt.tone}30` : "none",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          
+          {/* Divider */}
+          <div style={{ width: 1, height: 28, backgroundColor: T.border, margin: "0 4px" }} />
+          
+          {/* Pipeline Filter - Secondary */}
+          <select
+            value={pipelineFilter}
+            onChange={(e) => {
+              setPipelineFilter(e.target.value);
+              setStageFilter("all");
+            }}
+            style={{
+              height: 38,
+              padding: "0 14px",
+              border: `1px solid ${T.border}`,
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 500,
+              color: T.textDark,
+              background: T.cardBg,
+              outline: "none",
+              cursor: "pointer",
+              fontFamily: T.font,
+            }}
+          >
+            <option value="all">All Pipelines</option>
+            {pipelines.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          
+          {/* Stage Filter - Secondary */}
+          <select
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+            style={{
+              height: 38,
+              padding: "0 14px",
+              border: `1px solid ${T.border}`,
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 500,
+              color: T.textDark,
+              background: T.cardBg,
+              outline: "none",
+              cursor: "pointer",
+              fontFamily: T.font,
+            }}
+          >
+            <option value="all">All Stages</option>
+            {stages
+              .filter((s) => pipelineFilter === "all" || String(s.pipeline_id) === pipelineFilter)
+              .map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+          </select>
+          
+          {/* Divider */}
+          <div style={{ width: 1, height: 28, backgroundColor: T.border, margin: "0 4px" }} />
+          
+          {/* Search */}
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
             <Search
               size={16}
@@ -1331,10 +1531,10 @@ function CrmSyncOperationsPageInner() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by lead, policy number, carrier, phone…"
+              placeholder="Search leads..."
               style={{
                 height: 38,
-                minWidth: 320,
+                minWidth: 200,
                 paddingLeft: 38,
                 paddingRight: 14,
                 border: `1px solid ${T.border}`,
@@ -1356,42 +1556,6 @@ function CrmSyncOperationsPageInner() {
               }}
             />
           </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {(
-            [
-              { key: "all", label: "All", tone: "#233217" },
-              { key: "matched", label: "In sync", tone: STATUS_COLORS.matched.color },
-              { key: "mismatch", label: "Differs", tone: STATUS_COLORS.mismatch.color },
-              { key: "missing", label: "Missing", tone: STATUS_COLORS.missing.color },
-              { key: "pending", label: "Not checked", tone: STATUS_COLORS.pending.color },
-            ] as const
-          ).map((opt) => {
-            const active = statusFilter === opt.key;
-            return (
-              <button
-                key={opt.key}
-                type="button"
-                onClick={() => setStatusFilter(opt.key)}
-                style={{
-                  height: 32,
-                  padding: "0 14px",
-                  borderRadius: 999,
-                  border: active ? `1.5px solid ${opt.tone}` : `1px solid ${T.border}`,
-                  background: active ? `${opt.tone}15` : T.pageBg,
-                  color: active ? opt.tone : T.textMid,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -3217,5 +3381,911 @@ function StageChip({
     >
       {label}
     </span>
+  );
+}
+
+// Policy Attachment & Review Tab Component
+function PolicyAttachmentTab() {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  
+  const [leads, setLeads] = useState<LeadPolicyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  
+  // Filters
+  const [pipelineFilter, setPipelineFilter] = useState<string>("all");
+  const [stageFilter, setStageFilter] = useState<string>("all");
+  const [policyFilter, setPolicyFilter] = useState<"all" | "has" | "no">("all");
+  
+  // Options for filters
+  const [pipelines, setPipelines] = useState<Array<{ id: string; name: string }>>([]);
+  const [stages, setStages] = useState<Array<{ id: number; name: string; pipeline_id: number }>>([]);
+  
+  // Policy attachment modal
+  const [selectedLead, setSelectedLead] = useState<LeadPolicyRow | null>(null);
+  const [policyNumberInput, setPolicyNumberInput] = useState("");
+  const [attaching, setAttaching] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [attachSuccess, setAttachSuccess] = useState(false);
+  
+  // Load pipelines and stages for filters
+  useEffect(() => {
+    const fetchOptions = async () => {
+      const [{ data: pipelineData }, { data: stageData }] = await Promise.all([
+        supabase.from("pipelines").select("id, name").order("name"),
+        supabase.from("pipeline_stages").select("id, name, pipeline_id").order("position"),
+      ]);
+      setPipelines(pipelineData || []);
+      setStages(stageData || []);
+    };
+    fetchOptions();
+  }, [supabase]);
+  
+  // Load leads with pagination to fetch all records
+  const loadLeads = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Paginate manually — Supabase caps each request at 1000 rows.
+      const PAGE_SIZE = 1000;
+      const collected: Record<string, unknown>[] = [];
+      let from = 0;
+      // Safety cap so we never spin forever if the table grows unexpectedly.
+      const MAX_ROWS = 50000;
+
+      while (collected.length < MAX_ROWS) {
+        let query = supabase
+          .from("leads")
+          .select(
+            "id, lead_unique_id, first_name, last_name, phone, stage, pipeline_id, policy_id, carrier, product_type, monthly_premium, lead_value, lead_source, submission_date, updated_at"
+          )
+          .eq("is_draft", false)
+          .order("updated_at", { ascending: false });
+        
+        // Apply pipeline filter
+        if (pipelineFilter !== "all") {
+          query = query.eq("pipeline_id", pipelineFilter);
+        }
+        
+        // Apply stage filter
+        if (stageFilter !== "all") {
+          query = query.eq("stage", stageFilter);
+        }
+        
+        // Apply policy filter
+        if (policyFilter === "has") {
+          query = query.not("policy_id", "is", null).neq("policy_id", "");
+        } else if (policyFilter === "no") {
+          query = query.or("policy_id.is.null,policy_id.eq.");
+        }
+        
+        const { data: leadRows, error } = await query.range(from, from + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        const batch = (leadRows ?? []) as Record<string, unknown>[];
+        collected.push(...batch);
+        if (batch.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      
+      const mapped: LeadPolicyRow[] = collected
+        .map((lead: Record<string, unknown>) => {
+          const leadIdStr = lead?.id != null ? String(lead.id) : "";
+          if (!leadIdStr) return null;
+          const firstName = String(lead.first_name || "").trim();
+          const lastName = String(lead.last_name || "").trim();
+          const fullName = [firstName, lastName].filter(Boolean).join(" ") || "Unnamed Lead";
+          const displayId = lead.lead_unique_id ? String(lead.lead_unique_id) : leadIdStr;
+          const pNum = String(lead?.policy_id ?? "").trim();
+          
+          return {
+            leadId: leadIdStr,
+            leadDisplayId: displayId,
+            firstName,
+            lastName,
+            fullName,
+            phone: lead.phone != null ? String(lead.phone) : "",
+            stage: lead.stage != null ? String(lead.stage) : "",
+            pipelineId: lead.pipeline_id != null ? String(lead.pipeline_id) : null,
+            policyNumber: pNum,
+            carrier: lead.carrier != null ? String(lead.carrier) : null,
+            productType: lead.product_type != null ? String(lead.product_type) : null,
+            monthlyPremium: lead.monthly_premium != null ? String(lead.monthly_premium) : null,
+            leadValue: lead.lead_value != null ? Number(lead.lead_value) : null,
+            leadSource: lead.lead_source != null ? String(lead.lead_source) : null,
+            submissionDate: lead.submission_date != null ? String(lead.submission_date) : null,
+            updatedAt: lead.updated_at != null ? String(lead.updated_at) : null,
+          } satisfies LeadPolicyRow;
+        })
+        .filter((row): row is LeadPolicyRow => row !== null);
+      
+      setLeads(mapped);
+    } catch (err) {
+      console.error("Error loading leads:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, pipelineFilter, stageFilter, policyFilter]);
+  
+  useEffect(() => {
+    loadLeads();
+  }, [loadLeads]);
+  
+  // Filtered leads
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    const numericQ = q.replace(/\D/g, "");
+    return leads.filter((row) => {
+      if (!q) return true;
+      if (row.fullName.toLowerCase().includes(q)) return true;
+      if (row.leadDisplayId.toLowerCase().includes(q)) return true;
+      if (row.policyNumber.toLowerCase().includes(q)) return true;
+      if (numericQ && row.phone.replace(/\D/g, "").includes(numericQ)) return true;
+      return false;
+    });
+  }, [leads, search]);
+  
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  
+  useEffect(() => {
+    setPage(1);
+  }, [search, pipelineFilter, stageFilter, policyFilter]);
+  
+  // Stats
+  const stats = useMemo(() => {
+    const withPolicy = leads.filter((l) => l.policyNumber).length;
+    const withoutPolicy = leads.length - withPolicy;
+    return { total: leads.length, withPolicy, withoutPolicy };
+  }, [leads]);
+  
+  // Open attach modal
+  const openAttachModal = (lead: LeadPolicyRow) => {
+    setSelectedLead(lead);
+    setPolicyNumberInput(lead.policyNumber || "");
+    setAttachError(null);
+    setAttachSuccess(false);
+  };
+  
+  // Close modal
+  const closeAttachModal = () => {
+    setSelectedLead(null);
+    setPolicyNumberInput("");
+    setAttachError(null);
+    setAttachSuccess(false);
+  };
+  
+  // Save policy attachment
+  const savePolicyAttachment = async () => {
+    if (!selectedLead) return;
+    setAttaching(true);
+    setAttachError(null);
+    
+    try {
+      const policyNum = policyNumberInput.trim();
+      const { error } = await supabase
+        .from("leads")
+        .update({ policy_id: policyNum || null })
+        .eq("id", selectedLead.leadId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.leadId === selectedLead.leadId
+            ? { ...l, policyNumber: policyNum }
+            : l
+        )
+      );
+      setAttachSuccess(true);
+      setTimeout(() => {
+        closeAttachModal();
+      }, 1000);
+    } catch (err) {
+      setAttachError(err instanceof Error ? err.message : "Failed to update policy");
+    } finally {
+      setAttaching(false);
+    }
+  };
+  
+  // Get available stages based on selected pipeline
+  const availableStages = useMemo(() => {
+    if (pipelineFilter === "all") return stages;
+    return stages.filter((s) => String(s.pipeline_id) === pipelineFilter);
+  }, [stages, pipelineFilter]);
+  
+  return (
+    <div style={{ animation: "fadeIn 0.3s ease-out" }}>
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ maxWidth: 640 }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 20,
+              fontWeight: 800,
+              color: "#233217",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Policy Attachment & Review
+          </h2>
+          <p
+            style={{
+              margin: "6px 0 0",
+              fontSize: 13,
+              color: T.textMuted,
+              fontWeight: 500,
+              lineHeight: 1.55,
+            }}
+          >
+            View and manage policy ID attachments for leads. Filter by pipeline, stage, or policy status.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => loadLeads()}
+          disabled={loading}
+          style={{
+            height: 40,
+            padding: "0 18px",
+            borderRadius: 12,
+            border: "none",
+            background: "#233217",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 700,
+            fontFamily: T.font,
+            cursor: loading ? "not-allowed" : "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            opacity: loading ? 0.6 : 1,
+            boxShadow: "0 4px 14px rgba(35, 50, 23, 0.25)",
+            transition: "all 0.15s ease-in-out",
+          }}
+        >
+          <RefreshCw size={16} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+          Refresh
+        </button>
+      </div>
+      
+      {/* Stats */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: 20,
+          marginBottom: 24,
+        }}
+      >
+        <StatCard
+          label="Total Leads"
+          value={stats.total.toLocaleString()}
+          icon={<Database size={18} />}
+          tone="#233217"
+        />
+        <StatCard
+          label="With Policy ID"
+          value={stats.withPolicy.toLocaleString()}
+          icon={<CheckCircle2 size={18} />}
+          tone="#16a34a"
+        />
+        <StatCard
+          label="Without Policy ID"
+          value={stats.withoutPolicy.toLocaleString()}
+          icon={<AlertTriangle size={18} />}
+          tone="#d97706"
+        />
+      </div>
+      
+      {/* Filters */}
+      <div
+        style={{
+          width: "100%",
+          background: T.cardBg,
+          border: `1px solid ${T.border}`,
+          borderRadius: 16,
+          padding: "16px 20px",
+          boxShadow: T.shadowSm,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 16,
+          marginBottom: 14,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {/* Policy Filter Buttons - Primary Filter */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {[
+              { key: "all", label: "All Leads", color: "#233217" },
+              { key: "has", label: "Has Policy ID", color: "#16a34a" },
+              { key: "no", label: "No Policy ID", color: "#d97706" },
+            ].map(({ key, label, color }) => {
+              const isActive = policyFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setPolicyFilter(key as "all" | "has" | "no")}
+                  style={{
+                    height: 38,
+                    padding: "0 16px",
+                    borderRadius: 10,
+                    border: isActive ? `2px solid ${color}` : `1px solid ${T.border}`,
+                    background: isActive ? `${color}15` : T.pageBg,
+                    color: isActive ? color : T.textMid,
+                    fontSize: 13,
+                    fontWeight: isActive ? 800 : 600,
+                    cursor: "pointer",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                    boxShadow: isActive ? `0 2px 8px ${color}30` : "none",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          
+          {/* Divider */}
+          <div style={{ width: 1, height: 28, backgroundColor: T.border, margin: "0 4px" }} />
+          
+          {/* Pipeline Filter - Secondary */}
+          <select
+            value={pipelineFilter}
+            onChange={(e) => {
+              setPipelineFilter(e.target.value);
+              setStageFilter("all");
+            }}
+            style={{
+              height: 38,
+              padding: "0 14px",
+              border: `1px solid ${T.border}`,
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 500,
+              color: T.textDark,
+              background: T.cardBg,
+              outline: "none",
+              cursor: "pointer",
+              fontFamily: T.font,
+            }}
+          >
+            <option value="all">All Pipelines</option>
+            {pipelines.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          
+          {/* Stage Filter - Secondary */}
+          <select
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+            style={{
+              height: 38,
+              padding: "0 14px",
+              border: `1px solid ${T.border}`,
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 500,
+              color: T.textDark,
+              background: T.cardBg,
+              outline: "none",
+              cursor: "pointer",
+              fontFamily: T.font,
+            }}
+          >
+            <option value="all">All Stages</option>
+            {availableStages.map((s) => (
+              <option key={s.id} value={s.name}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          
+          {/* Divider */}
+          <div style={{ width: 1, height: 28, backgroundColor: T.border, margin: "0 4px" }} />
+          
+          {/* Search */}
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <Search size={16} style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search leads..."
+              style={{
+                height: 38,
+                minWidth: 220,
+                paddingLeft: 38,
+                paddingRight: 14,
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
+                fontSize: 14,
+                color: T.textDark,
+                background: T.pageBg,
+                outline: "none",
+                fontFamily: T.font,
+                transition: "all 0.15s ease-in-out",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "#233217";
+                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(35, 50, 23, 0.1)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = T.border;
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+          </div>
+        </div>
+      </div>
+      
+      {/* Table */}
+      <div
+        style={{
+          borderRadius: 16,
+          border: `1px solid ${T.border}`,
+          overflow: "hidden",
+          backgroundColor: T.cardBg,
+        }}
+      >
+        {loading ? (
+          <div style={{ padding: "80px 40px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
+            <LoadingSpinner size={48} label="Loading leads..." />
+          </div>
+        ) : paginated.length === 0 ? (
+          <div style={{ padding: "60px 40px", textAlign: "center" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.textMuted, marginBottom: 8 }}>
+              No leads found
+            </div>
+            <div style={{ fontSize: 14, color: T.textMid }}>
+              Try adjusting your filters or search criteria.
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ borderBottom: `1px solid ${T.border}`, overflow: "hidden", backgroundColor: T.cardBg }}>
+              <ShadcnTable>
+                <TableHeader style={{ backgroundColor: "#233217" }}>
+                  <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
+                    {[
+                      { label: "S.No", align: "left" as const },
+                      { label: "Lead", align: "left" as const },
+                      { label: "Phone", align: "left" as const },
+                      { label: "Policy #", align: "left" as const },
+                      { label: "Stage", align: "left" as const },
+                      { label: "Carrier", align: "left" as const },
+                      { label: "Actions", align: "right" as const },
+                    ].map(({ label, align }) => (
+                      <TableHead
+                        key={label}
+                        style={{
+                          color: "#ffffff",
+                          fontWeight: 700,
+                          fontSize: 12,
+                          letterSpacing: "0.3px",
+                          padding: "16px 20px",
+                          whiteSpace: "nowrap",
+                          textAlign: align,
+                        }}
+                      >
+                        {label}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map((row, i) => (
+                    <TableRow
+                      key={row.leadId}
+                      style={{ borderBottom: `1px solid ${T.border}` }}
+                      className="hover:bg-muted/30 transition-all duration-150"
+                    >
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: T.textMuted }}>
+                          {(page - 1) * ITEMS_PER_PAGE + i + 1}
+                        </span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark }}>
+                            {row.fullName}
+                          </span>
+                          <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 500, fontFamily: "monospace" }}>
+                            {row.leadDisplayId}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.textMid, fontWeight: 500 }}>
+                          {formatPhone(row.phone) || "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        {row.policyNumber ? (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: "#16a34a",
+                              fontFamily: "monospace",
+                              padding: "4px 8px",
+                              borderRadius: 6,
+                              backgroundColor: "#dcfce7",
+                            }}
+                          >
+                            {row.policyNumber}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 12, color: T.textMuted, fontStyle: "italic" }}>
+                            Not attached
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        {row.stage ? (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "4px 10px",
+                              borderRadius: 6,
+                              backgroundColor: "#DCEBDC",
+                              color: "#233217",
+                              fontSize: 11,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {row.stage}
+                          </span>
+                        ) : (
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>—</span>
+                        )}
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        {row.carrier ? (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "4px 10px",
+                              borderRadius: 6,
+                              backgroundColor: "#EEF5EE",
+                              color: "#233217",
+                              fontSize: 11,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {row.carrier}
+                          </span>
+                        ) : (
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>—</span>
+                        )}
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px", textAlign: "right" }}>
+                        <button
+                          onClick={() => openAttachModal(row)}
+                          style={{
+                            height: 32,
+                            padding: "0 14px",
+                            borderRadius: 8,
+                            border: row.policyNumber ? `1px solid ${T.border}` : "none",
+                            background: row.policyNumber ? T.pageBg : "#233217",
+                            color: row.policyNumber ? T.textDark : "#fff",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            fontFamily: T.font,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            transition: "all 0.15s ease-in-out",
+                          }}
+                        >
+                          <Link2 size={14} />
+                          {row.policyNumber ? "Edit Policy" : "Attach Policy"}
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </ShadcnTable>
+            </div>
+            
+            {/* Pagination */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 20px",
+                borderTop: `1px solid ${T.border}`,
+                backgroundColor: "#fafafa",
+              }}
+            >
+              <span style={{ fontSize: 13, color: T.textMuted }}>
+                Showing {(page - 1) * ITEMS_PER_PAGE + 1} - {Math.min(page * ITEMS_PER_PAGE, filtered.length)} of{" "}
+                {filtered.length} leads
+              </span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: `1px solid ${T.border}`,
+                    background: T.cardBg,
+                    color: page === 1 ? T.textMuted : T.textDark,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: page === 1 ? "not-allowed" : "pointer",
+                    opacity: page === 1 ? 0.5 : 1,
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ padding: "8px 16px", fontSize: 13, fontWeight: 600, color: T.textDark }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: `1px solid ${T.border}`,
+                    background: T.cardBg,
+                    color: page === totalPages ? T.textMuted : T.textDark,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: page === totalPages ? "not-allowed" : "pointer",
+                    opacity: page === totalPages ? 0.5 : 1,
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+      
+      {/* Policy Attachment Modal */}
+      {selectedLead && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+          onClick={closeAttachModal}
+        >
+          <Card
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              backgroundColor: T.cardBg,
+              borderRadius: 16,
+              border: `1px solid ${T.border}`,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: `1px solid ${T.border}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                backgroundColor: "#f8faf8",
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#233217" }}>
+                  {selectedLead.policyNumber ? "Edit Policy ID" : "Attach Policy ID"}
+                </h3>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMuted }}>
+                  {selectedLead.fullName}
+                </p>
+              </div>
+              <button
+                onClick={closeAttachModal}
+                disabled={attaching}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  border: "none",
+                  backgroundColor: "transparent",
+                  cursor: attaching ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <X size={18} color="#647864" />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div style={{ padding: "24px" }}>
+              <div style={{ marginBottom: 20 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#233217",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.3px",
+                    marginBottom: 8,
+                  }}
+                >
+                  Policy Number
+                </label>
+                <input
+                  type="text"
+                  value={policyNumberInput}
+                  onChange={(e) => setPolicyNumberInput(e.target.value)}
+                  placeholder="Enter policy number..."
+                  style={{
+                    width: "100%",
+                    height: 44,
+                    padding: "0 14px",
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 10,
+                    fontSize: 14,
+                    color: T.textDark,
+                    background: T.cardBg,
+                    outline: "none",
+                    fontFamily: "monospace",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#233217";
+                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(35, 50, 23, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+                <p style={{ margin: "8px 0 0", fontSize: 12, color: T.textMuted }}>
+                  Leave empty to remove the policy ID from this lead.
+                </p>
+              </div>
+              
+              {attachError && (
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 8,
+                    backgroundColor: "#fef2f2",
+                    color: "#dc2626",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    marginBottom: 16,
+                  }}
+                >
+                  {attachError}
+                </div>
+              )}
+              
+              {attachSuccess && (
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 8,
+                    backgroundColor: "#dcfce7",
+                    color: "#166534",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    marginBottom: 16,
+                  }}
+                >
+                  Policy ID updated successfully!
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div
+              style={{
+                padding: "16px 24px",
+                borderTop: `1px solid ${T.border}`,
+                backgroundColor: "#f8faf8",
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 12,
+              }}
+            >
+              <button
+                onClick={closeAttachModal}
+                disabled={attaching}
+                style={{
+                  height: 40,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "white",
+                  color: T.textDark,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: attaching ? "not-allowed" : "pointer",
+                  fontFamily: T.font,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={savePolicyAttachment}
+                disabled={attaching}
+                style={{
+                  height: 40,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#233217",
+                  color: "white",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: attaching ? "not-allowed" : "pointer",
+                  fontFamily: T.font,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                {attaching ? (
+                  <>
+                    <div
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: "50%",
+                        border: "2px solid rgba(255,255,255,0.3)",
+                        borderTopColor: "white",
+                        animation: "spin 0.8s linear infinite",
+                      }}
+                    />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} />
+                    Save
+                  </>
+                )}
+              </button>
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }
