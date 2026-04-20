@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import type { DailyDealFlowRow } from "./daily-deal-flow/types";
 import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE, STATUS_OPTIONS } from "./daily-deal-flow/constants";
-import { dateObjectToESTString } from "./daily-deal-flow/helpers";
+import { dateObjectToESTString, getTodayDateEST } from "./daily-deal-flow/helpers";
 import { DdfGroupedGrid } from "./daily-deal-flow/DdfGroupedGrid";
 import { DdfSyncNotSubmittedToLeadsModal } from "./daily-deal-flow/DdfSyncNotSubmittedToLeadsModal";
 
@@ -96,6 +96,13 @@ function StyledSelect({
       </SelectContent>
     </Select>
   );
+}
+
+/** Coerce from/to so gte/lte always span a valid interval (swap if user picks reversed order). */
+function normalisedDateRange(from: string, to: string): { from: string; to: string } {
+  if (!from && !to) return { from: "", to: "" };
+  if (from && to && from > to) return { from: to, to: from };
+  return { from, to };
 }
 
 function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; label?: string }) {
@@ -193,7 +200,6 @@ export default function DailyDealFlowPage({
   const [syncNotSubmittedModalOpen, setSyncNotSubmittedModalOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
   const [dateFromFilter, setDateFromFilter] = useState("");
   const [dateToFilter, setDateToFilter] = useState("");
   const [bufferAgentFilter, setBufferAgentFilter] = useState(ALL_OPTION);
@@ -242,7 +248,6 @@ export default function DailyDealFlowPage({
   const activeFilterCount = useMemo(() => {
     let n = 0;
     if (searchTerm.trim() !== "") n++;
-    if (dateFilter !== "") n++;
     if (dateFromFilter !== "") n++;
     if (dateToFilter !== "") n++;
     if (bufferAgentFilter !== ALL_OPTION) n++;
@@ -258,13 +263,12 @@ export default function DailyDealFlowPage({
     if (hourFromFilter !== ALL_OPTION) n++;
     if (hourToFilter !== ALL_OPTION) n++;
     return n;
-  }, [searchTerm, dateFilter, dateFromFilter, dateToFilter, bufferAgentFilter, retentionAgentFilter, licensedAgentFilter, leadVendorFilter, statusFilter, carrierFilter, callResultFilter, retentionFilter, incompleteUpdatesFilter, laCallbackFilter, hourFromFilter, hourToFilter]);
+  }, [searchTerm, dateFromFilter, dateToFilter, bufferAgentFilter, retentionAgentFilter, licensedAgentFilter, leadVendorFilter, statusFilter, carrierFilter, callResultFilter, retentionFilter, incompleteUpdatesFilter, laCallbackFilter, hourFromFilter, hourToFilter]);
 
   const hasActiveFilters = activeFilterCount > 0;
 
   const clearFilters = () => {
     setSearchTerm("");
-    setDateFilter("");
     setDateFromFilter("");
     setDateToFilter("");
     setBufferAgentFilter(ALL_OPTION);
@@ -347,9 +351,9 @@ export default function DailyDealFlowPage({
     const from = (page - 1) * RECORDS_PER_PAGE;
     const to = from + RECORDS_PER_PAGE - 1;
     let query = supabase.from("daily_deal_flow").select("*", { count: "exact" }).order("created_at", { ascending: false }).range(from, to);
-    if (dateFilter) query = query.eq("date", dateFilter);
-    if (dateFromFilter) query = query.gte("date", dateFromFilter);
-    if (dateToFilter) query = query.lte("date", dateToFilter);
+    const { from: rangeFrom, to: rangeTo } = normalisedDateRange(dateFromFilter, dateToFilter);
+    if (rangeFrom) query = query.gte("date", rangeFrom);
+    if (rangeTo) query = query.lte("date", rangeTo);
     if (bufferAgentFilter !== ALL_OPTION) query = query.eq("buffer_agent", bufferAgentFilter);
     if (retentionAgentFilter.length > 0) query = query.in("retention_agent", retentionAgentFilter);
     if (licensedAgentFilter !== ALL_OPTION) query = query.eq("licensed_agent_account", licensedAgentFilter);
@@ -360,17 +364,16 @@ export default function DailyDealFlowPage({
     if (retentionFilter !== ALL_OPTION) query = retentionFilter === "Retention" ? query.not("retention_agent", "is", null).neq("retention_agent", "") : query.or("retention_agent.is.null,retention_agent.eq.");
     if (incompleteUpdatesFilter !== ALL_OPTION) query = incompleteUpdatesFilter === "Incomplete" ? query.or("status.is.null,status.eq.") : query.not("status", "is", null).not("status", "eq", "");
     if (laCallbackFilter !== ALL_OPTION) query = query.eq("la_callback", laCallbackFilter);
+    const hourBaseDate = rangeFrom || rangeTo || getTodayDateEST();
     if (hourFromFilter !== ALL_OPTION) {
       const hourFrom = Number(hourFromFilter);
-      const baseDate = dateFilter || new Date().toISOString().split("T")[0];
       const utcHour = (hourFrom + 5) % 24;
-      query = query.gte("created_at", `${baseDate}T${String(utcHour).padStart(2, "0")}:00:00+00`);
+      query = query.gte("created_at", `${hourBaseDate}T${String(utcHour).padStart(2, "0")}:00:00+00`);
     }
     if (hourToFilter !== ALL_OPTION) {
       const hourTo = Number(hourToFilter);
-      const baseDate = dateFilter || new Date().toISOString().split("T")[0];
       const utcHourEnd = (hourTo + 6) % 24;
-      query = query.lt("created_at", `${baseDate}T${String(utcHourEnd).padStart(2, "0")}:00:00+00`);
+      query = query.lt("created_at", `${hourBaseDate}T${String(utcHourEnd).padStart(2, "0")}:00:00+00`);
     }
     if (searchTerm) {
       query = query.or(`insured_name.ilike.%${searchTerm}%,client_phone_number.ilike.%${searchTerm}%,submission_id.ilike.%${searchTerm}%,lead_vendor.ilike.%${searchTerm}%,agent.ilike.%${searchTerm}%,status.ilike.%${searchTerm}%,carrier.ilike.%${searchTerm}%,licensed_agent_account.ilike.%${searchTerm}%,buffer_agent.ilike.%${searchTerm}%,retention_agent.ilike.%${searchTerm}%`);
@@ -386,7 +389,7 @@ export default function DailyDealFlowPage({
     }
     setLoading(false);
     setRefreshing(false);
-  }, [supabase, dateFilter, dateFromFilter, dateToFilter, bufferAgentFilter, retentionAgentFilter, licensedAgentFilter, leadVendorFilter, statusFilter, carrierFilter, callResultFilter, retentionFilter, incompleteUpdatesFilter, laCallbackFilter, hourFromFilter, hourToFilter, searchTerm]);
+  }, [supabase, dateFromFilter, dateToFilter, bufferAgentFilter, retentionAgentFilter, licensedAgentFilter, leadVendorFilter, statusFilter, carrierFilter, callResultFilter, retentionFilter, incompleteUpdatesFilter, laCallbackFilter, hourFromFilter, hourToFilter, searchTerm]);
 
   useEffect(() => {
     void (async () => {
@@ -419,13 +422,13 @@ export default function DailyDealFlowPage({
       void fetchData(1);
     }, 0);
     return () => clearTimeout(timeout);
-  }, [dateFilter, dateFromFilter, dateToFilter, bufferAgentFilter, retentionAgentFilter, licensedAgentFilter, leadVendorFilter, statusFilter, carrierFilter, callResultFilter, retentionFilter, incompleteUpdatesFilter, laCallbackFilter, hourFromFilter, hourToFilter, fetchData]);
+  }, [dateFromFilter, dateToFilter, bufferAgentFilter, retentionAgentFilter, licensedAgentFilter, leadVendorFilter, statusFilter, carrierFilter, callResultFilter, retentionFilter, incompleteUpdatesFilter, laCallbackFilter, hourFromFilter, hourToFilter, fetchData]);
 
   const handleExport = async () => {
     let query = supabase.from("daily_deal_flow").select("*").order("created_at", { ascending: false });
-    if (dateFilter) query = query.eq("date", dateFilter);
-    if (dateFromFilter) query = query.gte("date", dateFromFilter);
-    if (dateToFilter) query = query.lte("date", dateToFilter);
+    const { from: exportFrom, to: exportTo } = normalisedDateRange(dateFromFilter, dateToFilter);
+    if (exportFrom) query = query.gte("date", exportFrom);
+    if (exportTo) query = query.lte("date", exportTo);
     if (bufferAgentFilter !== ALL_OPTION) query = query.eq("buffer_agent", bufferAgentFilter);
     if (retentionAgentFilter.length > 0) query = query.in("retention_agent", retentionAgentFilter);
     if (licensedAgentFilter !== ALL_OPTION) query = query.eq("licensed_agent_account", licensedAgentFilter);
@@ -466,7 +469,9 @@ export default function DailyDealFlowPage({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const suffix = dateFilter ? dateFilter : dateFromFilter || dateToFilter ? `${dateFromFilter || "start"}_${dateToFilter || "end"}` : dateObjectToESTString(new Date());
+    const { from: sFrom, to: sTo } = normalisedDateRange(dateFromFilter, dateToFilter);
+    const suffix =
+      sFrom || sTo ? `${sFrom || "start"}_${sTo || "end"}` : dateObjectToESTString(new Date());
     a.download = `daily-deal-flow-${suffix}.csv`;
     a.click();
     URL.revokeObjectURL(url);
@@ -788,14 +793,51 @@ export default function DailyDealFlowPage({
             }}
           >
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Date</div>
-                <StyledSelect
-                  value={dateFilter}
-                  onValueChange={(val) => { setDateFilter(val); if (val) { setDateFromFilter(""); setDateToFilter(""); } }}
-                  options={[{ value: "", label: "All Dates" }]}
-                  placeholder="Select date..."
-                />
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="date"
+                    value={dateFromFilter}
+                    onChange={(e) => setDateFromFilter(e.target.value)}
+                    aria-label="Date from"
+                    style={{
+                      flex: "1 1 120px",
+                      minWidth: 0,
+                      height: 38,
+                      borderRadius: 10,
+                      border: `1px solid ${T.border}`,
+                      backgroundColor: T.cardBg,
+                      color: T.textDark,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      padding: "0 10px",
+                      outline: "none",
+                    }}
+                    className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+                  />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, flexShrink: 0 }}>to</span>
+                  <input
+                    type="date"
+                    value={dateToFilter}
+                    onChange={(e) => setDateToFilter(e.target.value)}
+                    aria-label="Date to"
+                    style={{
+                      flex: "1 1 120px",
+                      minWidth: 0,
+                      height: 38,
+                      borderRadius: 10,
+                      border: `1px solid ${T.border}`,
+                      backgroundColor: T.cardBg,
+                      color: T.textDark,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      padding: "0 10px",
+                      outline: "none",
+                    }}
+                    className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+                  />
+                </div>
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Lead Vendor</div>
@@ -873,10 +915,17 @@ export default function DailyDealFlowPage({
                       </button>
                     </div>
                   )}
-                  {dateFilter !== "" && (
+                  {(dateFromFilter !== "" || dateToFilter !== "") && (
                     <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
-                      Date: {dateFilter}
-                      <button onClick={() => setDateFilter("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                      Date: {dateFromFilter || "…"} – {dateToFilter || "…"}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDateFromFilter("");
+                          setDateToFilter("");
+                        }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}
+                      >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
                       </button>
                     </div>
