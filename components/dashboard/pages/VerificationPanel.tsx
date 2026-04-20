@@ -91,15 +91,29 @@ export function VerificationPanel({
     void onToggleVerification(item.id, true);
   };
 
+  const setFieldValueAndVerifyByNames = (fieldNames: string[], value: string) => {
+    for (const fieldName of fieldNames) {
+      const item = verificationItems.find(
+        (i) => typeof i.id === "string" && typeof i.field_name === "string" && i.field_name === fieldName,
+      );
+      if (!item || typeof item.id !== "string") continue;
+      void onUpdateValue(item.id, value);
+      void onToggleVerification(item.id, true);
+      return;
+    }
+  };
+
   const cleanMoney = (v: string) => v.replace(/\$/g, "").replace(/,/g, "").trim();
 
   const checkDnc = async (itemId: string) => {
     const item = verificationItems.find((i) => i.id === itemId);
+    const fromInput = verificationInputValues[itemId];
     const phoneValue =
-      verificationInputValues[itemId] ??
-      (item && typeof item.verified_value === "string" ? item.verified_value : "") ??
-      (item && typeof item.original_value === "string" ? item.original_value : "") ??
-      "";
+      (typeof fromInput === "string" && fromInput.trim().length > 0
+        ? fromInput
+        : (item && typeof item.verified_value === "string" ? item.verified_value : "") ||
+          (item && typeof item.original_value === "string" ? item.original_value : "") ||
+          "") ?? "";
 
     const cleanPhone = phoneValue.replace(/\D/g, "");
     const normalizedPhone = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
@@ -179,8 +193,26 @@ export function VerificationPanel({
     [verificationItems, verificationInputValues],
   );
 
+  const getVerificationFieldValueByNames = React.useCallback(
+    (fieldNames: string[]) => {
+      for (const fieldName of fieldNames) {
+        const v = getVerificationFieldValue(fieldName).trim();
+        if (v) return v;
+      }
+      return "";
+    },
+    [getVerificationFieldValue],
+  );
+
   React.useEffect(() => {
     if (!showUnderwritingModal) return;
+
+    // TEMP: debugging initial underwriting values
+    // eslint-disable-next-line no-console
+    console.log("[VerificationPanel] Opening underwriting modal", {
+      verificationItemsCount: verificationItems.length,
+      verificationInputValuesKeys: Object.keys(verificationInputValues).length,
+    });
 
     const parseTagList = (value: string) =>
       value
@@ -188,7 +220,8 @@ export function VerificationPanel({
         .map((v) => v.trim())
         .filter(Boolean);
 
-    const tobaccoRaw = getVerificationFieldValue("tobacco_use").toLowerCase();
+    const tobaccoValue = getVerificationFieldValue("tobacco_use");
+    const tobaccoRaw = tobaccoValue.toLowerCase();
     const tobaccoLast12Months: "yes" | "no" | "" =
       tobaccoRaw === "yes" || tobaccoRaw === "true" || tobaccoRaw === "1"
         ? "yes"
@@ -196,21 +229,41 @@ export function VerificationPanel({
           ? "no"
           : "";
 
-    setUnderwritingData({
+    const nextUnderwritingData = {
       tobaccoLast12Months,
       healthConditions: parseTagList(getVerificationFieldValue("health_conditions")),
       medications: parseTagList(getVerificationFieldValue("medications")),
       height: getVerificationFieldValue("height"),
       weight: getVerificationFieldValue("weight"),
       carrier: getVerificationFieldValue("carrier"),
-      productLevel: getVerificationFieldValue("insurance_application_details"),
+      productLevel: getVerificationFieldValueByNames(["product_type", "insurance_application_details"]),
       coverageAmount: getVerificationFieldValue("coverage_amount"),
       monthlyPremium: getVerificationFieldValue("monthly_premium"),
+    };
+
+    // eslint-disable-next-line no-console
+    console.log("[VerificationPanel] Underwriting source values", {
+      tobaccoValue,
+      health_conditions: getVerificationFieldValue("health_conditions"),
+      medications: getVerificationFieldValue("medications"),
+      height: getVerificationFieldValue("height"),
+      weight: getVerificationFieldValue("weight"),
+      carrier: getVerificationFieldValue("carrier"),
+      product_type: getVerificationFieldValue("product_type"),
+      insurance_application_details: getVerificationFieldValue("insurance_application_details"),
+      resolvedProductLevel: getVerificationFieldValueByNames(["product_type", "insurance_application_details"]),
+      coverage_amount: getVerificationFieldValue("coverage_amount"),
+      monthly_premium: getVerificationFieldValue("monthly_premium"),
     });
+
+    // eslint-disable-next-line no-console
+    console.log("[VerificationPanel] Setting underwritingData", nextUnderwritingData);
+
+    setUnderwritingData(nextUnderwritingData);
 
     setConditionInput("");
     setMedicationInput("");
-  }, [showUnderwritingModal, getVerificationFieldValue]);
+  }, [showUnderwritingModal, getVerificationFieldValue, getVerificationFieldValueByNames]);
 
   const onInvalidateUwProduct = React.useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
     setUnderwritingData((prev) => {
@@ -256,7 +309,7 @@ export function VerificationPanel({
     }
 
     if (underwritingData.productLevel.trim()) {
-      setFieldValueAndVerify("insurance_application_details", underwritingData.productLevel.trim());
+      setFieldValueAndVerifyByNames(["product_type", "insurance_application_details"], underwritingData.productLevel.trim());
     }
 
     if (underwritingData.coverageAmount.trim()) {
@@ -271,7 +324,14 @@ export function VerificationPanel({
   };
 
   const displayPhoneForModal = pendingPhoneVerification
-    ? verificationInputValues[pendingPhoneVerification] ?? ""
+    ? (() => {
+        const v = verificationInputValues[pendingPhoneVerification];
+        if (typeof v === "string" && v.trim().length > 0) return v;
+        const item = verificationItems.find((i) => i.id === pendingPhoneVerification);
+        return (item && typeof item.verified_value === "string" ? item.verified_value : "") ||
+          (item && typeof item.original_value === "string" ? item.original_value : "") ||
+          "";
+      })()
     : "";
 
   return (
@@ -375,7 +435,13 @@ export function VerificationPanel({
                         if (!itemId) return null;
                         const fieldName = typeof item.field_name === "string" ? item.field_name : "";
                         const checked = !!item.is_verified;
-                        const value = verificationInputValues[itemId] ?? "";
+                        const fromInput = verificationInputValues[itemId];
+                        const value =
+                          typeof fromInput === "string" && fromInput.trim().length > 0
+                            ? fromInput
+                            : (typeof item.verified_value === "string" ? item.verified_value : "") ||
+                              (typeof item.original_value === "string" ? item.original_value : "") ||
+                              "";
 
                         return (
                           <div key={itemId} className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2">
@@ -447,6 +513,20 @@ export function VerificationPanel({
           <div className="flex max-h-[90vh] w-full max-w-[1400px] flex-col overflow-y-auto rounded-xl border border-[#C8D4BB] bg-white p-8 shadow-xl">
             <h3 className="text-2xl font-bold" style={{ color: T.textDark }}>Underwriting</h3>
             <p className="mt-2 text-base" style={{ color: T.textMuted }}>Please read the following script to the customer and verify all information.</p>
+
+            <div
+              className="mt-4 flex flex-wrap items-center gap-x-10 gap-y-3 rounded-lg border border-sky-200 bg-sky-100 px-5 py-3.5 text-base text-slate-900"
+              style={{ fontFamily: T.font }}
+            >
+              <span>
+                <span className="font-extrabold">State:</span>{" "}
+                {getVerificationFieldValueByNames(["state", "birth_state"]).trim() || "—"}
+              </span>
+              <span>
+                <span className="font-extrabold">Date of Birth:</span>{" "}
+                {getVerificationFieldValue("date_of_birth").trim() || "—"}
+              </span>
+            </div>
 
             <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.2fr]">
               <div className="max-h-[70vh] overflow-y-auto rounded-lg border border-[#C8D4BB] bg-[#EEF5EE] p-6">
@@ -555,12 +635,6 @@ export function VerificationPanel({
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xl font-bold text-slate-900">Date of Birth:</label>
-                <div className="flex h-12 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-lg text-slate-800">
-                  {getVerificationFieldValue("date_of_birth") || "—"}
-                </div>
-              </div>
               {(
                 [
                   ["Height", "height", "e.g., 5 ft 10 in"],
@@ -572,6 +646,10 @@ export function VerificationPanel({
                 ] as const
               ).map(([label, key, placeholder]) => {
                 if (key === "carrier") {
+                  const carrierSnapshot = underwritingData.carrier.trim();
+                  const carrierExists = carrierSnapshot
+                    ? uwCarriers.some((c) => c.name === carrierSnapshot)
+                    : true;
                   return (
                     <div key={key} className="space-y-2">
                       <label className="text-xl font-bold text-slate-900">Carrier:</label>
@@ -584,6 +662,9 @@ export function VerificationPanel({
                         className={uwSelectClass}
                       >
                         <option value="">Select carrier</option>
+                        {!carrierExists ? (
+                          <option value={carrierSnapshot}>{carrierSnapshot}</option>
+                        ) : null}
                         {uwCarriers.map((c) => (
                           <option key={c.id} value={c.name}>
                             {c.name}
@@ -594,6 +675,10 @@ export function VerificationPanel({
                   );
                 }
                 if (key === "productLevel") {
+                  const productSnapshot = underwritingData.productLevel.trim();
+                  const productExists = productSnapshot
+                    ? uwProducts.some((p) => p.name === productSnapshot)
+                    : true;
                   return (
                     <div key={key} className="space-y-2">
                       <label className="text-xl font-bold text-slate-900">Product Level:</label>
@@ -612,6 +697,9 @@ export function VerificationPanel({
                               ? "No products for this carrier"
                               : "Select product level"}
                         </option>
+                        {!uwProductsLoading && underwritingData.carrier.trim() && !productExists ? (
+                          <option value={productSnapshot}>{productSnapshot}</option>
+                        ) : null}
                         {uwProducts.map((p) => (
                           <option key={p.id} value={p.name}>
                             {p.name}
