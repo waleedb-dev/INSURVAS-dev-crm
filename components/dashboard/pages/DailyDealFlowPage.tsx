@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { EmptyState, Toast } from "@/components/ui";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import type { DailyDealFlowRow } from "./daily-deal-flow/types";
 import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE, STATUS_OPTIONS } from "./daily-deal-flow/constants";
-import { dateObjectToESTString, getTodayDateEST } from "./daily-deal-flow/helpers";
+import { dateObjectToESTString, displayDdfStatus, getTodayDateEST } from "./daily-deal-flow/helpers";
 import { DdfGroupedGrid } from "./daily-deal-flow/DdfGroupedGrid";
 import { DdfSyncNotSubmittedToLeadsModal } from "./daily-deal-flow/DdfSyncNotSubmittedToLeadsModal";
 
@@ -103,6 +104,34 @@ function normalisedDateRange(from: string, to: string): { from: string; to: stri
   if (!from && !to) return { from: "", to: "" };
   if (from && to && from > to) return { from: to, to: from };
   return { from, to };
+}
+
+async function enrichDdfRowsWithLeadProfile(supabase: SupabaseClient, ddfRows: DailyDealFlowRow[]): Promise<DailyDealFlowRow[]> {
+  if (ddfRows.length === 0) return ddfRows;
+  const submissionIds = [...new Set(ddfRows.map((r) => r.submission_id).filter(Boolean))];
+  if (submissionIds.length === 0) {
+    return ddfRows.map((r) => ({ ...r, lead_date_of_birth: null, lead_state: null }));
+  }
+  const { data: leadRows, error } = await supabase
+    .from("leads")
+    .select("submission_id, date_of_birth, state")
+    .in("submission_id", submissionIds);
+  const map = new Map<string, { date_of_birth: string | null; state: string | null }>();
+  if (!error && leadRows) {
+    for (const l of leadRows as { submission_id?: string; date_of_birth?: string | null; state?: string | null }[]) {
+      if (l.submission_id) {
+        map.set(l.submission_id, { date_of_birth: l.date_of_birth ?? null, state: l.state ?? null });
+      }
+    }
+  }
+  return ddfRows.map((r) => {
+    const hit = map.get(r.submission_id);
+    return {
+      ...r,
+      lead_date_of_birth: hit?.date_of_birth ?? null,
+      lead_state: hit?.state ?? null,
+    };
+  });
 }
 
 function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; label?: string }) {
@@ -358,7 +387,13 @@ export default function DailyDealFlowPage({
     if (retentionAgentFilter.length > 0) query = query.in("retention_agent", retentionAgentFilter);
     if (licensedAgentFilter !== ALL_OPTION) query = query.eq("licensed_agent_account", licensedAgentFilter);
     if (leadVendorFilter !== ALL_OPTION) query = query.eq("lead_vendor", leadVendorFilter);
-    if (statusFilter !== ALL_OPTION) query = query.eq("status", statusFilter);
+    if (statusFilter !== ALL_OPTION && statusFilter !== "All") {
+      if (statusFilter === "Pending Approval") {
+        query = query.or("status.eq.Pending Approval,status.eq.Underwriting");
+      } else {
+        query = query.eq("status", statusFilter);
+      }
+    }
     if (carrierFilter !== ALL_OPTION) query = query.eq("carrier", carrierFilter);
     if (callResultFilter !== ALL_OPTION) query = query.eq("call_result", callResultFilter);
     if (retentionFilter !== ALL_OPTION) query = retentionFilter === "Retention" ? query.not("retention_agent", "is", null).neq("retention_agent", "") : query.or("retention_agent.is.null,retention_agent.eq.");
@@ -382,7 +417,8 @@ export default function DailyDealFlowPage({
     if (error) {
       setToast({ message: error.message || "Failed to fetch data", type: "error" });
     } else {
-      setRows((data || []) as DailyDealFlowRow[]);
+      const merged = await enrichDdfRowsWithLeadProfile(supabase, (data || []) as DailyDealFlowRow[]);
+      setRows(merged);
       setTotalRecords(count || 0);
       setCurrentPage(page);
       if (showRefreshToast) setToast({ message: "Data refreshed successfully", type: "success" });
@@ -433,26 +469,56 @@ export default function DailyDealFlowPage({
     if (retentionAgentFilter.length > 0) query = query.in("retention_agent", retentionAgentFilter);
     if (licensedAgentFilter !== ALL_OPTION) query = query.eq("licensed_agent_account", licensedAgentFilter);
     if (leadVendorFilter !== ALL_OPTION) query = query.eq("lead_vendor", leadVendorFilter);
-    if (statusFilter !== ALL_OPTION) query = query.eq("status", statusFilter);
+    if (statusFilter !== ALL_OPTION && statusFilter !== "All") {
+      if (statusFilter === "Pending Approval") {
+        query = query.or("status.eq.Pending Approval,status.eq.Underwriting");
+      } else {
+        query = query.eq("status", statusFilter);
+      }
+    }
     if (carrierFilter !== ALL_OPTION) query = query.eq("carrier", carrierFilter);
     if (callResultFilter !== ALL_OPTION) query = query.eq("call_result", callResultFilter);
     if (laCallbackFilter !== ALL_OPTION) query = query.eq("la_callback", laCallbackFilter);
     if (searchTerm) query = query.or(`insured_name.ilike.%${searchTerm}%,client_phone_number.ilike.%${searchTerm}%,submission_id.ilike.%${searchTerm}%`);
     const { data, error } = await query;
     if (error || !data?.length) return setToast({ message: error?.message || "No data to export", type: "error" });
-    const headers = ["Submission ID", "Date", "Insured Name", "Lead Vendor", "Phone Number", "Buffer Agent", "Retention Agent", "Agent", "Licensed Agent", "Status", "Call Result", "Carrier", "Product Type", "Draft Date", "Monthly Premium", "Face Amount", "LA Callback", "Notes"];
-    const csvRows = (data as DailyDealFlowRow[]).map((r) => {
+    const enriched = await enrichDdfRowsWithLeadProfile(supabase, data as DailyDealFlowRow[]);
+    const headers = [
+      "Submission ID",
+      "Date",
+      "Insured Name",
+      "Lead Vendor",
+      "Phone Number",
+      "Date of Birth",
+      "State",
+      "Buffer Agent",
+      "Retention Agent",
+      "Agent",
+      "Licensed Agent",
+      "Status",
+      "Call Result",
+      "Carrier",
+      "Product Type",
+      "Draft Date",
+      "Monthly Premium",
+      "Face Amount",
+      "LA Callback",
+      "Notes",
+    ];
+    const csvRows = enriched.map((r) => {
       const values = [
         r.submission_id,
         r.date,
         r.insured_name,
         r.lead_vendor,
         r.client_phone_number,
+        r.lead_date_of_birth ?? "",
+        r.lead_state ?? "",
         r.buffer_agent,
         r.retention_agent,
         r.agent,
         r.licensed_agent_account,
-        r.status,
+        displayDdfStatus(r.status),
         r.call_result,
         r.carrier,
         r.product_type,
