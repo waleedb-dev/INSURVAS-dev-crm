@@ -773,7 +773,7 @@ export default function TransferLeadVerificationPanel({
           ? "no"
           : "";
 
-    setUnderwritingData({
+    const nextUnderwriting = {
       tobaccoLast12Months,
       height: getValueByFieldName("height"),
       weight: getValueByFieldName("weight"),
@@ -781,7 +781,26 @@ export default function TransferLeadVerificationPanel({
       productLevel: getValueByFieldNames(["product_type", "insurance_application_details"]),
       coverageAmount: getValueByFieldName("coverage_amount"),
       monthlyPremium: getValueByFieldName("monthly_premium"),
+    };
+
+    // TEMP: debugging initial underwriting values on transfer leads page
+    // eslint-disable-next-line no-console
+    console.log("[TransferLeadVerificationPanel] openUnderwritingModal source", {
+      tobacco_use: getValueByFieldName("tobacco_use"),
+      health_conditions: getValueByFieldName("health_conditions"),
+      medications: getValueByFieldName("medications"),
+      height: getValueByFieldName("height"),
+      weight: getValueByFieldName("weight"),
+      carrier: getValueByFieldName("carrier"),
+      product_type: getValueByFieldName("product_type"),
+      insurance_application_details: getValueByFieldName("insurance_application_details"),
+      coverage_amount: getValueByFieldName("coverage_amount"),
+      monthly_premium: getValueByFieldName("monthly_premium"),
     });
+    // eslint-disable-next-line no-console
+    console.log("[TransferLeadVerificationPanel] setUnderwritingData", nextUnderwriting);
+
+    setUnderwritingData(nextUnderwriting);
     setUnderwritingHealthTags(mergeUniqueTags([], toTagParts(getValueByFieldName("health_conditions"))));
     setUnderwritingMedicationTags(mergeUniqueTags([], toTagParts(getValueByFieldName("medications"))));
     setUnderwritingHealthInput("");
@@ -1413,7 +1432,7 @@ export default function TransferLeadVerificationPanel({
                   {isHealthAndUnderwriting && (
                     <button
                       type="button"
-                      onClick={() => setShowUnderwritingModal(true)}
+                      onClick={openUnderwritingModal}
                       style={{
                         flexShrink: 0,
                         border: `1px solid ${T.border}`,
@@ -1871,9 +1890,32 @@ export default function TransferLeadVerificationPanel({
                 ×
               </button>
             </div>
-            <p style={{ margin: "0 0 24px", fontSize: 15, color: T.textMuted, fontWeight: 500 }}>
+            <p style={{ margin: "0 0 16px", fontSize: 15, color: T.textMuted, fontWeight: 500 }}>
               Please read the following script to the customer and verify all information.
             </p>
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: "12px 40px",
+                padding: "14px 20px",
+                marginBottom: 24,
+                borderRadius: T.radiusMd,
+                backgroundColor: "#e0f2fe",
+                border: "1px solid #bae6fd",
+              }}
+            >
+              <span style={{ fontSize: 15, color: T.textDark, lineHeight: 1.4 }}>
+                <strong style={{ fontWeight: 800 }}>State:</strong>{" "}
+                {getValueByFieldNames(["state", "birth_state"]).trim() || "—"}
+              </span>
+              <span style={{ fontSize: 15, color: T.textDark, lineHeight: 1.4 }}>
+                <strong style={{ fontWeight: 800 }}>Date of Birth:</strong>{" "}
+                {getValueByFieldName("date_of_birth").trim() || "—"}
+              </span>
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 24, marginBottom: 24, alignItems: "stretch" }}>
               <div
@@ -2296,14 +2338,23 @@ export default function TransferLeadVerificationPanel({
               </div>
               <div style={{ gridColumn: "span 2" }}>
                 <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Carrier:</label>
+                {(() => {
+                  const carrierSnapshot = underwritingData.carrier.trim();
+                  const carrierExists = carrierSnapshot ? uwCarriers.some((c) => c.name === carrierSnapshot) : true;
+                  const options = carrierExists
+                    ? uwCarriers.map((c) => ({ value: c.name, label: c.name }))
+                    : [{ value: carrierSnapshot, label: carrierSnapshot }, ...uwCarriers.map((c) => ({ value: c.name, label: c.name }))];
+                  return (
                 <StyledSelect
                   value={underwritingData.carrier}
                   onValueChange={(val) => setUnderwritingData((prev) => ({ ...prev, carrier: val, productLevel: "" }))}
-                  options={uwCarriers.map((c) => ({ value: c.name, label: c.name }))}
+                  options={options}
                   placeholder="Please Select"
                   disabled={false}
                   error={false}
                 />
+                  );
+                })()}
               </div>
               <div style={{ gridColumn: "span 2" }}>
                 <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 12, color: T.textDark, textTransform: "uppercase", letterSpacing: "0.4px" }}>Product Level:</label>
@@ -2321,6 +2372,39 @@ export default function TransferLeadVerificationPanel({
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {(() => {
+                      const productSnapshot = underwritingData.productLevel.trim();
+                      const productExists = productSnapshot ? uwProducts.some((p) => p.name === productSnapshot) : true;
+                      if (!productSnapshot || productExists) return null;
+                      return (
+                        <label
+                          key={`__current_product_${productSnapshot}`}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: "12px 16px",
+                            borderRadius: T.radiusSm,
+                            border: `1.5px solid ${"#233217"}`,
+                            backgroundColor: T.blueFaint,
+                            cursor: "pointer",
+                            transition: "all 0.15s ease-in-out",
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="productLevel"
+                            value={productSnapshot}
+                            checked
+                            onChange={() => setUnderwritingData((prev) => ({ ...prev, productLevel: productSnapshot }))}
+                            style={{ width: 18, height: 18, cursor: "pointer", accentColor: T.blue }}
+                          />
+                          <span style={{ fontSize: 14, fontWeight: 600, color: T.textDark }}>
+                            {productSnapshot} <span style={{ fontWeight: 600, color: T.textMuted }}>(current)</span>
+                          </span>
+                        </label>
+                      );
+                    })()}
                     {uwProducts.map((product) => (
                       <label
                         key={product.id}
