@@ -14,7 +14,17 @@ import {
   STATUS_OPTIONS,
 } from "./constants";
 import { IconBolt, IconCheck, IconEye, IconPencil, IconPhone, IconTrash, IconX } from "@tabler/icons-react";
-import { duplicateKey, formatDateShort, generatePendingApprovalNotes, getAgentBadgeStyle, getBadgeStyle, getCurrentTimestampEST, getGroupValue, getVendorBadgeStyle } from "./helpers";
+import {
+  duplicateKey,
+  displayDdfStatus,
+  formatDateShort,
+  generatePendingApprovalNotes,
+  getAgentBadgeStyle,
+  getBadgeStyle,
+  getCurrentTimestampEST,
+  getGroupValue,
+  getVendorBadgeStyle,
+} from "./helpers";
 import { LeadCard, InfoField, InfoGrid, formatCurrency, formatBool, formatDate } from "../LeadCard";
 import { Table as ShadcnTable, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/shadcn/table";
 import {
@@ -530,7 +540,7 @@ export function DdfGroupedGrid({
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.retention_agent || ""} onValueChange={(v) => patchDraft({ retention_agent: v })} options={retentionOptions.map((v) => ({ value: v, label: v }))} /> : row.retention_agent || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.agent || ""} onValueChange={(v) => patchDraft({ agent: v })} options={agentOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getAgentBadgeStyle(row.agent)}>{row.agent || "N/A"}</span>}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.licensed_agent_account || ""} onValueChange={(v) => patchDraft({ licensed_agent_account: v })} options={licensedOptions.map((v) => ({ value: v, label: v }))} /> : row.licensed_agent_account || "N/A"}</TableCell>
-        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.status || ""} onValueChange={(v) => patchDraft({ status: v })} options={statusOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", row.status)}>{row.status || "N/A"}</span>}</TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.status || ""} onValueChange={(v) => patchDraft({ status: v })} options={statusOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("status", displayDdfStatus(row.status))}>{displayDdfStatus(row.status)}</span>}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.call_result || ""} onValueChange={(v) => patchDraft({ call_result: v })} options={CALL_RESULT_OPTIONS.map((v) => ({ value: v, label: v }))} /> : <span style={getBadgeStyle("result", row.call_result)}>{row.call_result || "N/A"}</span>}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.carrier || ""} onValueChange={(v) => patchDraft({ carrier: v, product_type: "" })} options={dynamicCarrierOptions.map((v) => ({ value: v, label: v }))} /> : row.carrier || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.product_type || ""} onValueChange={(v) => patchDraft({ product_type: v })} options={productsForCarrier.map((v) => ({ value: v.name, label: v.name }))} /> : row.product_type || "N/A"}</TableCell>
@@ -892,7 +902,10 @@ export function DdfGroupedGrid({
                   <InfoGrid columns={3} bordered={false}>
                     <InfoField label="Submission ID" value={draft.submission_id} />
                     <InfoField label="Date" value={formatDate(draft.date || undefined)} />
-                    <InfoField label="Status" value={<span style={{ ...getBadgeStyle("status", draft.status) }}>{draft.status || "—"}</span>} />
+                    <InfoField
+                      label="Status"
+                      value={<span style={{ ...getBadgeStyle("status", displayDdfStatus(draft.status)) }}>{displayDdfStatus(draft.status)}</span>}
+                    />
                   </InfoGrid>
                 </LeadCard>
 

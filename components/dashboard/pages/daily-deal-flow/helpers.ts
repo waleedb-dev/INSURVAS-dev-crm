@@ -37,9 +37,18 @@ export function createDateFromString(value: string): Date {
   return new Date(year, month - 1, day);
 }
 
+/** Status label in DDF UI/export; underwriting rows align with pending approval. */
+export function displayDdfStatus(status?: string | null): string {
+  const s = String(status || "").trim();
+  if (!s) return "N/A";
+  if (s === "Underwriting") return "Pending Approval";
+  return s;
+}
+
 export function getGroupValue(row: DailyDealFlowRow, field: string): string {
   if (field === "is_callback") return row.is_callback || row.from_callback ? "Callback" : "Regular Lead";
   if (field === "is_retention_call") return row.is_retention_call ? "Retention" : "Regular";
+  if (field === "status") return displayDdfStatus(row.status);
   return String(row[field as keyof DailyDealFlowRow] || "N/A");
 }
 
