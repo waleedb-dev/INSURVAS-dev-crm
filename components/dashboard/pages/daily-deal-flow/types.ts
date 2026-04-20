@@ -46,6 +46,9 @@ export interface DailyDealFlowRow {
   carrier_attempted_1?: string | null;
   carrier_attempted_2?: string | null;
   carrier_attempted_3?: string | null;
+  /** From `leads` by `submission_id`; display-only, not stored on `daily_deal_flow`. */
+  lead_date_of_birth?: string | null;
+  lead_state?: string | null;
 }
 
 export interface DdfFilters {

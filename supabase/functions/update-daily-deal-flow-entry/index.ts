@@ -12,28 +12,17 @@ const NOTIFY_ELIGIBLE_AGENTS_BEARER_TOKEN =
   Deno.env.get("NOTIFY_ELIGIBLE_AGENTS_ANON_KEY") ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxaGNqcXhjdmhnd3NxZnFnZWtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIzNjAyNjEsImV4cCI6MjA2NzkzNjI2MX0.s4nuUN7hw_XCltM-XY3jC9o0og3froDRq_i80UCQ-rA";
 
-const isDST = (date: Date) => {
-  const year = date.getFullYear();
-  const marchSecondSunday = new Date(year, 2, 1);
-  marchSecondSunday.setDate(1 + (7 - marchSecondSunday.getDay()) + 7);
-  const novemberFirstSunday = new Date(year, 10, 1);
-  novemberFirstSunday.setDate(1 + ((7 - novemberFirstSunday.getDay()) % 7));
-  return date >= marchSecondSunday && date < novemberFirstSunday;
-};
+/** Calendar date `YYYY-MM-DD` in US Eastern (same as browser `getTodayInEasternYyyyMmDd` / `daily-deal-flow/helpers`). */
+const getTodayDateEST = () =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 
-const getTodayDateEST = () => {
-  const now = new Date();
-  const offset = isDST(now) ? -4 : -5;
-  const estDate = new Date(now.getTime() + offset * 60 * 60 * 1000);
-  return estDate.toISOString().split("T")[0];
-};
-
-const getCurrentTimestampEST = () => {
-  const now = new Date();
-  const offset = isDST(now) ? -4 : -5;
-  const estDate = new Date(now.getTime() + offset * 60 * 60 * 1000);
-  return estDate.toISOString();
-};
+/** Store `updated_at` as actual UTC (timestamptz); Eastern calendar date uses `getTodayDateEST` only. */
+const getCurrentTimestampEST = () => new Date().toISOString();
 
 const generateCallbackSubmissionId = (originalSubmissionId: string) => {
   const randomDigits = Math.floor(1000 + Math.random() * 9000);
