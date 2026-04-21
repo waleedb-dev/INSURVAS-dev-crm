@@ -17,6 +17,9 @@ export const PERMISSION_KEYS = [
   "action.transfer_leads.create",
   "action.transfer_leads.edit",
   "action.transfer_leads.claim_reclaim_visit",
+  "page.bpo_score_board.access",
+  "page.bpo_center_performance.access",
+  "page.center_thresholds.access",
   "page.imo_management.access",
   "page.upline_carrier_states.access",
 ] as const;
@@ -167,8 +170,16 @@ export function canAccessPage(
     return role === "system_admin";
   }
 
-  if (page === "bpo-score-board" || page === "bpo-center-performance" || page === "center-thresholds") {
-    return role === "system_admin";
+  if (page === "bpo-score-board") {
+    return role === "system_admin" || permissionKeys.has("page.bpo_score_board.access");
+  }
+
+  if (page === "bpo-center-performance") {
+    return role === "system_admin" || permissionKeys.has("page.bpo_center_performance.access");
+  }
+
+  if (page === "center-thresholds") {
+    return role === "system_admin" || permissionKeys.has("page.center_thresholds.access");
   }
 
   return false;
