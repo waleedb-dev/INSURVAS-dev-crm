@@ -188,6 +188,25 @@ type IntakeLead = {
   isDraft?: boolean;
   carrier: string;
   state: string;
+  hasVerificationSession: boolean;
+  verificationSessionStatus: string | null;
+  latestCallResult: string | null;
+  latestCallResultStatus: string | null;
+};
+
+type VerificationSessionLookupRow = {
+  submission_id: string | null;
+  status: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type CallResultLookupRow = {
+  submission_id: string | null;
+  application_submitted: boolean | null;
+  status: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type TransferKanbanColumnId =
@@ -212,6 +231,9 @@ const TRANSFER_KANBAN_COLUMNS: Array<{
 
 function getTransferColumnForLead(lead: IntakeLead): TransferKanbanColumnId {
   if (lead.isDraft) return "new-lead-in";
+  if (lead.latestCallResult === "Not Submitted") return "not-submitted";
+  if (lead.stage === "Pending Approval") return "submitted";
+  if (lead.hasVerificationSession) return "pending-disposition";
   if (lead.stage === "Transfer API") return "new-transfer-enqueue";
   return "pending-disposition";
 }
@@ -1025,9 +1047,8 @@ export default function CallCenterLeadIntakePage({
 
     const baseQuery = supabase
       .from("leads")
-      .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, product_type, lead_source, carrier, state, pipeline_id, stage, stage_id, call_center_id, created_at, is_draft, pipelines(name), call_centers(name), users!submitted_by(full_name)")
+      .select("id, submission_id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, carrier, state, pipeline_id, stage, stage_id, call_center_id, created_at, is_draft, pipelines!inner(name), call_centers(name), users!submitted_by(full_name)")
       .eq("pipelines.name", "Transfer Portal")
-      .eq("stage", "Transfer API")
       .order("created_at", { ascending: false });
 
     const canViewAll = permissionKeys.has("action.transfer_leads.view_all");
@@ -1055,19 +1076,71 @@ export default function CallCenterLeadIntakePage({
       return;
     }
 
+    const submissionIds = [
+      ...new Set(
+        (data || [])
+          .map((lead: Record<string, unknown>) =>
+            typeof lead.submission_id === "string" && lead.submission_id.trim() !== ""
+              ? lead.submission_id.trim()
+              : null,
+          )
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
+
+    const verificationBySubmission = new Map<string, VerificationSessionLookupRow>();
+    const latestCallResultBySubmission = new Map<string, CallResultLookupRow>();
+
+    if (submissionIds.length > 0) {
+      const { data: verificationRows, error: verificationError } = await supabase
+        .from("verification_sessions")
+        .select("submission_id, status, created_at, updated_at")
+        .in("submission_id", submissionIds)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (verificationError) {
+        setToast({ message: verificationError.message || "Failed to load verification sessions", type: "error" });
+      } else {
+        ((verificationRows || []) as VerificationSessionLookupRow[]).forEach((row) => {
+          const key = row.submission_id?.trim();
+          if (key && !verificationBySubmission.has(key)) verificationBySubmission.set(key, row);
+        });
+      }
+
+      const { data: callResultRows, error: callResultError } = await supabase
+        .from("call_results")
+        .select("submission_id, application_submitted, status, created_at, updated_at")
+        .in("submission_id", submissionIds)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (callResultError) {
+        setToast({ message: callResultError.message || "Failed to load call results", type: "error" });
+      } else {
+        ((callResultRows || []) as CallResultLookupRow[]).forEach((row) => {
+          const key = row.submission_id?.trim();
+          if (key && !latestCallResultBySubmission.has(key)) latestCallResultBySubmission.set(key, row);
+        });
+      }
+    }
+
     const mapped: IntakeLead[] = (data || []).map((lead: Record<string, unknown>) => {
       const callCenterObj = lead.call_centers as { name?: unknown } | null | undefined;
       const pipelineObj = lead.pipelines as { name?: unknown } | null | undefined;
       const userObj = lead.users as { full_name?: unknown } | null | undefined;
       const submissionIdRaw = lead.submission_id;
+      const submissionId = typeof submissionIdRaw === "string" && submissionIdRaw.trim() !== "" ? submissionIdRaw.trim() : null;
+      const verificationSession = submissionId ? verificationBySubmission.get(submissionId) : undefined;
+      const latestCallResult = submissionId ? latestCallResultBySubmission.get(submissionId) : undefined;
 
       return {
         rowId: typeof lead.id === "string" ? lead.id : String(lead.id ?? ""),
-        submissionId: typeof submissionIdRaw === "string" && submissionIdRaw.trim() !== "" ? submissionIdRaw : null,
+        submissionId,
         id: typeof lead.lead_unique_id === "string" && lead.lead_unique_id.trim() !== "" ? lead.lead_unique_id : "N/A",
         name: `${typeof lead.first_name === "string" ? lead.first_name : ""} ${typeof lead.last_name === "string" ? lead.last_name : ""}`.trim() || "Unnamed Lead",
         phone: typeof lead.phone === "string" ? lead.phone : "",
-        premium: Number(lead.lead_value) || 0,
+        premium: Number(lead.monthly_premium) || 0,
         type: typeof lead.product_type === "string" && lead.product_type.trim() !== "" ? lead.product_type : "Transfer",
         source: typeof lead.lead_source === "string" && lead.lead_source.trim() !== "" ? lead.lead_source : "Unknown",
         centerName: typeof callCenterObj?.name === "string" && callCenterObj.name.trim() !== "" ? callCenterObj.name : "Unassigned",
@@ -1079,10 +1152,25 @@ export default function CallCenterLeadIntakePage({
         isDraft: typeof lead.is_draft === "boolean" ? lead.is_draft : false,
         carrier: typeof lead.carrier === "string" && lead.carrier.trim() !== "" ? lead.carrier : "N/A",
         state: typeof lead.state === "string" && lead.state.trim() !== "" ? lead.state : "N/A",
+        hasVerificationSession: Boolean(verificationSession),
+        verificationSessionStatus: verificationSession?.status || null,
+        latestCallResult:
+          latestCallResult?.application_submitted === false
+            ? "Not Submitted"
+            : latestCallResult?.application_submitted === true
+              ? "Submitted"
+              : null,
+        latestCallResultStatus: latestCallResult?.status || null,
       };
     });
 
-    setLeads(mapped);
+    setLeads(mapped.filter((lead) => {
+      if (lead.isDraft) return true;
+      if (lead.latestCallResult === "Not Submitted") return true;
+      if (lead.stage === "Pending Approval") return true;
+      if (lead.hasVerificationSession) return true;
+      return lead.stage === "Transfer API";
+    }));
     setIsLoading(false);
   };
 
@@ -1642,7 +1730,7 @@ export default function CallCenterLeadIntakePage({
       return false;
     }
 
-    let feCreateLeadSyncError: string | null = null;
+    const feCreateLeadSyncError: string | null = null;
     if (insertedLead?.id) {
       const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
       await insertDailyDealFlowEntry(supabase, {
@@ -1861,8 +1949,8 @@ export default function CallCenterLeadIntakePage({
       state: data.state || "",
       zipCode: data.zip_code || "",
       phone: data.phone || "",
-      smsAccess: Boolean((data as any).sms_access),
-      emailAccess: Boolean((data as any).email_access),
+      smsAccess: Boolean((data as { sms_access?: unknown }).sms_access),
+      emailAccess: Boolean((data as { email_access?: unknown }).email_access),
       language: data.language || "English",
       birthState: data.birth_state || "",
       dateOfBirth: data.date_of_birth || "",
@@ -1870,7 +1958,7 @@ export default function CallCenterLeadIntakePage({
       social: data.social || "",
       driverLicenseNumber: data.driver_license_number || "",
       existingCoverageLast2Years: data.existing_coverage_last_2_years || "",
-      existingCoverageDetails: (data as any).existing_coverage_details || "",
+      existingCoverageDetails: String((data as { existing_coverage_details?: string | null }).existing_coverage_details || ""),
       previousApplications2Years: data.previous_applications_2_years || "",
       height: data.height || "",
       weight: data.weight || "",
@@ -1942,7 +2030,7 @@ export default function CallCenterLeadIntakePage({
     const leadUniqueId = normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload);
 
     // Build the query with ownership check for call center agents
-    let updateQuery = supabase
+    const updateQuery = supabase
       .from("leads")
       .update({
         lead_unique_id: leadUniqueId,
@@ -2004,7 +2092,7 @@ export default function CallCenterLeadIntakePage({
       return false;
     }
 
-    let feCreateLeadDraftSubmitSyncError: string | null = null;
+    const feCreateLeadDraftSubmitSyncError: string | null = null;
     if (updatedLead?.id) {
       const submissionIdForNotify = String(updatedLead.submission_id || "").trim() || buildSubmissionId(callCenterName);
 
@@ -2072,7 +2160,7 @@ export default function CallCenterLeadIntakePage({
       .maybeSingle();
 
     // Build the query with ownership check for call center agents
-    let query = supabase
+    const query = supabase
       .from("leads")
       .update({
         lead_unique_id: normalizeLeadUniqueId(payload.leadUniqueId) || buildLeadUniqueId(payload),
