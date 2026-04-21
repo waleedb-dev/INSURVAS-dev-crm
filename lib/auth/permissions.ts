@@ -105,7 +105,9 @@ export function canAccessPage(
     | "imo-settings"
     | "product-guide"
     | "announcements"
-    | "bpo-score-board",
+    | "bpo-score-board"
+    | "bpo-center-performance"
+    | "center-thresholds",
   role: RoleKey | null,
   permissionKeys: Set<PermissionKey>,
 ): boolean {
@@ -165,7 +167,7 @@ export function canAccessPage(
     return role === "system_admin";
   }
 
-  if (page === "bpo-score-board") {
+  if (page === "bpo-score-board" || page === "bpo-center-performance" || page === "center-thresholds") {
     return role === "system_admin";
   }
 

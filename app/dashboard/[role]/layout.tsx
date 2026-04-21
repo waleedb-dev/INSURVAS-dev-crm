@@ -37,6 +37,8 @@ const ALL_PAGES: DashPage[] = [
   "product-guide",
   "announcements",
   "bpo-score-board",
+  "bpo-center-performance",
+  "center-thresholds",
 ];
 
 function isDashPage(value: string | null): value is DashPage {

@@ -24,6 +24,8 @@ import GhlDataImportPage from "@/components/dashboard/pages/GhlDataImportPage";
 import PublisherSupportTicketsPage from "@/components/dashboard/pages/PublisherSupportTicketsPage";
 import CallCenterSupportTicketsPage from "@/components/dashboard/pages/CallCenterSupportTicketsPage";
 import BpoScoreBoardPage from "@/components/dashboard/pages/BpoScoreBoardPage";
+import BpoCenterPerformancePage from "@/components/dashboard/pages/BpoCenterPerformancePage";
+import CenterThresholdsPage from "@/components/dashboard/pages/CenterThresholdsPage";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 export default function RoleDashboardPage() {
@@ -96,6 +98,8 @@ export default function RoleDashboardPage() {
       {activePage === "product-guide" && <ProductGuidePage />}
       {activePage === "announcements" && <AnnouncementsPage />}
       {activePage === "bpo-score-board" && <BpoScoreBoardPage />}
+      {activePage === "bpo-center-performance" && <BpoCenterPerformancePage />}
+      {activePage === "center-thresholds" && <CenterThresholdsPage />}
     </>
   );
 }
