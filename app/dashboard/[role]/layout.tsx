@@ -39,6 +39,9 @@ const ALL_PAGES: DashPage[] = [
   "bpo-score-board",
   "bpo-center-performance",
   "center-thresholds",
+  "colombian-score-board",
+  "colombian-center-performance",
+  "colombian-thresholds",
 ];
 
 function isDashPage(value: string | null): value is DashPage {

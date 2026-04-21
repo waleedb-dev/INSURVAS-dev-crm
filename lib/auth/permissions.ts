@@ -107,7 +107,10 @@ export function canAccessPage(
     | "announcements"
     | "bpo-score-board"
     | "bpo-center-performance"
-    | "center-thresholds",
+    | "center-thresholds"
+    | "colombian-score-board"
+    | "colombian-center-performance"
+    | "colombian-thresholds",
   role: RoleKey | null,
   permissionKeys: Set<PermissionKey>,
 ): boolean {
@@ -167,7 +170,14 @@ export function canAccessPage(
     return role === "system_admin";
   }
 
-  if (page === "bpo-score-board" || page === "bpo-center-performance" || page === "center-thresholds") {
+  if (
+    page === "bpo-score-board" ||
+    page === "bpo-center-performance" ||
+    page === "center-thresholds" ||
+    page === "colombian-score-board" ||
+    page === "colombian-center-performance" ||
+    page === "colombian-thresholds"
+  ) {
     return role === "system_admin";
   }
 
