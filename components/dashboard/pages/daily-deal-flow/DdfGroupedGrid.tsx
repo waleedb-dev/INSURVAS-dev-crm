@@ -49,6 +49,59 @@ function dialHref(phone: string | null | undefined): string | null {
   return digits.length > 0 ? `tel:${digits}` : null;
 }
 
+const DAILY_DEAL_FLOW_UPDATE_COLUMNS = [
+  "client_phone_number",
+  "lead_vendor",
+  "date",
+  "insured_name",
+  "buffer_agent",
+  "retention_agent",
+  "retention_agent_id",
+  "agent",
+  "licensed_agent_account",
+  "status",
+  "call_result",
+  "carrier",
+  "product_type",
+  "draft_date",
+  "monthly_premium",
+  "face_amount",
+  "from_callback",
+  "is_callback",
+  "is_retention_call",
+  "notes",
+  "policy_number",
+  "carrier_audit",
+  "product_type_carrier",
+  "level_or_gi",
+  "la_callback",
+  "initial_quote",
+  "call_center_id",
+  "dq_reason",
+  "new_draft_date",
+  "disposition_path",
+  "generated_note",
+  "manual_note",
+  "quick_disposition_tag",
+  "application_submitted",
+  "call_source",
+  "sent_to_underwriting",
+  "coverage_amount",
+  "carrier_attempted_1",
+  "carrier_attempted_2",
+  "carrier_attempted_3",
+] as const satisfies readonly (keyof DailyDealFlowRow)[];
+
+function buildDailyDealFlowUpdatePayload(row: DailyDealFlowRow): Record<string, unknown> {
+  const payload: Record<string, unknown> = { updated_at: getCurrentTimestampEST() };
+  for (const key of DAILY_DEAL_FLOW_UPDATE_COLUMNS) {
+    if (Object.prototype.hasOwnProperty.call(row, key)) {
+      payload[key] = row[key];
+    }
+  }
+  return payload;
+}
+
 function InlineSelect({
   value,
   onValueChange,
@@ -456,7 +509,7 @@ export function DdfGroupedGrid({
   const saveRow = async (original: DailyDealFlowRow) => {
     if (!draft) return;
     setSaving(true);
-    const payload: DailyDealFlowRow = { ...draft, updated_at: getCurrentTimestampEST() };
+    const payload = buildDailyDealFlowUpdatePayload(draft);
     if (draft.status === "Pending Approval" && original.status !== "Pending Approval") {
       const structured = generatePendingApprovalNotes(
         draft.licensed_agent_account || "",
