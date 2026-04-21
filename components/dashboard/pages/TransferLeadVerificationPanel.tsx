@@ -574,6 +574,7 @@ const FIELD_SECTIONS = {
 } as const;
 
 type SectionName = keyof typeof FIELD_SECTIONS;
+const ALL_SECTION_NAMES = Object.keys(FIELD_SECTIONS) as SectionName[];
 
 // Fields that work well in a two-column layout
 const TWO_COLUMN_FIELDS = new Set<string>([
@@ -648,14 +649,24 @@ export default function TransferLeadVerificationPanel({
   const [underwritingHealthInput, setUnderwritingHealthInput] = useState("");
   const [underwritingMedicationInput, setUnderwritingMedicationInput] = useState("");
   
-  // Single-open accordion: only one section can be expanded at a time.
-  const [expandedSection, setExpandedSection] = useState<SectionName | null>("Contact Information");
+  // All sections start expanded; each can be toggled independently.
+  const [expandedSections, setExpandedSections] = useState<Set<SectionName>>(
+    () => new Set(ALL_SECTION_NAMES),
+  );
   
   // Recently verified items for animation
   const [recentlyVerified, setRecentlyVerified] = useState<Set<string>>(new Set());
 
   const toggleSection = (section: SectionName) => {
-    setExpandedSection((prev) => (prev === section ? null : section));
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) {
+        next.delete(section);
+      } else {
+        next.add(section);
+      }
+      return next;
+    });
   };
 
   // Calculate section completion
@@ -1405,7 +1416,7 @@ export default function TransferLeadVerificationPanel({
         {(Object.entries(FIELD_SECTIONS) as [SectionName, readonly string[]][]).map(
           ([sectionName, sectionFields]) => {
             const stats = getSectionStats(sectionFields);
-            const isCollapsed = expandedSection !== sectionName;
+            const isCollapsed = !expandedSections.has(sectionName);
             
             // Get visible items for this section that are in our ordered list
             const sectionItems = orderedItems.filter((item) =>
