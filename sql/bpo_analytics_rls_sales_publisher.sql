@@ -1,4 +1,4 @@
--- BPO Score Board / Center Performance / Center Thresholds: allow read paths for
+-- BPO and Colombian analytics dashboards: allow read paths for
 -- sales_manager and publisher_manager (and users granted the page.*.access keys).
 --
 -- Prerequisite: public.has_permission, public.has_role, public.has_any_role
@@ -21,6 +21,9 @@ using (
   or public.has_permission('page.bpo_score_board.access')
   or public.has_permission('page.bpo_center_performance.access')
   or public.has_permission('page.center_thresholds.access')
+  or public.has_permission('page.colombian_score_board.access')
+  or public.has_permission('page.colombian_center_performance.access')
+  or public.has_permission('page.colombian_thresholds.access')
 );
 
 -- ── center_thresholds: SELECT ───────────────────────────────────────────────
@@ -38,6 +41,9 @@ using (
   or public.has_permission('page.bpo_score_board.access')
   or public.has_permission('page.bpo_center_performance.access')
   or public.has_permission('page.center_thresholds.access')
+  or public.has_permission('page.colombian_score_board.access')
+  or public.has_permission('page.colombian_center_performance.access')
+  or public.has_permission('page.colombian_thresholds.access')
 );
 
 -- INSERT/UPDATE/DELETE on center_thresholds remain system_admin-only in

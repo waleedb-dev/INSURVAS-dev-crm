@@ -43,6 +43,25 @@ export function isPermissionKey(value: string): value is PermissionKey {
   return PERMISSION_SET.has(value);
 }
 
+/** BPO + Colombian analytics routes: system admin, or matching key from `role_permissions` / `user_permissions`. */
+const ANALYTICS_DASHBOARD_PAGE_KEYS = {
+  "bpo-score-board": "page.bpo_score_board.access",
+  "bpo-center-performance": "page.bpo_center_performance.access",
+  "center-thresholds": "page.center_thresholds.access",
+  "colombian-score-board": "page.colombian_score_board.access",
+  "colombian-center-performance": "page.colombian_center_performance.access",
+  "colombian-thresholds": "page.colombian_thresholds.access",
+} as const satisfies Record<string, PermissionKey>;
+
+type AnalyticsDashboardPage = keyof typeof ANALYTICS_DASHBOARD_PAGE_KEYS;
+
+function analyticsDashboardPermission(page: string): PermissionKey | null {
+  if (page in ANALYTICS_DASHBOARD_PAGE_KEYS) {
+    return ANALYTICS_DASHBOARD_PAGE_KEYS[page as AnalyticsDashboardPage];
+  }
+  return null;
+}
+
 export async function getCurrentUserPermissionKeys(
   supabase: SupabaseClient,
   userId: string,
@@ -176,20 +195,7 @@ export function canAccessPage(
     return role === "system_admin";
   }
 
-  const analyticsPageKey: PermissionKey | null =
-    page === "bpo-score-board"
-      ? "page.bpo_score_board.access"
-      : page === "bpo-center-performance"
-        ? "page.bpo_center_performance.access"
-        : page === "center-thresholds"
-          ? "page.center_thresholds.access"
-          : page === "colombian-score-board"
-            ? "page.colombian_score_board.access"
-            : page === "colombian-center-performance"
-              ? "page.colombian_center_performance.access"
-              : page === "colombian-thresholds"
-                ? "page.colombian_thresholds.access"
-                : null;
+  const analyticsPageKey = analyticsDashboardPermission(page);
 
   if (analyticsPageKey !== null) {
     return role === "system_admin" || permissionKeys.has(analyticsPageKey);
