@@ -24,10 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { DailyDealFlowRow } from "./daily-deal-flow/types";
-import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE, STATUS_OPTIONS } from "./daily-deal-flow/constants";
+import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE } from "./daily-deal-flow/constants";
 import { dateObjectToESTString, displayDdfStatus, getTodayDateEST } from "./daily-deal-flow/helpers";
 import { DdfGroupedGrid } from "./daily-deal-flow/DdfGroupedGrid";
 import { DdfSyncNotSubmittedToLeadsModal } from "./daily-deal-flow/DdfSyncNotSubmittedToLeadsModal";
+import { DdfCreateEntryModal } from "./daily-deal-flow/DdfCreateEntryModal";
+import CreateLeadModal from "./CreateLeadModal";
 
 type DailyDealFlowPageProps = {
   canProcessActions: boolean;
@@ -237,6 +239,7 @@ export default function DailyDealFlowPage({
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [syncNotSubmittedModalOpen, setSyncNotSubmittedModalOpen] = useState(false);
+  const [createLeadModalOpen, setCreateLeadModalOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFromFilter, setDateFromFilter] = useState("");
@@ -326,10 +329,6 @@ export default function DailyDealFlowPage({
   };
 
   type VendorRow = { lead_vendor: string | null };
-  type BufferRow = { buffer_agent: string | null };
-  type AgentRow = { agent: string | null };
-  type RetentionRow = { retention_agent: string | null };
-  type LicensedRow = { licensed_agent_account: string | null };
   type CarrierRow = { carrier: string | null };
   type UserOptionRow = {
     full_name: string | null;
@@ -752,6 +751,24 @@ export default function DailyDealFlowPage({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {isSalesManager && hasWritePermissions && (
+              <DdfCreateEntryModal
+                supabase={supabase}
+                bufferAgentOptions={bufferAgentOptions}
+                agentOptions={agentOptions}
+                licensedOptions={licensedOptions}
+                carrierOptions={carrierOptionsDynamic}
+                statusOptions={statusOptionsDynamic}
+                callCenterId={callCenterId}
+                onCreateLead={() => setCreateLeadModalOpen(true)}
+                onSuccess={() => {
+                  setToast({ message: "Daily Deal Flow entry created", type: "success" });
+                  void fetchData(1);
+                }}
+                onError={(message) => setToast({ message, type: "error" })}
+              />
+            )}
+
             <button
               type="button"
               onClick={() => setFilterPanelExpanded((v) => !v)}
@@ -1188,6 +1205,16 @@ export default function DailyDealFlowPage({
           onSynced={() => void fetchData(currentPage)}
         />
       )}
+
+      <CreateLeadModal
+        open={createLeadModalOpen}
+        onClose={() => setCreateLeadModalOpen(false)}
+        onSuccess={() => {
+          setCreateLeadModalOpen(false);
+          setToast({ message: "Lead created and added to Daily Deal Flow", type: "success" });
+          void fetchData(1);
+        }}
+      />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
