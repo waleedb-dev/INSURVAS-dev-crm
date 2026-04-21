@@ -332,7 +332,6 @@ export function DdfGroupedGrid({
   const [notesTooltip, setNotesTooltip] = useState<{ id: string; text: string; x: number; y: number } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingRow, setDeletingRow] = useState<DailyDealFlowRow | null>(null);
-  const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   const { carriers, productsForCarrier } = useCarrierProductDropdowns(supabase, {
     carrierName: String(draft?.carrier || ""),
@@ -482,14 +481,12 @@ export function DdfGroupedGrid({
 
   const openDeleteModal = (row: DailyDealFlowRow) => {
     setDeletingRow(row);
-    setDeleteConfirmName("");
     setShowDeleteModal(true);
   };
 
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
     setDeletingRow(null);
-    setDeleteConfirmName("");
     setDeletingInProgress(false);
   };
 
@@ -1393,47 +1390,8 @@ export function DdfGroupedGrid({
 
             <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
               <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
-                <strong>Warning:</strong> This will permanently delete the row for <strong>{`&quot;${deletingRow.insured_name || "this customer"}&quot;`}</strong>. This action cannot be undone.
+                Are you sure you want to permanently delete the row for <strong>{`&quot;${deletingRow.insured_name || "this customer"}&quot;`}</strong>? This action cannot be undone.
               </p>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Type <strong>{deletingRow.insured_name || "this customer"}</strong> to confirm deletion
-              </label>
-              <input
-                type="text"
-                value={deleteConfirmName}
-                onChange={(e) => setDeleteConfirmName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && deleteConfirmName === deletingRow.insured_name) void handleDeleteRow();
-                  if (e.key === "Escape") closeDeleteModal();
-                }}
-                placeholder={deletingRow.insured_name || "this customer"}
-                autoFocus
-                style={{
-                  width: "100%",
-                  height: 44,
-                  border: `1.5px solid ${deleteConfirmName === deletingRow.insured_name ? "#dc2626" : T.border}`,
-                  borderRadius: 10,
-                  fontSize: 14,
-                  color: T.textDark,
-                  padding: "0 14px",
-                  boxSizing: "border-box",
-                  background: T.cardBg,
-                  outline: "none",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingRow.insured_name ? "#dc2626" : "#233217";
-                  e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmName === deletingRow.insured_name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingRow.insured_name ? "#dc2626" : T.border;
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -1456,19 +1414,19 @@ export function DdfGroupedGrid({
               </button>
               <button
                 onClick={handleDeleteRow}
-                disabled={deleteConfirmName !== deletingRow.insured_name || deletingInProgress}
+                disabled={deletingInProgress}
                 style={{
                   height: 42,
                   padding: "0 20px",
                   borderRadius: 10,
                   border: "none",
-                  background: deleteConfirmName === deletingRow.insured_name && !deletingInProgress ? "#dc2626" : T.border,
+                  background: !deletingInProgress ? "#dc2626" : T.border,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 600,
                   fontFamily: T.font,
-                  cursor: deleteConfirmName === deletingRow.insured_name && !deletingInProgress ? "pointer" : "not-allowed",
-                  boxShadow: deleteConfirmName === deletingRow.insured_name && !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                  cursor: !deletingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
                   transition: "all 0.15s ease-in-out",
                 }}
               >

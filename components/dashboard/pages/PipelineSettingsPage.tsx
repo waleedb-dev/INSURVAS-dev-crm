@@ -200,7 +200,6 @@ export default function PipelineManagementPage() {
   const [editPipelineName, setEditPipelineName] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingPipeline, setDeletingPipeline] = useState<Pipeline | null>(null);
-  const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingInProgress, setDeletingInProgress] = useState(false);
 
   const filteredStagesForEdit = useMemo(() => {
@@ -303,13 +302,11 @@ export default function PipelineManagementPage() {
 
   function openDeleteModal(p: Pipeline) {
     setDeletingPipeline(p);
-    setDeleteConfirmName("");
     setShowDeleteModal(true);
   }
 
   async function handleDeletePipeline() {
     if (!deletingPipeline) return;
-    if (deleteConfirmName !== deletingPipeline.name) return;
 
     setDeletingInProgress(true);
 
@@ -324,7 +321,6 @@ export default function PipelineManagementPage() {
     } else {
       setShowDeleteModal(false);
       setDeletingPipeline(null);
-      setDeleteConfirmName("");
       fetchPipelines();
     }
   }
@@ -1373,47 +1369,8 @@ export default function PipelineManagementPage() {
 
             <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
               <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
-                <strong>Warning:</strong> This will permanently delete <strong>"{deletingPipeline.name}"</strong> and all its stages. This action cannot be undone.
+                Are you sure you want to permanently delete <strong>&quot;{deletingPipeline.name}&quot;</strong> and all its stages? This action cannot be undone.
               </p>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Type <strong>{deletingPipeline.name}</strong> to confirm deletion
-              </label>
-              <input
-                type="text"
-                value={deleteConfirmName}
-                onChange={(e) => setDeleteConfirmName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && deleteConfirmName === deletingPipeline.name) handleDeletePipeline();
-                  if (e.key === 'Escape') setShowDeleteModal(false);
-                }}
-                placeholder={deletingPipeline.name}
-                autoFocus
-                style={{
-                  width: "100%",
-                  height: 44,
-                  border: `1.5px solid ${deleteConfirmName === deletingPipeline.name ? "#dc2626" : T.border}`,
-                  borderRadius: 10,
-                  fontSize: 14,
-                  color: T.textDark,
-                  padding: "0 14px",
-                  boxSizing: "border-box",
-                  background: T.cardBg,
-                  outline: "none",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingPipeline.name ? "#dc2626" : "#233217";
-                  e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmName === deletingPipeline.name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingPipeline.name ? "#dc2626" : T.border;
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -1436,19 +1393,19 @@ export default function PipelineManagementPage() {
               </button>
               <button
                 onClick={handleDeletePipeline}
-                disabled={deleteConfirmName !== deletingPipeline.name || deletingInProgress}
+                disabled={deletingInProgress}
                 style={{
                   height: 42,
                   padding: "0 20px",
                   borderRadius: 10,
                   border: "none",
-                  background: deleteConfirmName === deletingPipeline.name && !deletingInProgress ? "#dc2626" : T.border,
+                  background: !deletingInProgress ? "#dc2626" : T.border,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 600,
                   fontFamily: T.font,
-                  cursor: deleteConfirmName === deletingPipeline.name && !deletingInProgress ? "pointer" : "not-allowed",
-                  boxShadow: deleteConfirmName === deletingPipeline.name && !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                  cursor: !deletingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
                   transition: "all 0.15s ease-in-out",
                 }}
               >

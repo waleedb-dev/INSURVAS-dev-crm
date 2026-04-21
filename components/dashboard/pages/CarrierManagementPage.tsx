@@ -216,7 +216,6 @@ export default function CarrierManagementPage() {
   const [editRequiresState, setEditRequiresState] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingCarrier, setDeletingCarrier] = useState<Carrier | null>(null);
-  const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const [editingInfoId, setEditingInfoId] = useState<number | null>(null);
@@ -318,7 +317,6 @@ export default function CarrierManagementPage() {
 
   function openDeleteModal(c: Carrier) {
     setDeletingCarrier(c);
-    setDeleteConfirmName("");
     setShowDeleteModal(true);
   }
 
@@ -364,7 +362,6 @@ export default function CarrierManagementPage() {
 
   async function handleDeleteCarrier() {
     if (!deletingCarrier) return;
-    if (deleteConfirmName !== deletingCarrier.name) return;
 
     setDeletingInProgress(true);
 
@@ -379,7 +376,6 @@ export default function CarrierManagementPage() {
     } else {
       setShowDeleteModal(false);
       setDeletingCarrier(null);
-      setDeleteConfirmName("");
       fetchCarriers();
     }
   }
@@ -2129,47 +2125,8 @@ export default function CarrierManagementPage() {
 
             <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
               <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
-                <strong>Warning:</strong> This will permanently delete <strong>"{deletingCarrier.name}"</strong>. This action cannot be undone.
+                Are you sure you want to permanently delete <strong>&quot;{deletingCarrier.name}&quot;</strong>? This action cannot be undone.
               </p>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Type <strong>{deletingCarrier.name}</strong> to confirm deletion
-              </label>
-              <input
-                type="text"
-                value={deleteConfirmName}
-                onChange={(e) => setDeleteConfirmName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && deleteConfirmName === deletingCarrier.name) handleDeleteCarrier();
-                  if (e.key === 'Escape') setShowDeleteModal(false);
-                }}
-                placeholder={deletingCarrier.name}
-                autoFocus
-                style={{
-                  width: "100%",
-                  height: 44,
-                  border: `1.5px solid ${deleteConfirmName === deletingCarrier.name ? "#dc2626" : T.border}`,
-                  borderRadius: 10,
-                  fontSize: 14,
-                  color: T.textDark,
-                  padding: "0 14px",
-                  boxSizing: "border-box",
-                  background: T.cardBg,
-                  outline: "none",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingCarrier.name ? "#dc2626" : "#233217";
-                  e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmName === deletingCarrier.name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingCarrier.name ? "#dc2626" : T.border;
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -2192,19 +2149,19 @@ export default function CarrierManagementPage() {
               </button>
               <button
                 onClick={handleDeleteCarrier}
-                disabled={deleteConfirmName !== deletingCarrier.name || deletingInProgress}
+                disabled={deletingInProgress}
                 style={{
                   height: 42,
                   padding: "0 20px",
                   borderRadius: 10,
                   border: "none",
-                  background: deleteConfirmName === deletingCarrier.name && !deletingInProgress ? "#dc2626" : T.border,
+                  background: !deletingInProgress ? "#dc2626" : T.border,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 600,
                   fontFamily: T.font,
-                  cursor: deleteConfirmName === deletingCarrier.name && !deletingInProgress ? "pointer" : "not-allowed",
-                  boxShadow: deleteConfirmName === deletingCarrier.name && !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                  cursor: !deletingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
                   transition: "all 0.15s ease-in-out",
                 }}
               >

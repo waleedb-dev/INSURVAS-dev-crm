@@ -238,11 +238,9 @@ export default function UsersAccessPage(){
   
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
-  const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusTargetUser, setStatusTargetUser] = useState<User | null>(null);
-  const [statusConfirmName, setStatusConfirmName] = useState("");
   const [statusUpdatingInProgress, setStatusUpdatingInProgress] = useState(false);
   
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
@@ -321,13 +319,11 @@ export default function UsersAccessPage(){
 
   function openDeleteModal(u: User) {
     setDeletingUser(u);
-    setDeleteConfirmName("");
     setShowDeleteModal(true);
   }
 
   async function handleToggleUserStatus() {
     if (!statusTargetUser) return;
-    if (statusConfirmName !== statusTargetUser.name) return;
 
     setStatusUpdatingInProgress(true);
     try {
@@ -342,7 +338,6 @@ export default function UsersAccessPage(){
       await refreshUsers();
       setShowStatusModal(false);
       setStatusTargetUser(null);
-      setStatusConfirmName("");
       setToast({
         message: nextStatus === "inactive" ? "User marked inactive successfully" : "User marked active successfully",
         type: "success",
@@ -359,7 +354,6 @@ export default function UsersAccessPage(){
 
   function openStatusModal(u: User) {
     setStatusTargetUser(u);
-    setStatusConfirmName("");
     setShowStatusModal(true);
   }
 
@@ -884,40 +878,9 @@ export default function UsersAccessPage(){
 
             <div style={{ backgroundColor: statusTargetUser.status === "Active" ? "#fffbeb" : "#ecfdf3", border: `1px solid ${statusTargetUser.status === "Active" ? "#fcd34d" : "#86efac"}`, borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
               <p style={{ margin: 0, fontSize: 14, color: statusTargetUser.status === "Active" ? "#92400e" : "#166534", lineHeight: 1.6 }}>
-                <strong>Confirmation:</strong> This will mark <strong>"{statusTargetUser.name}"</strong> as{" "}
-                <strong>{statusTargetUser.status === "Active" ? "inactive" : "active"}</strong>.
+                Are you sure you want to mark <strong>&quot;{statusTargetUser.name}&quot;</strong> as{" "}
+                <strong>{statusTargetUser.status === "Active" ? "inactive" : "active"}</strong>?
               </p>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Type <strong>{statusTargetUser.name}</strong> to confirm
-              </label>
-              <input
-                type="text"
-                value={statusConfirmName}
-                onChange={(e) => setStatusConfirmName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && statusConfirmName === statusTargetUser.name) void handleToggleUserStatus();
-                  if (e.key === 'Escape') setShowStatusModal(false);
-                }}
-                placeholder={statusTargetUser.name}
-                autoFocus
-                style={{
-                  width: "100%",
-                  height: 44,
-                  border: `1.5px solid ${statusConfirmName === statusTargetUser.name ? (statusTargetUser.status === "Active" ? "#b45309" : "#16a34a") : T.border}`,
-                  borderRadius: 10,
-                  fontSize: 14,
-                  color: T.textDark,
-                  padding: "0 14px",
-                  boxSizing: "border-box",
-                  background: T.cardBg,
-                  outline: "none",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-              />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -940,21 +903,19 @@ export default function UsersAccessPage(){
               </button>
               <button
                 onClick={handleToggleUserStatus}
-                disabled={statusConfirmName !== statusTargetUser.name || statusUpdatingInProgress}
+                disabled={statusUpdatingInProgress}
                 style={{
                   height: 42,
                   padding: "0 20px",
                   borderRadius: 10,
                   border: "none",
-                  background: statusConfirmName === statusTargetUser.name && !statusUpdatingInProgress
-                    ? (statusTargetUser.status === "Active" ? "#b45309" : "#16a34a")
-                    : T.border,
+                  background: !statusUpdatingInProgress ? (statusTargetUser.status === "Active" ? "#b45309" : "#16a34a") : T.border,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 600,
                   fontFamily: T.font,
-                  cursor: statusConfirmName === statusTargetUser.name && !statusUpdatingInProgress ? "pointer" : "not-allowed",
-                  boxShadow: statusConfirmName === statusTargetUser.name && !statusUpdatingInProgress
+                  cursor: !statusUpdatingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: !statusUpdatingInProgress
                     ? `0 4px 12px ${statusTargetUser.status === "Active" ? "rgba(180, 83, 9, 0.2)" : "rgba(22, 163, 74, 0.2)"}`
                     : "none",
                   transition: "all 0.15s ease-in-out",
@@ -984,47 +945,8 @@ export default function UsersAccessPage(){
 
             <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
               <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
-                <strong>Warning:</strong> This will permanently delete <strong>"{deletingUser.name}"</strong> and remove their access. This action cannot be undone.
+                Are you sure you want to permanently delete <strong>&quot;{deletingUser.name}&quot;</strong> and remove their access? This action cannot be undone.
               </p>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Type <strong>{deletingUser.name}</strong> to confirm deletion
-              </label>
-              <input
-                type="text"
-                value={deleteConfirmName}
-                onChange={(e) => setDeleteConfirmName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && deleteConfirmName === deletingUser.name) void handleDeleteUser();
-                  if (e.key === 'Escape') setShowDeleteModal(false);
-                }}
-                placeholder={deletingUser.name}
-                autoFocus
-                style={{
-                  width: "100%",
-                  height: 44,
-                  border: `1.5px solid ${deleteConfirmName === deletingUser.name ? "#dc2626" : T.border}`,
-                  borderRadius: 10,
-                  fontSize: 14,
-                  color: T.textDark,
-                  padding: "0 14px",
-                  boxSizing: "border-box",
-                  background: T.cardBg,
-                  outline: "none",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingUser.name ? "#dc2626" : "#233217";
-                  e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmName === deletingUser.name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingUser.name ? "#dc2626" : T.border;
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -1047,19 +969,19 @@ export default function UsersAccessPage(){
               </button>
               <button
                 onClick={handleDeleteUser}
-                disabled={deleteConfirmName !== deletingUser.name || deletingInProgress}
+                disabled={deletingInProgress}
                 style={{
                   height: 42,
                   padding: "0 20px",
                   borderRadius: 10,
                   border: "none",
-                  background: deleteConfirmName === deletingUser.name && !deletingInProgress ? "#dc2626" : T.border,
+                  background: !deletingInProgress ? "#dc2626" : T.border,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 600,
                   fontFamily: T.font,
-                  cursor: deleteConfirmName === deletingUser.name && !deletingInProgress ? "pointer" : "not-allowed",
-                  boxShadow: deleteConfirmName === deletingUser.name && !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                  cursor: !deletingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
                   transition: "all 0.15s ease-in-out",
                 }}
               >
