@@ -38,6 +38,7 @@ to authenticated
 using (
   public.has_any_role(array[
     'system_admin',
+    'sales_admin',
     'sales_manager',
     'sales_agent_licensed',
     'sales_agent_unlicensed',
@@ -64,6 +65,7 @@ to authenticated
 with check (
   public.has_any_role(array[
     'system_admin',
+    'sales_admin',
     'sales_manager',
     'sales_agent_licensed',
     'sales_agent_unlicensed',

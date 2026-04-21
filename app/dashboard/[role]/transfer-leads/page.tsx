@@ -6,11 +6,11 @@ import { T } from "@/lib/theme";
 import { DataGrid, FilterChip } from "@/components/ui/DataGrid";
 import { Table } from "@/components/ui/Table";
 import { Pagination } from "@/components/ui/Pagination";
+import CreateLeadModal from "@/components/dashboard/pages/CreateLeadModal";
 import { 
   Users, 
   Clock, 
   CheckCircle, 
-  XCircle, 
   ArrowLeftRight,
   Filter,
   Plus,
@@ -137,6 +137,7 @@ export default function TransferLeadsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<Lead["status"] | "all">("all");
+  const [createLeadModalOpen, setCreateLeadModalOpen] = useState(false);
   const itemsPerPage = 5;
 
   const stats = useMemo(() => ({
@@ -289,6 +290,7 @@ export default function TransferLeadsPage() {
           </p>
         </div>
         <button
+          onClick={() => setCreateLeadModalOpen(true)}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -312,6 +314,14 @@ export default function TransferLeadsPage() {
           <Plus size={18} /> Add New Lead
         </button>
       </div>
+
+      <CreateLeadModal
+        open={createLeadModalOpen}
+        onClose={() => setCreateLeadModalOpen(false)}
+        onSuccess={() => {
+          setPage(1);
+        }}
+      />
 
       {/* Stats Cards */}
       <div style={{ 

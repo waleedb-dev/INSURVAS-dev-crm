@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import { useOptionalDashboardContext } from "@/components/dashboard/DashboardContext";
 import { X, Plus, User, Phone, MapPin, Building2, Tag, ListTodo } from "lucide-react";
 
 type CreateLeadModalProps = {
@@ -29,6 +30,14 @@ type CallCenter = {
   id: string;
   name: string;
 };
+
+function buildManualLeadSubmissionId(): string {
+  const ts = Date.now();
+  const rand = (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2))
+    .replace(/-/g, "")
+    .slice(0, 8);
+  return `${ts}-${rand}-SA`;
+}
 
 function StyledSelect({
   value,
@@ -170,6 +179,9 @@ function InputField({
 
 export default function CreateLeadModal({ open, onClose, onSuccess }: CreateLeadModalProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const dashboardContext = useOptionalDashboardContext();
+  const shouldCreateDailyDealFlowEntry =
+    dashboardContext?.currentRole === "sales_admin" || dashboardContext?.currentRole === "sales_manager";
   
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -296,8 +308,12 @@ export default function CreateLeadModal({ open, onClose, onSuccess }: CreateLead
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const submittedBy = session?.user?.id;
+      const submissionId = shouldCreateDailyDealFlowEntry ? buildManualLeadSubmissionId() : null;
+      const insuredName = `${firstName.trim()} ${lastName.trim()}`.trim();
+      const selectedCallCenterName = callCenters.find((center) => center.id === selectedCallCenterId)?.name ?? null;
       
-      const { error: insertError } = await supabase.from("leads").insert({
+      const { data: insertedLead, error: insertError } = await supabase.from("leads").insert({
+        ...(submissionId ? { submission_id: submissionId } : {}),
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         phone: phone.trim(),
@@ -311,10 +327,25 @@ export default function CreateLeadModal({ open, onClose, onSuccess }: CreateLead
         call_center_id: selectedCallCenterId || null,
         submitted_by: submittedBy,
         is_draft: false,
-      });
+      }).select("id").single();
       
       if (insertError) {
         throw new Error(insertError.message);
+      }
+
+      if (shouldCreateDailyDealFlowEntry && submissionId && insertedLead?.id) {
+        const { error: ddfError } = await supabase.from("daily_deal_flow").insert({
+          submission_id: submissionId,
+          client_phone_number: phone.trim(),
+          lead_vendor: selectedCallCenterName || leadSource || null,
+          date: new Date().toISOString().slice(0, 10),
+          insured_name: insuredName,
+          call_center_id: selectedCallCenterId || null,
+        });
+
+        if (ddfError) {
+          throw new Error(ddfError.message || "Failed to create daily deal flow entry");
+        }
       }
       
       // Reset form
@@ -337,7 +368,7 @@ export default function CreateLeadModal({ open, onClose, onSuccess }: CreateLead
     } finally {
       setSaving(false);
     }
-  }, [firstName, lastName, phone, street1, city, state, zipCode, leadSource, selectedPipelineId, selectedStageId, selectedCallCenterId, supabase, userCallCenterId, onSuccess, onClose]);
+  }, [firstName, lastName, phone, street1, city, state, zipCode, leadSource, selectedPipelineId, selectedStageId, selectedCallCenterId, callCenters, shouldCreateDailyDealFlowEntry, supabase, userCallCenterId, onSuccess, onClose]);
   
   const handleClose = () => {
     if (!saving) {

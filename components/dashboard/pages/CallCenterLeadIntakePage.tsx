@@ -16,6 +16,7 @@ import {
 import TransferLeadApplicationForm, { type TransferLeadFormData, type TransferLeadSaveDraftMeta } from "./TransferLeadApplicationForm";
 import { buildFeCreateLeadBodyFromIntakePayload, postFeCreateLeadAtFixedUrl } from "./feCreateLead";
 import LeadViewComponent from "./LeadViewComponent";
+import CreateLeadModal from "./CreateLeadModal";
 import TransferLeadClaimModal from "./TransferLeadClaimModal";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
@@ -900,6 +901,9 @@ export default function CallCenterLeadIntakePage({
   const canEditLeadPipeline = permissionKeys.has("action.lead_pipeline.update");
   const isCallCenterTransferRole =
     currentRole === "call_center_agent" || currentRole === "call_center_admin";
+  const shouldUseCreateLeadModalForAdd =
+    currentRole === "sales_agent_licensed" || currentRole === "sales_agent_unlicensed";
+  const canUseAddNewLeadAction = canCreateLeads || shouldUseCreateLeadModalForAdd;
   // Only call center agents (not admins) auto-open drafts from grid / certain flows; admins use explicit "Edit draft" in the menu
   const isCallCenterAgentOnly = currentRole === "call_center_agent";
   const isCallCenterAdmin = currentRole === "call_center_admin";
@@ -927,6 +931,7 @@ export default function CallCenterLeadIntakePage({
   const [kanbanPage, setKanbanPage] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
   const [showCreateLead, setShowCreateLead] = useState(false);
+  const [createLeadModalOpen, setCreateLeadModalOpen] = useState(false);
   /** Bumps when user discards duplicate modal to start a fresh create form (remounts `TransferLeadApplicationForm`). */
   const [createLeadFormKey, setCreateLeadFormKey] = useState(0);
   /** After "Create Duplicate", pre-fill only these fields on the remounted form (e.g. same phone). Cleared on normal open/close. */
@@ -2555,12 +2560,16 @@ export default function CallCenterLeadIntakePage({
             <button
               type="button"
               onClick={() => {
+                if (shouldUseCreateLeadModalForAdd) {
+                  setCreateLeadModalOpen(true);
+                  return;
+                }
                 setCreateLeadFormInitialData(null);
                 setCreateLeadUnlockAfterDuplicate(false);
                 setShowCreateLead(true);
               }}
-              disabled={!canCreateLeads}
-              title={!canCreateLeads ? "Missing permission: action.transfer_leads.create" : undefined}
+              disabled={!canUseAddNewLeadAction}
+              title={!canUseAddNewLeadAction ? "Missing permission: action.transfer_leads.create" : undefined}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -2569,13 +2578,13 @@ export default function CallCenterLeadIntakePage({
                 padding: "0 18px",
                 borderRadius: 10,
                 border: "none",
-                background: canCreateLeads ? "#233217" : T.border,
+                background: canUseAddNewLeadAction ? "#233217" : T.border,
                 color: "#fff",
                 fontSize: 14,
                 fontWeight: 600,
                 fontFamily: T.font,
-                cursor: canCreateLeads ? "pointer" : "not-allowed",
-                boxShadow: canCreateLeads ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
+                cursor: canUseAddNewLeadAction ? "pointer" : "not-allowed",
+                boxShadow: canUseAddNewLeadAction ? "0 4px 12px rgba(35, 50, 23, 0.2)" : "none",
                 transition: "all 0.15s ease-in-out",
               }}
             >
@@ -3322,6 +3331,14 @@ export default function CallCenterLeadIntakePage({
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      <CreateLeadModal
+        open={createLeadModalOpen}
+        onClose={() => setCreateLeadModalOpen(false)}
+        onSuccess={() => {
+          setPage(1);
+          void refreshLeads();
+        }}
+      />
       <TransferLeadClaimModal
         open={claimModalOpen}
         loading={claimModalLoading}
