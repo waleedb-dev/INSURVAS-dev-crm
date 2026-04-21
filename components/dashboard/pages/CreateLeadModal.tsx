@@ -181,7 +181,10 @@ export default function CreateLeadModal({ open, onClose, onSuccess }: CreateLead
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const dashboardContext = useOptionalDashboardContext();
   const shouldCreateDailyDealFlowEntry =
-    dashboardContext?.currentRole === "sales_admin" || dashboardContext?.currentRole === "sales_manager";
+    dashboardContext?.currentRole === "sales_admin" ||
+    dashboardContext?.currentRole === "sales_manager" ||
+    dashboardContext?.currentRole === "sales_agent_licensed" ||
+    dashboardContext?.currentRole === "sales_agent_unlicensed";
   
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
