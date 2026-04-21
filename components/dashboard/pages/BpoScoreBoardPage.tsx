@@ -4,12 +4,48 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
-import { Calendar, ChevronDown, LayoutDashboard, Phone, Clock, FileCheck, CheckCircle, AlertTriangle, XCircle, FileText } from "lucide-react";
+import {
+  Calendar,
+  ChevronDown,
+  LayoutDashboard,
+  Phone,
+  Clock,
+  FileCheck,
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
+  FileText,
+  Hourglass,
+  BarChart3,
+  X,
+} from "lucide-react";
 import type { DailyDealFlowRow } from "./daily-deal-flow/types";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type DatePreset = "today" | "yesterday" | "7" | "30" | "custom";
+
+type MetricType =
+  | "totalTransfers"
+  | "pendingApproval"
+  | "underwriting"
+  | "approved"
+  | "giCurrentlyDq"
+  | "approvalRate"
+  | "callbackRate"
+  | "dqRate"
+  | "underwritingRate"
+  | "incompleteTransferRate";
 
 interface ScoreStats {
   totalTransfers: number;
@@ -17,20 +53,30 @@ interface ScoreStats {
   underwriting: number;
   approved: number;
   giCurrentlyDq: number;
+  incompleteTransfer: number;
   approvalRate: number;
   callbackRate: number;
   dqRate: number;
   underwritingRate: number;
+  incompleteTransferRate: number;
   approvalDenom: number;
   callbackDenom: number;
   callbackDenomTotal: number;
   dqDenom: number;
   underwritingDenom: number;
+  incompleteTransferDenom: number;
   totalTransfersTrend: number;
   pendingApprovalTrend: number;
   underwritingTrend: number;
   approvedTrend: number;
   giCurrentlyDqTrend: number;
+  incompleteTransferTrend: number;
+}
+
+interface HourlyData {
+  hour: string;
+  count: number;
+  label: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,11 +133,15 @@ function normalize(val: string | null | undefined): string {
   return (val ?? "").trim().replace(/\s+/g, " ");
 }
 
-function isExactMatch(val: string | null | undefined, target: string): boolean {
-  return normalize(val) === target;
+function getHourFromRow(row: DailyDealFlowRow): number | null {
+  const ts = row.created_at;
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return null;
+  return d.getHours();
 }
 
-function computeStats(rows: DailyDealFlowRow[]): Omit<ScoreStats, "totalTransfersTrend" | "pendingApprovalTrend" | "underwritingTrend" | "approvedTrend" | "giCurrentlyDqTrend"> {
+function computeStats(rows: DailyDealFlowRow[]): Omit<ScoreStats, "totalTransfersTrend" | "pendingApprovalTrend" | "underwritingTrend" | "approvedTrend" | "giCurrentlyDqTrend" | "incompleteTransferTrend"> {
   // Match BPO Portal AnalyticsRates - exact string match (no trimming)
   const underwriting = rows.filter((r) => r.call_result === "Underwriting").length;
   const approved = rows.filter((r) => r.call_result === "Submitted").length;
@@ -117,21 +167,25 @@ function computeStats(rows: DailyDealFlowRow[]): Omit<ScoreStats, "totalTransfer
     (r) => r.status === "Needs BPO Callback" || r.status === "Incomplete Transfer"
   ).length;
 
+  // Incomplete Transfer count
+  const incompleteTransfer = rows.filter((r) => r.status === "Incomplete Transfer").length;
+
   const totalTransfers = rows.length;
   // Non-pending = total minus pending
   const nonPendingCount = totalTransfers - pendingApproval;
 
   // Rates:
   // Approval Rate = Approved / Total Transfers
-  // Callback Rate = (Needs BPO Callback + Incomplete) / (Total - Pending)
-  // DQ Rate = DQ count / (Total - Pending)
+  // Callback Rate = (Needs BPO Callback + Incomplete) / (Total - Approved)
+  // DQ Rate = DQ count / (Total - Approved)
   // Underwriting Rate = Underwriting / Total Transfers
+  // Incomplete Transfer Rate = Incomplete Transfer / (Total - Approved)
   const approvalRate = totalTransfers > 0 ? Math.round((approved / totalTransfers) * 100) : 0;
-  // Callback Rate = (Needs BPO Callback + Incomplete) / (Total - Approved) * 100
   const callbackDenomTotal = totalTransfers - approved;
   const callbackRate = callbackDenomTotal > 0 ? Math.round((needsCallbackCount / callbackDenomTotal) * 100) : 0;
   const dqRate = callbackDenomTotal > 0 ? Math.round((dqRows.length / callbackDenomTotal) * 100) : 0;
   const underwritingRate = callbackDenomTotal > 0 ? Math.round((underwriting / callbackDenomTotal) * 100) : 0;
+  const incompleteTransferRate = callbackDenomTotal > 0 ? Math.round((incompleteTransfer / callbackDenomTotal) * 100) : 0;
 
   return {
     totalTransfers,
@@ -139,16 +193,129 @@ function computeStats(rows: DailyDealFlowRow[]): Omit<ScoreStats, "totalTransfer
     underwriting,
     approved,
     giCurrentlyDq,
+    incompleteTransfer,
     approvalRate,
     callbackRate,
     dqRate,
     underwritingRate,
+    incompleteTransferRate,
     approvalDenom: approved,
     callbackDenom: needsCallbackCount,
     callbackDenomTotal,
     dqDenom: dqRows.length,
     underwritingDenom: underwriting,
+    incompleteTransferDenom: incompleteTransfer,
   };
+}
+
+function computeHourlyBreakdown(
+  rows: DailyDealFlowRow[],
+  metric: MetricType
+): HourlyData[] {
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+
+  const getCountForHour = (hour: number): number => {
+    const hourRows = rows.filter((r) => {
+      const h = getHourFromRow(r);
+      return h === hour;
+    });
+
+    switch (metric) {
+      case "totalTransfers":
+        return hourRows.length;
+      case "pendingApproval": {
+        const uw = hourRows.filter((r) => r.call_result === "Underwriting").length;
+        const ap = hourRows.filter((r) => r.call_result === "Submitted").length;
+        return uw + ap;
+      }
+      case "underwriting":
+        return hourRows.filter((r) => r.call_result === "Underwriting").length;
+      case "approved":
+        return hourRows.filter((r) => r.call_result === "Submitted").length;
+      case "giCurrentlyDq": {
+        const giDqStatuses = new Set(["GI - Currently DQ", "GI DQ"]);
+        return hourRows.filter((r) => giDqStatuses.has(r.status ?? "")).length;
+      }
+      case "approvalRate": {
+        const total = hourRows.length;
+        const ap = hourRows.filter((r) => r.call_result === "Submitted").length;
+        return total > 0 ? Math.round((ap / total) * 100) : 0;
+      }
+      case "callbackRate": {
+        const ap = hourRows.filter((r) => r.call_result === "Submitted").length;
+        const denom = hourRows.length - ap;
+        const cb = hourRows.filter(
+          (r) => r.status === "Needs BPO Callback" || r.status === "Incomplete Transfer"
+        ).length;
+        return denom > 0 ? Math.round((cb / denom) * 100) : 0;
+      }
+      case "dqRate": {
+        const ap = hourRows.filter((r) => r.call_result === "Submitted").length;
+        const denom = hourRows.length - ap;
+        const dqStatuses = new Set([
+          "Returned To Center - DQ",
+          "DQ'd Can't be sold",
+          "GI - Currently DQ",
+        ]);
+        const dq = hourRows.filter(
+          (r) => dqStatuses.has(r.status ?? "") || (r.status?.includes("DQ") ?? false)
+        ).length;
+        return denom > 0 ? Math.round((dq / denom) * 100) : 0;
+      }
+      case "underwritingRate": {
+        const ap = hourRows.filter((r) => r.call_result === "Submitted").length;
+        const denom = hourRows.length - ap;
+        const uw = hourRows.filter((r) => r.call_result === "Underwriting").length;
+        return denom > 0 ? Math.round((uw / denom) * 100) : 0;
+      }
+      case "incompleteTransferRate": {
+        const ap = hourRows.filter((r) => r.call_result === "Submitted").length;
+        const denom = hourRows.length - ap;
+        const inc = hourRows.filter((r) => r.status === "Incomplete Transfer").length;
+        return denom > 0 ? Math.round((inc / denom) * 100) : 0;
+      }
+      default:
+        return hourRows.length;
+    }
+  };
+
+  return hours.map((h) => ({
+    hour: `${h}:00`,
+    count: getCountForHour(h),
+    label: `${h.toString().padStart(2, "0")}:00`,
+  }));
+}
+
+function getMetricLabel(metric: MetricType): string {
+  const labels: Record<MetricType, string> = {
+    totalTransfers: "Total Transfers",
+    pendingApproval: "Pending Approval",
+    underwriting: "Underwriting",
+    approved: "Approved",
+    giCurrentlyDq: "GI-Currently DQ",
+    approvalRate: "Approval Rate",
+    callbackRate: "Callback Rate",
+    dqRate: "DQ Rate",
+    underwritingRate: "Underwriting Rate",
+    incompleteTransferRate: "Incomplete Transfer Rate",
+  };
+  return labels[metric] || metric;
+}
+
+function getMetricColor(metric: MetricType): string {
+  const colors: Record<MetricType, string> = {
+    totalTransfers: "#22c55e",
+    pendingApproval: "#f59e0b",
+    underwriting: "#3b82f6",
+    approved: "#22c55e",
+    giCurrentlyDq: "#ef4444",
+    approvalRate: "#22c55e",
+    callbackRate: "#3b82f6",
+    dqRate: "#ef4444",
+    underwritingRate: "#f59e0b",
+    incompleteTransferRate: "#8b5cf6",
+  };
+  return colors[metric] || "#233217";
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -187,6 +354,8 @@ function StatCard({
   iconColor,
   hovered,
   onHover,
+  selected,
+  onClick,
 }: {
   label: string;
   value: number;
@@ -196,27 +365,46 @@ function StatCard({
   iconColor: string;
   hovered: boolean;
   onHover: (v: boolean) => void;
+  selected: boolean;
+  onClick: () => void;
 }) {
   return (
     <Card
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
+      onClick={onClick}
       style={{
         borderRadius: 16,
-        border: `1px solid ${T.border}`,
-        background: T.cardBg,
-        boxShadow: hovered ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)" : "0 4px 12px rgba(0,0,0,0.03)",
+        border: selected ? `2px solid #233217` : `1px solid ${T.border}`,
+        background: selected ? "#f6f9f4" : T.cardBg,
+        boxShadow: hovered || selected
+          ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+          : "0 4px 12px rgba(0,0,0,0.03)",
         transform: hovered ? "translateY(-3px)" : "translateY(0)",
-        transition: "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+        transition: "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s, background 0.2s",
         padding: "24px",
         minHeight: 120,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
         gap: 16,
-        cursor: "default",
+        cursor: "pointer",
+        position: "relative",
       }}
     >
+      {selected && (
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            backgroundColor: "#233217",
+          }}
+        />
+      )}
       <div
         style={{
           width: 44,
@@ -258,6 +446,8 @@ function RateCard({
   iconColor,
   hovered,
   onHover,
+  selected,
+  onClick,
 }: {
   label: string;
   rate: number;
@@ -269,27 +459,46 @@ function RateCard({
   iconColor: string;
   hovered: boolean;
   onHover: (v: boolean) => void;
+  selected: boolean;
+  onClick: () => void;
 }) {
   return (
     <Card
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
+      onClick={onClick}
       style={{
         borderRadius: 16,
-        border: `1px solid ${T.border}`,
-        background: T.cardBg,
-        boxShadow: hovered ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)" : "0 4px 12px rgba(0,0,0,0.03)",
+        border: selected ? `2px solid ${color}` : `1px solid ${T.border}`,
+        background: selected ? `${color}08` : T.cardBg,
+        boxShadow: hovered || selected
+          ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
+          : "0 4px 12px rgba(0,0,0,0.03)",
         transform: hovered ? "translateY(-3px)" : "translateY(0)",
-        transition: "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+        transition: "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s, background 0.2s",
         padding: "24px",
         minHeight: 140,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
         gap: 16,
-        cursor: "default",
+        cursor: "pointer",
+        position: "relative",
       }}
     >
+      {selected && (
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            backgroundColor: color,
+          }}
+        />
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "#647864", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>
@@ -338,6 +547,146 @@ function RateCard({
   );
 }
 
+function HourlyChart({
+  data,
+  metric,
+  onClose,
+}: {
+  data: HourlyData[];
+  metric: MetricType;
+  onClose: () => void;
+}) {
+  const color = getMetricColor(metric);
+  const isRate = metric.includes("Rate");
+  const label = getMetricLabel(metric);
+
+  // Only show hours with data + padding
+  const firstIndex = data.findIndex((d) => d.count > 0);
+  const lastIndex = data.map((d) => d.count > 0).lastIndexOf(true);
+  const startIdx = firstIndex >= 0 ? Math.max(0, firstIndex - 1) : 0;
+  const endIdx = lastIndex >= 0 ? Math.min(23, lastIndex + 2) : 23;
+  const filteredData = data.slice(startIdx, endIdx + 1);
+
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
+  const CustomTooltip = ({ active, payload, label: tooltipLabel }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div
+          style={{
+            background: "#fff",
+            border: `1px solid ${T.border}`,
+            borderRadius: 12,
+            padding: "12px 16px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+          }}
+        >
+          <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, color: "#647864" }}>
+            Hour: {tooltipLabel}
+          </p>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#233217" }}>
+            {payload[0].value}{isRate ? "%" : ""} {label}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <Card
+      style={{
+        borderRadius: 16,
+        border: `1px solid ${T.border}`,
+        background: T.cardBg,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+        padding: "24px",
+        marginTop: 8,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <BarChart3 size={20} color="#233217" />
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: "#233217", margin: 0 }}>
+            Hourly Breakdown — {label}
+          </h3>
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            border: `1px solid ${T.border}`,
+            background: "transparent",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            color: "#647864",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#fee2e2";
+            e.currentTarget.style.color = "#991b1b";
+            e.currentTarget.style.borderColor = "#fecaca";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "#647864";
+            e.currentTarget.style.borderColor = T.border;
+          }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <div style={{ width: "100%", height: 320 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={filteredData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: "#647864", fontWeight: 500 }}
+              tickLine={false}
+              axisLine={{ stroke: "#e5e7eb" }}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#647864", fontWeight: 500 }}
+              tickLine={false}
+              axisLine={false}
+              width={40}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(35, 50, 23, 0.04)" }} />
+            <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={48}>
+              {filteredData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.count === maxCount && maxCount > 0 ? color : `${color}88`}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: color }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#647864" }}>Peak Hour</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: `${color}88` }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#647864" }}>Other Hours</span>
+        </div>
+        <div style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#233217" }}>
+          Total: {data.reduce((sum, d) => sum + d.count, 0)}{isRate ? "%" : ""}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export default function BpoScoreBoardPage() {
@@ -359,6 +708,7 @@ export default function BpoScoreBoardPage() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [hoveredKeyCard, setHoveredKeyCard] = useState<number | null>(null);
   const [hoveredRateCard, setHoveredRateCard] = useState<number | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<MetricType | null>("totalTransfers");
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -391,11 +741,7 @@ export default function BpoScoreBoardPage() {
         console.error("[BpoScoreBoard] fetch error:", error);
         setRows([]);
       } else {
-      console.log("[BpoScoreBoard] Raw rows from DB:", data?.length);
-      console.log("[BpoScoreBoard] All statuses in result:", [...new Set((data || []).map(r => JSON.stringify(r.status)))]);
-      console.log("[BpoScoreBoard] All unique status+call_result combos:", [...new Set((data || []).map(r => JSON.stringify({ status: r.status, call_result: r.call_result })))]);
-      console.log("[BpoScoreBoard] Rows with non-empty retention_agent:", (data || []).filter((r: any) => r.retention_agent && String(r.retention_agent).trim() !== "").length);
-      console.log("[BpoScoreBoard] All 44 rows detail:", (data || []).map((r: any) => ({ name: r.insured_name, status: r.status, call_result: r.call_result, retention_agent: r.retention_agent })));
+        console.log("[BpoScoreBoard] Raw rows from DB:", data?.length);
         setRows((data || []) as DailyDealFlowRow[]);
       }
 
@@ -466,13 +812,27 @@ export default function BpoScoreBoardPage() {
       underwritingTrend: computeTrend(currentStats.underwriting, previousStats.underwriting),
       approvedTrend: computeTrend(currentStats.approved, previousStats.approved),
       giCurrentlyDqTrend: computeTrend(currentStats.giCurrentlyDq, previousStats.giCurrentlyDq),
+      incompleteTransferTrend: computeTrend(currentStats.incompleteTransfer, previousStats.incompleteTransfer),
     };
   }, [currentStats, previousStats]);
+
+  const hourlyData = useMemo(() => {
+    if (!selectedMetric) return [];
+    return computeHourlyBreakdown(rows, selectedMetric);
+  }, [rows, selectedMetric]);
 
   const dateDisplay = datePreset === "custom" ? appliedRange.label : appliedRange.label;
 
   // Key metrics definitions
-  const keyMetrics = [
+  const keyMetrics: {
+    label: string;
+    value: number;
+    trend: number;
+    icon: React.ReactNode;
+    iconBg: string;
+    iconColor: string;
+    metric: MetricType;
+  }[] = [
     {
       label: "Total Transfers",
       value: stats.totalTransfers,
@@ -480,6 +840,7 @@ export default function BpoScoreBoardPage() {
       icon: <LayoutDashboard size={20} />,
       iconBg: "#dcfce7",
       iconColor: "#166534",
+      metric: "totalTransfers",
     },
     {
       label: "Pending Approval",
@@ -488,6 +849,7 @@ export default function BpoScoreBoardPage() {
       icon: <Clock size={20} />,
       iconBg: "#fef3c7",
       iconColor: "#b45309",
+      metric: "pendingApproval",
     },
     {
       label: "Underwriting",
@@ -496,6 +858,7 @@ export default function BpoScoreBoardPage() {
       icon: <FileText size={20} />,
       iconBg: "#dbeafe",
       iconColor: "#1e40af",
+      metric: "underwriting",
     },
     {
       label: "Approved",
@@ -504,6 +867,7 @@ export default function BpoScoreBoardPage() {
       icon: <CheckCircle size={20} />,
       iconBg: "#dcfce7",
       iconColor: "#166534",
+      metric: "approved",
     },
     {
       label: "GI-Currently DQ",
@@ -512,10 +876,21 @@ export default function BpoScoreBoardPage() {
       icon: <AlertTriangle size={20} />,
       iconBg: "#fee2e2",
       iconColor: "#991b1b",
+      metric: "giCurrentlyDq",
     },
   ];
 
-  const rateMetrics = [
+  const rateMetrics: {
+    label: string;
+    rate: number;
+    denom: number;
+    total: number;
+    color: string;
+    icon: React.ReactNode;
+    iconBg: string;
+    iconColor: string;
+    metric: MetricType;
+  }[] = [
     {
       label: "Approval Rate",
       rate: stats.approvalRate,
@@ -525,6 +900,7 @@ export default function BpoScoreBoardPage() {
       icon: <CheckCircle size={20} />,
       iconBg: "#dcfce7",
       iconColor: "#166534",
+      metric: "approvalRate",
     },
     {
       label: "Callback Rate",
@@ -535,6 +911,7 @@ export default function BpoScoreBoardPage() {
       icon: <Phone size={20} />,
       iconBg: "#dbeafe",
       iconColor: "#1e40af",
+      metric: "callbackRate",
     },
     {
       label: "DQ Rate",
@@ -545,6 +922,7 @@ export default function BpoScoreBoardPage() {
       icon: <XCircle size={20} />,
       iconBg: "#fee2e2",
       iconColor: "#991b1b",
+      metric: "dqRate",
     },
     {
       label: "Underwriting",
@@ -555,6 +933,18 @@ export default function BpoScoreBoardPage() {
       icon: <FileCheck size={20} />,
       iconBg: "#fef3c7",
       iconColor: "#b45309",
+      metric: "underwritingRate",
+    },
+    {
+      label: "Incomplete Transfer Rate",
+      rate: stats.incompleteTransferRate,
+      denom: stats.incompleteTransferDenom,
+      total: stats.callbackDenomTotal,
+      color: "#8b5cf6",
+      icon: <Hourglass size={20} />,
+      iconBg: "#ede9fe",
+      iconColor: "#6d28d9",
+      metric: "incompleteTransferRate",
     },
   ];
 
@@ -869,6 +1259,10 @@ export default function BpoScoreBoardPage() {
                   iconColor={metric.iconColor}
                   hovered={hoveredKeyCard === i}
                   onHover={(v) => setHoveredKeyCard(v ? i : null)}
+                  selected={selectedMetric === metric.metric}
+                  onClick={() =>
+                    setSelectedMetric((prev) => (prev === metric.metric ? null : metric.metric))
+                  }
                 />
               ))}
             </div>
@@ -877,7 +1271,7 @@ export default function BpoScoreBoardPage() {
           {/* Performance Rates */}
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: "#233217", margin: "0 0 20px" }}>Performance Rates</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 20 }}>
               {rateMetrics.map((metric, i) => (
                 <RateCard
                   key={metric.label}
@@ -891,10 +1285,23 @@ export default function BpoScoreBoardPage() {
                   iconColor={metric.iconColor}
                   hovered={hoveredRateCard === i}
                   onHover={(v) => setHoveredRateCard(v ? i : null)}
+                  selected={selectedMetric === metric.metric}
+                  onClick={() =>
+                    setSelectedMetric((prev) => (prev === metric.metric ? null : metric.metric))
+                  }
                 />
               ))}
             </div>
           </div>
+
+          {/* Hourly Breakdown Chart */}
+          {selectedMetric && hourlyData.length > 0 && (
+            <HourlyChart
+              data={hourlyData}
+              metric={selectedMetric}
+              onClose={() => setSelectedMetric(null)}
+            />
+          )}
         </>
       )}
     </div>
