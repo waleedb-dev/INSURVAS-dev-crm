@@ -26,6 +26,9 @@ import CallCenterSupportTicketsPage from "@/components/dashboard/pages/CallCente
 import BpoScoreBoardPage from "@/components/dashboard/pages/BpoScoreBoardPage";
 import BpoCenterPerformancePage from "@/components/dashboard/pages/BpoCenterPerformancePage";
 import CenterThresholdsPage from "@/components/dashboard/pages/CenterThresholdsPage";
+import ColombianScoreBoardPage from "@/components/dashboard/pages/ColombianScoreBoardPage";
+import ColombianCenterPerformancePage from "@/components/dashboard/pages/ColombianCenterPerformancePage";
+import ColombianThresholdsPage from "@/components/dashboard/pages/ColombianThresholdsPage";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 export default function RoleDashboardPage() {
@@ -100,6 +103,9 @@ export default function RoleDashboardPage() {
       {activePage === "bpo-score-board" && <BpoScoreBoardPage />}
       {activePage === "bpo-center-performance" && <BpoCenterPerformancePage />}
       {activePage === "center-thresholds" && <CenterThresholdsPage />}
+      {activePage === "colombian-score-board" && <ColombianScoreBoardPage />}
+      {activePage === "colombian-center-performance" && <ColombianCenterPerformancePage />}
+      {activePage === "colombian-thresholds" && <ColombianThresholdsPage />}
     </>
   );
 }

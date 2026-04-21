@@ -20,6 +20,9 @@ export const PERMISSION_KEYS = [
   "page.bpo_score_board.access",
   "page.bpo_center_performance.access",
   "page.center_thresholds.access",
+  "page.colombian_score_board.access",
+  "page.colombian_center_performance.access",
+  "page.colombian_thresholds.access",
   "page.imo_management.access",
   "page.upline_carrier_states.access",
 ] as const;
@@ -110,7 +113,10 @@ export function canAccessPage(
     | "announcements"
     | "bpo-score-board"
     | "bpo-center-performance"
-    | "center-thresholds",
+    | "center-thresholds"
+    | "colombian-score-board"
+    | "colombian-center-performance"
+    | "colombian-thresholds",
   role: RoleKey | null,
   permissionKeys: Set<PermissionKey>,
 ): boolean {
@@ -170,16 +176,23 @@ export function canAccessPage(
     return role === "system_admin";
   }
 
-  if (page === "bpo-score-board") {
-    return role === "system_admin" || permissionKeys.has("page.bpo_score_board.access");
-  }
+  const analyticsPageKey: PermissionKey | null =
+    page === "bpo-score-board"
+      ? "page.bpo_score_board.access"
+      : page === "bpo-center-performance"
+        ? "page.bpo_center_performance.access"
+        : page === "center-thresholds"
+          ? "page.center_thresholds.access"
+          : page === "colombian-score-board"
+            ? "page.colombian_score_board.access"
+            : page === "colombian-center-performance"
+              ? "page.colombian_center_performance.access"
+              : page === "colombian-thresholds"
+                ? "page.colombian_thresholds.access"
+                : null;
 
-  if (page === "bpo-center-performance") {
-    return role === "system_admin" || permissionKeys.has("page.bpo_center_performance.access");
-  }
-
-  if (page === "center-thresholds") {
-    return role === "system_admin" || permissionKeys.has("page.center_thresholds.access");
+  if (analyticsPageKey !== null) {
+    return role === "system_admin" || permissionKeys.has(analyticsPageKey);
   }
 
   return false;

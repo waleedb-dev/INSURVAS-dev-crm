@@ -50,7 +50,10 @@ export type DashPage =
   | "announcements"
   | "bpo-score-board"
   | "bpo-center-performance"
-  | "center-thresholds";
+  | "center-thresholds"
+  | "colombian-score-board"
+  | "colombian-center-performance"
+  | "colombian-thresholds";
 
 interface Props {
   activePage: DashPage;
@@ -131,6 +134,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: "bpo-score-board", label: "Score Board", icon: <LayoutDashboard size={22} strokeWidth={1.8} /> },
   { id: "bpo-center-performance", label: "Center Performance", icon: <BarChart3 size={22} strokeWidth={1.8} /> },
   { id: "center-thresholds", label: "Center Thresholds", icon: <Settings size={22} strokeWidth={1.8} /> },
+  { id: "colombian-score-board", label: "Colombian Score Board", icon: <LayoutDashboard size={22} strokeWidth={1.8} /> },
+  { id: "colombian-center-performance", label: "Colombian Performance", icon: <BarChart3 size={22} strokeWidth={1.8} /> },
+  { id: "colombian-thresholds", label: "Colombian Thresholds", icon: <Settings size={22} strokeWidth={1.8} /> },
 ];
 
 const PAGE_TITLE: Record<DashPage, string> = {
@@ -158,6 +164,9 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "bpo-score-board": "Score Board",
   "bpo-center-performance": "Center Performance",
   "center-thresholds": "Center Thresholds",
+  "colombian-score-board": "Colombian Centers Score Board",
+  "colombian-center-performance": "Colombian Centers Performance",
+  "colombian-thresholds": "Colombian Centers Threshold",
 };
 
 const NOTIFICATIONS = [
