@@ -201,9 +201,9 @@ type VerificationSessionLookupRow = {
   updated_at?: string | null;
 };
 
-type CallResultLookupRow = {
+type DailyDealFlowLookupRow = {
   submission_id: string | null;
-  application_submitted: boolean | null;
+  call_result: string | null;
   status: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -1089,7 +1089,7 @@ export default function CallCenterLeadIntakePage({
     ];
 
     const verificationBySubmission = new Map<string, VerificationSessionLookupRow>();
-    const latestCallResultBySubmission = new Map<string, CallResultLookupRow>();
+    const latestDailyDealFlowBySubmission = new Map<string, DailyDealFlowLookupRow>();
 
     if (submissionIds.length > 0) {
       const { data: verificationRows, error: verificationError } = await supabase
@@ -1108,19 +1108,19 @@ export default function CallCenterLeadIntakePage({
         });
       }
 
-      const { data: callResultRows, error: callResultError } = await supabase
-        .from("call_results")
-        .select("submission_id, application_submitted, status, created_at, updated_at")
+      const { data: dailyDealFlowRows, error: dailyDealFlowError } = await supabase
+        .from("daily_deal_flow")
+        .select("submission_id, call_result, status, created_at, updated_at")
         .in("submission_id", submissionIds)
         .order("updated_at", { ascending: false })
         .order("created_at", { ascending: false });
 
-      if (callResultError) {
-        setToast({ message: callResultError.message || "Failed to load call results", type: "error" });
+      if (dailyDealFlowError) {
+        setToast({ message: dailyDealFlowError.message || "Failed to load daily deal flow statuses", type: "error" });
       } else {
-        ((callResultRows || []) as CallResultLookupRow[]).forEach((row) => {
+        ((dailyDealFlowRows || []) as DailyDealFlowLookupRow[]).forEach((row) => {
           const key = row.submission_id?.trim();
-          if (key && !latestCallResultBySubmission.has(key)) latestCallResultBySubmission.set(key, row);
+          if (key && !latestDailyDealFlowBySubmission.has(key)) latestDailyDealFlowBySubmission.set(key, row);
         });
       }
     }
@@ -1132,7 +1132,7 @@ export default function CallCenterLeadIntakePage({
       const submissionIdRaw = lead.submission_id;
       const submissionId = typeof submissionIdRaw === "string" && submissionIdRaw.trim() !== "" ? submissionIdRaw.trim() : null;
       const verificationSession = submissionId ? verificationBySubmission.get(submissionId) : undefined;
-      const latestCallResult = submissionId ? latestCallResultBySubmission.get(submissionId) : undefined;
+      const latestDailyDealFlow = submissionId ? latestDailyDealFlowBySubmission.get(submissionId) : undefined;
 
       return {
         rowId: typeof lead.id === "string" ? lead.id : String(lead.id ?? ""),
@@ -1154,13 +1154,8 @@ export default function CallCenterLeadIntakePage({
         state: typeof lead.state === "string" && lead.state.trim() !== "" ? lead.state : "N/A",
         hasVerificationSession: Boolean(verificationSession),
         verificationSessionStatus: verificationSession?.status || null,
-        latestCallResult:
-          latestCallResult?.application_submitted === false
-            ? "Not Submitted"
-            : latestCallResult?.application_submitted === true
-              ? "Submitted"
-              : null,
-        latestCallResultStatus: latestCallResult?.status || null,
+        latestCallResult: latestDailyDealFlow?.call_result || null,
+        latestCallResultStatus: latestDailyDealFlow?.status || null,
       };
     });
 
