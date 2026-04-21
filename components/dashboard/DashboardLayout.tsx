@@ -30,6 +30,7 @@ import {
   LifeBuoy,
   RefreshCw,
   Upload,
+  BarChart3,
 } from "lucide-react";
 import { callCenterNameInitials, displayCallCenterName } from "@/lib/callCenterBranding";
 
@@ -47,7 +48,9 @@ export type DashPage =
   | "imo-management" | "upline-carrier-states" | "imo-settings"
   | "product-guide"
   | "announcements"
-  | "bpo-score-board";
+  | "bpo-score-board"
+  | "bpo-center-performance"
+  | "center-thresholds";
 
 interface Props {
   activePage: DashPage;
@@ -126,6 +129,8 @@ const NAV_ITEMS: NavItem[] = [
   },
   { id: "announcements", label: "Announcements", icon: <Bell size={22} strokeWidth={1.8} /> },
   { id: "bpo-score-board", label: "Score Board", icon: <LayoutDashboard size={22} strokeWidth={1.8} /> },
+  { id: "bpo-center-performance", label: "Center Performance", icon: <BarChart3 size={22} strokeWidth={1.8} /> },
+  { id: "center-thresholds", label: "Center Thresholds", icon: <Settings size={22} strokeWidth={1.8} /> },
 ];
 
 const PAGE_TITLE: Record<DashPage, string> = {
@@ -151,6 +156,8 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "product-guide": "Product Guide",
   "announcements": "Announcements",
   "bpo-score-board": "Score Board",
+  "bpo-center-performance": "Center Performance",
+  "center-thresholds": "Center Thresholds",
 };
 
 const NOTIFICATIONS = [
