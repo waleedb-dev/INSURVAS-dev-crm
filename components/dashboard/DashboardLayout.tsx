@@ -46,7 +46,8 @@ export type DashPage =
   | "commissions" | "policies" | "carrier-updates"
   | "imo-management" | "upline-carrier-states" | "imo-settings"
   | "product-guide"
-  | "announcements";
+  | "announcements"
+  | "bpo-score-board";
 
 interface Props {
   activePage: DashPage;
@@ -124,6 +125,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { id: "announcements", label: "Announcements", icon: <Bell size={22} strokeWidth={1.8} /> },
+  { id: "bpo-score-board", label: "Score Board", icon: <LayoutDashboard size={22} strokeWidth={1.8} /> },
 ];
 
 const PAGE_TITLE: Record<DashPage, string> = {
@@ -148,6 +150,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "upline-carrier-states": "Upline States",
   "product-guide": "Product Guide",
   "announcements": "Announcements",
+  "bpo-score-board": "Score Board",
 };
 
 const NOTIFICATIONS = [

@@ -36,6 +36,7 @@ const ALL_PAGES: DashPage[] = [
   "imo-settings",
   "product-guide",
   "announcements",
+  "bpo-score-board",
 ];
 
 function isDashPage(value: string | null): value is DashPage {

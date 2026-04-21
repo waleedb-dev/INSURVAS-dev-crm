@@ -23,6 +23,7 @@ import CrmSyncOperationsPage from "@/components/dashboard/pages/CrmSyncOperation
 import GhlDataImportPage from "@/components/dashboard/pages/GhlDataImportPage";
 import PublisherSupportTicketsPage from "@/components/dashboard/pages/PublisherSupportTicketsPage";
 import CallCenterSupportTicketsPage from "@/components/dashboard/pages/CallCenterSupportTicketsPage";
+import BpoScoreBoardPage from "@/components/dashboard/pages/BpoScoreBoardPage";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 export default function RoleDashboardPage() {
@@ -94,6 +95,7 @@ export default function RoleDashboardPage() {
       {activePage === "upline-carrier-states" && <UplineCarrierStatesManagementPage />}
       {activePage === "product-guide" && <ProductGuidePage />}
       {activePage === "announcements" && <AnnouncementsPage />}
+      {activePage === "bpo-score-board" && <BpoScoreBoardPage />}
     </>
   );
 }
