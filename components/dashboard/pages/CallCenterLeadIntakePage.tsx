@@ -248,15 +248,41 @@ function formatPhoneDisplay(phone: string | null | undefined) {
 
 const KANBAN_ITEMS_PER_PAGE = 20;
 
-function renderTransferKanbanBoard({ leads, collapsedColumns, toggleColumnCollapse, openLeadFromGrid, openLeadInForm, kanbanPage, setKanbanPage }: {
+type TransferKanbanListVariant = "full" | "compact";
+
+type RenderTransferKanbanArgs = {
   leads: IntakeLead[];
   collapsedColumns: Record<string, boolean>;
   toggleColumnCollapse: (id: string) => void;
   openLeadFromGrid: (lead: IntakeLead) => void;
-  openLeadInForm: (rowId: string) => void;
+  openLeadInForm: (rowId: string) => Promise<boolean>;
   kanbanPage: Record<string, number>;
   setKanbanPage: React.Dispatch<React.SetStateAction<Record<string, number>>>;
-}) {
+  variant: TransferKanbanListVariant;
+  router: { push: (url: string) => void };
+  routeRole: string;
+  isCallCenterTransferRole: boolean;
+  canViewTransferClaimReclaimVisit: boolean;
+  openClaimModalForLead: (lead: IntakeLead) => void | Promise<void>;
+  openRetentionModalForLead: (lead: IntakeLead) => void | Promise<void>;
+};
+
+function renderTransferKanbanBoard({
+  leads,
+  collapsedColumns,
+  toggleColumnCollapse,
+  openLeadFromGrid,
+  openLeadInForm,
+  kanbanPage,
+  setKanbanPage,
+  variant,
+  router,
+  routeRole,
+  isCallCenterTransferRole,
+  canViewTransferClaimReclaimVisit,
+  openClaimModalForLead,
+  openRetentionModalForLead,
+}: RenderTransferKanbanArgs) {
   const leadsByColumn: Record<TransferKanbanColumnId, IntakeLead[]> = {
     "new-lead-in": [],
     "new-transfer-enqueue": [],
@@ -405,7 +431,14 @@ function renderTransferKanbanBoard({ leads, collapsedColumns, toggleColumnCollap
                           {paginatedLeads.map((lead) => (
                             <div
                               key={lead.rowId}
-                              onClick={() => openLeadFromGrid(lead)}
+                              role={isCallCenterTransferRole ? undefined : "button"}
+                              onClick={
+                                isCallCenterTransferRole
+                                  ? undefined
+                                  : () => {
+                                      void openLeadFromGrid(lead);
+                                    }
+                              }
                               style={{
                                 backgroundColor: "#fff",
                                 borderRadius: 8,
@@ -413,50 +446,182 @@ function renderTransferKanbanBoard({ leads, collapsedColumns, toggleColumnCollap
                                 boxShadow: "0 1px 4px rgba(35, 50, 23, 0.06)",
                                 border: `1px solid ${T.border}`,
                                 borderLeft: `3px solid ${column.accent}`,
-                                cursor: "pointer",
+                                cursor: isCallCenterTransferRole ? "default" : "pointer",
                                 transition: "all 0.15s ease",
                                 position: "relative",
                                 animation: "fadeInUp 0.15s ease-out",
+                                ...(variant === "compact"
+                                  ? { display: "flex", flexDirection: "column" as const, justifyContent: "space-between" as const, minHeight: 110, boxSizing: "border-box" as const }
+                                  : {}),
                               }}
-                              onMouseEnter={e => { e.currentTarget.style.borderColor = "#233217"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.12)"; }}
-                              onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "0 1px 4px rgba(35, 50, 23, 0.06)"; e.currentTarget.style.borderLeftColor = column.accent; }}
+                              onMouseEnter={
+                                isCallCenterTransferRole
+                                  ? undefined
+                                  : (e) => {
+                                      e.currentTarget.style.borderColor = "#233217";
+                                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(35, 50, 23, 0.12)";
+                                    }
+                              }
+                              onMouseLeave={
+                                isCallCenterTransferRole
+                                  ? undefined
+                                  : (e) => {
+                                      e.currentTarget.style.borderColor = T.border;
+                                      e.currentTarget.style.boxShadow = "0 1px 4px rgba(35, 50, 23, 0.06)";
+                                      e.currentTarget.style.borderLeftColor = column.accent;
+                                    }
+                              }
                             >
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                                <div style={{ flex: 1, marginRight: 8 }}>
-                                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textDark, lineHeight: 1.3 }}>
-                                    {lead.name}
-                                  </p>
-                                  <p style={{ margin: "2px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 500 }}>
-                                    {formatPhoneDisplay(lead.phone)}
-                                  </p>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openLeadInForm(lead.rowId);
-                                  }}
-                                  style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", padding: 2 }}
-                                >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                </button>
-                              </div>
-
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginBottom: 6 }}>
-                                <span style={{ fontSize: 11, color: T.textMuted }}><span style={{ fontWeight: 600 }}>Carrier:</span> {lead.carrier}</span>
-                                <span style={{ fontSize: 11, color: T.textMuted }}><span style={{ fontWeight: 600 }}>State:</span> {lead.state}</span>
-                              </div>
-
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 6, borderTop: `1px solid ${T.borderLight}` }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 500 }}>{lead.centerName}</span>
-                                  {lead.isDraft && (
-                                    <span style={{ fontSize: 9, fontWeight: 700, backgroundColor: "#fef3c7", color: "#92400e", padding: "1px 5px", borderRadius: 3 }}>
-                                      DRAFT
+                              {variant === "compact" ? (
+                                <>
+                                  <div style={{ minHeight: 44 }}>
+                                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textDark, lineHeight: 1.35 }}>{lead.name}</p>
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      paddingTop: 6,
+                                      marginTop: 6,
+                                      borderTop: `1px solid ${T.borderLight}`,
+                                      minHeight: 32,
+                                    }}
+                                  >
+                                    <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 500, lineHeight: 1.35 }}>{lead.centerName}</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                                    <div style={{ flex: 1, marginRight: 8 }}>
+                                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textDark, lineHeight: 1.3 }}>{lead.name}</p>
+                                      <p style={{ margin: "2px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 500 }}>{formatPhoneDisplay(lead.phone)}</p>
+                                    </div>
+                                    {!isCallCenterTransferRole ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void openLeadInForm(lead.rowId);
+                                        }}
+                                        style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", padding: 2 }}
+                                      >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                        </svg>
+                                      </button>
+                                    ) : (
+                                      <span style={{ width: 16, height: 16 }} />
+                                    )}
+                                  </div>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginBottom: 6 }}>
+                                    <span style={{ fontSize: 11, color: T.textMuted }}>
+                                      <span style={{ fontWeight: 600 }}>Carrier:</span> {lead.carrier}
                                     </span>
-                                  )}
-                                </div>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: T.textDark }}>${lead.premium.toLocaleString()}</span>
-                              </div>
+                                    <span style={{ fontSize: 11, color: T.textMuted }}>
+                                      <span style={{ fontWeight: 600 }}>State:</span> {lead.state}
+                                    </span>
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      paddingTop: 6,
+                                      borderTop: `1px solid ${T.borderLight}`,
+                                    }}
+                                  >
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                      <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 500 }}>{lead.centerName}</span>
+                                      {lead.isDraft ? (
+                                        <span
+                                          style={{
+                                            fontSize: 9,
+                                            fontWeight: 700,
+                                            backgroundColor: "#fef3c7",
+                                            color: "#92400e",
+                                            padding: "1px 5px",
+                                            borderRadius: 3,
+                                          }}
+                                        >
+                                          DRAFT
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: T.textDark }}>${lead.premium.toLocaleString()}</span>
+                                  </div>
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${T.borderLight}` }}
+                                  >
+                                    {!isCallCenterTransferRole && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (lead.isDraft) {
+                                            void openLeadFromGrid(lead);
+                                            return;
+                                          }
+                                          router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
+                                        }}
+                                        style={{
+                                          border: `1px solid ${T.border}`,
+                                          borderRadius: 10,
+                                          background: T.cardBg,
+                                          color: "#233217",
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          padding: "6px 14px",
+                                          cursor: "pointer",
+                                          transition: "all 0.15s ease-in-out",
+                                        }}
+                                      >
+                                        View Lead
+                                      </button>
+                                    )}
+                                    {canViewTransferClaimReclaimVisit && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => void openClaimModalForLead(lead)}
+                                          style={{
+                                            border: `1px solid ${T.border}`,
+                                            borderRadius: 10,
+                                            background: T.cardBg,
+                                            color: "#233217",
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            padding: "6px 14px",
+                                            cursor: "pointer",
+                                            transition: "all 0.15s ease-in-out",
+                                          }}
+                                        >
+                                          Claim Call
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => void openRetentionModalForLead(lead)}
+                                          style={{
+                                            border: `1px solid ${T.border}`,
+                                            borderRadius: 10,
+                                            background: T.cardBg,
+                                            color: "#233217",
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            padding: "6px 14px",
+                                            cursor: "pointer",
+                                            transition: "all 0.15s ease-in-out",
+                                          }}
+                                        >
+                                          Claim Retention
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </>
+                              )}
                             </div>
                           ))}
 
@@ -545,14 +710,44 @@ const TL_DATE_INPUT_STYLE: CSSProperties = {
   background: T.cardBg,
 };
 
+/** US Eastern (handles EST/EDT) for transfer lead `created_at` day boundaries and display. */
+const TRANSFER_LEADS_TZ = "America/New_York";
+
+function ymdEastern(d: Date): string {
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TRANSFER_LEADS_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  if (y && m && day) return `${y}-${m}-${day}`;
+  return "";
+}
+
+/** Calendar YYYY-MM-DD in US Eastern for an ISO `created_at` — used when filtering on `leads.created_at`. */
 function transferLeadDayKey(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return ymdEastern(d);
+}
+
+function todayEasternYmd(): string {
+  return ymdEastern(new Date());
+}
+
+function formatCreatedAtEasternCell(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-GB", {
+    timeZone: TRANSFER_LEADS_TZ,
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function mapSelectOptions(values: string[], allLabel: string) {
@@ -921,12 +1116,21 @@ export default function CallCenterLeadIntakePage({
   const { permissionKeys, currentRole, setPageHeaderActions } = useDashboardContext();
   const canEditTransferLeads = permissionKeys.has("action.transfer_leads.edit");
   const canEditLeadPipeline = permissionKeys.has("action.lead_pipeline.update");
-  const isCallCenterTransferRole =
-    currentRole === "call_center_agent" || currentRole === "call_center_admin";
   const shouldUseCreateLeadModalForAdd =
     currentRole === "sales_agent_licensed" || currentRole === "sales_agent_unlicensed";
   const canUseAddNewLeadAction = canCreateLeads || shouldUseCreateLeadModalForAdd;
-  // Only call center agents (not admins) auto-open drafts from grid / certain flows; admins use explicit "Edit draft" in the menu
+  const isCallCenterTransferRole =
+    currentRole === "call_center_agent" || currentRole === "call_center_admin";
+  /** System admin, sales manager, and sales agents see the full table and Kanban; other roles get the compact BPO + name list. */
+  const showFullTransferLeadsListUi = useMemo(
+    () =>
+      currentRole === "system_admin" ||
+      currentRole === "sales_manager" ||
+      currentRole === "sales_agent_licensed" ||
+      currentRole === "sales_agent_unlicensed",
+    [currentRole],
+  );
+  // Call centre agents (not admins) auto-open their own drafts for editing from grid and Kanban.
   const isCallCenterAgentOnly = currentRole === "call_center_agent";
   const isCallCenterAdmin = currentRole === "call_center_admin";
   const params = useParams<{ role?: string }>();
@@ -935,7 +1139,7 @@ export default function CallCenterLeadIntakePage({
   const [viewingLead, setViewingLead] = useState<{ id: string; name: string; rowUuid: string } | null>(null);
   const [editingLead, setEditingLead] = useState<{ rowId: string; formData: TransferLeadFormData } | null>(null);
   const [search, setSearch] = useState("");
-  const [filterDateSingle, setFilterDateSingle] = useState("");
+  const [filterDateSingle, setFilterDateSingle] = useState(() => todayEasternYmd());
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterCenter, setFilterCenter] = useState("All");
@@ -964,6 +1168,8 @@ export default function CallCenterLeadIntakePage({
   const createDraftRowIdRef = useRef<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [pendingDeleteLead, setPendingDeleteLead] = useState<{ rowId: string; name: string } | null>(null);
+  const [deletingLead, setDeletingLead] = useState(false);
   const [defaultTransferPipelineId, setDefaultTransferPipelineId] = useState<number | null>(null);
   const [defaultTransferStageId, setDefaultTransferStageId] = useState<number | null>(null);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
@@ -973,8 +1179,6 @@ export default function CallCenterLeadIntakePage({
   const [duplicateIsAddable, setDuplicateIsAddable] = useState<boolean>(true);
   const [callCenterName, setCallCenterName] = useState("");
   const [callCenterDid, setCallCenterDid] = useState("");
-  const [pendingDeleteLead, setPendingDeleteLead] = useState<{ rowId: string; name: string } | null>(null);
-  const [deletingLead, setDeletingLead] = useState(false);
   const [claimModalOpen, setClaimModalOpen] = useState(false);
   const [claimModalLoading, setClaimModalLoading] = useState(false);
   const [claimLeadContext, setClaimLeadContext] = useState<ClaimLeadContext | null>(null);
@@ -1055,7 +1259,6 @@ export default function CallCenterLeadIntakePage({
     const canViewCallCenter = permissionKeys.has("action.transfer_leads.view_call_center");
     const canViewOwn = permissionKeys.has("action.transfer_leads.view_own");
     const hideDraftsForSalesRole =
-      currentRole === "sales_admin" ||
       currentRole === "sales_manager" ||
       currentRole === "sales_agent_licensed" ||
       currentRole === "sales_agent_unlicensed";
@@ -1147,7 +1350,7 @@ export default function CallCenterLeadIntakePage({
         pipelineName: typeof pipelineObj?.name === "string" && pipelineObj.name.trim() !== "" ? pipelineObj.name : "Transfer Portal",
         stage: typeof lead.stage === "string" && lead.stage.trim() !== "" ? lead.stage : "Transfer API",
         createdBy: typeof userObj?.full_name === "string" && userObj.full_name.trim() !== "" ? userObj.full_name.trim() : "Unknown",
-        createdAt: lead.created_at ? new Date(String(lead.created_at)).toLocaleString() : "Just now",
+        createdAt: formatCreatedAtEasternCell(lead.created_at != null ? String(lead.created_at) : null),
         createdAtIso: lead.created_at ? String(lead.created_at) : "",
         isDraft: typeof lead.is_draft === "boolean" ? lead.is_draft : false,
         carrier: typeof lead.carrier === "string" && lead.carrier.trim() !== "" ? lead.carrier : "N/A",
@@ -1989,6 +2192,14 @@ export default function CallCenterLeadIntakePage({
     return true;
   };
 
+  const openLeadFromGrid = async (lead: IntakeLead) => {
+    // Call centre staff use this list for visibility only; do not open the lead detail from the grid or Kanban
+    if (isCallCenterTransferRole) {
+      return;
+    }
+    setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId });
+  };
+
   const handleEditLead = async (rowId: string) => {
     if (!canEditTransferLeads) {
       setToast({ message: "You do not have permission to edit transfer leads.", type: "error" });
@@ -1997,13 +2208,38 @@ export default function CallCenterLeadIntakePage({
     await openLeadInForm(rowId);
   };
 
-  const openLeadFromGrid = async (lead: IntakeLead) => {
-    // Only call center agents (not admins) can open their own drafts for editing
-    if (lead.isDraft && isCallCenterAgentOnly) {
-      await openLeadInForm(lead.rowId);
+  const handleDeleteLead = (leadRowId: string, leadName?: string) => {
+    setPendingDeleteLead({ rowId: leadRowId, name: (leadName || "this lead").trim() });
+  };
+
+  const confirmDeleteLead = async () => {
+    if (!canEditTransferLeads) {
+      setToast({ message: "You do not have permission to delete transfer leads.", type: "error" });
+      setPendingDeleteLead(null);
       return;
     }
-    setViewingLead({ id: lead.id, name: lead.name, rowUuid: lead.rowId });
+    if (!pendingDeleteLead || deletingLead) return;
+    setDeletingLead(true);
+    const { error, count } = await supabase
+      .from("leads")
+      .delete({ count: "exact" })
+      .eq("id", pendingDeleteLead.rowId);
+    if (error) {
+      setToast({ message: error.message || "Failed to delete lead", type: "error" });
+      setDeletingLead(false);
+      return;
+    }
+    if (!count || count < 1) {
+      setToast({ message: "Lead could not be deleted (permission denied or already removed).", type: "error" });
+      setDeletingLead(false);
+      return;
+    }
+
+    setPendingDeleteLead(null);
+    setDeletingLead(false);
+    setToast({ message: "Lead deleted successfully", type: "success" });
+    setPage(1);
+    await refreshLeads();
   };
 
   const handleUpdateLead = async (payload: TransferLeadFormData): Promise<boolean> => {
@@ -2220,40 +2456,6 @@ export default function CallCenterLeadIntakePage({
 
     setToast({ message: "Draft updated", type: "success" });
     setEditingLead(null);
-    await refreshLeads();
-  };
-
-  const handleDeleteLead = async (leadRowId: string, leadName?: string) => {
-    setPendingDeleteLead({ rowId: leadRowId, name: (leadName || "this lead").trim() });
-  };
-
-  const confirmDeleteLead = async () => {
-    if (!canEditTransferLeads) {
-      setToast({ message: "You do not have permission to delete transfer leads.", type: "error" });
-      setPendingDeleteLead(null);
-      return;
-    }
-    if (!pendingDeleteLead || deletingLead) return;
-    setDeletingLead(true);
-    const { error, count } = await supabase
-      .from("leads")
-      .delete({ count: "exact" })
-      .eq("id", pendingDeleteLead.rowId);
-    if (error) {
-      setToast({ message: error.message || "Failed to delete lead", type: "error" });
-      setDeletingLead(false);
-      return;
-    }
-    if (!count || count < 1) {
-      setToast({ message: "Lead could not be deleted (permission denied or already removed).", type: "error" });
-      setDeletingLead(false);
-      return;
-    }
-
-    setPendingDeleteLead(null);
-    setDeletingLead(false);
-    setToast({ message: "Lead deleted successfully", type: "success" });
-    setPage(1);
     await refreshLeads();
   };
 
@@ -2698,7 +2900,7 @@ export default function CallCenterLeadIntakePage({
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
                   <div>
-                    <FieldLabel label="Single date" />
+                    <FieldLabel label="Created at — single day (Eastern US)" />
                     <div style={{ position: "relative" }}>
                       <input
                         type="date"
@@ -2733,7 +2935,7 @@ export default function CallCenterLeadIntakePage({
                     </div>
                   </div>
                   <div>
-                    <FieldLabel label="Date from" />
+                    <FieldLabel label="Created at from (Eastern US)" />
                     <div style={{ position: "relative" }}>
                       <input
                         type="date"
@@ -2767,7 +2969,7 @@ export default function CallCenterLeadIntakePage({
                     </div>
                   </div>
                   <div>
-                    <FieldLabel label="Date to" />
+                    <FieldLabel label="Created at to (Eastern US)" />
                     <div style={{ position: "relative" }}>
                       <input
                         type="date"
@@ -2904,9 +3106,15 @@ export default function CallCenterLeadIntakePage({
                   <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
               Active:
             </span>
-            {filterDateSingle !== "" && <FilterChip label={`Date: ${filterDateSingle}`} onClear={() => setFilterDateSingle("")} />}
-            {filterDateFrom !== "" && <FilterChip label={`From: ${filterDateFrom}`} onClear={() => setFilterDateFrom("")} />}
-            {filterDateTo !== "" && <FilterChip label={`To: ${filterDateTo}`} onClear={() => setFilterDateTo("")} />}
+            {filterDateSingle !== "" && (
+              <FilterChip label={`Created at: ${filterDateSingle} (Eastern US)`} onClear={() => setFilterDateSingle("")} />
+            )}
+            {filterDateFrom !== "" && (
+              <FilterChip label={`Created at from: ${filterDateFrom} (Eastern US)`} onClear={() => setFilterDateFrom("")} />
+            )}
+            {filterDateTo !== "" && (
+              <FilterChip label={`Created at to: ${filterDateTo} (Eastern US)`} onClear={() => setFilterDateTo("")} />
+            )}
             {filterCenter !== "All" && <FilterChip label={`Centre: ${filterCenter}`} onClear={() => setFilterCenter("All")} />}
             {filterCarrier !== "All" && <FilterChip label={`Carrier: ${filterCarrier}`} onClear={() => setFilterCarrier("All")} />}
             {filterState !== "All" && <FilterChip label={`State: ${filterState}`} onClear={() => setFilterState("All")} />}
@@ -3073,24 +3281,35 @@ export default function CallCenterLeadIntakePage({
               <ShadcnTable>
                 <TableHeader style={{ backgroundColor: "#233217" }}>
                   <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
-                    {[
-                      { label: "Lead ID", align: "left" as const },
-                      { label: "Customer Name", align: "left" as const },
-                      { label: "Customer Phone", align: "left" as const },
-                      { label: "Carrier", align: "left" as const },
-                      { label: "State", align: "left" as const },
-                      { label: "Premium", align: "left" as const },
-                      { label: "Actions", align: "center" as const },
-                    ].map(({ label, align }) => (
-                      <TableHead key={label} style={{ 
-                        color: "#ffffff", 
-                        fontWeight: 700, 
-                        fontSize: 12, 
-                        letterSpacing: "0.3px",
-                        padding: "16px 20px",
-                        whiteSpace: "nowrap",
-                        textAlign: align
-                      }}>
+                    {(showFullTransferLeadsListUi
+                      ? [
+                          { label: "Lead ID", align: "left" as const },
+                          { label: "Customer Name", align: "left" as const },
+                          { label: "Customer Phone", align: "left" as const },
+                          { label: "Carrier", align: "left" as const },
+                          { label: "State", align: "left" as const },
+                          { label: "Premium", align: "left" as const },
+                          { label: "Created at (Eastern US)", align: "left" as const },
+                          { label: "Actions", align: "center" as const },
+                        ]
+                      : [
+                          { label: "Customer Name", align: "left" as const },
+                          { label: "BPO", align: "left" as const },
+                          { label: "Created at (Eastern US)", align: "left" as const },
+                        ]
+                    ).map(({ label, align }) => (
+                      <TableHead
+                        key={label}
+                        style={{
+                          color: "#ffffff",
+                          fontWeight: 700,
+                          fontSize: 12,
+                          letterSpacing: "0.3px",
+                          padding: "16px 20px",
+                          whiteSpace: "nowrap",
+                          textAlign: align,
+                        }}
+                      >
                         {label}
                       </TableHead>
                     ))}
@@ -3099,16 +3318,18 @@ export default function CallCenterLeadIntakePage({
                 <TableBody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={7} style={{ padding: "60px 20px", textAlign: "center" }}>
+                      <td colSpan={showFullTransferLeadsListUi ? 8 : 3} style={{ padding: "60px 20px", textAlign: "center" }}>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-                          <div style={{
-                            width: 40,
-                            height: 40,
-                            border: `4px solid ${T.border}`,
-                            borderTopColor: "#233217",
-                            borderRadius: "50%",
-                            animation: "spin 0.8s linear infinite",
-                          }} />
+                          <div
+                            style={{
+                              width: 40,
+                              height: 40,
+                              border: `4px solid ${T.border}`,
+                              borderTopColor: "#233217",
+                              borderRadius: "50%",
+                              animation: "spin 0.8s linear infinite",
+                            }}
+                          />
                           <style>{`
                             @keyframes spin {
                               to { transform: rotate(360deg); }
@@ -3120,7 +3341,7 @@ export default function CallCenterLeadIntakePage({
                     </tr>
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ padding: "60px 20px", textAlign: "center" }}>
+                      <td colSpan={showFullTransferLeadsListUi ? 8 : 3} style={{ padding: "60px 20px", textAlign: "center" }}>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
                           <Search size={40} color={T.textMuted} style={{ opacity: 0.5 }} />
                           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: T.textDark }}>No leads found</h3>
@@ -3128,80 +3349,79 @@ export default function CallCenterLeadIntakePage({
                         </div>
                       </td>
                     </tr>
-                  ) : (
-                    paginated.map((lead) => {
-                      return (
-                        <TableRow 
-                          key={lead.id}
-                          style={{ cursor: "pointer", borderBottom: `1px solid ${T.border}` }}
-                          className="hover:bg-muted/30 transition-all duration-150"
-                        >
-                          <TableCell style={{ padding: "14px 20px" }}>
-                            {canViewTransferClaimReclaimVisit ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
-                                }}
+                  ) : showFullTransferLeadsListUi ? (
+                    paginated.map((lead) => (
+                      <TableRow
+                        key={lead.id}
+                        style={{ borderBottom: `1px solid ${T.border}` }}
+                        className="hover:bg-muted/30 transition-all duration-150"
+                      >
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          {canViewTransferClaimReclaimVisit && !isCallCenterTransferRole ? (
+                            <button
+                              onClick={() => {
+                                router.push(`/dashboard/${routeRole}/transfer-leads/${lead.rowId}`);
+                              }}
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: "#233217",
+                                textDecoration: "underline",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: 0,
+                                fontFamily: T.font,
+                              }}
+                            >
+                              {lead.id}
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>{lead.id}</span>
+                          )}
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 14, fontWeight: 500, color: T.textDark }}>{lead.name}</span>
+                            {lead.isDraft ? (
+                              <span
                                 style={{
-                                  fontSize: 13,
-                                  fontWeight: 700,
-                                  color: "#233217",
-                                  textDecoration: "underline",
-                                  background: "none",
-                                  border: "none",
-                                  cursor: "pointer",
-                                  padding: 0,
-                                  fontFamily: T.font,
+                                  backgroundColor: "#FEF3C7",
+                                  color: "#92400E",
+                                  border: "1px solid #FCD34D",
+                                  borderRadius: 999,
+                                  padding: "2px 8px",
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  letterSpacing: "0.2px",
                                 }}
                               >
-                                {lead.id}
-                              </button>
-                            ) : (
-                              <span style={{ fontSize: 13, fontWeight: 700, color: T.textMuted }}>
-                                {lead.id}
+                                Draft
                               </span>
-                            )}
-                          </TableCell>
-                          <TableCell style={{ padding: "14px 20px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontSize: 14, fontWeight: 500, color: T.textDark }}>{lead.name}</span>
-                              {lead.isDraft ? (
-                                <span
-                                  style={{
-                                    backgroundColor: "#FEF3C7",
-                                    color: "#92400E",
-                                    border: "1px solid #FCD34D",
-                                    borderRadius: 999,
-                                    padding: "2px 8px",
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    letterSpacing: "0.2px",
-                                  }}
-                                >
-                                  Draft
-                                </span>
-                              ) : null}
-                            </div>
-                          </TableCell>
-                          <TableCell style={{ padding: "14px 20px" }}>
-                            <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.phone}</span>
-                          </TableCell>
-                          <TableCell style={{ padding: "14px 20px" }}>
-                            <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.carrier}</span>
-                          </TableCell>
-                          <TableCell style={{ padding: "14px 20px" }}>
-                            <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.state}</span>
-                          </TableCell>
-                          <TableCell style={{ padding: "14px 20px" }}>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: "#233217" }}>
-                              ${lead.premium.toLocaleString()}
-                            </span>
-                          </TableCell>
-                          <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.phone}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.carrier}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.state}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#233217" }}>${lead.premium.toLocaleString()}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 13, color: T.textDark, fontWeight: 500 }} title={lead.createdAtIso || undefined}>
+                            {lead.createdAt}
+                          </span>
+                        </TableCell>
+                        <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}
                           >
                             {!isCallCenterTransferRole && (
                               <button
@@ -3225,16 +3445,6 @@ export default function CallCenterLeadIntakePage({
                                   cursor: "pointer",
                                   transition: "all 0.15s ease-in-out",
                                 }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor = "#233217";
-                                  e.currentTarget.style.color = "#fff";
-                                  e.currentTarget.style.borderColor = "#233217";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = T.cardBg;
-                                  e.currentTarget.style.color = "#233217";
-                                  e.currentTarget.style.borderColor = T.border;
-                                }}
                               >
                                 View Lead
                               </button>
@@ -3256,16 +3466,6 @@ export default function CallCenterLeadIntakePage({
                                     cursor: "pointer",
                                     transition: "all 0.15s ease-in-out",
                                   }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = "#233217";
-                                    e.currentTarget.style.color = "#fff";
-                                    e.currentTarget.style.borderColor = "#233217";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = T.cardBg;
-                                    e.currentTarget.style.color = "#233217";
-                                    e.currentTarget.style.borderColor = T.border;
-                                  }}
                                 >
                                   Claim Call
                                 </button>
@@ -3284,48 +3484,69 @@ export default function CallCenterLeadIntakePage({
                                     cursor: "pointer",
                                     transition: "all 0.15s ease-in-out",
                                   }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = "#233217";
-                                    e.currentTarget.style.color = "#fff";
-                                    e.currentTarget.style.borderColor = "#233217";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = T.cardBg;
-                                    e.currentTarget.style.color = "#233217";
-                                    e.currentTarget.style.borderColor = T.border;
-                                  }}
                                 >
                                   Claim Retention
                                 </button>
                               </>
                             )}
-                            <ActionMenu
-                              id={lead.id}
-                              activeId={activeMenu}
-                              onToggle={setActiveMenu}
-                              items={
-                                canEditTransferLeads
+                            {(() => {
+                              const actionItems = canEditTransferLeads
+                                ? [
+                                    { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
+                                    {
+                                      label: lead.isDraft ? "Edit draft" : "Edit Lead",
+                                      onClick: () => void handleEditLead(lead.rowId),
+                                    },
+                                    { label: "Delete", danger: true as const, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
+                                  ]
+                                : lead.isDraft && (isCallCenterAgentOnly || isCallCenterAdmin)
                                   ? [
                                       { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                      {
-                                        label: lead.isDraft ? "Edit draft" : "Edit Lead",
-                                        onClick: () => void handleEditLead(lead.rowId),
-                                      },
-                                      { label: "Delete", danger: true, onClick: () => void handleDeleteLead(lead.rowId, lead.name) },
+                                      { label: "Edit draft", onClick: () => void openLeadInForm(lead.rowId) },
                                     ]
-                                  : lead.isDraft && (isCallCenterAgentOnly || isCallCenterAdmin)
-                                    ? [
-                                        { label: "View Details", onClick: () => void openLeadFromGrid(lead) },
-                                        { label: "Edit draft", onClick: () => void openLeadInForm(lead.rowId) },
-                                      ]
-                                    : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }]
-                              }
-                            />
+                                  : [{ label: "View Details", onClick: () => void openLeadFromGrid(lead) }];
+                              const menuItems = isCallCenterTransferRole
+                                ? actionItems.filter((x) => x.label !== "View Details")
+                                : actionItems;
+                              if (menuItems.length === 0) return null;
+                              return (
+                                <ActionMenu
+                                  id={lead.id}
+                                  activeId={activeMenu}
+                                  onToggle={setActiveMenu}
+                                  items={menuItems}
+                                />
+                              );
+                            })()}
                           </div>
                         </TableCell>
                       </TableRow>
-                    );
-                  }))}
+                    ))
+                  ) : (
+                    paginated.map((lead) => (
+                      <TableRow
+                        key={lead.id}
+                        onClick={isCallCenterTransferRole ? undefined : () => void openLeadFromGrid(lead)}
+                        style={{
+                          cursor: isCallCenterTransferRole ? "default" : "pointer",
+                          borderBottom: `1px solid ${T.border}`,
+                        }}
+                        className="hover:bg-muted/30 transition-all duration-150"
+                      >
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 14, fontWeight: 500, color: T.textDark }}>{lead.name}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 14, color: T.textDark, fontWeight: 400 }}>{lead.centerName}</span>
+                        </TableCell>
+                        <TableCell style={{ padding: "14px 20px" }}>
+                          <span style={{ fontSize: 13, color: T.textDark, fontWeight: 500 }} title={lead.createdAtIso || undefined}>
+                            {lead.createdAt}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </ShadcnTable>
             </div>
@@ -3341,6 +3562,13 @@ export default function CallCenterLeadIntakePage({
           openLeadInForm,
           kanbanPage,
           setKanbanPage,
+          variant: showFullTransferLeadsListUi ? "full" : "compact",
+          router,
+          routeRole,
+          isCallCenterTransferRole,
+          canViewTransferClaimReclaimVisit,
+          openClaimModalForLead,
+          openRetentionModalForLead,
         })
       )}
 
@@ -3406,7 +3634,7 @@ export default function CallCenterLeadIntakePage({
                   opacity: deletingLead ? 0.7 : 1,
                 }}
               >
-                {deletingLead ? "Deleting..." : "Delete"}
+                {deletingLead ? "Deleting…" : "Delete"}
               </button>
             </div>
           </div>

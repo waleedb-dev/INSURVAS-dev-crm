@@ -5,6 +5,7 @@ import { T } from "@/lib/theme";
 import { Card } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatDateET } from "@/lib/time";
 import { Search, Plus, Trash2 } from "lucide-react";
 
 interface Announcement {
@@ -441,7 +442,7 @@ export default function AnnouncementsPage() {
                       </TableCell>
                       <TableCell style={{ padding: "14px 20px" }}>
                         <span style={{ fontSize: 13, color: T.textMid, fontWeight: 400 }}>
-                          {new Date(item.created_at).toLocaleDateString()}
+                          {formatDateET(item.created_at)}
                         </span>
                       </TableCell>
                       <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>

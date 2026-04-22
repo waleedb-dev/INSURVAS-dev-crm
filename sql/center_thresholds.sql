@@ -73,6 +73,22 @@ FOR SELECT
 TO authenticated
 USING (public.has_role('system_admin'));
 
+-- Policy: SELECT for publisher_manager
+DROP POLICY IF EXISTS center_thresholds_select_publisher_manager ON public.center_thresholds;
+CREATE POLICY center_thresholds_select_publisher_manager
+ON public.center_thresholds
+FOR SELECT
+TO authenticated
+USING (public.has_role('publisher_manager'));
+
+-- Policy: SELECT for sales_manager
+DROP POLICY IF EXISTS center_thresholds_select_sales_manager ON public.center_thresholds;
+CREATE POLICY center_thresholds_select_sales_manager
+ON public.center_thresholds
+FOR SELECT
+TO authenticated
+USING (public.has_role('sales_manager'));
+
 -- Policy: INSERT for system_admin
 DROP POLICY IF EXISTS center_thresholds_insert_system_admin ON public.center_thresholds;
 CREATE POLICY center_thresholds_insert_system_admin
@@ -89,6 +105,24 @@ FOR UPDATE
 TO authenticated
 USING (public.has_role('system_admin'))
 WITH CHECK (public.has_role('system_admin'));
+
+-- Policy: UPDATE for publisher_manager
+DROP POLICY IF EXISTS center_thresholds_update_publisher_manager ON public.center_thresholds;
+CREATE POLICY center_thresholds_update_publisher_manager
+ON public.center_thresholds
+FOR UPDATE
+TO authenticated
+USING (public.has_role('publisher_manager'))
+WITH CHECK (public.has_role('publisher_manager'));
+
+-- Policy: UPDATE for sales_manager
+DROP POLICY IF EXISTS center_thresholds_update_sales_manager ON public.center_thresholds;
+CREATE POLICY center_thresholds_update_sales_manager
+ON public.center_thresholds
+FOR UPDATE
+TO authenticated
+USING (public.has_role('sales_manager'))
+WITH CHECK (public.has_role('sales_manager'));
 
 -- Policy: DELETE for system_admin
 DROP POLICY IF EXISTS center_thresholds_delete_system_admin ON public.center_thresholds;

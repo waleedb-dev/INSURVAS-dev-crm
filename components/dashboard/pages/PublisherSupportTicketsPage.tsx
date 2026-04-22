@@ -7,6 +7,7 @@ import { T } from "@/lib/theme";
 import { Card } from "@/components/ui/card";
 import { FilterChip } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatDateET } from "@/lib/time";
 import { FieldLabel } from "./daily-deal-flow/ui-primitives";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -808,7 +809,7 @@ export default function PublisherSupportTicketsPage() {
                       <span style={{ fontSize: 14, fontWeight: 600, color: "#233217" }}>{formatStatus(ticket.status)}</span>
                     </TableCell>
                     <TableCell style={{ padding: "14px 20px" }}>
-                      <span style={{ fontSize: 14, color: T.textDark }}>{new Date(ticket.created_at).toLocaleDateString()}</span>
+                      <span style={{ fontSize: 14, color: T.textDark }}>{formatDateET(ticket.created_at)}</span>
                     </TableCell>
                     <TableCell style={{ padding: "12px 16px", textAlign: "center" }}>
                       <button
