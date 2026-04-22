@@ -6,7 +6,7 @@ import { T } from "@/lib/theme";
 const MONITORING_TOOLS = [
   {
     name: "Aircall",
-    url: "https://auth.aircall.io/login?redirect=https%3A%2F%2Fdashboard.aircall.io%2F&platform=dashboard&lng=en-GB",
+    url: "https://dashboard.aircall.io/live_monitoring",
   },
   {
     name: "CloudTalk",
