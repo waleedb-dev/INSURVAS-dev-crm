@@ -3,9 +3,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Plus, X, Upload } from "lucide-react";
+import { X, Upload } from "lucide-react";
 
-type TicketType = "general" | "billing" | "technical" | "escalation" | "compliance";
+type TicketType = "general" | "billing" | "technical" | "escalation" | "compliance" | "lead_inquiry";
 type TicketPriority = "low" | "medium" | "high" | "urgent";
 
 type LeadOption = {
@@ -26,6 +26,7 @@ type Props = {
 };
 
 const TYPE_OPTIONS: { value: TicketType; label: string }[] = [
+  { value: "lead_inquiry", label: "Lead Inquiry" },
   { value: "general", label: "General" },
   { value: "billing", label: "Billing" },
   { value: "technical", label: "Technical" },
@@ -44,7 +45,7 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [ticketType, setTicketType] = useState<TicketType>("general");
+  const [ticketType, setTicketType] = useState<TicketType>("lead_inquiry");
   const [priority, setPriority] = useState<TicketPriority>("medium");
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(initialLeadId);
   const [leads, setLeads] = useState<LeadOption[]>([]);
@@ -54,6 +55,8 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
   const [error, setError] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+
+  const isLeadInquiry = ticketType === "lead_inquiry";
 
   // Load user's call center and leads on open
   useEffect(() => {
@@ -72,8 +75,8 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
       const ccId = userData?.call_center_id ? String(userData.call_center_id) : null;
       setUserCallCenterId(ccId);
 
-      // If no initialLeadId, fetch leads for dropdown
-      if (!initialLeadId && ccId) {
+      // Fetch leads for dropdown (filtered by user's call center)
+      if (ccId) {
         setLeadsLoading(true);
         const { data: leadsData } = await supabase
           .from("leads")
@@ -92,19 +95,26 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
     return () => {
       cancelled = true;
     };
-  }, [open, sessionUserId, supabase, initialLeadId]);
+  }, [open, sessionUserId, supabase]);
 
   useEffect(() => {
     if (open) {
       setTitle("");
       setDescription("");
-      setTicketType("general");
+      setTicketType("lead_inquiry");
       setPriority("medium");
       setSelectedLeadId(initialLeadId);
       setFiles([]);
       setError(null);
     }
   }, [open, initialLeadId]);
+
+  // When type changes away from lead_inquiry, clear the selected lead (unless pre-set)
+  useEffect(() => {
+    if (!isLeadInquiry && !initialLeadId) {
+      setSelectedLeadId(null);
+    }
+  }, [isLeadInquiry, initialLeadId]);
 
   if (!open) return null;
 
@@ -143,13 +153,19 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
   };
 
   const submit = async () => {
-    if (!selectedLeadId || !sessionUserId || !title.trim()) return;
+    // Validate: lead is required only for Lead Inquiry
+    if (isLeadInquiry && !selectedLeadId) {
+      setError("Please select a lead for Lead Inquiry tickets.");
+      return;
+    }
+    if (!sessionUserId || !title.trim()) return;
+
     setCreating(true);
     setError(null);
 
     const attachments = await uploadAttachments();
 
-    const { error: insErr } = await supabase.from("tickets").insert({
+    const payload: Record<string, unknown> = {
       lead_id: selectedLeadId,
       publisher_id: sessionUserId,
       title: title.trim(),
@@ -158,7 +174,9 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
       priority: priority,
       attachments: attachments.length ? attachments : null,
       call_center_id: userCallCenterId,
-    });
+    };
+
+    const { error: insErr } = await supabase.from("tickets").insert(payload);
 
     setCreating(false);
     if (insErr) {
@@ -173,6 +191,12 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
     const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim();
     return name || lead.lead_unique_id || lead.phone || lead.id;
   };
+
+  const canSubmit =
+    !creating &&
+    !uploadingFiles &&
+    !!title.trim() &&
+    (!isLeadInquiry || !!selectedLeadId);
 
   return (
     <div
@@ -230,8 +254,58 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
           </div>
         )}
 
-        {/* Lead selector (only when no initial lead) */}
-        {!initialLeadId && (
+        {/* Type */}
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMid, marginBottom: 6 }}>
+          Type *
+        </label>
+        <select
+          value={ticketType}
+          onChange={(e) => setTicketType(e.target.value as TicketType)}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "10px 12px",
+            borderRadius: T.radiusSm,
+            border: `1px solid ${T.border}`,
+            fontSize: 14,
+            fontFamily: T.font,
+            marginBottom: 14,
+            background: T.cardBg,
+            color: T.textDark,
+          }}
+        >
+          {TYPE_OPTIONS.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
+
+        {/* Priority */}
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMid, marginBottom: 6 }}>
+          Priority *
+        </label>
+        <select
+          value={priority}
+          onChange={(e) => setPriority(e.target.value as TicketPriority)}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "10px 12px",
+            borderRadius: T.radiusSm,
+            border: `1px solid ${T.border}`,
+            fontSize: 14,
+            fontFamily: T.font,
+            marginBottom: 14,
+            background: T.cardBg,
+            color: T.textDark,
+          }}
+        >
+          {PRIORITY_OPTIONS.map((p) => (
+            <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
+        </select>
+
+        {/* Lead selector — required only for Lead Inquiry */}
+        {isLeadInquiry && (
           <>
             <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMid, marginBottom: 6 }}>
               Lead *
@@ -259,60 +333,13 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
                 </option>
               ))}
             </select>
+            {leads.length === 0 && !leadsLoading && (
+              <p style={{ margin: "-10px 0 14px", fontSize: 12, color: "#991b1b" }}>
+                No leads found for your call center.
+              </p>
+            )}
           </>
         )}
-
-        {/* Type & Priority row */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-          <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMid, marginBottom: 6 }}>
-              Type
-            </label>
-            <select
-              value={ticketType}
-              onChange={(e) => setTicketType(e.target.value as TicketType)}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: "10px 12px",
-                borderRadius: T.radiusSm,
-                border: `1px solid ${T.border}`,
-                fontSize: 14,
-                fontFamily: T.font,
-                background: T.cardBg,
-                color: T.textDark,
-              }}
-            >
-              {TYPE_OPTIONS.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMid, marginBottom: 6 }}>
-              Priority
-            </label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as TicketPriority)}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: "10px 12px",
-                borderRadius: T.radiusSm,
-                border: `1px solid ${T.border}`,
-                fontSize: 14,
-                fontFamily: T.font,
-                background: T.cardBg,
-                color: T.textDark,
-              }}
-            >
-              {PRIORITY_OPTIONS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
 
         <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMid, marginBottom: 6 }}>
           Title *
@@ -453,17 +480,17 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
           </button>
           <button
             type="button"
-            disabled={creating || uploadingFiles || !title.trim() || !selectedLeadId}
+            disabled={!canSubmit}
             onClick={() => void submit()}
             style={{
               padding: "10px 20px",
               borderRadius: 10,
               border: "none",
-              background: creating || uploadingFiles || !title.trim() || !selectedLeadId ? T.border : "#233217",
+              background: !canSubmit ? T.border : "#233217",
               color: "#fff",
               fontSize: 14,
               fontWeight: 700,
-              cursor: creating || uploadingFiles || !title.trim() || !selectedLeadId ? "not-allowed" : "pointer",
+              cursor: !canSubmit ? "not-allowed" : "pointer",
               fontFamily: T.font,
             }}
           >

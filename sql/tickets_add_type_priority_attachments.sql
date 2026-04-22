@@ -1,10 +1,19 @@
 -- Add ticket_type, priority, and attachments to tickets table
 -- Run this in your Supabase SQL Editor
 
--- Ticket type enum
+-- Ticket type enum (idempotent create)
 do $$
 begin
   create type public.ticket_type as enum ('general', 'billing', 'technical', 'escalation', 'compliance');
+exception
+  when duplicate_object then null;
+end$$;
+
+-- Add 'lead_inquiry' to existing enum (safe to run multiple times)
+-- Note: PostgreSQL allows adding values to enums only at the end
+do $$
+begin
+  alter type public.ticket_type add value if not exists 'lead_inquiry';
 exception
   when duplicate_object then null;
 end$$;
