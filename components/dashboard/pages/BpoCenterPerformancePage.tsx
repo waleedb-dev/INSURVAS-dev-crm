@@ -93,7 +93,10 @@ function computeCenterStats(
     const prevCenterRows = prevRows.filter((r) => r.lead_vendor === center.lead_vendor);
 
     const transfers = centerRows.length;
-    const pendingApproval = centerRows.filter((r) => r.status === "Pending Approval").length;
+    // Submissions = pipeline count = Underwriting + Submitted
+    const pendingApproval = centerRows.filter(
+      (r) => r.call_result === "Underwriting" || r.call_result === "Submitted"
+    ).length;
     const underwriting = centerRows.filter((r) => r.call_result === "Underwriting").length;
     const approved = centerRows.filter((r) => r.call_result === "Submitted").length;
 
