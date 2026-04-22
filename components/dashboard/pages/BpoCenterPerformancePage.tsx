@@ -241,7 +241,7 @@ function CenterCard({ stat, borderColor }: { stat: CenterStats; borderColor: str
           </p>
         </div>
 
-        {/* Pending */}
+        {/* Submissions */}
         <div
           style={{
             backgroundColor: T.pageBg,
@@ -251,7 +251,7 @@ function CenterCard({ stat, borderColor }: { stat: CenterStats; borderColor: str
           }}
         >
           <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#647864", textTransform: "uppercase" }}>
-            Pending
+            Submissions
           </p>
           <p style={{ margin: "6px 0 0", fontSize: 24, fontWeight: 800, color: "#f59e0b" }}>{stat.pendingApproval}</p>
         </div>
