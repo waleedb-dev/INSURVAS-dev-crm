@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { LifeBuoy, Search } from "lucide-react";
+import { LifeBuoy, Search, Plus } from "lucide-react";
 import { T } from "@/lib/theme";
 import { EmptyState } from "@/components/ui";
 import { Card } from "@/components/ui/card";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CreateLeadTicketModal from "./CreateLeadTicketModal";
 
 type TicketStatus = "open" | "in_progress" | "solved";
 
@@ -64,6 +65,7 @@ export default function CallCenterSupportTicketsPage() {
   const [filterStatus, setFilterStatus] = useState<"All" | TicketStatus>("All");
   const [page, setPage] = useState(1);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -317,33 +319,60 @@ export default function CallCenterSupportTicketsPage() {
           </Select>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadTickets()}
-          disabled={loading}
-          aria-label="Refresh tickets"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            height: 38,
-            padding: "0 18px",
-            borderRadius: 10,
-            border: "none",
-            background: accent,
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 700,
-            fontFamily: T.font,
-            cursor: loading ? "wait" : "pointer",
-            boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
-            transition: "all 0.15s ease-in-out",
-            outline: "none",
-          }}
-          className="focus-visible:ring-2 focus-visible:ring-[#233217]/40 focus-visible:ring-offset-2"
-        >
-          Refresh
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => setCreateModalOpen(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              height: 38,
+              padding: "0 16px",
+              borderRadius: 10,
+              border: `1.5px solid ${accent}`,
+              background: "#fff",
+              color: accent,
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: T.font,
+              cursor: "pointer",
+              transition: "all 0.15s ease-in-out",
+              outline: "none",
+            }}
+            className="hover:bg-[#f6f9f4] focus-visible:ring-2 focus-visible:ring-[#233217]/40"
+          >
+            <Plus size={16} />
+            New ticket
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadTickets()}
+            disabled={loading}
+            aria-label="Refresh tickets"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              height: 38,
+              padding: "0 18px",
+              borderRadius: 10,
+              border: "none",
+              background: accent,
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 700,
+              fontFamily: T.font,
+              cursor: loading ? "wait" : "pointer",
+              boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+              transition: "all 0.15s ease-in-out",
+              outline: "none",
+            }}
+            className="focus-visible:ring-2 focus-visible:ring-[#233217]/40 focus-visible:ring-offset-2"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div
@@ -538,6 +567,17 @@ export default function CallCenterSupportTicketsPage() {
           </div>
         </div>
       </div>
+
+      <CreateLeadTicketModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        leadId={null}
+        sessionUserId={sessionUserId}
+        onCreated={() => {
+          setCreateModalOpen(false);
+          void loadTickets();
+        }}
+      />
     </div>
   );
 }
