@@ -20,6 +20,12 @@ import CreateLeadModal from "./CreateLeadModal";
 
 type Stage = string;
 
+interface PipelineStage {
+  id: number;
+  name: string;
+  description: string;
+}
+
 interface Lead {
   id: string;
   rowUuid: string;
@@ -32,6 +38,7 @@ interface Lead {
   agentColor: string;
   daysInStage: number;
   stage: Stage;
+  stageId: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -260,22 +267,22 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [loading, setLoading] = useState(true);
   const [pipeline, setPipeline] = useState<string>("");
   const [pipelines, setPipelines] = useState<string[]>([]);
-  const [stages, setStages] = useState<Stage[]>(DEFAULT_STAGES);
+  const [stages, setStages] = useState<PipelineStage[]>([]);
   const [stageDescriptions, setStageDescriptions] = useState<Record<string, string>>({});
   const [userCallCenterId, setUserCallCenterId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [itemsPerPage] = useState(20);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-  const [collapsedStages, setCollapsedStages] = useState<Record<string, boolean>>({});
+  const [collapsedStages, setCollapsedStages] = useState<Record<number, boolean>>({});
   const [dragRowUuid, setDragRowUuid] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState<Stage | null>(null);
-  const [kanbanPage, setKanbanPage] = useState<Record<string, number>>({});
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const [kanbanPage, setKanbanPage] = useState<Record<number, number>>({});
   const [hoveredStageTooltip, setHoveredStageTooltip] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   const KANBAN_ITEMS_PER_PAGE = 25;
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
-  const [filterStage, setFilterStage] = useState<Stage | "All">("All");
+  const [filterStageId, setFilterStageId] = useState<number | "All">("All");
   const [filterType, setFilterType] = useState("All");
   const [filterAgent, setFilterAgent] = useState("All");
   const [filterSource, setFilterSource] = useState("All");
@@ -315,7 +322,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       const matchesSearch = !query ||
         l.name.toLowerCase().includes(query) ||
         (numericQuery && l.phone.includes(numericQuery));
-      const matchesStage = filterStage === "All" || l.stage === filterStage;
+      const matchesStage = filterStageId === "All" || l.stageId === filterStageId;
       const matchesType = filterType === "All" || l.type === filterType;
       const matchesAgent = filterAgent === "All" || l.agent === filterAgent;
       const matchesSource = filterSource === "All" || l.source === filterSource;
@@ -327,34 +334,36 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     });
     
     return result;
-  }, [leads, search, filterStage, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
+  }, [leads, search, filterStageId, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
 
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   const paginatedLeads = filteredLeads.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
-  const byStage = (stage: Stage) => leads.filter((l) => l.stage === stage);
-  const stageValue = (stage: Stage) => byStage(stage).reduce((s, l) => s + l.premium, 0);
 
-  const toggleCollapse = (stage: Stage) => {
-    setCollapsedStages((prev) => ({ ...prev, [stage]: !prev[stage] }));
+
+  const byStageId = (stageId: number) => leads.filter((l) => l.stageId === stageId);
+  const stageValue = (stageId: number) => byStageId(stageId).reduce((s, l) => s + l.premium, 0);
+
+  const toggleCollapse = (stageId: number) => {
+    setCollapsedStages((prev) => ({ ...prev, [stageId]: !prev[stageId] }));
   };
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
-    if (filterStage !== "All") n++;
+    if (filterStageId !== "All") n++;
     if (filterType !== "All") n++;
     if (filterAgent !== "All") n++;
     if (filterSource !== "All") n++;
     if (filterMinPremium.trim()) n++;
     if (filterMaxPremium.trim()) n++;
     return n;
-  }, [filterStage, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
+  }, [filterStageId, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
 
   const hasActiveFilters = activeFilterCount > 0;
 
   const clearAllFilters = () => {
     setSearch("");
-    setFilterStage("All");
+    setFilterStageId("All");
     setFilterType("All");
     setFilterAgent("All");
     setFilterSource("All");
@@ -376,7 +385,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   }, [supabase]);
 
   const handleKanbanDrop = useCallback(
-    async (targetStage: Stage) => {
+    async (targetStageId: number) => {
       if (!dragRowUuid || !canEditLeadPipeline) {
         setDragRowUuid(null);
         setDragOver(null);
@@ -384,15 +393,15 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       }
       const droppedUuid = dragRowUuid;
       const prevLead = leads.find((l) => l.rowUuid === droppedUuid);
-      if (!prevLead || prevLead.stage === targetStage) {
+      if (!prevLead || prevLead.stageId === targetStageId) {
         setDragRowUuid(null);
         setDragOver(null);
         return;
       }
-      const stageId = await resolveStageId(pipeline, targetStage);
-      setLeads((p) => p.map((l) => (l.rowUuid === droppedUuid ? { ...l, stage: targetStage, daysInStage: 0 } : l)));
-      const updatePayload: Record<string, unknown> = { stage: targetStage };
-      if (stageId != null) updatePayload.stage_id = stageId;
+      const targetStageObj = stages.find((s) => s.id === targetStageId);
+      const targetStageName = targetStageObj?.name ?? prevLead.stage;
+      setLeads((p) => p.map((l) => (l.rowUuid === droppedUuid ? { ...l, stage: targetStageName, stageId: targetStageId, daysInStage: 0 } : l)));
+      const updatePayload: Record<string, unknown> = { stage: targetStageName, stage_id: targetStageId };
       const { error } = await supabase.from("leads").update(updatePayload).eq("id", droppedUuid);
       setDragRowUuid(null);
       setDragOver(null);
@@ -400,12 +409,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         setLeads((p) => p.map((l) => (l.rowUuid === droppedUuid ? prevLead : l)));
       }
     },
-    [dragRowUuid, canEditLeadPipeline, leads, pipeline, resolveStageId, supabase]
+    [dragRowUuid, canEditLeadPipeline, leads, stages, supabase]
   );
 
   useEffect(() => {
     setPage(1);
-  }, [search, filterStage, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
+  }, [search, filterStageId, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) setPage(totalPages);
@@ -427,15 +436,24 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     }
 
     const selectCols =
-      "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, pipeline_id, is_draft, call_center_id, licensed_agent_account, created_at, updated_at";
+      "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, stage_id, pipeline_id, is_draft, call_center_id, licensed_agent_account, created_at, updated_at";
 
     const isTransferPipeline = pipeline === "Transfer Portal";
     const canViewAllCenters = role ? LEAD_ALL_LEADS_ROLES.has(role) : false;
 
+    // Build stage lookup from current pipeline stages
+    const stageById = new Map<number, PipelineStage>();
+    stages.forEach((s) => stageById.set(s.id, s));
+
     const mapRow = (row: Record<string, unknown>): Lead => {
       const fullName = `${row.first_name || ""} ${row.last_name || ""}`.trim() || "Unnamed Lead";
       const premiumValue = Number(row.lead_value ?? row.monthly_premium ?? 0) || 0;
-      const stageName: Stage = row.stage && stages.includes(String(row.stage)) ? String(row.stage) : (stages[0] as Stage);
+      const rawStageId = row.stage_id != null ? Number(row.stage_id) : null;
+      const resolvedStage = rawStageId != null && stageById.has(rawStageId)
+        ? stageById.get(rawStageId)!
+        : null;
+      const stageName: Stage = resolvedStage?.name || String(row.stage || "").trim() || (stages[0]?.name ?? "");
+      const stageId: number | null = resolvedStage?.id ?? rawStageId ?? null;
       const rowUuid = String(row.id);
       const displayId = row.lead_unique_id ? String(row.lead_unique_id) : rowUuid;
       const phoneStr = row.phone != null ? String(row.phone) : "";
@@ -452,6 +470,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         agentColor: "#638b4b",
         daysInStage: 0,
         stage: stageName,
+        stageId,
         createdAt: row.created_at ? String(row.created_at) : undefined,
         updatedAt: row.updated_at ? String(row.updated_at) : undefined,
       };
@@ -583,28 +602,32 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         .maybeSingle();
 
       if (error || !pipelineRow?.id) {
-        setStages(DEFAULT_STAGES);
+        setStages([]);
         return;
       }
 
       const { data: stageRows, error: stageError } = await supabase
         .from("pipeline_stages")
-        .select("name, description")
+        .select("id, name, description")
         .eq("pipeline_id", pipelineRow.id)
         .order("position");
 
       if (stageError || !stageRows || stageRows.length === 0) {
-        setStages(DEFAULT_STAGES);
+        setStages([]);
         setStageDescriptions({});
         return;
       }
 
-      const names = stageRows
-        .map((row: { name: string | null }) => row.name)
-        .filter((name): name is string => Boolean(name));
+      const mappedStages: PipelineStage[] = stageRows
+        .map((row: { id: number | null; name: string | null; description: string | null }) => ({
+          id: row.id ?? 0,
+          name: row.name ?? "",
+          description: row.description ?? "",
+        }))
+        .filter((s) => s.id !== 0 && s.name !== "");
 
-      if (names.length === 0) {
-        setStages(DEFAULT_STAGES);
+      if (mappedStages.length === 0) {
+        setStages([]);
         setStageDescriptions({});
         return;
       }
@@ -616,10 +639,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         }
       });
 
-      setStages(names);
+      setStages(mappedStages);
       setStageDescriptions(descriptions);
 
-      setFilterStage((current) => (current === "All" || names.includes(current) ? current : "All"));
+      setFilterStageId((current) => (current === "All" || mappedStages.some((s) => s.id === current) ? current : "All"));
     };
 
     void fetchStages();
@@ -664,7 +687,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       const { data: pipelineRow, error } = await supabase.from("pipelines").select("id").eq("name", pipelineName).maybeSingle();
       if (cancelled) return;
       if (error || !pipelineRow?.id) {
-        setQuickEditStages(stages);
+        setQuickEditStages(stages.map(s => s.name));
         return;
       }
       const { data: stageRows, error: stageError } = await supabase
@@ -674,11 +697,11 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         .order("position");
       if (cancelled) return;
       if (stageError || !stageRows?.length) {
-        setQuickEditStages(stages);
+        setQuickEditStages(stages.map(s => s.name));
         return;
       }
       const names = stageRows.map((r: { name: string | null }) => r.name).filter((n): n is string => Boolean(n));
-      setQuickEditStages(names.length ? names : stages);
+      setQuickEditStages(names.length ? names : stages.map(s => s.name));
     })();
     return () => {
       cancelled = true;
@@ -1002,27 +1025,29 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       
       <div className="kanban-container">
         <div className="kanban-board">
-          {stages.map((stage, index) => {
-            const cfg = getStageConfig(stage, index);
+          {stages.map((stageObj, index) => {
+            const stageId = stageObj.id;
+            const stageName = stageObj.name;
+            const cfg = getStageConfig(stageName, index);
             const filteredLeadUuids = new Set(filteredLeads.map(l => l.rowUuid));
-            const stageLeads = byStage(stage).filter(l => filteredLeadUuids.has(l.rowUuid));
-            const isCollapsed = collapsedStages[stage];
-            const isOver = dragOver === stage;
-            const currentPage = kanbanPage[stage] || 1;
+            const stageLeads = byStageId(stageId).filter(l => filteredLeadUuids.has(l.rowUuid));
+            const isCollapsed = collapsedStages[stageId];
+            const isOver = dragOver === stageId;
+            const currentPage = kanbanPage[stageId] || 1;
             const totalPages = Math.ceil(stageLeads.length / KANBAN_ITEMS_PER_PAGE);
             const paginatedLeads = stageLeads.slice((currentPage - 1) * KANBAN_ITEMS_PER_PAGE, currentPage * KANBAN_ITEMS_PER_PAGE);
             return (
               <div
-                key={stage}
+                key={stageId}
                 onDragOver={(e) => {
                   if (!canEditLeadPipeline || isCollapsed) return;
                   e.preventDefault();
-                  setDragOver(stage);
+                  setDragOver(stageId);
                 }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={() => {
                   if (!canEditLeadPipeline || isCollapsed) return;
-                  void handleKanbanDrop(stage);
+                  void handleKanbanDrop(stageId);
                 }}
                 className="kanban-column-wrapper"
                 style={{ 
@@ -1031,12 +1056,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 }}
               >
                 {isCollapsed ? (
-                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "16px 0", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" }} onClick={() => toggleCollapse(stage)}>
+                  <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, padding: "16px 0", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" }} onClick={() => toggleCollapse(stageId)}>
                     <div style={{ backgroundColor: cfg.color, color: "#fff", borderRadius: 10, padding: "2px 7px", fontSize: 11, fontWeight: 800, marginBottom: 16 }}>
                       {stageLeads.length}
                     </div>
                     <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: 13, fontWeight: 800, color: cfg.color, textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" }}>
-                      {stage}
+                      {stageName}
                     </div>
                   </div>
                 ) : (
@@ -1053,12 +1078,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{stage}</span>
-                          {stageDescriptions[stage] && (
+                          <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark }}>{stageName}</span>
+                          {stageDescriptions[stageName] && (
                             <div style={{ position: "relative" }}>
                               <button
                                 onMouseEnter={(e) => {
-                                  setHoveredStageTooltip(stage);
+                                  setHoveredStageTooltip(stageName);
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   setTooltipPosition({ x: rect.left, y: rect.bottom + 8 });
                                 }}
@@ -1078,14 +1103,14 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                           )}
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                           <button onClick={() => toggleCollapse(stage)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: T.textMuted }}>
+                           <button onClick={() => toggleCollapse(stageId)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: T.textMuted }}>
                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
                            </button>
                         </div>
                       </div>
                       <div style={{ marginTop: 4, display: "flex", gap: 12, fontSize: 12 }}>
                         <span style={{ color: T.textMuted, fontWeight: 600 }}>{stageLeads.length} Opportunities</span>
-                        <span style={{ color: T.textDark, fontWeight: 800 }}>${stageValue(stage).toLocaleString()}</span>
+                        <span style={{ color: T.textDark, fontWeight: 800 }}>${stageValue(stageId).toLocaleString()}</span>
                       </div>
                     </div>
 
@@ -1165,7 +1190,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                       {totalPages > 1 && (
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 4px", borderTop: `1px solid ${T.borderLight}`, marginTop: 4 }}>
                           <button
-                            onClick={() => setKanbanPage(prev => ({ ...prev, [stage]: Math.max(1, (prev[stage] || 1) - 1) }))}
+                            onClick={() => setKanbanPage(prev => ({ ...prev, [stageId]: Math.max(1, (prev[stageId] || 1) - 1) }))}
                             disabled={currentPage === 1}
                             style={{
                               width: 32,
@@ -1187,7 +1212,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                             {currentPage} / {totalPages}
                           </span>
                           <button
-                            onClick={() => setKanbanPage(prev => ({ ...prev, [stage]: Math.min(totalPages, (prev[stage] || 1) + 1) }))}
+                            onClick={() => setKanbanPage(prev => ({ ...prev, [stageId]: Math.min(totalPages, (prev[stageId] || 1) + 1) }))}
                             disabled={currentPage === totalPages}
                             style={{
                               width: 32,
@@ -1231,7 +1256,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         agent: "SS",
         agentColor: "#638b4b",
         daysInStage: 0,
-        stage: newLead.stage as Stage
+        stage: newLead.stage as Stage,
+        stageId: null,
       };
       setLeads(prev => [mappedLead, ...prev]);
       setShowAddLead(false);
@@ -1242,7 +1268,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const avgPremium = filteredLeads.length ? totalPremium / filteredLeads.length : 0;
   const uniqueAgents = new Set(filteredLeads.map((l) => l.agent)).size;
 
-  const stageOptions = [{ value: "All", label: "All Stages" }, ...stages.map(s => ({ value: s, label: s }))];
+  const stageOptions = [{ value: "All", label: "All Stages" }, ...stages.map(s => ({ value: String(s.id), label: s.name }))];
   const typeOptions = [{ value: "All", label: "All Types" }, ...Object.keys(TYPE_COLORS).map(t => ({ value: t, label: t }))];
   const agentOptions = [{ value: "All", label: "All Owners" }, ...Array.from(new Set(leads.map((l) => l.agent))).map(a => ({ value: a, label: a }))];
   const sourceFilterOptions = [{ value: "All", label: "All Sources" }, ...sourceOptions.map(s => ({ value: s, label: s }))];
@@ -1502,8 +1528,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Stage</div>
                   <StyledSelect
-                    value={filterStage}
-                    onValueChange={(val) => setFilterStage(val as Stage | "All")}
+                    value={String(filterStageId)}
+                    onValueChange={(val) => setFilterStageId(val === "All" ? "All" : Number(val))}
                     options={stageOptions}
                     placeholder="All Stages"
                   />
@@ -1605,10 +1631,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               {hasActiveFilters && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {filterStage !== "All" && (
+                    {filterStageId !== "All" && (
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
-                        Stage: {filterStage}
-                        <button onClick={() => setFilterStage("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        Stage: {stages.find(s => s.id === filterStageId)?.name ?? filterStageId}
+                        <button onClick={() => setFilterStageId("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
                         </button>
                       </div>
@@ -1982,7 +2008,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                         <StyledSelect
                           value={String(quickEditRow.stage ?? "")}
                           onValueChange={(val) => patchQuickEdit("stage", val)}
-                          options={[{ value: "All", label: "All Stages" }, ...(quickEditStages.length ? quickEditStages : stages).map(s => ({ value: s, label: s }))]}
+                           options={[{ value: "All", label: "All Stages" }, ...(quickEditStages.length ? quickEditStages : stages.map(s => s.name)).map(s => ({ value: s, label: s }))]}
                           placeholder="Select stage..."
                         />
                       </div>
