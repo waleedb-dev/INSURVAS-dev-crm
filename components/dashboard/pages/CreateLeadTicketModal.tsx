@@ -33,6 +33,9 @@ const PRIORITY_OPTIONS: { value: TicketPriority; label: string }[] = [
   { value: "urgent", label: "Urgent" },
 ];
 
+/** Default assignee when the list loads (matches production publisher manager account). */
+const DEFAULT_PUBLISHER_MANAGER_EMAIL = "eisha.m@unlimitedinsurance.io";
+
 export default function CreateLeadTicketModal({ open, onClose, sessionUserId, onCreated, defaultLeadName }: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [title, setTitle] = useState("");
@@ -75,9 +78,14 @@ export default function CreateLeadTicketModal({ open, onClose, sessionUserId, on
         console.error("list_publisher_managers_for_ticket_assign", pmErr);
         return;
       }
-      setPublisherManagers(
-        (pmRows ?? []) as { id: string; full_name: string; email: string | null }[],
+      const rows = (pmRows ?? []) as { id: string; full_name: string; email: string | null }[];
+      setPublisherManagers(rows);
+      const defaultPm = rows.find(
+        (pm) => (pm.email ?? "").trim().toLowerCase() === DEFAULT_PUBLISHER_MANAGER_EMAIL,
       );
+      if (defaultPm) {
+        setAssigneeId(defaultPm.id);
+      }
     })();
 
     return () => {
@@ -213,7 +221,7 @@ export default function CreateLeadTicketModal({ open, onClose, sessionUserId, on
           New support ticket
         </h2>
         <p style={{ margin: "0 0 18px", fontSize: 13, color: T.textMuted, lineHeight: 1.45 }}>
-          Create a ticket for your call centre. Choose a publisher manager or leave default routing to apply automatic rules.
+          Create a ticket for your call centre. Assignee defaults to Eisha; change it or use automatic routing if you prefer.
         </p>
 
         {error && (
