@@ -163,30 +163,17 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
     setCreating(true);
     setError(null);
 
-    // Fetch call_center_id fresh (guarantee it's available)
-    const { data: userData } = await supabase
-      .from("users")
-      .select("call_center_id")
-      .eq("id", sessionUserId)
-      .maybeSingle();
-    const ccId = userData?.call_center_id ? String(userData.call_center_id) : null;
-    if (!ccId) {
-      setCreating(false);
-      setError("Your profile is not linked to a call center. Contact an admin.");
-      return;
-    }
-
     const attachments = await uploadAttachments();
 
     const payload: Record<string, unknown> = {
-      lead_id: selectedLeadId ?? null,
+      lead_id: selectedLeadId,
       publisher_id: sessionUserId,
       title: title.trim(),
       description: description.trim() || null,
       ticket_type: ticketType,
       priority: priority,
       attachments: attachments.length ? attachments : null,
-      call_center_id: ccId,
+      call_center_id: userCallCenterId,
     };
 
     const { error: insErr } = await supabase.from("tickets").insert(payload);
