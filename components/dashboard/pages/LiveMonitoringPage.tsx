@@ -10,7 +10,7 @@ const MONITORING_TOOLS = [
   },
   {
     name: "CloudTalk",
-    url: "https://dashboard.cloudtalk.io/login?redirectedBy=app",
+    url: "https://phone.cloudtalk.io?partner=insurvas",
   },
 ] as const;
 
@@ -30,7 +30,7 @@ export default function LiveMonitoringPage() {
           gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 520px), 1fr))",
           gap: 16,
           height: "calc(100vh - 108px)",
-          minHeight: 640,
+          minHeight: 748,
         }}
       >
         {MONITORING_TOOLS.map((tool) => (
@@ -96,11 +96,12 @@ export default function LiveMonitoringPage() {
             <iframe
               title={`${tool.name} live monitoring`}
               src={tool.url}
+              allow={tool.name === "CloudTalk" ? "microphone *" : undefined}
               referrerPolicy="strict-origin-when-cross-origin"
               style={{
                 flex: 1,
                 width: "100%",
-                minHeight: 0,
+                minHeight: tool.name === "CloudTalk" ? 700 : 0,
                 border: 0,
                 background: "#ffffff",
               }}
