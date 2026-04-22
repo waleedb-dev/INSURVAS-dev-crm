@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { T } from "@/lib/theme";
+import { formatDateTimeET } from "@/lib/time";
+import { dateObjectToESTString, getTodayDateEST } from "./helpers";
 
 type CallResultRow = {
   id: string;
@@ -23,6 +25,7 @@ type LeadRow = {
   first_name: string | null;
   last_name: string | null;
   stage: string | null;
+  created_at: string | null;
 };
 
 type SyncRowState = {
@@ -40,6 +43,8 @@ type SyncRowState = {
   include: boolean;
   rowStatus: "idle" | "syncing" | "done" | "error";
   errorMessage?: string;
+  /** `leads.created_at` (ISO) for Eastern date filtering */
+  leadCreatedAtIso: string;
 };
 
 type Props = {
@@ -80,6 +85,13 @@ function normaliseStageLabel(label: string): string {
   return t;
 }
 
+function leadDayKeyEastern(createdAtIso: string): string {
+  if (!String(createdAtIso || "").trim()) return "";
+  const d = new Date(createdAtIso);
+  if (Number.isNaN(d.getTime())) return "";
+  return dateObjectToESTString(d);
+}
+
 function buildDdfSyncNoteBody(p: { currentStage: string; nextStage: string; reasonSummary: string | null }): string {
   const prev = normaliseStageLabel(p.currentStage);
   const next = String(p.nextStage ?? "").trim();
@@ -98,8 +110,15 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
   const [transferPipelineId, setTransferPipelineId] = useState<number | null>(null);
   const [stageOptions, setStageOptions] = useState<{ id: number; name: string }[]>([]);
   const [bulkSyncing, setBulkSyncing] = useState(false);
+  /** YYYY-MM-DD in Eastern US, or "" to show all leads (`created_at`) */
+  const [filterCreatedAtDateYmd, setFilterCreatedAtDateYmd] = useState(() => getTodayDateEST());
 
   const stageNames = useMemo(() => stageOptions.map((s) => s.name), [stageOptions]);
+
+  const displayRows = useMemo(() => {
+    if (!String(filterCreatedAtDateYmd || "").trim()) return rows;
+    return rows.filter((r) => leadDayKeyEastern(r.leadCreatedAtIso) === filterCreatedAtDateYmd);
+  }, [rows, filterCreatedAtDateYmd]);
 
   const selectOptions = useMemo(() => {
     const s = new Set(stageNames);
@@ -165,7 +184,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
       if (leadIds.length) {
         const { data: leads, error: lErr } = await supabase
           .from("leads")
-          .select("id, first_name, last_name, stage")
+          .select("id, first_name, last_name, stage, created_at")
           .in("id", leadIds);
         if (lErr) throw new Error(lErr.message);
         for (const L of leads || []) {
@@ -182,6 +201,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
         const sourceStatus = String(r.status || "").trim();
         const current = String(lead.stage || "").trim();
         const drift = current !== sourceStatus;
+        const createdAtIso = lead.created_at != null ? String(lead.created_at) : "";
         next.push({
           key: `${r.id}-${leadId}`,
           callResultId: r.id,
@@ -193,6 +213,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
           reasonSummary: summarizeCallResultReason(r),
           include: drift,
           rowStatus: "idle",
+          leadCreatedAtIso: createdAtIso,
         });
       }
       setRows(next);
@@ -272,7 +293,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
   };
 
   const handleSyncSelected = async () => {
-    const targets = rows.filter((r) => r.include && r.rowStatus !== "done");
+    const targets = displayRows.filter((r) => r.include && r.rowStatus !== "done");
     if (!targets.length) return;
     setBulkSyncing(true);
     let allSucceeded = true;
@@ -286,8 +307,8 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
     if (allSucceeded) onClose();
   };
 
-  const selectedCount = rows.filter((r) => r.include && r.rowStatus !== "done").length;
-  const driftCount = rows.filter((r) => r.currentStage !== r.selectedStage && r.rowStatus !== "done").length;
+  const selectedCount = displayRows.filter((r) => r.include && r.rowStatus !== "done").length;
+  const driftCount = displayRows.filter((r) => r.currentStage !== r.selectedStage && r.rowStatus !== "done").length;
 
   if (!open) return null;
 
@@ -307,7 +328,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
       <div
         style={{
           width: "100%",
-          maxWidth: 960,
+          maxWidth: 1400,
           maxHeight: "90vh",
           overflow: "hidden",
           display: "flex",
@@ -320,15 +341,73 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
       >
         <div style={{ padding: "18px 20px", borderBottom: `1px solid ${T.borderLight}`, flexShrink: 0 }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>Sync not-submitted → Lead stage</h2>
-          <p style={{ margin: "8px 0 0", fontSize: 13, color: T.textMid, lineHeight: 1.5 }}>
-            These leads have <strong>Application not submitted</strong> on the call result. The disposition is stored on{" "}
-            <code style={{ fontSize: 12 }}>call_results.status</code>, but the lead row may still be on an old pipeline stage.
-            Review each row, adjust the <strong>target stage</strong> if needed, then sync to update{" "}
-            <code style={{ fontSize: 12 }}>leads.stage</code> (Transfer Portal pipeline).
-          </p>
-          {loadError && (
-            <p style={{ margin: "10px 0 0", fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>{loadError}</p>
-          )}
+          {loadError && <p style={{ margin: "10px 0 0", fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>{loadError}</p>}
+        </div>
+
+        <div
+          style={{
+            padding: "10px 20px",
+            borderBottom: `1px solid ${T.borderLight}`,
+            flexShrink: 0,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 10,
+            backgroundColor: "#fafcff",
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark }}>Filter: lead created at (Eastern US)</span>
+          <input
+            type="date"
+            value={filterCreatedAtDateYmd}
+            onChange={(e) => setFilterCreatedAtDateYmd(e.target.value)}
+            style={{
+              height: 36,
+              padding: "0 10px",
+              borderRadius: 8,
+              border: `1px solid ${T.border}`,
+              fontSize: 13,
+              fontWeight: 600,
+              color: T.textDark,
+              fontFamily: T.font,
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setFilterCreatedAtDateYmd("")}
+            style={{
+              height: 36,
+              padding: "0 12px",
+              borderRadius: 8,
+              border: `1px solid ${T.border}`,
+              background: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              color: T.textMid,
+              cursor: "pointer",
+              fontFamily: T.font,
+            }}
+          >
+            All dates
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterCreatedAtDateYmd(getTodayDateEST())}
+            style={{
+              height: 36,
+              padding: "0 12px",
+              borderRadius: 8,
+              border: "none",
+              background: "#e8f0e4",
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#233217",
+              cursor: "pointer",
+              fontFamily: T.font,
+            }}
+          >
+            Today (ET)
+          </button>
         </div>
 
         <div style={{ padding: "12px 20px", flex: 1, overflow: "auto", minHeight: 0 }}>
@@ -338,12 +417,17 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
             <p style={{ margin: 0, color: T.textMuted, fontWeight: 600 }}>
               No matching call results (not submitted with a saved disposition status), or leads could not be resolved.
             </p>
+          ) : displayRows.length === 0 ? (
+            <p style={{ margin: 0, color: T.textMuted, fontWeight: 600 }}>
+              No leads for the selected &quot;created at&quot; day (Eastern US). Try another day, or &quot;All dates&quot; to list everyone.
+            </p>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr style={{ textAlign: "left", color: T.textMuted, fontWeight: 800 }}>
                   <th style={{ padding: "8px 6px", width: 36 }}> </th>
                   <th style={{ padding: "8px 6px" }}>Lead</th>
+                  <th style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>created_at (Eastern US)</th>
                   <th style={{ padding: "8px 6px" }}>Current lead stage</th>
                   <th style={{ padding: "8px 6px" }}>Target stage</th>
                   <th style={{ padding: "8px 6px" }}>Reason (call result)</th>
@@ -351,7 +435,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {displayRows.map((r) => {
                   const href = `/dashboard/${dashboardRole}/transfer-leads/${r.leadId}`;
                   return (
                     <tr key={r.key} style={{ borderTop: `1px solid ${T.borderLight}` }}>
@@ -367,6 +451,9 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
                         <Link href={href} style={{ color: T.blue, textDecoration: "underline" }} target="_blank" rel="noreferrer">
                           {r.leadName}
                         </Link>
+                      </td>
+                      <td style={{ padding: "10px 6px", verticalAlign: "middle", color: T.textMid, fontSize: 11, whiteSpace: "nowrap" }} title="leads.created_at, Eastern US">
+                        {r.leadCreatedAtIso ? formatDateTimeET(r.leadCreatedAtIso) : "—"}
                       </td>
                       <td style={{ padding: "10px 6px", verticalAlign: "middle" }}>{r.currentStage}</td>
                       <td style={{ padding: "10px 6px", verticalAlign: "middle", minWidth: 200 }}>
@@ -450,7 +537,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>
-            {rows.length} not-submitted with disposition · {driftCount} different from lead stage · {selectedCount} selected to sync
+            {driftCount} different from lead stage · {selectedCount} selected to sync
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <button
