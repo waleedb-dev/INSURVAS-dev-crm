@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { useState, useCallback } from "react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 import { T } from "@/lib/theme";
 
 const MONITORING_TOOLS = [
@@ -14,7 +15,20 @@ const MONITORING_TOOLS = [
   },
 ] as const;
 
+type ToolName = (typeof MONITORING_TOOLS)[number]["name"];
+
+const initialRefreshKeys: Record<ToolName, number> = {
+  Aircall: 0,
+  CloudTalk: 0,
+};
+
 export default function LiveMonitoringPage() {
+  const [iframeReloadKey, setIframeReloadKey] = useState<Record<ToolName, number>>(initialRefreshKeys);
+
+  const refreshEmbedding = useCallback((name: ToolName) => {
+    setIframeReloadKey((prev) => ({ ...prev, [name]: (prev[name] ?? 0) + 1 }));
+  }, []);
+
   return (
     <div
       style={{
@@ -72,28 +86,51 @@ export default function LiveMonitoringPage() {
               >
                 {tool.name}
               </h2>
-              <a
-                href={tool.url}
-                target="_blank"
-                rel="noreferrer"
-                title={`Open ${tool.name} in a new tab`}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#233217",
-                  background: "#eef5ee",
-                  border: `1px solid ${T.borderLight}`,
-                  flexShrink: 0,
-                }}
-              >
-                <ExternalLink size={16} strokeWidth={2.2} />
-              </a>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => refreshEmbedding(tool.name)}
+                  title={`Reload ${tool.name} embedding`}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 8,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#233217",
+                    background: "#eef5ee",
+                    border: `1px solid ${T.borderLight}`,
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  <RefreshCw size={16} strokeWidth={2.2} />
+                </button>
+                <a
+                  href={tool.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Open ${tool.name} in a new tab`}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 8,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#233217",
+                    background: "#eef5ee",
+                    border: `1px solid ${T.borderLight}`,
+                    flexShrink: 0,
+                  }}
+                >
+                  <ExternalLink size={16} strokeWidth={2.2} />
+                </a>
+              </div>
             </div>
             <iframe
+              key={`${tool.name}-${iframeReloadKey[tool.name] ?? 0}`}
               title={`${tool.name} live monitoring`}
               src={tool.url}
               allow={tool.name === "CloudTalk" ? "microphone *" : undefined}
