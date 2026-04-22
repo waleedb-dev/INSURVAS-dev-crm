@@ -11,14 +11,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 type TicketStatus = "open" | "in_progress" | "solved";
 
+type TicketType = "general" | "billing" | "technical" | "escalation" | "compliance" | "lead_inquiry";
+type TicketPriority = "low" | "medium" | "high" | "urgent";
+
+type TicketAttachment = { name: string; url: string };
+
 type TicketRow = {
   id: string;
-  lead_id: string;
+  lead_id: string | null;
   assignee_id: string | null;
   publisher_id: string;
   title: string;
   description: string | null;
   status: TicketStatus;
+  ticket_type: TicketType | null;
+  priority: TicketPriority | null;
+  attachments: TicketAttachment[] | null;
   created_at: string;
   updated_at: string;
   publisher?: { full_name: string | null; email?: string | null } | { full_name: string | null; email?: string | null }[] | null;
@@ -52,6 +60,30 @@ function formatStatus(s: TicketStatus): { label: string; bg: string; color: stri
   if (s === "open") return { label: "Open", bg: "#FEF3C7", color: "#92400E" };
   if (s === "in_progress") return { label: "In progress", bg: "#DBEAFE", color: "#1E40AF" };
   return { label: "Solved", bg: "#D1FAE5", color: "#065F46" };
+}
+
+function formatType(type: TicketType | null): { label: string; color: string } {
+  const map: Record<string, string> = {
+    lead_inquiry: "#8b5cf6",
+    general: "#647864",
+    billing: "#f59e0b",
+    technical: "#3b82f6",
+    escalation: "#ef4444",
+    compliance: "#10b981",
+  };
+  if (!type) return { label: "—", color: "#647864" };
+  return { label: type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), color: map[type] ?? "#647864" };
+}
+
+function formatPriority(p: TicketPriority | null): { label: string; color: string } {
+  const map: Record<string, string> = {
+    low: "#647864",
+    medium: "#f59e0b",
+    high: "#ef4444",
+    urgent: "#991b1b",
+  };
+  if (!p) return { label: "—", color: "#647864" };
+  return { label: p.charAt(0).toUpperCase() + p.slice(1), color: map[p] ?? "#647864" };
 }
 
 function joinName(rel: unknown): string | null {
@@ -646,18 +678,65 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
                 <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>
                   Lead
                 </div>
-                <Link
-                  href={`/dashboard/${routeRole}/leads/${ticket.lead_id}`}
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#2d6a2d",
-                    textDecoration: "none",
-                  }}
-                  className="hover:underline"
-                >
-                  {leadLabel}
-                </Link>
+                {ticket.lead_id ? (
+                  <Link
+                    href={`/dashboard/${routeRole}/leads/${ticket.lead_id}`}
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#2d6a2d",
+                      textDecoration: "none",
+                    }}
+                    className="hover:underline"
+                  >
+                    {leadLabel}
+                  </Link>
+                ) : (
+                  <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>No lead linked</span>
+                )}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>
+                    Type
+                  </div>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: formatType(ticket.ticket_type).color,
+                      padding: "2px 8px",
+                      borderRadius: 6,
+                      background: formatType(ticket.ticket_type).color + "12",
+                    }}
+                  >
+                    {formatType(ticket.ticket_type).label}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4 }}>
+                    Priority
+                  </div>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: formatPriority(ticket.priority).color,
+                      padding: "2px 8px",
+                      borderRadius: 6,
+                      background: formatPriority(ticket.priority).color + "12",
+                    }}
+                  >
+                    {formatPriority(ticket.priority).label}
+                  </div>
+                </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -674,6 +753,51 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
                   <div style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{assigneeName}</div>
                 </div>
               </div>
+
+              {ticket.attachments && ticket.attachments.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 6 }}>
+                    Attachments ({ticket.attachments.length})
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {ticket.attachments.map((att, idx) => (
+                      <a
+                        key={idx}
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          background: T.pageBg,
+                          border: `1px solid ${T.border}`,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#2d6a2d",
+                          textDecoration: "none",
+                          transition: "all 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#f6f9f4";
+                          e.currentTarget.style.borderColor = "#233217";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = T.pageBg;
+                          e.currentTarget.style.borderColor = T.border;
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                        </svg>
+                        {att.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
