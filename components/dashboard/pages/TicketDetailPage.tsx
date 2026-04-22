@@ -195,11 +195,15 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
         `
         id,
         lead_id,
+        lead_name,
         assignee_id,
         publisher_id,
         title,
         description,
         status,
+        ticket_type,
+        priority,
+        attachments,
         created_at,
         updated_at,
         publisher:users!tickets_publisher_id_fkey(full_name, email),
@@ -693,6 +697,8 @@ export default function TicketDetailPage({ ticketId, onBack, routeRole }: Props)
                   >
                     {leadLabel}
                   </Link>
+                ) : ticket.lead_name ? (
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark }}>{ticket.lead_name}</span>
                 ) : (
                   <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>No lead linked</span>
                 )}
