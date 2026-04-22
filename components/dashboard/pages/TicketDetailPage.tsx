@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { EmptyState } from "@/components/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatDateTimeET } from "@/lib/time";
 
 type TicketStatus = "open" | "in_progress" | "solved";
 
@@ -111,7 +112,7 @@ function leadLabelFromTicket(ticket: TicketRow) {
 function formatDateTime(value: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return formatDateTimeET(d);
 }
 
 interface Props {

@@ -5,6 +5,7 @@ import { TicketIcon, RefreshCw, ChevronDown, ChevronUp, MessageSquare } from "lu
 import { T } from "@/lib/theme";
 import { EmptyState } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatDateTimeET } from "@/lib/time";
 
 type TicketStatus = "open" | "in_progress" | "solved";
 
@@ -313,7 +314,7 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
                         By {joinName(ticket.publisher) || "—"}
                       </span>
                       <span>·</span>
-                      <span>{new Date(ticket.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
+                      <span>{formatDateTimeET(ticket.created_at)}</span>
                       {ticket.assignee_id && (
                         <>
                           <span>·</span>
@@ -381,7 +382,7 @@ export default function LeadCallCenterSupportTicketsTab({ leadId, sessionUserId,
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
                               <span style={{ fontSize: 12, fontWeight: 600, color: T.textDark }}>{name}</span>
                               <span style={{ fontSize: 11, color: T.textMuted }}>
-                                {new Date(comment.created_at).toLocaleString()}
+                                {formatDateTimeET(comment.created_at)}
                               </span>
                             </div>
                             <p style={{ margin: 0, fontSize: 14, color: T.textDark, lineHeight: 1.5 }}>{comment.body}</p>

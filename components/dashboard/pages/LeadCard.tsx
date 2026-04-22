@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { T } from "@/lib/theme";
+import { formatDateET } from "@/lib/time";
 
 interface LeadCardProps {
   icon: string;
@@ -188,5 +189,5 @@ export const formatDate = (val: string | undefined) => {
   if (!val) return "—";
   const d = new Date(val);
   if (isNaN(d.getTime())) return val;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return formatDateET(d, { year: "numeric", month: "short", day: "numeric" });
 };

@@ -7,6 +7,7 @@ import * as z from "zod";
 import { T } from "@/lib/theme";
 import { X, Trash2 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatDateTimeET } from "@/lib/time";
 
 import {
   Select,
@@ -357,7 +358,7 @@ function FormTextarea({
 function formatTs(value: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return formatDateTimeET(d);
 }
 
 export function LeadEditForm({
