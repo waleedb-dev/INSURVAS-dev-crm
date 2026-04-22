@@ -41,6 +41,9 @@ export default function CreateLeadTicketModal({ open, onClose, sessionUserId, on
   const [priority, setPriority] = useState<TicketPriority>("medium");
   const [leadName, setLeadName] = useState("");
   const [userCallCenterId, setUserCallCenterId] = useState<string | null>(null);
+  const [publisherManagers, setPublisherManagers] = useState<{ id: string; full_name: string; email: string | null }[]>([]);
+  const [assigneeId, setAssigneeId] = useState("");
+  const [loadingManagers, setLoadingManagers] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -62,6 +65,19 @@ export default function CreateLeadTicketModal({ open, onClose, sessionUserId, on
 
       if (cancelled) return;
       setUserCallCenterId(userData?.call_center_id ? String(userData.call_center_id) : null);
+
+      setLoadingManagers(true);
+      const { data: pmRows, error: pmErr } = await supabase.rpc("list_publisher_managers_for_ticket_assign");
+      if (cancelled) return;
+      setLoadingManagers(false);
+      if (pmErr) {
+        setPublisherManagers([]);
+        console.error("list_publisher_managers_for_ticket_assign", pmErr);
+        return;
+      }
+      setPublisherManagers(
+        (pmRows ?? []) as { id: string; full_name: string; email: string | null }[],
+      );
     })();
 
     return () => {
@@ -76,6 +92,7 @@ export default function CreateLeadTicketModal({ open, onClose, sessionUserId, on
       setTicketType("lead_inquiry");
       setPriority("medium");
       setLeadName(defaultLeadName?.trim() ?? "");
+      setAssigneeId("");
       setFiles([]);
       setError(null);
     }
@@ -141,6 +158,9 @@ export default function CreateLeadTicketModal({ open, onClose, sessionUserId, on
       attachments: attachments.length ? attachments : null,
       call_center_id: userCallCenterId,
     };
+    if (assigneeId.trim()) {
+      payload.assignee_id = assigneeId.trim();
+    }
 
     const { error: insErr } = await supabase.from("tickets").insert(payload);
 
@@ -154,10 +174,7 @@ export default function CreateLeadTicketModal({ open, onClose, sessionUserId, on
   };
 
   const canSubmit =
-    !creating &&
-    !uploadingFiles &&
-    !!title.trim() &&
-    (!isLeadInquiry || !!leadName.trim());
+    !creating && !uploadingFiles && !!title.trim() && (!isLeadInquiry || !!leadName.trim());
 
   return (
     <div
@@ -196,7 +213,7 @@ export default function CreateLeadTicketModal({ open, onClose, sessionUserId, on
           New support ticket
         </h2>
         <p style={{ margin: "0 0 18px", fontSize: 13, color: T.textMuted, lineHeight: 1.45 }}>
-          Create a ticket for your call center. It will be routed to the appropriate manager.
+          Create a ticket for your call centre. Choose a publisher manager or leave default routing to apply automatic rules.
         </p>
 
         {error && (
@@ -262,6 +279,38 @@ export default function CreateLeadTicketModal({ open, onClose, sessionUserId, on
         >
           {PRIORITY_OPTIONS.map((p) => (
             <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
+        </select>
+
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMid, marginBottom: 6 }}>
+          Assign to (publisher manager)
+        </label>
+        <select
+          value={assigneeId}
+          onChange={(e) => setAssigneeId(e.target.value)}
+          disabled={loadingManagers}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "10px 12px",
+            borderRadius: T.radiusSm,
+            border: `1px solid ${T.border}`,
+            fontSize: 14,
+            fontFamily: T.font,
+            marginBottom: 14,
+            background: T.cardBg,
+            color: T.textDark,
+            opacity: loadingManagers ? 0.7 : 1,
+          }}
+        >
+          <option value="">
+            {loadingManagers ? "Loading…" : "Default routing (automatic)"}
+          </option>
+          {publisherManagers.map((pm) => (
+            <option key={pm.id} value={pm.id}>
+              {pm.full_name}
+              {pm.email ? ` — ${pm.email}` : ""}
+            </option>
           ))}
         </select>
 
