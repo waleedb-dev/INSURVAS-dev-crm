@@ -627,7 +627,6 @@ export default function DailyDealFlowPage({
         minHeight: 0,
         paddingBottom: isLiveMonitoringEmbed ? 8 : 24,
         position: "relative",
-        overflow: isLiveMonitoringEmbed ? "hidden" : "visible",
       }}
     >
       {!isLiveMonitoringEmbed && (
