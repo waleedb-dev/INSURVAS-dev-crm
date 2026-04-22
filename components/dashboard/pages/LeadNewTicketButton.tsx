@@ -7,9 +7,10 @@ import { useOptionalDashboardContext } from "@/components/dashboard/DashboardCon
 import CreateLeadTicketModal from "./CreateLeadTicketModal";
 
 type Props = {
-  leadId: string | null;
   /** `leads.call_center_id` — center admins must match this to create tickets */
   leadCallCenterId?: string | null;
+  /** Pre-filled lead name in the ticket modal */
+  leadName?: string | null;
   sessionUserId: string | null;
   isCreation?: boolean;
   previewMode?: boolean;
@@ -18,8 +19,8 @@ type Props = {
 };
 
 export default function LeadNewTicketButton({
-  leadId,
   leadCallCenterId = null,
+  leadName = null,
   sessionUserId,
   isCreation = false,
   previewMode = false,
@@ -67,7 +68,6 @@ export default function LeadNewTicketButton({
     !!sessionUserId &&
     !previewMode &&
     !isCreation &&
-    !!leadId &&
     isCallCenterAdminSession &&
     isSameCenter;
 
@@ -104,12 +104,12 @@ export default function LeadNewTicketButton({
       <CreateLeadTicketModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        leadId={leadId}
         sessionUserId={sessionUserId}
         onCreated={() => {
           setModalOpen(false);
           onTicketCreated?.();
         }}
+        defaultLeadName={leadName}
       />
     </>
   );

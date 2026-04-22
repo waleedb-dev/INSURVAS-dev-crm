@@ -8,21 +8,13 @@ import { X, Upload } from "lucide-react";
 type TicketType = "general" | "billing" | "technical" | "escalation" | "compliance" | "lead_inquiry";
 type TicketPriority = "low" | "medium" | "high" | "urgent";
 
-type LeadOption = {
-  id: string;
-  lead_unique_id: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  phone: string | null;
-};
-
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** If provided, the ticket is pre-linked to this lead. If null, user picks from a dropdown. */
-  leadId: string | null;
   sessionUserId: string | null;
   onCreated: () => void;
+  /** Optional default lead name to pre-fill the text input */
+  defaultLeadName?: string | null;
 };
 
 const TYPE_OPTIONS: { value: TicketType; label: string }[] = [
@@ -41,15 +33,13 @@ const PRIORITY_OPTIONS: { value: TicketPriority; label: string }[] = [
   { value: "urgent", label: "Urgent" },
 ];
 
-export default function CreateLeadTicketModal({ open, onClose, leadId: initialLeadId, sessionUserId, onCreated }: Props) {
+export default function CreateLeadTicketModal({ open, onClose, sessionUserId, onCreated, defaultLeadName }: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [ticketType, setTicketType] = useState<TicketType>("lead_inquiry");
   const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(initialLeadId);
-  const [leads, setLeads] = useState<LeadOption[]>([]);
-  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [leadName, setLeadName] = useState("");
   const [userCallCenterId, setUserCallCenterId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,13 +48,12 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
 
   const isLeadInquiry = ticketType === "lead_inquiry";
 
-  // Load user's call center and leads on open
+  // Load user's call center on open
   useEffect(() => {
     if (!open || !sessionUserId) return;
     let cancelled = false;
 
     (async () => {
-      // Get user's call center
       const { data: userData } = await supabase
         .from("users")
         .select("call_center_id")
@@ -72,24 +61,7 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
         .maybeSingle();
 
       if (cancelled) return;
-      const ccId = userData?.call_center_id ? String(userData.call_center_id) : null;
-      setUserCallCenterId(ccId);
-
-      // Fetch leads for dropdown (filtered by user's call center)
-      if (ccId) {
-        setLeadsLoading(true);
-        const { data: leadsData } = await supabase
-          .from("leads")
-          .select("id, lead_unique_id, first_name, last_name, phone")
-          .eq("call_center_id", ccId)
-          .eq("is_draft", false)
-          .order("created_at", { ascending: false })
-          .limit(200);
-        if (!cancelled) {
-          setLeads((leadsData ?? []) as LeadOption[]);
-          setLeadsLoading(false);
-        }
-      }
+      setUserCallCenterId(userData?.call_center_id ? String(userData.call_center_id) : null);
     })();
 
     return () => {
@@ -103,18 +75,11 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
       setDescription("");
       setTicketType("lead_inquiry");
       setPriority("medium");
-      setSelectedLeadId(initialLeadId);
+      setLeadName(defaultLeadName?.trim() ?? "");
       setFiles([]);
       setError(null);
     }
-  }, [open, initialLeadId]);
-
-  // When type changes away from lead_inquiry, clear the selected lead (unless pre-set)
-  useEffect(() => {
-    if (!isLeadInquiry && !initialLeadId) {
-      setSelectedLeadId(null);
-    }
-  }, [isLeadInquiry, initialLeadId]);
+  }, [open, defaultLeadName]);
 
   if (!open) return null;
 
@@ -153,9 +118,9 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
   };
 
   const submit = async () => {
-    // Validate: lead is required only for Lead Inquiry
-    if (isLeadInquiry && !selectedLeadId) {
-      setError("Please select a lead for Lead Inquiry tickets.");
+    // Validate: lead name is required only for Lead Inquiry
+    if (isLeadInquiry && !leadName.trim()) {
+      setError("Please enter the lead name for Lead Inquiry tickets.");
       return;
     }
     if (!sessionUserId || !title.trim()) return;
@@ -166,7 +131,8 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
     const attachments = await uploadAttachments();
 
     const payload: Record<string, unknown> = {
-      lead_id: selectedLeadId,
+      lead_id: null,
+      lead_name: leadName.trim() || null,
       publisher_id: sessionUserId,
       title: title.trim(),
       description: description.trim() || null,
@@ -187,16 +153,11 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
     onClose();
   };
 
-  const leadDisplay = (lead: LeadOption) => {
-    const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim();
-    return name || lead.lead_unique_id || lead.phone || lead.id;
-  };
-
   const canSubmit =
     !creating &&
     !uploadingFiles &&
     !!title.trim() &&
-    (!isLeadInquiry || !!selectedLeadId);
+    (!isLeadInquiry || !!leadName.trim());
 
   return (
     <div
@@ -304,15 +265,17 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
           ))}
         </select>
 
-        {/* Lead selector — required only for Lead Inquiry */}
+        {/* Lead name — required only for Lead Inquiry */}
         {isLeadInquiry && (
           <>
             <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMid, marginBottom: 6 }}>
-              Lead *
+              Lead Name *
             </label>
-            <select
-              value={selectedLeadId ?? ""}
-              onChange={(e) => setSelectedLeadId(e.target.value || null)}
+            <input
+              type="text"
+              placeholder="Enter lead name"
+              value={leadName}
+              onChange={(e) => setLeadName(e.target.value)}
               style={{
                 width: "100%",
                 boxSizing: "border-box",
@@ -325,19 +288,7 @@ export default function CreateLeadTicketModal({ open, onClose, leadId: initialLe
                 background: T.cardBg,
                 color: T.textDark,
               }}
-            >
-              <option value="">{leadsLoading ? "Loading leads…" : "Select a lead…"}</option>
-              {leads.map((lead) => (
-                <option key={lead.id} value={lead.id}>
-                  {leadDisplay(lead)}
-                </option>
-              ))}
-            </select>
-            {leads.length === 0 && !leadsLoading && (
-              <p style={{ margin: "-10px 0 14px", fontSize: 12, color: "#991b1b" }}>
-                No leads found for your call center.
-              </p>
-            )}
+            />
           </>
         )}
 

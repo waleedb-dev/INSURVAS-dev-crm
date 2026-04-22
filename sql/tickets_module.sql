@@ -35,20 +35,23 @@ comment on table public.ticket_routing_rules is
 -- ---------------------------------------------------------------------------
 create table if not exists public.tickets (
   id uuid primary key default gen_random_uuid(),
-  lead_id uuid not null references public.leads (id) on delete restrict,
+  lead_id uuid references public.leads (id) on delete restrict,
+  lead_name text,
   publisher_id uuid not null references public.users (id) on delete restrict,
   assignee_id uuid references public.users (id) on delete set null,
   title text not null check (char_length(trim(title)) > 0),
   description text,
   status public.ticket_status not null default 'open',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  call_center_id uuid references public.call_centers (id) on delete set null
 );
 
 create index if not exists tickets_lead_id_idx on public.tickets (lead_id);
 create index if not exists tickets_publisher_id_idx on public.tickets (publisher_id);
 create index if not exists tickets_assignee_id_idx on public.tickets (assignee_id);
 create index if not exists tickets_status_idx on public.tickets (status);
+create index if not exists tickets_call_center_id_idx on public.tickets (call_center_id);
 
 drop trigger if exists trg_tickets_updated_at on public.tickets;
 create trigger trg_tickets_updated_at
@@ -128,16 +131,29 @@ as $$
               and r.key = 'call_center_admin'
               and u_viewer.call_center_id is not null
           )
-          and exists (
-            select 1
-            from public.leads l
-            join public.users u_pub on u_pub.id = t.publisher_id
-            join public.users u_viewer on u_viewer.id = p_user_id
-            where l.id = t.lead_id
-              and l.call_center_id is not null
-              and l.call_center_id = u_viewer.call_center_id
-              and u_pub.call_center_id is not null
-              and u_pub.call_center_id = l.call_center_id
+          and (
+            -- Ticket with no linked lead: check via call_center_id or publisher's center
+            (t.lead_id is null and exists (
+              select 1
+              from public.users u_pub
+              join public.users u_viewer on u_viewer.id = p_user_id
+              where u_pub.id = t.publisher_id
+                and u_pub.call_center_id is not null
+                and u_pub.call_center_id = u_viewer.call_center_id
+            ))
+            or
+            -- Ticket with linked lead: check via lead's call_center_id
+            (t.lead_id is not null and exists (
+              select 1
+              from public.leads l
+              join public.users u_pub on u_pub.id = t.publisher_id
+              join public.users u_viewer on u_viewer.id = p_user_id
+              where l.id = t.lead_id
+                and l.call_center_id is not null
+                and l.call_center_id = u_viewer.call_center_id
+                and u_pub.call_center_id is not null
+                and u_pub.call_center_id = l.call_center_id
+            ))
           )
         )
       )
@@ -287,6 +303,7 @@ to authenticated
 using (public.ticket_user_has_access(id, auth.uid()));
 
 -- Publisher = call center admin only: same center as the lead (or system_admin).
+-- When lead_id is null, verify via ticket's call_center_id instead.
 drop policy if exists tickets_insert_publishers on public.tickets;
 create policy tickets_insert_publishers
 on public.tickets
@@ -294,24 +311,28 @@ for insert
 to authenticated
 with check (
   publisher_id = auth.uid()
-  and exists (
-    select 1
-    from public.leads l
-    where l.id = lead_id
-      and (
-        public.has_role('system_admin')
-        or (
-          public.has_role('call_center_admin')
-          and l.call_center_id is not null
-          and exists (
-            select 1
-            from public.users u
-            where u.id = auth.uid()
-              and u.call_center_id is not null
-              and u.call_center_id = l.call_center_id
+  and (
+    public.has_role('system_admin')
+    or (
+      public.has_role('call_center_admin')
+      and exists (
+        select 1
+        from public.users u
+        where u.id = auth.uid()
+          and u.call_center_id is not null
+          and (
+            (lead_id is null and call_center_id is not null and call_center_id = u.call_center_id)
+            or
+            (lead_id is not null and exists (
+              select 1
+              from public.leads l
+              where l.id = lead_id
+                and l.call_center_id is not null
+                and l.call_center_id = u.call_center_id
+            ))
           )
-        )
       )
+    )
   )
 );
 

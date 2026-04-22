@@ -15,7 +15,8 @@ type TicketStatus = "open" | "in_progress" | "solved";
 
 type TicketRow = {
   id: string;
-  lead_id: string;
+  lead_id: string | null;
+  lead_name: string | null;
   assignee_id: string | null;
   title: string;
   description: string | null;
@@ -47,6 +48,7 @@ function leadLabelFromTicket(ticket: TicketRow) {
     lead?.lead_unique_id?.trim() ||
     [lead?.first_name, lead?.last_name].filter(Boolean).join(" ").trim() ||
     lead?.phone?.trim() ||
+    ticket.lead_name?.trim() ||
     "Lead"
   );
 }
@@ -90,6 +92,7 @@ export default function CallCenterSupportTicketsPage() {
         `
         id,
         lead_id,
+        lead_name,
         assignee_id,
         title,
         description,
@@ -571,7 +574,6 @@ export default function CallCenterSupportTicketsPage() {
       <CreateLeadTicketModal
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        leadId={null}
         sessionUserId={sessionUserId}
         onCreated={() => {
           setCreateModalOpen(false);

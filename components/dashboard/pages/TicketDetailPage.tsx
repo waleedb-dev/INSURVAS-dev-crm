@@ -19,6 +19,7 @@ type TicketAttachment = { name: string; url: string };
 type TicketRow = {
   id: string;
   lead_id: string | null;
+  lead_name: string | null;
   assignee_id: string | null;
   publisher_id: string;
   title: string;
@@ -102,6 +103,7 @@ function leadLabelFromTicket(ticket: TicketRow) {
     [lead?.first_name, lead?.last_name].filter(Boolean).join(" ").trim() ||
     lead?.lead_unique_id?.trim() ||
     lead?.phone?.trim() ||
+    ticket.lead_name?.trim() ||
     "Lead"
   );
 }

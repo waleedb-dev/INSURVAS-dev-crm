@@ -803,8 +803,8 @@ export default function LeadViewComponent({
                 </button>
               )}
               <LeadNewTicketButton
-                leadId={rowUuid}
                 leadCallCenterId={leadRow?.call_center_id != null ? String(leadRow.call_center_id) : null}
+                leadName={fullName}
                 sessionUserId={sessionUserId}
                 isCreation={isCreation}
                 previewMode={previewMode}
