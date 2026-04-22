@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
-import { Calendar, ChevronDown, AlertTriangle, MinusCircle, Award } from "lucide-react";
+import { Calendar, ChevronDown, AlertTriangle, MinusCircle, Award, Search, Filter } from "lucide-react";
 import type { DailyDealFlowRow } from "./daily-deal-flow/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -93,7 +93,10 @@ function computeCenterStats(
     const prevCenterRows = prevRows.filter((r) => r.lead_vendor === center.lead_vendor);
 
     const transfers = centerRows.length;
-    const pendingApproval = centerRows.filter((r) => r.status === "Pending Approval").length;
+    // Submissions = pipeline count = Underwriting + Submitted
+    const pendingApproval = centerRows.filter(
+      (r) => r.call_result === "Underwriting" || r.call_result === "Submitted"
+    ).length;
     const underwriting = centerRows.filter((r) => r.call_result === "Underwriting").length;
     const approved = centerRows.filter((r) => r.call_result === "Submitted").length;
 
@@ -149,17 +152,6 @@ function computeCenterStats(
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function CenterCard({ stat, borderColor }: { stat: CenterStats; borderColor: string }) {
-  const tierColors: Record<string, string> = {
-    A: "#22c55e",
-    B: "#f59e0b",
-    C: "#ef4444",
-  };
-  const tierBg: Record<string, string> = {
-    A: "#dcfce7",
-    B: "#fef3c7",
-    C: "#fee2e2",
-  };
-
   const targetPct = stat.center.daily_transfer_target > 0
     ? Math.round((stat.transfers / stat.center.daily_transfer_target) * 100)
     : 0;
@@ -182,19 +174,6 @@ function CenterCard({ stat, borderColor }: { stat: CenterStats; borderColor: str
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 18, fontWeight: 800, color: "#233217" }}>{stat.center.center_name}</span>
-          <span
-            style={{
-              padding: "2px 8px",
-              borderRadius: 6,
-              backgroundColor: tierBg[stat.center.tier] || "#e5e7eb",
-              color: tierColors[stat.center.tier] || "#6b7280",
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: "uppercase",
-            }}
-          >
-            Tier {stat.center.tier}
-          </span>
         </div>
         <span
           style={{
@@ -241,7 +220,7 @@ function CenterCard({ stat, borderColor }: { stat: CenterStats; borderColor: str
           </p>
         </div>
 
-        {/* Pending */}
+        {/* Submissions */}
         <div
           style={{
             backgroundColor: T.pageBg,
@@ -251,7 +230,7 @@ function CenterCard({ stat, borderColor }: { stat: CenterStats; borderColor: str
           }}
         >
           <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#647864", textTransform: "uppercase" }}>
-            Pending
+            Submissions
           </p>
           <p style={{ margin: "6px 0 0", fontSize: 24, fontWeight: 800, color: "#f59e0b" }}>{stat.pendingApproval}</p>
         </div>
@@ -393,6 +372,8 @@ export default function ColombianCenterPerformancePage() {
     needs: true,
     zero: true,
   });
+  const [tierFilter, setTierFilter] = useState<"All" | "A" | "B" | "C">("All");
+  const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
@@ -546,9 +527,18 @@ export default function ColombianCenterPerformancePage() {
 
   const centerStats = useMemo(() => computeCenterStats(rows, thresholds, prevRows), [rows, thresholds, prevRows]);
 
-  const topPerformers = centerStats.filter((s) => s.score >= 80);
-  const needsImprovement = centerStats.filter((s) => s.score < 80 && s.transfers > 0);
-  const zeroTransfer = centerStats.filter((s) => s.transfers === 0);
+  const filteredCenterStats = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
+    return centerStats.filter((s) => {
+      const matchesTier = tierFilter === "All" || s.center.tier === tierFilter;
+      const matchesSearch = !q || s.center.center_name.toLowerCase().includes(q);
+      return matchesTier && matchesSearch;
+    });
+  }, [centerStats, tierFilter, searchTerm]);
+
+  const topPerformers = filteredCenterStats.filter((s) => s.score >= 80);
+  const needsImprovement = filteredCenterStats.filter((s) => s.score < 80 && s.transfers > 0);
+  const zeroTransfer = filteredCenterStats.filter((s) => s.transfers === 0);
 
   const dateDisplay = datePreset === "custom" ? appliedRange.label : appliedRange.label;
 
@@ -783,6 +773,64 @@ export default function ColombianCenterPerformancePage() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Search */}
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <Search size={16} style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: "#647864" }} />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search centers..."
+              style={{
+                height: 40,
+                minWidth: 220,
+                paddingLeft: 38,
+                paddingRight: 14,
+                border: `1px solid ${T.border}`,
+                borderRadius: 12,
+                fontSize: 14,
+                color: T.textDark,
+                background: T.cardBg,
+                outline: "none",
+                fontFamily: T.font,
+                transition: "all 0.15s ease-in-out",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "#233217";
+                e.currentTarget.style.boxShadow = `0 0 0 3px rgba(35, 50, 23, 0.1)`;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = T.border;
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+          </div>
+
+          {/* Tier Filter */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Filter size={16} color="#647864" />
+            {(["All", "A", "B", "C"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTierFilter(t)}
+                style={{
+                  height: 32,
+                  padding: "0 12px",
+                  borderRadius: 8,
+                  border: `1.5px solid ${tierFilter === t ? "#233217" : T.border}`,
+                  background: tierFilter === t ? "#233217" : T.cardBg,
+                  color: tierFilter === t ? "#fff" : "#647864",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease-in-out",
+                  textTransform: "uppercase",
+                }}
+              >
+                {t === "All" ? "All Tiers" : `Tier ${t}`}
+              </button>
+            ))}
           </div>
         </div>
       </div>
