@@ -73,6 +73,24 @@ function summarizeCallResultReason(r: CallResultRow): string | null {
   return `${text.slice(0, REASON_SUMMARY_MAX - 1)}…`;
 }
 
+/** Normalises the UI placeholder for an empty lead stage. */
+function normaliseStageLabel(label: string): string {
+  const t = String(label ?? "").trim();
+  if (t === "—" || t === "-") return "";
+  return t;
+}
+
+function buildDdfSyncNoteBody(p: { currentStage: string; nextStage: string; reasonSummary: string | null }): string {
+  const prev = normaliseStageLabel(p.currentStage);
+  const next = String(p.nextStage ?? "").trim();
+  let body = `Daily Deal Flow (sync not-submitted): lead stage updated from ${
+    prev ? `"${prev}"` : "(none)"
+  } to "${next}".`;
+  const reason = String(p.reasonSummary ?? "").trim();
+  if (reason) body += ` Disposition context: ${reason}`;
+  return body;
+}
+
 export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashboardRole, onSynced }: Props) {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -221,6 +239,34 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
       patchRow(row.key, { rowStatus: "error", errorMessage: error.message });
       return false;
     }
+
+    const prevNorm = normaliseStageLabel(row.currentStage);
+    const noteWorthy = prevNorm !== stageName;
+    if (noteWorthy) {
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      const user = authData?.user;
+      if (authErr || !user) {
+        patchRow(row.key, {
+          rowStatus: "error",
+          errorMessage: "Stage was updated, but a lead note could not be added: not signed in.",
+        });
+        return false;
+      }
+      const body = buildDdfSyncNoteBody({ currentStage: row.currentStage, nextStage: stageName, reasonSummary: row.reasonSummary });
+      const { error: noteError } = await supabase.from("lead_notes").insert({
+        lead_id: row.leadId,
+        body,
+        created_by: user.id,
+      });
+      if (noteError) {
+        patchRow(row.key, {
+          rowStatus: "error",
+          errorMessage: `Stage was updated, but the lead note was not saved: ${noteError.message}`,
+        });
+        return false;
+      }
+    }
+
     patchRow(row.key, { rowStatus: "done", errorMessage: undefined, currentStage: stageName });
     return true;
   };
