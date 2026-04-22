@@ -23,6 +23,7 @@ const ALL_PAGES: DashPage[] = [
   "transfer-check-tester",
   "crm-sync",
   "ghl-data-import",
+  "live-monitoring",
   "users-access",
   "nearest-events",
   "pipeline-management",
@@ -236,4 +237,3 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
     </DashboardProvider>
   );
 }
-

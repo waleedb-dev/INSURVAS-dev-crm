@@ -31,6 +31,7 @@ import {
   RefreshCw,
   Upload,
   BarChart3,
+  MonitorUp,
 } from "lucide-react";
 import { callCenterNameInitials, displayCallCenterName } from "@/lib/callCenterBranding";
 
@@ -42,6 +43,7 @@ export type DashPage =
   | "transfer-check-tester"
   | "crm-sync"
   | "ghl-data-import"
+  | "live-monitoring"
   | "users-access" | "pipeline-management"
   | "carrier-management" | "bpo-centres"
   | "commissions" | "policies" | "carrier-updates"
@@ -108,6 +110,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: <Upload size={22} strokeWidth={1.8} />,
   },
   {
+    id: "live-monitoring",
+    label: "Live Monitoring",
+    icon: <MonitorUp size={22} strokeWidth={1.8} />,
+  },
+  {
     id: "carrier-updates",
     label: "Carrier Updates",
     icon: <DollarSign size={22} strokeWidth={1.8} />,
@@ -149,6 +156,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "transfer-check-tester": "Transfer Checker",
   "crm-sync": "CRM Sync Operations",
   "ghl-data-import": "GHL Data Import",
+  "live-monitoring": "Live Monitoring",
   "users-access": "Users & Access",
   "pipeline-management": "Pipelines",
   "carrier-management": "Carriers",
@@ -804,5 +812,4 @@ export default function DashboardLayout({
     </div>
   );
 }
-
 

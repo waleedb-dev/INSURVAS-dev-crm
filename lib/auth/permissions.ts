@@ -117,6 +117,7 @@ export function canAccessPage(
     | "transfer-check-tester"
     | "crm-sync"
     | "ghl-data-import"
+    | "live-monitoring"
     | "commissions"
     | "policies"
     | "users-access"
@@ -169,6 +170,10 @@ export function canAccessPage(
 
   if (page === "crm-sync" || page === "ghl-data-import") {
     return role === "system_admin";
+  }
+
+  if (page === "live-monitoring") {
+    return role === "sales_manager";
   }
 
   if (page === "commissions") {

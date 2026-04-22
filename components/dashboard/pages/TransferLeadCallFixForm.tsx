@@ -25,7 +25,7 @@ import TransferDispositionWizard, { type DispositionWizardPayload } from "./Tran
 import { TransferStyledSelect, transferSelectLabelStyle } from "./TransferStyledSelect";
 
 /** `pipeline_stages.name` for the Supabase-driven disposition wizard (see `disposition_flows`). */
-const NEEDS_BPO_CALLBACK_STAGE = "Needs BPO Callback";
+const NEEDS_LA_CALLBACK_STAGE = "Needs LA Callback";
 const INCOMPLETE_TRANSFER_STAGE = "Incomplete Transfer";
 const RETURNED_TO_CENTER_DQ_STAGE = "Returned To Center - DQ";
 const DQ_CANT_BE_SOLD_STAGE = "DQ'd Can't be sold";
@@ -36,7 +36,7 @@ const DQ_CANT_BE_SOLD_STAGE = "DQ'd Can't be sold";
  * @see sql/stage_disposition_map.sql
  */
 const STAGES_WITH_DISPOSITION_MAP = new Set([
-  "Needs BPO Callback",
+  "Needs LA Callback",
   "DQ'd Can't be sold",
   "GI DQ",
   "Returned To Center - DQ",
@@ -68,7 +68,7 @@ type Props = {
 
 const mapStatusToSheetValue = (userSelectedStatus: string) => {
   const statusMap: Record<string, string> = {
-    "Needs callback": "Needs BPO Callback",
+    "Needs callback": "Needs LA Callback",
     "GI - Currently DQ": "Returned To Center - DQ",
     "Call Never Sent": "Incomplete Transfer",
     "Not Interested": "Returned To Center - DQ",
@@ -451,7 +451,7 @@ export default function TransferLeadCallFixForm({
 
   useEffect(() => {
     if (
-      status === NEEDS_BPO_CALLBACK_STAGE ||
+      status === NEEDS_LA_CALLBACK_STAGE ||
       status === INCOMPLETE_TRANSFER_STAGE ||
       status === RETURNED_TO_CENTER_DQ_STAGE ||
       status === DQ_CANT_BE_SOLD_STAGE
