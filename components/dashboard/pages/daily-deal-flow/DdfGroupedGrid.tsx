@@ -581,9 +581,7 @@ export function DdfGroupedGrid({
       <TableRow key={row.id} style={{ background: isDuplicate ? "#FEF9E7" : "transparent", borderBottom: `1px solid ${T.border}` }} className="hover:bg-muted/30 transition-colors">
         <TableCell style={rowCellStyle}>{serialNumber}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput type="date" value={data.date || ""} onChange={(v) => patchDraft({ date: v })} /> : formatDateShort(row.date) || "N/A"}</TableCell>
-        <TableCell style={rowCellStyle}>
-          <span style={getVendorBadgeStyle(row.lead_vendor)}>{row.lead_vendor || "N/A"}</span>
-        </TableCell>
+        <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.lead_vendor || ""} onValueChange={(v) => patchDraft({ lead_vendor: v })} options={leadVendorOptions.map((v) => ({ value: v, label: v }))} /> : <span style={getVendorBadgeStyle(row.lead_vendor)}>{row.lead_vendor || "N/A"}</span>}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput value={data.insured_name || ""} onChange={(v) => patchDraft({ insured_name: v })} /> : row.insured_name || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineInput value={data.client_phone_number || ""} onChange={(v) => patchDraft({ client_phone_number: v })} /> : row.client_phone_number || "N/A"}</TableCell>
         <TableCell style={rowCellStyle}>{isEditing ? <InlineSelect value={data.buffer_agent || ""} onValueChange={(v) => patchDraft({ buffer_agent: v })} options={bufferAgentOptions.map((v) => ({ value: v, label: v }))} /> : row.buffer_agent || "N/A"}</TableCell>
