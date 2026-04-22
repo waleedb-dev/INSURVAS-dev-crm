@@ -10,7 +10,7 @@ const MONITORING_TOOLS = [
   },
   {
     name: "CloudTalk",
-    url: "https://phone.cloudtalk.io?partner=insurvas",
+    url: "https://analytics.cloudtalk.io/",
   },
 ] as const;
 
