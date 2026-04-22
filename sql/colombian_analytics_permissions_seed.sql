@@ -1,4 +1,5 @@
--- Colombian analytics page permissions + role mapping.
+-- Colombian analytics page permissions + role mapping (sales_manager).
+-- Publisher managers do not receive these via role; assign `user_permissions` per user when needed.
 -- Run after public.permissions and public.role_permissions exist.
 -- Safe to run multiple times.
 
@@ -16,7 +17,7 @@ insert into public.role_permissions (role_id, permission_id)
 select r.id, p.id
 from public.roles r
 cross join public.permissions p
-where r.key in ('sales_manager', 'publisher_manager')
+where r.key in ('sales_manager')
   and p.key in (
     'page.colombian_score_board.access',
     'page.colombian_center_performance.access',
