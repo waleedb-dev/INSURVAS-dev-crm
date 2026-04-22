@@ -267,15 +267,12 @@ export default function BpoCentersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingCenter, setDeletingCenter] = useState<CenterRow | null>(null);
-  const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [deactivatingCenter, setDeactivatingCenter] = useState<CenterRow | null>(null);
-  const [deactivateConfirmName, setDeactivateConfirmName] = useState("");
   const [deactivatingInProgress, setDeactivatingInProgress] = useState(false);
   const [showReactivateModal, setShowReactivateModal] = useState(false);
   const [reactivatingCenter, setReactivatingCenter] = useState<CenterRow | null>(null);
-  const [reactivateConfirmName, setReactivateConfirmName] = useState("");
   const [reactivatingInProgress, setReactivatingInProgress] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingCenter, setCreatingCenter] = useState(false);
@@ -646,7 +643,6 @@ export default function BpoCentersPage() {
 
   async function handleDeleteCenter() {
     if (!deletingCenter) return;
-    if (deleteConfirmName !== deletingCenter.name) return;
 
     setDeletingInProgress(true);
 
@@ -686,7 +682,6 @@ export default function BpoCentersPage() {
 
     setShowDeleteModal(false);
     setDeletingCenter(null);
-    setDeleteConfirmName("");
     setDeletingInProgress(false);
     await fetchDirectory();
   }
@@ -860,26 +855,22 @@ export default function BpoCentersPage() {
   async function handleDeactivateCenter() {
     if (!selectedCenter || selectedCenter.id === "new") return;
     setDeactivatingCenter(selectedCenter);
-    setDeactivateConfirmName("");
     setShowDeactivateModal(true);
   }
 
   async function handleDeactivateCenterFromRow(center: CenterRow) {
     setDeactivatingCenter(center);
-    setDeactivateConfirmName("");
     setShowDeactivateModal(true);
   }
 
   async function handleDeactivateCenterConfirm() {
     if (!deactivatingCenter) return;
-    if (deactivateConfirmName !== deactivatingCenter.name) return;
     setDeactivatingInProgress(true);
     const ok = await deactivateCenterById(deactivatingCenter.id, deactivatingCenter.name);
     setDeactivatingInProgress(false);
     if (!ok) return;
     setShowDeactivateModal(false);
     setDeactivatingCenter(null);
-    setDeactivateConfirmName("");
   }
 
   async function reactivateCenterById(centerId: string, centerName: string) {
@@ -926,19 +917,16 @@ export default function BpoCentersPage() {
 
   async function handleReactivateCenterFromRow(center: CenterRow) {
     setReactivatingCenter(center);
-    setReactivateConfirmName("");
     setShowReactivateModal(true);
   }
 
   async function handleReactivateCenterConfirm() {
     if (!reactivatingCenter) return;
-    if (reactivateConfirmName !== reactivatingCenter.name) return;
     setReactivatingInProgress(true);
     await reactivateCenterById(reactivatingCenter.id, reactivatingCenter.name);
     setReactivatingInProgress(false);
     setShowReactivateModal(false);
     setReactivatingCenter(null);
-    setReactivateConfirmName("");
   }
 
 
@@ -986,7 +974,6 @@ export default function BpoCentersPage() {
 
   function openDeleteModal(center: CenterRow) {
     setDeletingCenter(center);
-    setDeleteConfirmName("");
     setShowDeleteModal(true);
   }
 
@@ -2254,39 +2241,8 @@ export default function BpoCentersPage() {
 
             <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
               <p style={{ margin: 0, fontSize: 14, color: "#92400e", lineHeight: 1.6 }}>
-                <strong>Warning:</strong> This will rename <strong>"{deactivatingCenter.name}"</strong> to <strong>Inactive:{deactivatingCenter.name.replace(/^Inactive:/i, "").trim()}</strong> and set all linked users to inactive.
+                Are you sure you want to deactivate <strong>&quot;{deactivatingCenter.name}&quot;</strong>? This will rename it to <strong>Inactive:{deactivatingCenter.name.replace(/^Inactive:/i, "").trim()}</strong> and set all linked users to inactive.
               </p>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Type <strong>{deactivatingCenter.name}</strong> to confirm deactivation
-              </label>
-              <input
-                type="text"
-                value={deactivateConfirmName}
-                onChange={(e) => setDeactivateConfirmName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && deactivateConfirmName === deactivatingCenter.name) void handleDeactivateCenterConfirm();
-                  if (e.key === 'Escape') setShowDeactivateModal(false);
-                }}
-                placeholder={deactivatingCenter.name}
-                autoFocus
-                style={{
-                  width: "100%",
-                  height: 44,
-                  border: `1.5px solid ${deactivateConfirmName === deactivatingCenter.name ? "#b45309" : T.border}`,
-                  borderRadius: 10,
-                  fontSize: 14,
-                  color: T.textDark,
-                  padding: "0 14px",
-                  boxSizing: "border-box",
-                  background: T.cardBg,
-                  outline: "none",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-              />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -2309,19 +2265,19 @@ export default function BpoCentersPage() {
               </button>
               <button
                 onClick={handleDeactivateCenterConfirm}
-                disabled={deactivateConfirmName !== deactivatingCenter.name || deactivatingInProgress}
+                disabled={deactivatingInProgress}
                 style={{
                   height: 42,
                   padding: "0 20px",
                   borderRadius: 10,
                   border: "none",
-                  background: deactivateConfirmName === deactivatingCenter.name && !deactivatingInProgress ? "#b45309" : T.border,
+                  background: !deactivatingInProgress ? "#b45309" : T.border,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 600,
                   fontFamily: T.font,
-                  cursor: deactivateConfirmName === deactivatingCenter.name && !deactivatingInProgress ? "pointer" : "not-allowed",
-                  boxShadow: deactivateConfirmName === deactivatingCenter.name && !deactivatingInProgress ? "0 4px 12px rgba(180, 83, 9, 0.2)" : "none",
+                  cursor: !deactivatingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: !deactivatingInProgress ? "0 4px 12px rgba(180, 83, 9, 0.2)" : "none",
                   transition: "all 0.15s ease-in-out",
                 }}
               >
@@ -2347,39 +2303,8 @@ export default function BpoCentersPage() {
 
             <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
               <p style={{ margin: 0, fontSize: 14, color: "#166534", lineHeight: 1.6 }}>
-                <strong>Confirmation:</strong> This will rename <strong>"{reactivatingCenter.name}"</strong> to <strong>{reactivatingCenter.name.replace(/^Inactive:/i, "").trim() || reactivatingCenter.name}</strong> and mark the centre as active.
+                Are you sure you want to reactivate <strong>&quot;{reactivatingCenter.name}&quot;</strong>? This will rename it to <strong>{reactivatingCenter.name.replace(/^Inactive:/i, "").trim() || reactivatingCenter.name}</strong> and mark the centre as active.
               </p>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Type <strong>{reactivatingCenter.name}</strong> to confirm reactivation
-              </label>
-              <input
-                type="text"
-                value={reactivateConfirmName}
-                onChange={(e) => setReactivateConfirmName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && reactivateConfirmName === reactivatingCenter.name) void handleReactivateCenterConfirm();
-                  if (e.key === 'Escape') setShowReactivateModal(false);
-                }}
-                placeholder={reactivatingCenter.name}
-                autoFocus
-                style={{
-                  width: "100%",
-                  height: 44,
-                  border: `1.5px solid ${reactivateConfirmName === reactivatingCenter.name ? "#166534" : T.border}`,
-                  borderRadius: 10,
-                  fontSize: 14,
-                  color: T.textDark,
-                  padding: "0 14px",
-                  boxSizing: "border-box",
-                  background: T.cardBg,
-                  outline: "none",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-              />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -2402,19 +2327,19 @@ export default function BpoCentersPage() {
               </button>
               <button
                 onClick={handleReactivateCenterConfirm}
-                disabled={reactivateConfirmName !== reactivatingCenter.name || reactivatingInProgress}
+                disabled={reactivatingInProgress}
                 style={{
                   height: 42,
                   padding: "0 20px",
                   borderRadius: 10,
                   border: "none",
-                  background: reactivateConfirmName === reactivatingCenter.name && !reactivatingInProgress ? "#166534" : T.border,
+                  background: !reactivatingInProgress ? "#166534" : T.border,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 600,
                   fontFamily: T.font,
-                  cursor: reactivateConfirmName === reactivatingCenter.name && !reactivatingInProgress ? "pointer" : "not-allowed",
-                  boxShadow: reactivateConfirmName === reactivatingCenter.name && !reactivatingInProgress ? "0 4px 12px rgba(22, 101, 52, 0.2)" : "none",
+                  cursor: !reactivatingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: !reactivatingInProgress ? "0 4px 12px rgba(22, 101, 52, 0.2)" : "none",
                   transition: "all 0.15s ease-in-out",
                 }}
               >
@@ -2440,47 +2365,8 @@ export default function BpoCentersPage() {
 
             <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
               <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
-                <strong>Warning:</strong> This will permanently delete <strong>"{deletingCenter.name}"</strong> and unassign all users. This action cannot be undone.
+                Are you sure you want to permanently delete <strong>&quot;{deletingCenter.name}&quot;</strong> and unassign all users? This action cannot be undone.
               </p>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Type <strong>{deletingCenter.name}</strong> to confirm deletion
-              </label>
-              <input
-                type="text"
-                value={deleteConfirmName}
-                onChange={(e) => setDeleteConfirmName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && deleteConfirmName === deletingCenter.name) handleDeleteCenter();
-                  if (e.key === 'Escape') setShowDeleteModal(false);
-                }}
-                placeholder={deletingCenter.name}
-                autoFocus
-                style={{
-                  width: "100%",
-                  height: 44,
-                  border: `1.5px solid ${deleteConfirmName === deletingCenter.name ? "#dc2626" : T.border}`,
-                  borderRadius: 10,
-                  fontSize: 14,
-                  color: T.textDark,
-                  padding: "0 14px",
-                  boxSizing: "border-box",
-                  background: T.cardBg,
-                  outline: "none",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingCenter.name ? "#dc2626" : "#233217";
-                  e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmName === deletingCenter.name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmName === deletingCenter.name ? "#dc2626" : T.border;
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -2503,19 +2389,19 @@ export default function BpoCentersPage() {
               </button>
               <button
                 onClick={handleDeleteCenter}
-                disabled={deleteConfirmName !== deletingCenter.name || deletingInProgress}
+                disabled={deletingInProgress}
                 style={{
                   height: 42,
                   padding: "0 20px",
                   borderRadius: 10,
                   border: "none",
-                  background: deleteConfirmName === deletingCenter.name && !deletingInProgress ? "#dc2626" : T.border,
+                  background: !deletingInProgress ? "#dc2626" : T.border,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 600,
                   fontFamily: T.font,
-                  cursor: deleteConfirmName === deletingCenter.name && !deletingInProgress ? "pointer" : "not-allowed",
-                  boxShadow: deleteConfirmName === deletingCenter.name && !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                  cursor: !deletingInProgress ? "pointer" : "not-allowed",
+                  boxShadow: !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
                   transition: "all 0.15s ease-in-out",
                 }}
               >

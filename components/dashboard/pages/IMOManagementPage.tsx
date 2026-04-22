@@ -349,7 +349,6 @@ export default function IMOManagementPage() {
   const [creatingImo, setCreatingImo] = useState(false);
   const [showDeleteImoModal, setShowDeleteImoModal] = useState(false);
   const [deletingImo, setDeletingImo] = useState<IMO | null>(null);
-  const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   
   // Modal states for Agency
@@ -361,13 +360,11 @@ export default function IMOManagementPage() {
   const [creatingAgency, setCreatingAgency] = useState(false);
   const [showDeleteAgencyModal, setShowDeleteAgencyModal] = useState(false);
   const [deletingAgency, setDeletingAgency] = useState<Agency | null>(null);
-  const [deleteAgencyConfirmName, setDeleteAgencyConfirmName] = useState("");
   const [deletingAgencyInProgress, setDeletingAgencyInProgress] = useState(false);
   
   // Modal states for Agent
   const [showDeleteAgentModal, setShowDeleteAgentModal] = useState(false);
   const [deletingAgent, setDeletingAgent] = useState<Agent | null>(null);
-  const [deleteAgentConfirmName, setDeleteAgentConfirmName] = useState("");
   const [deletingAgentInProgress, setDeletingAgentInProgress] = useState(false);
   
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
@@ -799,7 +796,6 @@ export default function IMOManagementPage() {
 
   function openDeleteImoModal(imo: IMO) {
     setDeletingImo(imo);
-    setDeleteConfirmName("");
     setShowDeleteImoModal(true);
   }
 
@@ -818,14 +814,12 @@ export default function IMOManagementPage() {
 
   function openDeleteAgencyModal(agency: Agency) {
     setDeletingAgency(agency);
-    setDeleteAgencyConfirmName("");
     setShowDeleteAgencyModal(true);
   }
 
   // Agent Modal Helpers
   function openDeleteAgentModal(agent: Agent) {
     setDeletingAgent(agent);
-    setDeleteAgentConfirmName("");
     setShowDeleteAgentModal(true);
   }
 
@@ -963,10 +957,7 @@ export default function IMOManagementPage() {
     }
   }
 
-  async function deleteItem(type: 'imo' | 'agency' | 'agent', id: number, name: string) {
-    const ok = confirm(`Delete ${type} "${name}"? This action cannot be undone.`);
-    if (!ok) return;
-
+  async function deleteItem(type: 'imo' | 'agency' | 'agent', id: number) {
     try {
       await supabase.from(`${type}s`).delete().eq("id", id);
       if (type === 'imo') fetchIMOs();
@@ -1632,47 +1623,8 @@ export default function IMOManagementPage() {
 
               <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
                 <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
-                  <strong>Warning:</strong> This will permanently delete <strong>"{deletingImo.name}"</strong>. This action cannot be undone.
+                  Are you sure you want to permanently delete <strong>&quot;{deletingImo.name}&quot;</strong>? This action cannot be undone.
                 </p>
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                  Type <strong>{deletingImo.name}</strong> to confirm deletion
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmName}
-                  onChange={(e) => setDeleteConfirmName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && deleteConfirmName === deletingImo.name) void deleteItem('imo', deletingImo.id, deletingImo.name);
-                    if (e.key === 'Escape') setShowDeleteImoModal(false);
-                  }}
-                  placeholder={deletingImo.name}
-                  autoFocus
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    border: `1.5px solid ${deleteConfirmName === deletingImo.name ? "#dc2626" : T.border}`,
-                    borderRadius: 10,
-                    fontSize: 14,
-                    color: T.textDark,
-                    padding: "0 14px",
-                    boxSizing: "border-box",
-                    background: T.cardBg,
-                    outline: "none",
-                    fontFamily: T.font,
-                    transition: "all 0.15s ease-in-out",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = deleteConfirmName === deletingImo.name ? "#dc2626" : "#233217";
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmName === deletingImo.name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = deleteConfirmName === deletingImo.name ? "#dc2626" : T.border;
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                />
               </div>
 
               <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -1697,25 +1649,25 @@ export default function IMOManagementPage() {
                   onClick={async () => {
                     setDeletingInProgress(true);
                     try {
-                      await deleteItem('imo', deletingImo.id, deletingImo.name);
+                      await deleteItem('imo', deletingImo.id);
                       setShowDeleteImoModal(false);
                     } finally {
                       setDeletingInProgress(false);
                     }
                   }}
-                  disabled={deleteConfirmName !== deletingImo.name || deletingInProgress}
+                  disabled={deletingInProgress}
                   style={{
                     height: 42,
                     padding: "0 20px",
                     borderRadius: 10,
                     border: "none",
-                    background: deleteConfirmName === deletingImo.name && !deletingInProgress ? "#dc2626" : T.border,
+                    background: !deletingInProgress ? "#dc2626" : T.border,
                     color: "#fff",
                     fontSize: 14,
                     fontWeight: 600,
                     fontFamily: T.font,
-                    cursor: deleteConfirmName === deletingImo.name && !deletingInProgress ? "pointer" : "not-allowed",
-                    boxShadow: deleteConfirmName === deletingImo.name && !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                    cursor: !deletingInProgress ? "pointer" : "not-allowed",
+                    boxShadow: !deletingInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
                     transition: "all 0.15s ease-in-out",
                   }}
                 >
@@ -2267,47 +2219,8 @@ export default function IMOManagementPage() {
 
               <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
                 <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
-                  <strong>Warning:</strong> This will permanently delete <strong>"{deletingAgency.name}"</strong> and unassign all agents. This action cannot be undone.
+                  Are you sure you want to permanently delete <strong>&quot;{deletingAgency.name}&quot;</strong> and unassign all agents? This action cannot be undone.
                 </p>
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                  Type <strong>{deletingAgency.name}</strong> to confirm deletion
-                </label>
-                <input
-                  type="text"
-                  value={deleteAgencyConfirmName}
-                  onChange={(e) => setDeleteAgencyConfirmName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && deleteAgencyConfirmName === deletingAgency.name) void deleteItem('agency', deletingAgency.id, deletingAgency.name);
-                    if (e.key === 'Escape') setShowDeleteAgencyModal(false);
-                  }}
-                  placeholder={deletingAgency.name}
-                  autoFocus
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    border: `1.5px solid ${deleteAgencyConfirmName === deletingAgency.name ? "#dc2626" : T.border}`,
-                    borderRadius: 10,
-                    fontSize: 14,
-                    color: T.textDark,
-                    padding: "0 14px",
-                    boxSizing: "border-box",
-                    background: T.cardBg,
-                    outline: "none",
-                    fontFamily: T.font,
-                    transition: "all 0.15s ease-in-out",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = deleteAgencyConfirmName === deletingAgency.name ? "#dc2626" : "#233217";
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteAgencyConfirmName === deletingAgency.name ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = deleteAgencyConfirmName === deletingAgency.name ? "#dc2626" : T.border;
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                />
               </div>
 
               <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -2332,25 +2245,25 @@ export default function IMOManagementPage() {
                   onClick={async () => {
                     setDeletingAgencyInProgress(true);
                     try {
-                      await deleteItem('agency', deletingAgency.id, deletingAgency.name);
+                      await deleteItem('agency', deletingAgency.id);
                       setShowDeleteAgencyModal(false);
                     } finally {
                       setDeletingAgencyInProgress(false);
                     }
                   }}
-                  disabled={deleteAgencyConfirmName !== deletingAgency.name || deletingAgencyInProgress}
+                  disabled={deletingAgencyInProgress}
                   style={{
                     height: 42,
                     padding: "0 20px",
                     borderRadius: 10,
                     border: "none",
-                    background: deleteAgencyConfirmName === deletingAgency.name && !deletingAgencyInProgress ? "#dc2626" : T.border,
+                    background: !deletingAgencyInProgress ? "#dc2626" : T.border,
                     color: "#fff",
                     fontSize: 14,
                     fontWeight: 600,
                     fontFamily: T.font,
-                    cursor: deleteAgencyConfirmName === deletingAgency.name && !deletingAgencyInProgress ? "pointer" : "not-allowed",
-                    boxShadow: deleteAgencyConfirmName === deletingAgency.name && !deletingAgencyInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                    cursor: !deletingAgencyInProgress ? "pointer" : "not-allowed",
+                    boxShadow: !deletingAgencyInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
                     transition: "all 0.15s ease-in-out",
                   }}
                 >
@@ -2702,47 +2615,8 @@ export default function IMOManagementPage() {
 
               <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
                 <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
-                  <strong>Warning:</strong> This will permanently delete <strong>"{deletingAgent.fullName}"</strong>. This action cannot be undone.
+                  Are you sure you want to permanently delete <strong>&quot;{deletingAgent.fullName}&quot;</strong>? This action cannot be undone.
                 </p>
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                  Type <strong>{deletingAgent.fullName}</strong> to confirm deletion
-                </label>
-                <input
-                  type="text"
-                  value={deleteAgentConfirmName}
-                  onChange={(e) => setDeleteAgentConfirmName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && deleteAgentConfirmName === deletingAgent.fullName) void deleteItem('agent', deletingAgent.id, deletingAgent.fullName);
-                    if (e.key === 'Escape') setShowDeleteAgentModal(false);
-                  }}
-                  placeholder={deletingAgent.fullName}
-                  autoFocus
-                  style={{
-                    width: "100%",
-                    height: 44,
-                    border: `1.5px solid ${deleteAgentConfirmName === deletingAgent.fullName ? "#dc2626" : T.border}`,
-                    borderRadius: 10,
-                    fontSize: 14,
-                    color: T.textDark,
-                    padding: "0 14px",
-                    boxSizing: "border-box",
-                    background: T.cardBg,
-                    outline: "none",
-                    fontFamily: T.font,
-                    transition: "all 0.15s ease-in-out",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = deleteAgentConfirmName === deletingAgent.fullName ? "#dc2626" : "#233217";
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteAgentConfirmName === deletingAgent.fullName ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = deleteAgentConfirmName === deletingAgent.fullName ? "#dc2626" : T.border;
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                />
               </div>
 
               <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -2767,25 +2641,25 @@ export default function IMOManagementPage() {
                   onClick={async () => {
                     setDeletingAgentInProgress(true);
                     try {
-                      await deleteItem('agent', deletingAgent.id, deletingAgent.fullName);
+                      await deleteItem('agent', deletingAgent.id);
                       setShowDeleteAgentModal(false);
                     } finally {
                       setDeletingAgentInProgress(false);
                     }
                   }}
-                  disabled={deleteAgentConfirmName !== deletingAgent.fullName || deletingAgentInProgress}
+                  disabled={deletingAgentInProgress}
                   style={{
                     height: 42,
                     padding: "0 20px",
                     borderRadius: 10,
                     border: "none",
-                    background: deleteAgentConfirmName === deletingAgent.fullName && !deletingAgentInProgress ? "#dc2626" : T.border,
+                    background: !deletingAgentInProgress ? "#dc2626" : T.border,
                     color: "#fff",
                     fontSize: 14,
                     fontWeight: 600,
                     fontFamily: T.font,
-                    cursor: deleteAgentConfirmName === deletingAgent.fullName && !deletingAgentInProgress ? "pointer" : "not-allowed",
-                    boxShadow: deleteAgentConfirmName === deletingAgent.fullName && !deletingAgentInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                    cursor: !deletingAgentInProgress ? "pointer" : "not-allowed",
+                    boxShadow: !deletingAgentInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
                     transition: "all 0.15s ease-in-out",
                   }}
                 >

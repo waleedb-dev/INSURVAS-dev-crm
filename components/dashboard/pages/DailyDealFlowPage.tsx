@@ -7,7 +7,15 @@ import { EmptyState, Toast } from "@/components/ui";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
-import { Search, Filter, RefreshCw } from "lucide-react";
+import { CalendarDays, ChevronDown, Download, FileText, Filter, RefreshCw, Search } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -16,10 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { DailyDealFlowRow } from "./daily-deal-flow/types";
-import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE, STATUS_OPTIONS } from "./daily-deal-flow/constants";
+import { ALL_OPTION, CALL_RESULT_OPTIONS, CARRIER_OPTIONS, LA_CALLBACK_OPTIONS, LICENSED_ACCOUNT_OPTIONS, RECORDS_PER_PAGE } from "./daily-deal-flow/constants";
 import { dateObjectToESTString, displayDdfStatus, getTodayDateEST } from "./daily-deal-flow/helpers";
 import { DdfGroupedGrid } from "./daily-deal-flow/DdfGroupedGrid";
 import { DdfSyncNotSubmittedToLeadsModal } from "./daily-deal-flow/DdfSyncNotSubmittedToLeadsModal";
+import { DdfCreateEntryModal } from "./daily-deal-flow/DdfCreateEntryModal";
+import CreateLeadModal from "./CreateLeadModal";
 
 type DailyDealFlowPageProps = {
   canProcessActions: boolean;
@@ -27,6 +37,8 @@ type DailyDealFlowPageProps = {
   /** Sales manager: sync not-submitted call results to lead pipeline stage. */
   isSalesManager?: boolean;
 };
+
+type ExportMode = "eod" | "weekly" | "filtered" | "all";
 
 function StyledSelect({
   value,
@@ -227,6 +239,7 @@ export default function DailyDealFlowPage({
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [syncNotSubmittedModalOpen, setSyncNotSubmittedModalOpen] = useState(false);
+  const [createLeadModalOpen, setCreateLeadModalOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFromFilter, setDateFromFilter] = useState("");
@@ -316,11 +329,13 @@ export default function DailyDealFlowPage({
   };
 
   type VendorRow = { lead_vendor: string | null };
-  type BufferRow = { buffer_agent: string | null };
-  type AgentRow = { agent: string | null };
-  type RetentionRow = { retention_agent: string | null };
-  type LicensedRow = { licensed_agent_account: string | null };
   type CarrierRow = { carrier: string | null };
+  type UserOptionRow = {
+    full_name: string | null;
+    licensed_name: string | null;
+    is_licensed: boolean | null;
+    unlicensed_sales_subtype: string | null;
+  };
 
   const loadDistinct = useCallback(async () => {
     const { data: vendorRows } = await supabase.from("daily_deal_flow").select("lead_vendor").not("lead_vendor", "is", null);
@@ -344,21 +359,22 @@ export default function DailyDealFlowPage({
     console.log("[DailyDealFlow] Fetched users:", allUsers?.length || 0, allUsers);
 
     // Filter users locally based on their roles
-    const licensedList = (allUsers || [])
-      .filter((u: any) => u.is_licensed && u.licensed_name)
-      .map((u: any) => u.licensed_name);
+    const userRows = (allUsers || []) as UserOptionRow[];
+    const licensedList = userRows
+      .filter((u) => u.is_licensed && u.licensed_name)
+      .map((u) => u.licensed_name as string);
     
-    const bufferList = (allUsers || [])
-      .filter((u: any) => u.unlicensed_sales_subtype === "buffer_agent" && u.full_name)
-      .map((u: any) => u.full_name);
+    const bufferList = userRows
+      .filter((u) => u.unlicensed_sales_subtype === "buffer_agent" && u.full_name)
+      .map((u) => u.full_name as string);
     
-    const retentionList = (allUsers || [])
-      .filter((u: any) => u.unlicensed_sales_subtype === "retention_agent" && u.full_name)
-      .map((u: any) => u.full_name);
+    const retentionList = userRows
+      .filter((u) => u.unlicensed_sales_subtype === "retention_agent" && u.full_name)
+      .map((u) => u.full_name as string);
     
-    const agentList = (allUsers || [])
-      .filter((u: any) => u.is_licensed && u.full_name)
-      .map((u: any) => u.full_name);
+    const agentList = userRows
+      .filter((u) => u.is_licensed && u.full_name)
+      .map((u) => u.full_name as string);
 
     console.log("[DailyDealFlow] Agent options:", { licensedList, bufferList, retentionList, agentList });
 
@@ -460,26 +476,34 @@ export default function DailyDealFlowPage({
     return () => clearTimeout(timeout);
   }, [dateFromFilter, dateToFilter, bufferAgentFilter, retentionAgentFilter, licensedAgentFilter, leadVendorFilter, statusFilter, carrierFilter, callResultFilter, retentionFilter, incompleteUpdatesFilter, laCallbackFilter, hourFromFilter, hourToFilter, fetchData]);
 
-  const handleExport = async () => {
+  const handleExport = async (mode: ExportMode = "filtered") => {
     let query = supabase.from("daily_deal_flow").select("*").order("created_at", { ascending: false });
-    const { from: exportFrom, to: exportTo } = normalisedDateRange(dateFromFilter, dateToFilter);
+    const today = getTodayDateEST();
+    const weekStart = dateObjectToESTString(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+    const { from: filterFrom, to: filterTo } = normalisedDateRange(dateFromFilter, dateToFilter);
+    const exportFrom = mode === "eod" ? today : mode === "weekly" ? weekStart : mode === "filtered" ? filterFrom : "";
+    const exportTo = mode === "eod" || mode === "weekly" ? today : mode === "filtered" ? filterTo : "";
+    const shouldApplyFilters = mode === "filtered";
+
     if (exportFrom) query = query.gte("date", exportFrom);
     if (exportTo) query = query.lte("date", exportTo);
-    if (bufferAgentFilter !== ALL_OPTION) query = query.eq("buffer_agent", bufferAgentFilter);
-    if (retentionAgentFilter.length > 0) query = query.in("retention_agent", retentionAgentFilter);
-    if (licensedAgentFilter !== ALL_OPTION) query = query.eq("licensed_agent_account", licensedAgentFilter);
-    if (leadVendorFilter !== ALL_OPTION) query = query.eq("lead_vendor", leadVendorFilter);
-    if (statusFilter !== ALL_OPTION && statusFilter !== "All") {
-      if (statusFilter === "Pending Approval") {
-        query = query.or("status.eq.Pending Approval,status.eq.Underwriting");
-      } else {
-        query = query.eq("status", statusFilter);
+    if (shouldApplyFilters) {
+      if (bufferAgentFilter !== ALL_OPTION) query = query.eq("buffer_agent", bufferAgentFilter);
+      if (retentionAgentFilter.length > 0) query = query.in("retention_agent", retentionAgentFilter);
+      if (licensedAgentFilter !== ALL_OPTION) query = query.eq("licensed_agent_account", licensedAgentFilter);
+      if (leadVendorFilter !== ALL_OPTION) query = query.eq("lead_vendor", leadVendorFilter);
+      if (statusFilter !== ALL_OPTION && statusFilter !== "All") {
+        if (statusFilter === "Pending Approval") {
+          query = query.or("status.eq.Pending Approval,status.eq.Underwriting");
+        } else {
+          query = query.eq("status", statusFilter);
+        }
       }
+      if (carrierFilter !== ALL_OPTION) query = query.eq("carrier", carrierFilter);
+      if (callResultFilter !== ALL_OPTION) query = query.eq("call_result", callResultFilter);
+      if (laCallbackFilter !== ALL_OPTION) query = query.eq("la_callback", laCallbackFilter);
+      if (searchTerm) query = query.or(`insured_name.ilike.%${searchTerm}%,client_phone_number.ilike.%${searchTerm}%,submission_id.ilike.%${searchTerm}%`);
     }
-    if (carrierFilter !== ALL_OPTION) query = query.eq("carrier", carrierFilter);
-    if (callResultFilter !== ALL_OPTION) query = query.eq("call_result", callResultFilter);
-    if (laCallbackFilter !== ALL_OPTION) query = query.eq("la_callback", laCallbackFilter);
-    if (searchTerm) query = query.or(`insured_name.ilike.%${searchTerm}%,client_phone_number.ilike.%${searchTerm}%,submission_id.ilike.%${searchTerm}%`);
     const { data, error } = await query;
     if (error || !data?.length) return setToast({ message: error?.message || "No data to export", type: "error" });
     const enriched = await enrichDdfRowsWithLeadProfile(supabase, data as DailyDealFlowRow[]);
@@ -535,10 +559,10 @@ export default function DailyDealFlowPage({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const { from: sFrom, to: sTo } = normalisedDateRange(dateFromFilter, dateToFilter);
+    const { from: sFrom, to: sTo } = normalisedDateRange(exportFrom, exportTo);
     const suffix =
-      sFrom || sTo ? `${sFrom || "start"}_${sTo || "end"}` : dateObjectToESTString(new Date());
-    a.download = `daily-deal-flow-${suffix}.csv`;
+      sFrom || sTo ? `${sFrom || "start"}_${sTo || "end"}` : mode === "all" ? "all" : dateObjectToESTString(new Date());
+    a.download = `daily-deal-flow-${mode}-${suffix}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     setToast({ message: `Exported ${data.length} records`, type: "success" });
@@ -727,6 +751,24 @@ export default function DailyDealFlowPage({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {isSalesManager && hasWritePermissions && (
+              <DdfCreateEntryModal
+                supabase={supabase}
+                bufferAgentOptions={bufferAgentOptions}
+                agentOptions={agentOptions}
+                licensedOptions={licensedOptions}
+                carrierOptions={carrierOptionsDynamic}
+                statusOptions={statusOptionsDynamic}
+                callCenterId={callCenterId}
+                onCreateLead={() => setCreateLeadModalOpen(true)}
+                onSuccess={() => {
+                  setToast({ message: "Daily Deal Flow entry created", type: "success" });
+                  void fetchData(1);
+                }}
+                onError={(message) => setToast({ message, type: "error" })}
+              />
+            )}
+
             <button
               type="button"
               onClick={() => setFilterPanelExpanded((v) => !v)}
@@ -792,27 +834,69 @@ export default function DailyDealFlowPage({
               </button>
             )}
 
-            <button
-              onClick={handleExport}
-              style={{
-                height: 38,
-                padding: "0 16px",
-                borderRadius: 10,
-                border: `1px solid ${T.border}`,
-                background: "#fff",
-                color: T.textDark,
-                fontSize: 14,
-                fontWeight: 600,
-                fontFamily: T.font,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-              Export
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                style={{
+                  height: 38,
+                  padding: "0 14px",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+                className="hover:border-[#233217] hover:bg-[#EEF5EE] data-[popup-open]:border-[#233217] data-[popup-open]:ring-2 data-[popup-open]:ring-[#233217]/15"
+              >
+                <Download size={16} />
+                Export
+                <ChevronDown size={16} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="!w-[220px] !rounded-[10px] !border-[#a7c194] !bg-white !p-0"
+              >
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    onClick={() => void handleExport("eod")}
+                    className="!cursor-pointer !gap-3 !rounded-none !px-4 !py-3 text-[13.5px] !font-semibold text-[#1c201a] focus:!bg-[#EEF5EE] focus:!text-[#233217]"
+                  >
+                    <FileText size={16} />
+                    EOD Reports
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="!m-0 bg-[#dfe9d6]" />
+                  <DropdownMenuItem
+                    onClick={() => void handleExport("weekly")}
+                    className="!cursor-pointer !gap-3 !rounded-none !px-4 !py-3 text-[13.5px] !font-semibold text-[#1c201a] focus:!bg-[#EEF5EE] focus:!text-[#233217]"
+                  >
+                    <CalendarDays size={16} />
+                    Weekly
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="!m-0 bg-[#dfe9d6]" />
+                  <DropdownMenuItem
+                    onClick={() => void handleExport("filtered")}
+                    className="!cursor-pointer !gap-3 !rounded-none !px-4 !py-3 text-[13.5px] !font-semibold text-[#1c201a] focus:!bg-[#EEF5EE] focus:!text-[#233217]"
+                  >
+                    <Download size={16} />
+                    Export Filtered
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="!m-0 bg-[#dfe9d6]" />
+                  <DropdownMenuItem
+                    onClick={() => void handleExport("all")}
+                    className="!cursor-pointer !gap-3 !rounded-none !px-4 !py-3 text-[13.5px] !font-semibold text-[#1c201a] focus:!bg-[#EEF5EE] focus:!text-[#233217]"
+                  >
+                    <Download size={16} />
+                    Export All
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <button
               onClick={() => void fetchData(1, true)}
@@ -1121,6 +1205,16 @@ export default function DailyDealFlowPage({
           onSynced={() => void fetchData(currentPage)}
         />
       )}
+
+      <CreateLeadModal
+        open={createLeadModalOpen}
+        onClose={() => setCreateLeadModalOpen(false)}
+        onSuccess={() => {
+          setCreateLeadModalOpen(false);
+          setToast({ message: "Lead created and added to Daily Deal Flow", type: "success" });
+          void fetchData(1);
+        }}
+      />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

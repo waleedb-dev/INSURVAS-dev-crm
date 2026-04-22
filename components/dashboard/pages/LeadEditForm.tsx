@@ -395,7 +395,6 @@ export function LeadEditForm({
   // Delete note modal state
   const [showDeleteNoteModal, setShowDeleteNoteModal] = React.useState(false);
   const [deletingNote, setDeletingNote] = React.useState<NoteRow | null>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = React.useState("");
   const [deleteInProgress, setDeleteInProgress] = React.useState(false);
 
   const form = useForm<LeadEditFormData>({
@@ -479,7 +478,6 @@ export function LeadEditForm({
 
   const openDeleteNoteModal = React.useCallback((note: NoteRow) => {
     setDeletingNote(note);
-    setDeleteConfirmText("");
     setShowDeleteNoteModal(true);
   }, []);
 
@@ -491,7 +489,6 @@ export function LeadEditForm({
       if (error) throw error;
       setShowDeleteNoteModal(false);
       setDeletingNote(null);
-      setDeleteConfirmText("");
       await loadNotes();
     } catch (err) {
       setNotesError(err instanceof Error ? err.message : "Failed to delete note");
@@ -1487,47 +1484,8 @@ export function LeadEditForm({
 
             <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
               <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.6 }}>
-                <strong>Warning:</strong> This will permanently delete this note. This action cannot be undone.
+                Are you sure you want to permanently delete this note? This action cannot be undone.
               </p>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Type <strong>delete</strong> to confirm deletion
-              </label>
-              <input
-                type="text"
-                value={deleteConfirmText}
-                onChange={(e) => setDeleteConfirmText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && deleteConfirmText.toLowerCase() === 'delete') handleDeleteNote();
-                  if (e.key === 'Escape') setShowDeleteNoteModal(false);
-                }}
-                placeholder="delete"
-                autoFocus
-                style={{
-                  width: "100%",
-                  height: 44,
-                  border: `1.5px solid ${deleteConfirmText.toLowerCase() === 'delete' ? "#dc2626" : T.border}`,
-                  borderRadius: 10,
-                  fontSize: 14,
-                  color: T.textDark,
-                  padding: "0 14px",
-                  boxSizing: "border-box",
-                  background: T.cardBg,
-                  outline: "none",
-                  fontFamily: T.font,
-                  transition: "all 0.15s ease-in-out",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmText.toLowerCase() === 'delete' ? "#dc2626" : "#233217";
-                  e.currentTarget.style.boxShadow = `0 0 0 3px ${deleteConfirmText.toLowerCase() === 'delete' ? "rgba(220, 38, 38, 0.1)" : "rgba(35, 50, 23, 0.1)"}`;
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = deleteConfirmText.toLowerCase() === 'delete' ? "#dc2626" : T.border;
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -1550,19 +1508,19 @@ export function LeadEditForm({
               </button>
               <button
                 onClick={handleDeleteNote}
-                disabled={deleteConfirmText.toLowerCase() !== 'delete' || deleteInProgress}
+                disabled={deleteInProgress}
                 style={{
                   height: 42,
                   padding: "0 20px",
                   borderRadius: 10,
                   border: "none",
-                  background: deleteConfirmText.toLowerCase() === 'delete' && !deleteInProgress ? "#dc2626" : T.border,
+                  background: !deleteInProgress ? "#dc2626" : T.border,
                   color: "#fff",
                   fontSize: 14,
                   fontWeight: 600,
                   fontFamily: T.font,
-                  cursor: deleteConfirmText.toLowerCase() === 'delete' && !deleteInProgress ? "pointer" : "not-allowed",
-                  boxShadow: deleteConfirmText.toLowerCase() === 'delete' && !deleteInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
+                  cursor: !deleteInProgress ? "pointer" : "not-allowed",
+                  boxShadow: !deleteInProgress ? "0 4px 12px rgba(220, 38, 38, 0.2)" : "none",
                   transition: "all 0.15s ease-in-out",
                 }}
               >
