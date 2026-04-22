@@ -36,6 +36,8 @@ type DailyDealFlowPageProps = {
   isCallCenterScoped?: boolean;
   /** Sales manager: sync not-submitted call results to lead pipeline stage. */
   isSalesManager?: boolean;
+  /** Embedded on Live Monitoring: compact chrome, view-only grid subset, same filters as main page. */
+  variant?: "default" | "liveMonitoringEmbed";
 };
 
 type ExportMode = "eod" | "weekly" | "filtered" | "all";
@@ -217,6 +219,7 @@ export default function DailyDealFlowPage({
   canProcessActions,
   isCallCenterScoped = false,
   isSalesManager = false,
+  variant = "default",
 }: DailyDealFlowPageProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const params = useParams<{ role?: string }>();
@@ -235,7 +238,8 @@ export default function DailyDealFlowPage({
   const [licensedOptions, setLicensedOptions] = useState<string[]>([]);
   const [carrierOptionsDynamic, setCarrierOptionsDynamic] = useState<string[]>([]);
   const [statusOptionsDynamic, setStatusOptionsDynamic] = useState<string[]>([]);
-  const hasWritePermissions = canProcessActions;
+  const isLiveMonitoringEmbed = variant === "liveMonitoringEmbed";
+  const hasWritePermissions = canProcessActions && !isLiveMonitoringEmbed;
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [syncNotSubmittedModalOpen, setSyncNotSubmittedModalOpen] = useState(false);
@@ -577,21 +581,35 @@ export default function DailyDealFlowPage({
 
   if (loading) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, paddingBottom: 24 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
-          {Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)}
-        </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
+          minHeight: 0,
+          paddingBottom: isLiveMonitoringEmbed ? 8 : 24,
+        }}
+      >
+        {!isLiveMonitoringEmbed && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <StatSkeleton key={i} />
+            ))}
+          </div>
+        )}
         <div
           style={{
             borderRadius: 16,
             border: `1px solid ${T.border}`,
             backgroundColor: T.cardBg,
-            padding: "80px 40px",
+            padding: isLiveMonitoringEmbed ? "40px 24px" : "80px 40px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             gap: 20,
+            flex: isLiveMonitoringEmbed ? 1 : undefined,
+            minHeight: isLiveMonitoringEmbed ? 120 : undefined,
           }}
         >
           <LoadingSpinner size={48} label="Loading Daily Deal Flow..." />
@@ -601,7 +619,18 @@ export default function DailyDealFlowPage({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, paddingBottom: 24, position: "relative" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+        paddingBottom: isLiveMonitoringEmbed ? 8 : 24,
+        position: "relative",
+        overflow: isLiveMonitoringEmbed ? "hidden" : "visible",
+      }}
+    >
+      {!isLiveMonitoringEmbed && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
         {[
           { label: "Total Entries", value: totalRecords.toLocaleString(), color: "#233217", icon: (
@@ -665,6 +694,7 @@ export default function DailyDealFlowPage({
           </Card>
         ))}
       </div>
+      )}
 
       {isCallCenterScoped && !callCenterId && (
         <div
@@ -751,7 +781,7 @@ export default function DailyDealFlowPage({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {isSalesManager && hasWritePermissions && (
+            {isSalesManager && hasWritePermissions && !isLiveMonitoringEmbed && (
               <DdfCreateEntryModal
                 supabase={supabase}
                 bufferAgentOptions={bufferAgentOptions}
@@ -810,7 +840,7 @@ export default function DailyDealFlowPage({
               )}
             </button>
 
-            {isSalesManager && (
+            {isSalesManager && !isLiveMonitoringEmbed && (
               <button
                 type="button"
                 onClick={() => setSyncNotSubmittedModalOpen(true)}
@@ -834,6 +864,7 @@ export default function DailyDealFlowPage({
               </button>
             )}
 
+            {!isLiveMonitoringEmbed && (
             <DropdownMenu>
               <DropdownMenuTrigger
                 style={{
@@ -897,6 +928,7 @@ export default function DailyDealFlowPage({
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
 
             <button
               onClick={() => void fetchData(1, true)}
@@ -1166,9 +1198,11 @@ export default function DailyDealFlowPage({
         <EmptyState
           title="No daily deal entries yet"
           description={
-            isCallCenterScoped
-              ? "There are no rows for your call center yet, or filters exclude everything. Adjust filters or create a new entry."
-              : "Try adjusting filters or creating a new entry."
+            isLiveMonitoringEmbed
+              ? "No rows match the current filters. Adjust filters or date range."
+              : isCallCenterScoped
+                ? "There are no rows for your call center yet, or filters exclude everything. Adjust filters or create a new entry."
+                : "Try adjusting filters or creating a new entry."
           }
           compact
         />
@@ -1193,10 +1227,11 @@ export default function DailyDealFlowPage({
           statusOptions={statusOptionsDynamic}
           groupBy={groupBy}
           groupBySecondary={groupBySecondary}
+          gridColumnPreset={isLiveMonitoringEmbed ? "liveMonitoring" : "full"}
         />
       )}
 
-      {isSalesManager && (
+      {isSalesManager && !isLiveMonitoringEmbed && (
         <DdfSyncNotSubmittedToLeadsModal
           open={syncNotSubmittedModalOpen}
           onClose={() => setSyncNotSubmittedModalOpen(false)}

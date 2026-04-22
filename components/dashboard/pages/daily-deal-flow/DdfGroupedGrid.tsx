@@ -310,13 +310,29 @@ type Props = {
   statusOptions: string[];
   groupBy: string;
   groupBySecondary: string;
+  /** Narrow read-only columns for Live Monitoring embed (matches main grid labels). */
+  gridColumnPreset?: "full" | "liveMonitoring";
 };
 
 type SortConfig = { key: string; direction: "asc" | "desc" } | null;
 
-const columns = [
+const DEFAULT_FULL_GRID_COLUMNS = [
   "S.No", "Date", "Lead Vendor", "Insured Name", "Phone Number", "B.A", "R.A", "Agent", "L.A", "Status",
   "Call Result", "Carrier", "Product Type", "Draft Date", "MP", "Face Amount", "Initial Quote", "Notes",
+];
+
+const LIVE_MONITORING_GRID_COLUMNS = [
+  "S.No",
+  "Lead Vendor",
+  "Insured Name",
+  "R.A",
+  "B.A",
+  "Agent",
+  "L.A",
+  "Status",
+  "Call Result",
+  "Carrier",
+  "Notes",
 ];
 
 function sortRows(items: DailyDealFlowRow[], sortConfig: SortConfig): DailyDealFlowRow[] {
@@ -360,6 +376,7 @@ export function DdfGroupedGrid({
   statusOptions,
   groupBy,
   groupBySecondary,
+  gridColumnPreset = "full",
 }: Props) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
@@ -569,7 +586,9 @@ export function DdfGroupedGrid({
   };
 
   const rowCellStyle: CSSProperties = { borderBottom: `1px solid ${T.border}`, borderRight: `1px solid ${T.border}`, padding: "12px 16px", fontSize: 12, verticalAlign: "top", color: T.textDark };
-  const showColumns = hasWritePermissions ? [...columns, "Actions"] : columns;
+  const tableBaseColumns =
+    gridColumnPreset === "liveMonitoring" ? LIVE_MONITORING_GRID_COLUMNS : DEFAULT_FULL_GRID_COLUMNS;
+  const showColumns = hasWritePermissions ? [...tableBaseColumns, "Actions"] : tableBaseColumns;
   const patchDraft = (patch: Partial<DailyDealFlowRow>) => setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
 
   const renderRow = (row: DailyDealFlowRow, serialNumber: number) => {
@@ -577,6 +596,64 @@ export function DdfGroupedGrid({
     const isDuplicate = duplicateRows.has(duplicateKey(row));
     const data = isEditing && draft ? draft : row;
     const hasNotes = Boolean(row.notes && row.notes.trim().length > 0);
+
+    if (gridColumnPreset === "liveMonitoring") {
+      return (
+        <TableRow
+          key={row.id}
+          style={{ background: isDuplicate ? "#FEF9E7" : "transparent", borderBottom: `1px solid ${T.border}` }}
+          className="hover:bg-muted/30 transition-colors"
+        >
+          <TableCell style={rowCellStyle}>{serialNumber}</TableCell>
+          <TableCell style={rowCellStyle}>
+            <span style={getVendorBadgeStyle(row.lead_vendor)}>{row.lead_vendor || "N/A"}</span>
+          </TableCell>
+          <TableCell style={rowCellStyle}>{row.insured_name || "N/A"}</TableCell>
+          <TableCell style={rowCellStyle}>{row.retention_agent || "N/A"}</TableCell>
+          <TableCell style={rowCellStyle}>{row.buffer_agent || "N/A"}</TableCell>
+          <TableCell style={rowCellStyle}>
+            <span style={getAgentBadgeStyle(row.agent)}>{row.agent || "N/A"}</span>
+          </TableCell>
+          <TableCell style={rowCellStyle}>{row.licensed_agent_account || "N/A"}</TableCell>
+          <TableCell style={rowCellStyle}>
+            <span style={getBadgeStyle("status", displayDdfStatus(row.status))}>{displayDdfStatus(row.status)}</span>
+          </TableCell>
+          <TableCell style={rowCellStyle}>
+            <span style={getBadgeStyle("result", row.call_result)}>{row.call_result || "N/A"}</span>
+          </TableCell>
+          <TableCell style={rowCellStyle}>{row.carrier || "N/A"}</TableCell>
+          <TableCell style={{ ...rowCellStyle, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {hasNotes ? (
+              <div style={{ position: "relative", display: "inline-block" }}>
+                <button
+                  type="button"
+                  onMouseEnter={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setNotesTooltip({ id: row.id, text: row.notes || "", x: rect.left, y: rect.bottom + 8 });
+                  }}
+                  onMouseLeave={() => setNotesTooltip(null)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#233217",
+                    padding: "2px 4px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                >
+                  View Notes
+                </button>
+              </div>
+            ) : (
+              <span style={{ color: T.textMuted, fontStyle: "italic" }}>No notes</span>
+            )}
+          </TableCell>
+        </TableRow>
+      );
+    }
+
     return (
       <TableRow key={row.id} style={{ background: isDuplicate ? "#FEF9E7" : "transparent", borderBottom: `1px solid ${T.border}` }} className="hover:bg-muted/30 transition-colors">
         <TableCell style={rowCellStyle}>{serialNumber}</TableCell>
