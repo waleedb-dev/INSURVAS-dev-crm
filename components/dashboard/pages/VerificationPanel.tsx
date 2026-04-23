@@ -401,10 +401,12 @@ export function VerificationPanel({
           <div className="space-y-4">
             {(() => {
               const sections: { title: string; fields: string[]; showUnderwritingButton?: boolean }[] = [
-                { title: "Contact Information", fields: ["phone_number", "customer_full_name", "email", "street_1", "street_2", "city", "state", "zip_code"] },
-                { title: "Health & Underwriting", fields: ["date_of_birth", "height", "weight", "tobacco_use", "health_conditions", "medications"], showUnderwritingButton: true },
-                { title: "Personal Details", fields: ["social_security", "driver_license_number", "birth_state"] },
-                { title: "Banking Details", fields: ["bank_account_type", "institution_name", "routing_number", "account_number", "draft_date"] },
+                { title: "Contact Information", fields: ["lead_vendor", "customer_full_name", "phone_number", "email", "street_address", "street_1", "street_2", "city", "state", "zip_code"] },
+                { title: "Health & Underwriting", fields: ["age", "date_of_birth", "height", "weight", "existing_coverage", "previous_applications", "tobacco_use", "health_conditions", "medications", "doctors_name"], showUnderwritingButton: true },
+                { title: "Personal Details", fields: ["social_security", "driver_license", "driver_license_number", "birth_state"] },
+                { title: "Policy Details", fields: ["carrier", "product_type", "coverage_amount", "monthly_premium", "draft_date", "future_draft_date", "beneficiary_information"] },
+                { title: "Banking Details", fields: ["account_type", "bank_account_type", "institution_name", "beneficiary_routing", "routing_number", "beneficiary_account", "account_number"] },
+                { title: "Additional Details", fields: ["additional_notes"] },
               ];
 
               return sections.map((section) => {

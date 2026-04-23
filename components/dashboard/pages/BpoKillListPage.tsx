@@ -825,7 +825,13 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
                         {paginatedLeads.map((lead) => (
                           <div
                             key={lead.rowUuid}
-                            onClick={() => router.push(`/dashboard/${routeRole || "agent"}/bpo-kill-list/${lead.rowUuid}?page=${sourcePage}`)}
+                            onClick={() =>
+                              router.push(
+                                variant === "retention"
+                                  ? `/dashboard/${routeRole || "agent"}/bpo-kill-list/retention/${lead.rowUuid}?page=${sourcePage}`
+                                  : `/dashboard/${routeRole || "agent"}/bpo-kill-list/${lead.rowUuid}?page=${sourcePage}`,
+                              )
+                            }
                             style={{
                               backgroundColor: "#fff",
                               borderRadius: 10,
