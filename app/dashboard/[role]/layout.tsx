@@ -165,6 +165,11 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
   const activePage: DashPage = useMemo(() => {
     // Lead detail routes should highlight Lead Pipeline.
     if (pathname?.includes("/leads/")) return "lead-pipeline";
+    if (pathname?.includes("/bpo-kill-list/")) {
+      const qp = searchParams.get("page");
+      if (qp === "bpo-kill-list-retention") return "bpo-kill-list-retention";
+      return "bpo-kill-list-new-sale";
+    }
     if (pathname?.includes("/transfer-leads/")) return "call-center-lead-intake";
     if (pathname?.includes("/retention-flow")) return "call-center-lead-intake";
 

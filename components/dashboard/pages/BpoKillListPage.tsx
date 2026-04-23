@@ -192,6 +192,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
 
   const canViewAllCenters = currentRole === "system_admin";
   const KANBAN_ITEMS_PER_PAGE = 20;
+  const sourcePage = variant === "new-sale" ? "bpo-kill-list-new-sale" : "bpo-kill-list-retention";
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -824,7 +825,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
                         {paginatedLeads.map((lead) => (
                           <div
                             key={lead.rowUuid}
-                            onClick={() => router.push(`/dashboard/${routeRole || "agent"}/leads/${lead.rowUuid}`)}
+                            onClick={() => router.push(`/dashboard/${routeRole || "agent"}/bpo-kill-list/${lead.rowUuid}?page=${sourcePage}`)}
                             style={{
                               backgroundColor: "#fff",
                               borderRadius: 10,
