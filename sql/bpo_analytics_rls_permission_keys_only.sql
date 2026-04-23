@@ -1,13 +1,6 @@
--- BPO and Colombian analytics dashboards: allow read paths for users who hold the
--- corresponding `page.*.access` permission (via role_permissions or user_permissions),
--- plus sales_manager on center_thresholds for backwards compatibility with existing seeds.
---
--- Prerequisite: public.has_permission, public.has_role (from permissions_module.sql +
--- authentication_module.sql).
---
--- Safe to run multiple times.
-
--- ── daily_deal_flow: SELECT ─────────────────────────────────────────────────
+-- Align analytics RLS with permission keys only (no blanket publisher_manager role).
+-- `has_permission` already resolves role_permissions + user_permissions, so sales_manager
+-- keeps access from seeds; publisher_managers only see data for keys they were granted.
 
 drop policy if exists daily_deal_flow_select_bpo_analytics on public.daily_deal_flow;
 
@@ -24,9 +17,6 @@ using (
   or public.has_permission('page.colombian_thresholds.access')
 );
 
--- ── center_thresholds: SELECT ───────────────────────────────────────────────
--- Existing write policies are system_admin-only in center_thresholds.sql.
-
 drop policy if exists center_thresholds_select_bpo_viewers on public.center_thresholds;
 
 create policy center_thresholds_select_bpo_viewers
@@ -42,6 +32,3 @@ using (
   or public.has_permission('page.colombian_center_performance.access')
   or public.has_permission('page.colombian_thresholds.access')
 );
-
--- INSERT/UPDATE/DELETE on center_thresholds remain system_admin-only in
--- center_thresholds.sql. Non-admins get read-only threshold data for dashboards.
