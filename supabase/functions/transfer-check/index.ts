@@ -200,7 +200,15 @@ function phoneVariants(cleanPhone: string, phoneRaw: string): string[] {
     if (rd) set.add(rd);
   }
   set.add(cleanPhone);
+  // Common persisted formats we’ve seen in CRM imports / upstream tools.
+  set.add(`1${cleanPhone}`);
+  set.add(`+1${cleanPhone}`);
   set.add(formatUsPhone10(cleanPhone));
+  set.add(`${cleanPhone.slice(0, 3)}-${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`);
+  set.add(`${cleanPhone.slice(0, 3)}.${cleanPhone.slice(3, 6)}.${cleanPhone.slice(6)}`);
+  set.add(`${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3, 6)} ${cleanPhone.slice(6)}`);
+  set.add(`+1 (${cleanPhone.slice(0, 3)}) ${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`);
+  set.add(`1 (${cleanPhone.slice(0, 3)}) ${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`);
    return Array.from(set).filter(Boolean);
 }
 
@@ -363,8 +371,7 @@ async function computeCrmPhoneMatch(
       const matchedRulePhone = ruleForLeadStage(stagePhone || winnerLeadPhone.stage, rules);
       const ruleMessagePhone =
         `${resolvedPhoneOnly.message}${stagePhone ? ` Stage: ${stagePhone}.` : ""}` +
-        ghlSuffix(stagePhone, matchedRulePhone) +
-        ` (${rows.length} lead(s) on this phone; no full SSN on file — stage precedence only.)`;
+        ghlSuffix(stagePhone, matchedRulePhone);
            return {
         has_match: true,
         match_count: rows.length,
