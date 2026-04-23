@@ -20,6 +20,8 @@ const ALL_PAGES: DashPage[] = [
   "lead-pipeline",
   "support-tickets",
   "call-center-lead-intake",
+  "bpo-kill-list-new-sale",
+  "bpo-kill-list-retention",
   "transfer-check-tester",
   "crm-sync",
   "ghl-data-import",

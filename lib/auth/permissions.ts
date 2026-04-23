@@ -114,6 +114,8 @@ export function canAccessPage(
     | "lead-pipeline"
     | "support-tickets"
     | "call-center-lead-intake"
+    | "bpo-kill-list-new-sale"
+    | "bpo-kill-list-retention"
     | "transfer-check-tester"
     | "crm-sync"
     | "ghl-data-import"
@@ -162,6 +164,10 @@ export function canAccessPage(
 
   if (page === "support-tickets") {
     return role === "publisher_manager" || role === "system_admin" || role === "call_center_admin";
+  }
+
+  if (page === "bpo-kill-list-new-sale" || page === "bpo-kill-list-retention") {
+    return role === "call_center_admin" || role === "system_admin";
   }
 
   if (page === "call-center-lead-intake" || page === "transfer-check-tester") {
