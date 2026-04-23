@@ -57,9 +57,10 @@ function summarizeDncLookupEdge(
   if (flags?.isInvalid === true) bits.push("invalid");
   if (flags?.isClean === true) bits.push("clean");
   const flagStr = bits.length ? ` (${bits.join(", ")})` : "";
-  const line = (isDnc ? "" : cs ? `[${cs}] ` : "") + (msg || "—") + flagStr;
+  // Product choice: do not surface DNC messaging here — only TCPA should interrupt the workflow.
+  if (isDnc) return { line: "—", tone: "muted" };
+  const line = (cs ? `[${cs}] ` : "") + (msg || "—") + flagStr;
   if (cs === "DANGER" || cs === "ERROR") return { line, tone: "danger" };
-  if (isDnc) return { line, tone: "muted" };
   if (cs === "WARNING" || cs === "INVALID") return { line, tone: "warn" };
   return { line, tone: "ok" };
 }
@@ -185,7 +186,6 @@ export default function TransferCheckTesterPage() {
 
   const infoRows: [string, string][] = [
     ["Mobile number", displayPhone ? displayPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3") : "—"],
-    ["dnc-check", dncEdge.line],
     ["transfer-check", transferCheckLine],
   ];
 
