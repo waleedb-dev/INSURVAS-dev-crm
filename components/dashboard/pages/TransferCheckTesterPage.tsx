@@ -24,6 +24,10 @@ type CrmDuplicateSummary = {
   has_match?: boolean;
   rule_message?: string;
   error?: string;
+  is_addable?: boolean;
+  winner?: {
+    stage?: string;
+  };
   /** From CRM `leads` when the match is unambiguous. */
   matched_contact_name?: string;
 };
@@ -35,6 +39,16 @@ function pickCrmDuplicateMessage(crm: CrmDuplicateSummary | undefined): string {
   if (msg) return msg;
   const err = String(crm.error ?? "").trim();
   if (err) return err;
+  return "";
+}
+
+function crmAddabilityLine(crm: CrmDuplicateSummary | undefined): string {
+  if (crm?.has_match !== true) return "";
+  if (crm.is_addable === false) {
+    const st = String(crm.winner?.stage ?? "").trim();
+    return st ? `We cannot take the lead; it is ${st}.` : "We cannot take the lead.";
+  }
+  if (crm.is_addable === true) return "Can be added to the CRM.";
   return "";
 }
 
@@ -160,9 +174,14 @@ export default function TransferCheckTesterPage() {
   const rootMessage = rawPayload ? String(rawPayload.message ?? "").trim() : "";
   const crmDup = rawPayload?.crm_phone_match as CrmDuplicateSummary | undefined;
   const crmDuplicateMessage = pickCrmDuplicateMessage(crmDup);
+  const crmAddabilityMessage = crmAddabilityLine(crmDup);
   const transferCheckLine = tcpaBlocked
     ? "Not run — TCPA litigator (dnc-check). CRM transfer-check is skipped."
     : [rootMessage, crmDuplicateMessage].find((s) => String(s ?? "").trim().length > 0)?.trim() || "—";
+  const transferCheckLineWithAddability =
+    transferCheckLine === "—"
+      ? "—"
+      : [transferCheckLine, crmAddabilityMessage].filter((s) => String(s ?? "").trim().length > 0).join(" ");
   const dncEdge = summarizeDncLookupEdge(dncLookupPayload, dncLookupHttpOk);
 
   const dncBannerBg =
@@ -186,7 +205,7 @@ export default function TransferCheckTesterPage() {
 
   const infoRows: [string, string][] = [
     ["Mobile number", displayPhone ? displayPhone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3") : "—"],
-    ["transfer-check", transferCheckLine],
+    ["transfer-check", transferCheckLineWithAddability],
   ];
 
   return (
