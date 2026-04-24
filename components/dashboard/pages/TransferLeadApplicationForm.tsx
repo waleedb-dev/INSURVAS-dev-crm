@@ -205,6 +205,7 @@ function TransferCheckResultPanel({ transferCheckState }: { transferCheckState: 
   );
 }
 
+
 const REQUIRED_FORM_KEYS: Array<keyof TransferLeadFormData> = [
   "submissionDate",
   "firstName",
@@ -1179,6 +1180,7 @@ export default function TransferLeadApplicationForm({
       if (isDncList) {
         setDncStatus("dnc");
         const rootMessage = String(data.message ?? "").trim();
+        const screeningMessage = String(dncData.message ?? "").trim();
         const crmMatch = (data as { crm_phone_match?: { has_match?: boolean; rule_message?: string } })
           .crm_phone_match;
         const serverDupRule =
@@ -1190,15 +1192,16 @@ export default function TransferLeadApplicationForm({
           setDncMessage(serverDupRule);
         } else if (dupRuleForModal) {
           setDncMessage(dupRuleForModal);
+        } else if (screeningMessage) {
+          setDncMessage(screeningMessage);
         } else if (rootMessage) {
           setDncMessage(rootMessage);
         } else {
           setDncMessage("Do not call: this number is on a DNC list.");
         }
-        setShowDncModal(true);
         setToast({
           message:
-            String(dncData.message ?? "").trim() ||
+            screeningMessage ||
               "DNC flag: you can still save this lead — follow exemption and consent rules before contacting.",
           type: "warning",
         });
@@ -3868,4 +3871,3 @@ function YesNo({ value, onChange, hasError }: { value: string; onChange: (value:
     />
   );
 }
-
