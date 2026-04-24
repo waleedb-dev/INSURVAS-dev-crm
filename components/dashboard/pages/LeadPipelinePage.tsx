@@ -675,15 +675,15 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   }, [quickEditLead?.rowUuid, supabase]);
 
   useEffect(() => {
-    const pipelineIdRaw = quickEditRow?.pipeline_id;
-    const pipelineId = pipelineIdRaw == null || pipelineIdRaw === "" ? null : Number(pipelineIdRaw);
-    const pipelineName = pipelineId == null ? "" : pipelines.find((p) => p === pipeline) ?? pipeline;
+    const pipelineName = String((quickEditRow as LeadRow | null)?.pipeline_name ?? pipeline ?? "").trim();
     if (!pipelineName) {
       setQuickEditStages([]);
       return;
     }
     let cancelled = false;
     (async () => {
+      // Clear immediately so we never show another pipeline's stages.
+      setQuickEditStages([]);
       const { data: pipelineRow, error } = await supabase.from("pipelines").select("id").eq("name", pipelineName).maybeSingle();
       if (cancelled) return;
       if (error || !pipelineRow?.id) {
@@ -706,7 +706,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     return () => {
       cancelled = true;
     };
-  }, [quickEditRow?.pipeline_id, supabase, stages, pipeline, pipelines]);
+  }, [quickEditRow?.pipeline_name, supabase, stages, pipeline]);
 
   const patchQuickEdit = (key: string, value: unknown) => {
     setQuickEditRow((prev) => (prev ? { ...prev, [key]: value } : null));
@@ -1998,7 +1998,11 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                         <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.textMid, marginBottom: 8 }}>Pipeline</label>
                         <StyledSelect
                           value={String(quickEditRow.pipeline_name ?? pipeline)}
-                          onValueChange={(val) => patchQuickEdit("pipeline_name", val)}
+                          onValueChange={(val) => {
+                            patchQuickEdit("pipeline_name", val);
+                            // Reset stage when pipeline changes; stage options will reload from `pipeline_stages`.
+                            patchQuickEdit("stage", "");
+                          }}
                           options={pipelines.map(p => ({ value: p, label: p }))}
                           placeholder="Select pipeline..."
                         />
