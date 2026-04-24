@@ -1199,12 +1199,6 @@ export default function TransferLeadApplicationForm({
         } else {
           setDncMessage("Do not call: this number is on a DNC list.");
         }
-        setToast({
-          message:
-            screeningMessage ||
-              "DNC flag: you can still save this lead — follow exemption and consent rules before contacting.",
-          type: "warning",
-        });
         return { status: "dnc", duplicateBlocksPhone };
       }
 
