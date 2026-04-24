@@ -31,6 +31,7 @@ interface Lead {
   rowUuid: string;
   name: string;
   phone: string;
+  social: string;
   type: string;
   premium: number;
   source: string;
@@ -321,7 +322,8 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     const result = leads.filter(l => {
       const matchesSearch = !query ||
         l.name.toLowerCase().includes(query) ||
-        (numericQuery && l.phone.includes(numericQuery));
+        (numericQuery && l.phone.replace(/\D/g, "").includes(numericQuery)) ||
+        (numericQuery && l.social.replace(/\D/g, "").includes(numericQuery));
       const matchesStage = filterStageId === "All" || l.stageId === filterStageId;
       const matchesType = filterType === "All" || l.type === filterType;
       const matchesAgent = filterAgent === "All" || l.agent === filterAgent;
@@ -436,7 +438,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     }
 
     const selectCols =
-      "id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, stage_id, pipeline_id, is_draft, call_center_id, licensed_agent_account, created_at, updated_at";
+      "id, lead_unique_id, first_name, last_name, phone, social, lead_value, monthly_premium, product_type, lead_source, stage, stage_id, pipeline_id, is_draft, call_center_id, licensed_agent_account, created_at, updated_at";
 
     const isTransferPipeline = pipeline === "Transfer Portal";
     const canViewAllCenters = role ? LEAD_ALL_LEADS_ROLES.has(role) : false;
@@ -457,12 +459,14 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       const rowUuid = String(row.id);
       const displayId = row.lead_unique_id ? String(row.lead_unique_id) : rowUuid;
       const phoneStr = row.phone != null ? String(row.phone) : "";
+      const socialStr = row.social != null ? String(row.social) : "";
 
       return {
         id: displayId,
         rowUuid,
         name: fullName,
         phone: phoneStr,
+        social: socialStr,
         type: String(row.product_type || (isTransferPipeline ? "Transfer" : "")),
         premium: premiumValue,
         source: String(row.lead_source || (isTransferPipeline ? "Transfer Portal" : "")),
