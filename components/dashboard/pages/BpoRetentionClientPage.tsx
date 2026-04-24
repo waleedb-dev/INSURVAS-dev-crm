@@ -15,7 +15,7 @@ import {
   type ClaimSelections,
 } from "./transferLeadParity";
 
-type TabId = "policies" | "deal-notes" | "contact-notes";
+type TabId = "policies" | "lead-notes";
 
 type LeadNoteRow = {
   id: string;
@@ -23,18 +23,6 @@ type LeadNoteRow = {
   created_at: string;
   created_by: string | null;
   authorName?: string;
-};
-
-type ContactNoteRow = {
-  id: string;
-  status: string | null;
-  call_result: string | null;
-  notes: string | null;
-  updated_at: string | null;
-  created_at: string | null;
-  agent: string | null;
-  licensed_agent_account: string | null;
-  retention_agent: string | null;
 };
 
 type LeadSnapshot = {
@@ -136,7 +124,6 @@ export default function BpoRetentionClientPage({ leadRowId }: { leadRowId: strin
   const [lead, setLead] = useState<LeadSnapshot | null>(null);
   const [verificationSessionId, setVerificationSessionId] = useState<string | null>(null);
   const [dealNotes, setDealNotes] = useState<LeadNoteRow[]>([]);
-  const [contactNotes, setContactNotes] = useState<ContactNoteRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -218,23 +205,10 @@ export default function BpoRetentionClientPage({ leadRowId }: { leadRowId: strin
           authorName: row.created_by ? authorById[row.created_by] ?? "User" : "System",
         }));
 
-        let mappedContactNotes: ContactNoteRow[] = [];
-        if (snap.submissionId) {
-          const { data: ddfRows, error: ddfError } = await supabase
-            .from("daily_deal_flow")
-            .select("id, status, call_result, notes, updated_at, created_at, agent, licensed_agent_account, retention_agent")
-            .eq("submission_id", snap.submissionId)
-            .order("updated_at", { ascending: false })
-            .order("created_at", { ascending: false });
-          if (ddfError) throw ddfError;
-          mappedContactNotes = (ddfRows || []) as ContactNoteRow[];
-        }
-
         if (!cancelled) {
           setLead(snap);
           setVerificationSessionId(session.sessionId);
           setDealNotes(mappedLeadNotes);
-          setContactNotes(mappedContactNotes);
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load retention lead.");
@@ -303,8 +277,7 @@ export default function BpoRetentionClientPage({ leadRowId }: { leadRowId: strin
               <div style={{ display: "flex", gap: 0, backgroundColor: "#e7edf8", borderRadius: 16, padding: 4, width: "100%" }}>
                 {[
                   { id: "policies", label: "Policies" },
-                  { id: "deal-notes", label: "Deal Notes" },
-                  { id: "contact-notes", label: "Contact Notes" },
+                  { id: "lead-notes", label: "Lead Notes" },
                 ].map((tab) => {
                   const active = activeTab === tab.id;
                   return (
@@ -333,8 +306,8 @@ export default function BpoRetentionClientPage({ leadRowId }: { leadRowId: strin
 
               {activeTab === "policies" ? (
                 <TransferLeadSsnPolicyCards leadRowId={lead.rowId} supabase={supabase} />
-              ) : activeTab === "deal-notes" ? (
-                <LeadCard icon="📝" title="Deal Notes" defaultExpanded collapsible={false}>
+              ) : (
+                <LeadCard icon="📝" title="Lead Notes" defaultExpanded collapsible={false}>
                   <NoteList
                     notes={dealNotes.map((note) => ({
                       id: note.id,
@@ -343,24 +316,6 @@ export default function BpoRetentionClientPage({ leadRowId }: { leadRowId: strin
                       body: note.body,
                     }))}
                     emptyTitle="No lead notes have been added yet."
-                  />
-                </LeadCard>
-              ) : (
-                <LeadCard icon="📞" title="Contact Notes" defaultExpanded collapsible={false}>
-                  <NoteList
-                    notes={contactNotes.map((note) => ({
-                      id: note.id,
-                      title: note.status || note.call_result || "Call Entry",
-                      subtitle: formatDateTime(note.updated_at || note.created_at),
-                      body: [
-                        note.call_result ? `Call Result: ${note.call_result}` : null,
-                        note.agent || note.licensed_agent_account || note.retention_agent ? `Agent: ${note.agent || note.licensed_agent_account || note.retention_agent}` : null,
-                        note.notes || "No notes recorded.",
-                      ]
-                        .filter(Boolean)
-                        .join("\n"),
-                    }))}
-                    emptyTitle="No contact history notes found."
                   />
                 </LeadCard>
               )}
