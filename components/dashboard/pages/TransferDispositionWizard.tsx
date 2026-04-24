@@ -189,6 +189,34 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
     [],
   );
 
+  const flowUsesDedicatedManualInput = useMemo(() => {
+    // If the flow has any structured manual-entry steps (text nodes) or
+    // requires a manual note alongside a template, we must keep the wizard’s manual box.
+    const nodes = Object.values(flow.nodes || {});
+    if (nodes.some((n) => n.node_type === "text")) return true;
+    for (const n of nodes) {
+      for (const o of n.options || []) {
+        if (o.next_node_key) return true;
+        if (o.template_key && o.requires_manual_note) return true;
+      }
+    }
+    return false;
+  }, [flow.nodes]);
+
+  const finish = useCallback(
+    (nextPath: DispositionPathStep[], templateKey: string | null, manual: string) => {
+      const man = manual.trim();
+      setPath(nextPath);
+      setTerminalManual(man);
+      setCompletedTemplateKey(templateKey);
+      setDone(true);
+      setCurrentNodeKey(POST_COMPLETE_NODE_KEY);
+      setPendingTemplateKey(null);
+      setPendingPathForTemplate([]);
+    },
+    [],
+  );
+
   useEffect(() => {
     setPath([]);
     setCurrentNodeKey(flow.root_node_key);
@@ -210,19 +238,37 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
     });
   }, [flow.flow_key, flow.root_node_key, pushPayload]);
 
-  const finish = useCallback(
-    (nextPath: DispositionPathStep[], templateKey: string | null, manual: string) => {
-      const man = manual.trim();
-      setPath(nextPath);
-      setTerminalManual(man);
-      setCompletedTemplateKey(templateKey);
-      setDone(true);
-      setCurrentNodeKey(POST_COMPLETE_NODE_KEY);
-      setPendingTemplateKey(null);
-      setPendingPathForTemplate([]);
-    },
-    [],
-  );
+  // If a flow is "manual note only" (single choice that just routes to manual),
+  // skip the redundant click and jump straight to the manual note step.
+  useEffect(() => {
+    const root = flow.nodes[flow.root_node_key];
+    const opts = root?.options || [];
+    const sole = opts.length === 1 ? opts[0] : null;
+    if (!sole) return;
+    if (sole.next_node_key) return;
+
+    // Ensure we only auto-advance on initial state for this flow.
+    if (currentNodeKey !== flow.root_node_key) return;
+    if (path.length !== 0) return;
+
+    const step: DispositionPathStep = {
+      kind: "choice",
+      node_key: root.node_key,
+      option_key: sole.option_key,
+      option_label: sole.option_label,
+      quick_tag_label: sole.quick_tag_label,
+    };
+    const nextPath = [step];
+    if (sole.template_key && !sole.requires_manual_note) {
+      finish(nextPath, sole.template_key, "");
+      return;
+    }
+    if (sole.requires_manual_note && !sole.template_key) {
+      // Product choice: reuse the main Notes textarea below the wizard.
+      // We still capture the quick tag from the option, but do not show a separate manual-note input here.
+      finish(nextPath, null, "");
+    }
+  }, [currentNodeKey, flow, path.length, finish]);
 
   const currentNode = flow.nodes[currentNodeKey];
 
@@ -273,6 +319,13 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
       }
 
       if (opt.requires_manual_note) {
+        const useMainNotesBox = !flowUsesDedicatedManualInput && !opt.template_key;
+        if (useMainNotesBox) {
+          // Product choice: do not show a separate manual-note input inside the wizard.
+          // Agents type their manual note in the main Notes textarea below.
+          finish(nextPath, null, "");
+          return;
+        }
         setPath(nextPath);
         setTerminalManual("");
         setCurrentNodeKey("__manual_only__");
@@ -289,7 +342,7 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
         return;
       }
     },
-    [flow, finish, pushPayload],
+    [flow, finish, pushPayload, flowUsesDedicatedManualInput],
   );
 
   useEffect(() => {
@@ -611,6 +664,30 @@ export default function TransferDispositionWizard({ flow, clientName, carrierOpt
   );
 
   if (done) {
+    const root = flow.nodes[flow.root_node_key];
+    const rootOpts = root?.options || [];
+    const soleRoot = rootOpts.length === 1 ? rootOpts[0] : null;
+    const isManualOnlyAutoflow =
+      soleRoot != null &&
+      soleRoot.requires_manual_note === true &&
+      !soleRoot.template_key &&
+      !soleRoot.next_node_key &&
+      path.length === 1 &&
+      path[0]?.kind === "choice" &&
+      completedTemplateKey === null;
+    const isTemplateOnlyAutoflow =
+      soleRoot != null &&
+      soleRoot.requires_manual_note !== true &&
+      Boolean(soleRoot.template_key) &&
+      !soleRoot.next_node_key &&
+      path.length === 1 &&
+      path[0]?.kind === "choice" &&
+      completedTemplateKey === soleRoot.template_key;
+
+    // Product choice: for manual-note-only flows, do not show a redundant wizard panel.
+    // Agents type directly into the main Notes textarea below.
+    if (isManualOnlyAutoflow || isTemplateOnlyAutoflow) return null;
+
     const generatedPreview = completedTemplateKey
       ? buildGeneratedFromTemplate(flow, completedTemplateKey, path, clientName)
       : "";

@@ -45,6 +45,12 @@ const STAGES_WITH_DISPOSITION_MAP = new Set([
   "Pending Failed Payment Fix",
   "New Submission",
   "Chargeback DQ",
+  // Chargeback Pipeline dispositions
+  "FDPF Pending Reason",
+  "FDPF Insufficient Funds",
+  "FDPF Incorrect Banking Info",
+  "FDPF Unauthorized Draft",
+  "Pending Lapse",
 ]);
 
 type PersistedCallDisposition = {
@@ -311,6 +317,20 @@ export default function TransferLeadCallFixForm({
           .filter((x): x is { stageName: string; label: string; position: number } => x != null)
           .filter((x) => STAGES_WITH_DISPOSITION_MAP.has(x.stageName))
           .sort((a, b) => a.position - b.position || a.label.localeCompare(b.label));
+
+        // Some flows (e.g. "New Submission") may not have a pipeline stage id yet.
+        // Still allow selecting them if an active disposition flow exists for that stage name.
+        if (!options.some((o) => o.stageName === "New Submission") && STAGES_WITH_DISPOSITION_MAP.has("New Submission")) {
+          const { data: flowRow } = await supabase
+            .from("disposition_flows")
+            .select("id")
+            .eq("pipeline_stage_name", "New Submission")
+            .eq("is_active", true)
+            .maybeSingle();
+          if (flowRow?.id) {
+            options.push({ stageName: "New Submission", label: "New Submission", position: 10_000 });
+          }
+        }
 
         if (!cancelled) {
           setTransferStageOptions(options.map(({ stageName, label }) => ({ stageName, label })));

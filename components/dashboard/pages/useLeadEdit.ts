@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import * as z from "zod";
 
@@ -117,6 +117,7 @@ export function useLeadEdit({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const latestStagesReqIdRef = useRef(0);
 
   const clearToast = useCallback(() => setToast(null), []);
 
@@ -152,23 +153,34 @@ export function useLeadEdit({
 
   // Fetch stages dynamically based on selected pipeline
   const fetchStagesForPipeline = useCallback(async (pipelineId: number | null) => {
+    const reqId = ++latestStagesReqIdRef.current;
+
     if (!pipelineId) {
+      // Invalidate any in-flight request and clear options immediately.
       setStages([]);
+      setIsLoadingStages(false);
       return;
     }
 
     setIsLoadingStages(true);
+    // Clear immediately so the UI never shows a previous pipeline's stages.
+    setStages([]);
     try {
       const { data: stagesData } = await supabase
         .from("pipeline_stages")
         .select("id, name")
         .eq("pipeline_id", pipelineId)
         .order("position");
+
+      // If the user changed pipeline again while this was in-flight, ignore stale results.
+      if (latestStagesReqIdRef.current !== reqId) return;
       setStages(stagesData?.map((s) => ({ id: Number(s.id), name: s.name })) || []);
     } catch {
       // Silently fail - stages are not critical
+      if (latestStagesReqIdRef.current !== reqId) return;
       setStages([]);
     } finally {
+      if (latestStagesReqIdRef.current !== reqId) return;
       setIsLoadingStages(false);
     }
   }, [supabase]);
