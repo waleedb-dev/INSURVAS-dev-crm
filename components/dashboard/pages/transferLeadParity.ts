@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isUnlicensedSalesSubtype, type UnlicensedSalesSubtype } from "@/lib/auth/unlicensedSalesSubtype";
+import { getTodayDateEST } from "./daily-deal-flow/helpers";
 
 export type ClaimWorkflowType = "buffer_only" | "buffer" | "licensed" | "retention";
 export type RetentionType = "new_sale" | "fixed_payment" | "carrier_requirements";
@@ -619,6 +620,7 @@ export async function saveFullRetentionWorkflow(
       lead_name: context.leadName,
       center_name: row?.call_centers?.name || null,
       call_center_id: row?.call_center_id || null,
+      date: getTodayDateEST(),
     });
     if (ddfError) throw ddfError;
   }
