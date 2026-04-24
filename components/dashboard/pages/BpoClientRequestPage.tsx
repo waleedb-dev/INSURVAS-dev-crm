@@ -29,13 +29,29 @@ type LeadHeaderData = {
   phone: string;
   state: string;
   submissionId: string | null;
+  leadVendor: string;
 };
 
 const REQUEST_TYPE_OPTIONS = [
-  { value: "New Application", label: "New Application" },
-  { value: "Updating Billing/Draft Date", label: "Updating Billing/Draft Date" },
-  { value: "Fulfilling Pending Carrier Requirement", label: "Fulfilling Pending Carrier Requirement" },
+  { value: "new_application", label: "New Application" },
+  { value: "updating_billing", label: "Updating Billing/Draft Date" },
+  { value: "carrier_requirements", label: "Fulfilling Pending Carrier Requirement" },
 ];
+
+type LeadUpdateMapper = {
+  column: string;
+  toDbValue: (value: TransferLeadFormData[keyof TransferLeadFormData]) => unknown;
+};
+
+type CallbackNotificationResponse = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+};
+
+function getRequestTypeLabel(value: string) {
+  return REQUEST_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
+}
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "—";
@@ -58,12 +74,111 @@ function formatPhoneDisplay(phone: string | null | undefined) {
   return phone || "—";
 }
 
+function nullableText(value: unknown) {
+  const clean = String(value ?? "").trim();
+  return clean || null;
+}
+
+function optionalNumber(value: unknown) {
+  const clean = String(value ?? "").replace(/\$/g, "").replace(/,/g, "").trim();
+  if (!clean) return null;
+  const parsed = Number(clean);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function calculateAgeFromDob(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "";
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const monthDiff = today.getMonth() - date.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < date.getDate())) age -= 1;
+  return age >= 0 && age < 130 ? String(age) : "";
+}
+
+function getTodayInEasternYyyyMmDd() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+const LEAD_UPDATE_FIELDS: Partial<Record<keyof TransferLeadFormData, LeadUpdateMapper>> = {
+  leadValue: { column: "lead_value", toDbValue: optionalNumber },
+  submissionDate: { column: "submission_date", toDbValue: nullableText },
+  firstName: { column: "first_name", toDbValue: nullableText },
+  lastName: { column: "last_name", toDbValue: nullableText },
+  street1: { column: "street1", toDbValue: nullableText },
+  street2: { column: "street2", toDbValue: nullableText },
+  city: { column: "city", toDbValue: nullableText },
+  state: { column: "state", toDbValue: nullableText },
+  zipCode: { column: "zip_code", toDbValue: nullableText },
+  phone: { column: "phone", toDbValue: nullableText },
+  smsAccess: { column: "sms_access", toDbValue: Boolean },
+  emailAccess: { column: "email_access", toDbValue: Boolean },
+  language: { column: "language", toDbValue: nullableText },
+  birthState: { column: "birth_state", toDbValue: nullableText },
+  dateOfBirth: { column: "date_of_birth", toDbValue: nullableText },
+  age: { column: "age", toDbValue: nullableText },
+  social: { column: "social", toDbValue: nullableText },
+  driverLicenseNumber: { column: "driver_license_number", toDbValue: nullableText },
+  existingCoverageLast2Years: { column: "existing_coverage_last_2_years", toDbValue: nullableText },
+  existingCoverageDetails: { column: "existing_coverage_details", toDbValue: nullableText },
+  previousApplications2Years: { column: "previous_applications_2_years", toDbValue: nullableText },
+  height: { column: "height", toDbValue: nullableText },
+  weight: { column: "weight", toDbValue: nullableText },
+  doctorName: { column: "doctor_name", toDbValue: nullableText },
+  tobaccoUse: { column: "tobacco_use", toDbValue: nullableText },
+  healthConditions: { column: "health_conditions", toDbValue: nullableText },
+  medications: { column: "medications", toDbValue: nullableText },
+  monthlyPremium: { column: "monthly_premium", toDbValue: optionalNumber },
+  coverageAmount: { column: "coverage_amount", toDbValue: optionalNumber },
+  carrier: { column: "carrier", toDbValue: nullableText },
+  productType: { column: "product_type", toDbValue: nullableText },
+  includeBackupQuote: { column: "has_backup_quote", toDbValue: Boolean },
+  backupCarrier: { column: "backup_carrier", toDbValue: nullableText },
+  backupProductType: { column: "backup_product_type", toDbValue: nullableText },
+  backupMonthlyPremium: { column: "backup_monthly_premium", toDbValue: nullableText },
+  backupCoverageAmount: { column: "backup_coverage_amount", toDbValue: nullableText },
+  draftDate: { column: "draft_date", toDbValue: nullableText },
+  beneficiaryInformation: { column: "beneficiary_information", toDbValue: nullableText },
+  bankAccountType: { column: "bank_account_type", toDbValue: nullableText },
+  institutionName: { column: "institution_name", toDbValue: nullableText },
+  routingNumber: { column: "routing_number", toDbValue: nullableText },
+  accountNumber: { column: "account_number", toDbValue: nullableText },
+  futureDraftDate: { column: "future_draft_date", toDbValue: nullableText },
+  additionalInformation: { column: "additional_information", toDbValue: nullableText },
+};
+
+function normalizeForCompare(value: unknown) {
+  return value === undefined ? null : value;
+}
+
+function buildLeadUpdateDiff(original: TransferLeadFormData, current: TransferLeadFormData) {
+  const update: Record<string, unknown> = {};
+  for (const [fieldKey, mapper] of Object.entries(LEAD_UPDATE_FIELDS) as Array<[keyof TransferLeadFormData, LeadUpdateMapper]>) {
+    const previous = normalizeForCompare(mapper.toDbValue(original[fieldKey]));
+    const next = normalizeForCompare(mapper.toDbValue(current[fieldKey]));
+    if (JSON.stringify(previous) !== JSON.stringify(next)) {
+      update[mapper.column] = next;
+    }
+  }
+  return update;
+}
+
 function buildLeadFormData(data: Record<string, unknown>): TransferLeadFormData {
+  const dateOfBirth = String(data.date_of_birth ?? "");
+  const age = String(data.age ?? "") || calculateAgeFromDob(dateOfBirth);
+
   return {
     leadUniqueId: String(data.lead_unique_id ?? ""),
     leadValue: data.lead_value != null ? String(data.lead_value) : "",
-    leadSource: "BPO Transfer Lead Source",
-    submissionDate: String(data.submission_date ?? ""),
+    leadSource: String(data.lead_source ?? "BPO Transfer Lead Source"),
+    submissionDate: String(data.submission_date ?? "") || getTodayInEasternYyyyMmDd(),
     firstName: String(data.first_name ?? ""),
     lastName: String(data.last_name ?? ""),
     street1: String(data.street1 ?? ""),
@@ -76,8 +191,8 @@ function buildLeadFormData(data: Record<string, unknown>): TransferLeadFormData 
     emailAccess: Boolean(data.email_access),
     language: String(data.language ?? "English"),
     birthState: String(data.birth_state ?? ""),
-    dateOfBirth: String(data.date_of_birth ?? ""),
-    age: String(data.age ?? ""),
+    dateOfBirth,
+    age,
     social: String(data.social ?? ""),
     driverLicenseNumber: String(data.driver_license_number ?? ""),
     existingCoverageLast2Years: String(data.existing_coverage_last_2_years ?? ""),
@@ -123,7 +238,8 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
 
   const [loading, setLoading] = useState(true);
   const [leadHeader, setLeadHeader] = useState<LeadHeaderData | null>(null);
-  const [formData, setFormData] = useState<TransferLeadFormData | null>(null);
+  const [initialFormData, setInitialFormData] = useState<TransferLeadFormData | null>(null);
+  const [editedFormData, setEditedFormData] = useState<TransferLeadFormData | null>(null);
   const [centerName, setCenterName] = useState("");
   const [centerDid, setCenterDid] = useState("");
   const [callHistory, setCallHistory] = useState<CallHistoryRow[]>([]);
@@ -155,18 +271,22 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
         return;
       }
 
+      const callCenter = data.call_centers as { name?: string | null; did?: string | null } | null;
+      const leadVendor = String(callCenter?.name ?? data.lead_source ?? "").trim();
       const header: LeadHeaderData = {
         rowId: String(data.id),
         name: `${String(data.first_name ?? "").trim()} ${String(data.last_name ?? "").trim()}`.trim() || "Unnamed Lead",
         phone: String(data.phone ?? ""),
         state: String(data.state ?? "—"),
         submissionId: data.submission_id ? String(data.submission_id) : null,
+        leadVendor,
       };
 
-      const callCenter = data.call_centers as { name?: string | null; did?: string | null } | null;
+      const nextFormData = buildLeadFormData(data as Record<string, unknown>);
 
       setLeadHeader(header);
-      setFormData(buildLeadFormData(data as Record<string, unknown>));
+      setInitialFormData(nextFormData);
+      setEditedFormData(nextFormData);
       setCenterName(String(callCenter?.name ?? ""));
       setCenterDid(String(callCenter?.did ?? ""));
 
@@ -212,6 +332,10 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
   }, [leadRowId, supabase]);
 
   const handleSubmitRequest = async () => {
+    if (!leadHeader || !initialFormData || !editedFormData) {
+      setToast({ message: "Lead data is still loading.", type: "error" });
+      return;
+    }
     if (!requestType.trim()) {
       setToast({ message: "Please select a request type.", type: "error" });
       return;
@@ -220,45 +344,91 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
       setToast({ message: "Please add notes for this request.", type: "error" });
       return;
     }
+    if (!leadHeader.submissionId?.trim()) {
+      setToast({ message: "This lead is missing a submission ID.", type: "error" });
+      return;
+    }
+    if (!leadHeader.leadVendor.trim()) {
+      setToast({ message: "This lead is missing a lead vendor.", type: "error" });
+      return;
+    }
 
     const {
       data: { session },
     } = await supabase.auth.getSession();
 
-    if (!session?.user?.id || !leadHeader) {
+    if (!session?.user?.id) {
       setToast({ message: "You must be signed in to submit a request.", type: "error" });
       return;
     }
 
-    setSubmitting(true);
-    const body = [
-      "[BPO Client Request]",
-      `Request Type: ${requestType}`,
-      leadHeader.submissionId ? `Submission ID: ${leadHeader.submissionId}` : null,
-      `Lead: ${leadHeader.name}`,
-      `Phone: ${leadHeader.phone || "—"}`,
-      "",
-      notes.trim(),
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const updatePayload = buildLeadUpdateDiff(initialFormData, editedFormData);
 
-    const { error: insertError } = await supabase.from("lead_notes").insert({
-      lead_id: leadHeader.rowId,
-      body,
-      created_by: session.user.id,
+    setSubmitting(true);
+    if (Object.keys(updatePayload).length > 0) {
+      const { error: updateError } = await supabase.from("leads").update(updatePayload).eq("id", leadHeader.rowId);
+      if (updateError) {
+        setSubmitting(false);
+        setToast({ message: updateError.message || "Failed to update lead.", type: "error" });
+        return;
+      }
+
+      setInitialFormData(editedFormData);
+      setLeadHeader({
+        ...leadHeader,
+        name: `${editedFormData.firstName.trim()} ${editedFormData.lastName.trim()}`.trim() || leadHeader.name,
+        phone: editedFormData.phone,
+        state: editedFormData.state || "—",
+      });
+    }
+
+    const customerName = `${editedFormData.firstName.trim()} ${editedFormData.lastName.trim()}`.trim() || leadHeader.name;
+    const phoneNumber = editedFormData.phone.trim() || leadHeader.phone || null;
+    const { error: callbackInsertError } = await supabase.from("callback_requests").insert({
+      submission_id: leadHeader.submissionId,
+      lead_vendor: leadHeader.leadVendor,
+      request_type: requestType,
+      notes: notes.trim(),
+      customer_name: customerName || null,
+      phone_number: phoneNumber,
+      status: "pending",
+      requested_by: session.user.id,
+      requested_at: new Date().toISOString(),
     });
 
-    setSubmitting(false);
-
-    if (insertError) {
-      setToast({ message: insertError.message || "Failed to submit request.", type: "error" });
+    if (callbackInsertError) {
+      setSubmitting(false);
+      setToast({ message: callbackInsertError.message || "Lead saved, but callback request creation failed.", type: "error" });
       return;
     }
 
+    try {
+      const { data: notificationData, error: notificationError } =
+        await supabase.functions.invoke<CallbackNotificationResponse>("callback-notification", {
+          body: {
+            submission_id: leadHeader.submissionId,
+            lead_id: leadHeader.rowId,
+            customer_name: customerName || "N/A",
+            phone_number: phoneNumber || "N/A",
+            lead_vendor: leadHeader.leadVendor,
+            request_type: getRequestTypeLabel(requestType),
+            notes: notes.trim(),
+            carrier: editedFormData.carrier.trim() || "N/A",
+            state: editedFormData.state.trim() || "N/A",
+          },
+        });
+
+      if (notificationError || notificationData?.success === false) {
+        console.warn("[BpoClientRequestPage] callback-notification failed", notificationError ?? notificationData);
+      }
+    } catch (notificationError) {
+      console.warn("[BpoClientRequestPage] callback-notification failed", notificationError);
+    }
+
+    setSubmitting(false);
     setNotes("");
     setRequestType("");
-    setToast({ message: "Request submitted successfully.", type: "success" });
+    setToast({ message: "Callback request submitted successfully.", type: "success" });
   };
 
   if (currentRole !== "call_center_admin" && currentRole !== "system_admin") {
@@ -295,7 +465,7 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
         <div style={{ borderRadius: 16, border: `1px solid ${T.border}`, backgroundColor: T.cardBg, padding: "80px 40px", textAlign: "center", fontSize: 14, fontWeight: 600, color: T.textMuted }}>
           Loading request workspace...
         </div>
-      ) : error || !leadHeader || !formData ? (
+      ) : error || !leadHeader || !initialFormData ? (
         <div style={{ borderRadius: 16, border: "1px solid #fecaca", backgroundColor: "#fef2f2", padding: 24, fontSize: 14, fontWeight: 600, color: "#991b1b" }}>
           {error || "Lead not found."}
         </div>
@@ -316,11 +486,12 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
                 <TransferLeadApplicationForm
                   onBack={() => {}}
                   onSubmit={() => {}}
-                  initialData={formData}
+                  onChange={setEditedFormData}
+                  initialData={initialFormData}
+                  submitButtonLabel="Update Lead"
                   centerName={centerName}
                   centerDid={centerDid}
                   embedded
-                  readOnly
                   hideHeader
                   hideActions
                 />

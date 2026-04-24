@@ -568,6 +568,7 @@ export type TransferLeadSaveDraftMeta = { source: "auto" | "manual" };
 export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
+  onChange,
   onSaveDraft,
   onInstantDuplicateCheck,
   initialData,
@@ -582,6 +583,7 @@ export default function TransferLeadApplicationForm({
 }: {
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void | Promise<boolean | void>;
+  onChange?: (data: TransferLeadFormData) => void;
   onSaveDraft?: (data: TransferLeadFormData, meta?: TransferLeadSaveDraftMeta) => void | Promise<void>;
   onInstantDuplicateCheck?: (data: TransferLeadFormData) => void | Promise<void>;
   initialData?: Partial<TransferLeadFormData>;
@@ -684,6 +686,10 @@ export default function TransferLeadApplicationForm({
   useEffect(() => {
     setSubmitHighlightKeys(new Set());
   }, [formData]);
+
+  useEffect(() => {
+    onChange?.(formData);
+  }, [formData, onChange]);
 
   const onInvalidateUwProduct = useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
     setUnderwritingData((prev) => {

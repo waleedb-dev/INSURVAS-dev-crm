@@ -291,7 +291,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
         const pipelineName = pipelineIdMap.get(pipelineId) ?? "Unknown Pipeline";
         const tags = parseTags(row.tags);
         const fullName = `${String(row.first_name ?? "").trim()} ${String(row.last_name ?? "").trim()}`.trim() || "Unnamed Lead";
-        const lead = {
+        const lead: LeadRecord = {
           rowUuid,
           displayId: row.lead_unique_id ? String(row.lead_unique_id) : rowUuid,
           name: fullName,
