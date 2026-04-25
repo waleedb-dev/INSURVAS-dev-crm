@@ -40,6 +40,9 @@ export type DashPage =
   | "daily-deal-flow" | "lead-pipeline"
   | "support-tickets"
   | "call-center-lead-intake"
+  | "bpo-kill-list"
+  | "bpo-kill-list-new-sale"
+  | "bpo-kill-list-retention"
   | "transfer-check-tester"
   | "crm-sync"
   | "ghl-data-import"
@@ -94,6 +97,15 @@ const NAV_ITEMS: NavItem[] = [
   { id: "lead-pipeline", label: "Lead Pipeline", icon: <GitBranch size={22} strokeWidth={1.8} /> },
   { id: "support-tickets", label: "Support Tickets", icon: <LifeBuoy size={22} strokeWidth={1.8} /> },
   { id: "call-center-lead-intake", label: "Transfer Leads", icon: <ArrowLeftRight size={22} strokeWidth={1.8} /> },
+  {
+    id: "bpo-kill-list",
+    label: "BPO Kill List",
+    icon: <Headphones size={22} strokeWidth={1.8} />,
+    children: [
+      { id: "bpo-kill-list-new-sale", label: "New Sale Kill List", icon: <GitBranch size={18} strokeWidth={1.8} /> },
+      { id: "bpo-kill-list-retention", label: "Retention Kill List", icon: <ArrowLeftRight size={18} strokeWidth={1.8} /> },
+    ],
+  },
   {
     id: "transfer-check-tester",
     label: "Transfer Checker",
@@ -153,6 +165,9 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "lead-pipeline": "Lead Pipeline",
   "support-tickets": "Support Tickets",
   "call-center-lead-intake": "Transfer Leads",
+  "bpo-kill-list": "BPO Kill List",
+  "bpo-kill-list-new-sale": "BPO Kill List / New Sale",
+  "bpo-kill-list-retention": "BPO Kill List / Retention",
   "transfer-check-tester": "Transfer Checker",
   "crm-sync": "CRM Sync Operations",
   "ghl-data-import": "GHL Data Import",
@@ -198,13 +213,11 @@ export default function DashboardLayout({
   const [showUser,   setShowUser]             = useState(false);
   const [hoveredNav, setHoveredNav]           = useState<string | null>(null);
   const [notifs,     setNotifs]               = useState(NOTIFICATIONS);
-  const [isDark,     setIsDark]               = useState(false);
+  const [isDark,     setIsDark]               = useState(() => {
+    if (typeof window === "undefined") return false;
+    return document.documentElement.classList.contains("dark-theme") || localStorage.getItem("theme") === "dark";
+  });
   const [expandedSubs, setExpandedSubs]        = useState<Set<string>>(new Set());
-
-  // Read initial theme from HTML class or localStorage on mount
-  useEffect(() => {
-    setIsDark(document.documentElement.classList.contains("dark-theme") || localStorage.getItem("theme") === "dark");
-  }, []);
 
   // Update theme when toggled
   useEffect(() => {
@@ -812,4 +825,3 @@ export default function DashboardLayout({
     </div>
   );
 }
-

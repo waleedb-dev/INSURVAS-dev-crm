@@ -568,6 +568,7 @@ export type TransferLeadSaveDraftMeta = { source: "auto" | "manual" };
 export default function TransferLeadApplicationForm({
   onBack,
   onSubmit,
+  onChange,
   onSaveDraft,
   onInstantDuplicateCheck,
   initialData,
@@ -575,9 +576,14 @@ export default function TransferLeadApplicationForm({
   centerName = "",
   centerDid = "",
   unlockAfterDuplicateRemount = false,
+  embedded = false,
+  readOnly = false,
+  hideHeader = false,
+  hideActions = false,
 }: {
   onBack: () => void;
   onSubmit: (data: TransferLeadFormData) => void | Promise<boolean | void>;
+  onChange?: (data: TransferLeadFormData) => void;
   onSaveDraft?: (data: TransferLeadFormData, meta?: TransferLeadSaveDraftMeta) => void | Promise<void>;
   onInstantDuplicateCheck?: (data: TransferLeadFormData) => void | Promise<void>;
   initialData?: Partial<TransferLeadFormData>;
@@ -587,6 +593,10 @@ export default function TransferLeadApplicationForm({
   centerDid?: string;
   /** Set when remounting after "Create Duplicate" — restores phone-gate + transfer-check so tabs and submit stay usable. */
   unlockAfterDuplicateRemount?: boolean;
+  embedded?: boolean;
+  readOnly?: boolean;
+  hideHeader?: boolean;
+  hideActions?: boolean;
 }) {
   const supabase = getSupabaseBrowserClient();
   const isEditMode = (submitButtonLabel || "").toLowerCase().includes("update");
@@ -676,6 +686,10 @@ export default function TransferLeadApplicationForm({
   useEffect(() => {
     setSubmitHighlightKeys(new Set());
   }, [formData]);
+
+  useEffect(() => {
+    onChange?.(formData);
+  }, [formData, onChange]);
 
   const onInvalidateUwProduct = useCallback((list: CarrierProductRow[], carrierNameSnapshot: string) => {
     setUnderwritingData((prev) => {
@@ -1233,11 +1247,11 @@ export default function TransferLeadApplicationForm({
   }
 
   const [phoneGatePassed, setPhoneGatePassed] = useState(
-    () => isEditMode || resumeVerificationAfterDuplicate,
+    () => isEditMode || resumeVerificationAfterDuplicate || readOnly,
   );
   useEffect(() => {
-    if (isEditMode) setPhoneGatePassed(true);
-  }, [isEditMode]);
+    if (isEditMode || readOnly) setPhoneGatePassed(true);
+  }, [isEditMode, readOnly]);
 
   const lastSavedDraftSnapshotRef = useRef<string>("");
 
@@ -1651,8 +1665,9 @@ export default function TransferLeadApplicationForm({
   }, [phoneGatePassed, activeTab]);
 
   return (
-    <div style={{ fontFamily: T.font, minHeight: "100vh", paddingBottom: 40 }}>
+    <div style={{ fontFamily: T.font, minHeight: embedded ? "auto" : "100vh", paddingBottom: embedded ? 0 : 40 }}>
       {/* Header */}
+      {!hideHeader && (
       <div style={{ display: "flex", alignItems: "center", marginBottom: 24, gap: 16 }}>
         <button
           onClick={requestLeave}
@@ -1675,6 +1690,7 @@ export default function TransferLeadApplicationForm({
           </p>
         </div>
       </div>
+      )}
 
       {/* Main Content Card with Tabs */}
       <div style={{ backgroundColor: "#fff", borderRadius: 16, boxShadow: "0 4px 12px rgba(0,0,0,0.02)", border: `1.5px solid ${T.border}`, flex: 1, display: "flex", flexDirection: "column" }}>
@@ -1729,6 +1745,7 @@ export default function TransferLeadApplicationForm({
         </div>
 
         <div ref={contentRef} style={{ padding: 24, flex: 1 }}>
+          <div style={{ pointerEvents: readOnly ? "none" : "auto" }}>
           {/* Section: Lead Information */}
           <div id="section-lead-info" style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
         <Section title="Lead Information" icon={
@@ -3240,9 +3257,10 @@ export default function TransferLeadApplicationForm({
           </div>
         </div>
       )}
+          </div>
 
 {/* Footer Actions */}
-      <div style={{
+      {!hideActions && <div style={{
         marginTop: 24,
         display: "flex",
         justifyContent: "center",
@@ -3392,8 +3410,8 @@ export default function TransferLeadApplicationForm({
             Save Draft
           </button>
         )}
-      </div>
-      {phoneGatePassed && submitBlockMessage && (
+      </div>}
+      {!hideActions && phoneGatePassed && submitBlockMessage && (
         <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: T.danger, textAlign: "right" }}>
           {submitBlockMessage}
         </div>
@@ -3845,4 +3863,3 @@ function YesNo({ value, onChange, hasError }: { value: string; onChange: (value:
     />
   );
 }
-

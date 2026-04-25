@@ -8,6 +8,7 @@ import NearestEventsPage from "@/components/dashboard/NearestEventsPage";
 import DailyDealFlowPage from "@/components/dashboard/pages/DailyDealFlowPage";
 import LeadPipelinePage from "@/components/dashboard/pages/LeadPipelinePage";
 import CallCenterLeadIntakePage from "@/components/dashboard/pages/CallCenterLeadIntakePage";
+import BpoKillListPage from "@/components/dashboard/pages/BpoKillListPage";
 import UsersAccessPage from "@/components/dashboard/pages/UsersAccessPage";
 import PipelineSettingsPage from "@/components/dashboard/pages/PipelineSettingsPage";
 import CarrierManagementPage from "@/components/dashboard/pages/CarrierManagementPage";
@@ -88,6 +89,8 @@ export default function RoleDashboardPage() {
           canViewTransferClaimReclaimVisit={canViewTransferClaimReclaimVisit}
         />
       )}
+      {activePage === "bpo-kill-list-new-sale" && <BpoKillListPage variant="new-sale" />}
+      {activePage === "bpo-kill-list-retention" && <BpoKillListPage variant="retention" />}
       {activePage === "transfer-check-tester" && <TransferCheckTesterPage />}
       {activePage === "crm-sync" && <CrmSyncOperationsPage />}
       {activePage === "ghl-data-import" && <GhlDataImportPage />}
