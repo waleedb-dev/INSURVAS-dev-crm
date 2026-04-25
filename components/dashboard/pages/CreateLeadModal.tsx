@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { useOptionalDashboardContext } from "@/components/dashboard/DashboardContext";
+import { getTodayDateEST } from "./daily-deal-flow/helpers";
 import { X, Plus, User, Phone, MapPin, Building2, Tag, ListTodo } from "lucide-react";
 
 type CreateLeadModalProps = {
@@ -341,7 +342,7 @@ export default function CreateLeadModal({ open, onClose, onSuccess }: CreateLead
           submission_id: submissionId,
           client_phone_number: phone.trim(),
           lead_vendor: selectedCallCenterName || leadSource || null,
-          date: new Date().toISOString().slice(0, 10),
+          date: getTodayDateEST(),
           insured_name: insuredName,
           call_center_id: selectedCallCenterId || null,
         });

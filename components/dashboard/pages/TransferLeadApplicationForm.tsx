@@ -205,6 +205,7 @@ function TransferCheckResultPanel({ transferCheckState }: { transferCheckState: 
   );
 }
 
+
 const REQUIRED_FORM_KEYS: Array<keyof TransferLeadFormData> = [
   "submissionDate",
   "firstName",
@@ -754,6 +755,25 @@ export default function TransferLeadApplicationForm({
     };
   };
 
+  function generateRandomFourDigits(): string {
+    try {
+      const cryptoObj = globalThis.crypto;
+      if (cryptoObj?.getRandomValues) {
+        const buf = new Uint16Array(1);
+        cryptoObj.getRandomValues(buf);
+        return String(buf[0] % 10000).padStart(4, "0");
+      }
+    } catch {
+      // Fallback below.
+    }
+    return String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+  }
+
+  const leadUniqueIdRandomSuffixRef = useRef<string | null>(null);
+  if (leadUniqueIdRandomSuffixRef.current === null) {
+    leadUniqueIdRandomSuffixRef.current = generateRandomFourDigits();
+  }
+
   const getFieldError = (key: keyof TransferLeadFormData): string | undefined => {
     if (!submitHighlightKeys.has(key)) return undefined;
     
@@ -800,7 +820,10 @@ export default function TransferLeadApplicationForm({
   };
 
   const computedLeadUniqueId = useMemo(() => {
-    // 2 number phones + three letter from names + SSN last 2 digits + center ki 2 letters
+    const existing = String(formData.leadUniqueId || "").trim().toUpperCase();
+    if (existing) return existing;
+
+    // 2 number phone + 3 letters from name + SSN last 2 digits + centre 2 letters + 4 random digits
     const phoneDigits = formData.phone.replace(/\D/g, "");
     const phone2 = phoneDigits.slice(0, 2);
     const nameLetters = `${formData.firstName}${formData.lastName}`.replace(/[^a-zA-Z]/g, "").slice(0, 3).toUpperCase();
@@ -808,9 +831,10 @@ export default function TransferLeadApplicationForm({
     const ssn2 = socialDigits.slice(-2);
     const center2 = (centerName || "").replace(/[^a-zA-Z]/g, "").slice(0, 2).toUpperCase();
     if (!phone2 || nameLetters.length < 3 || ssn2.length < 2 || center2.length < 2) {
-      return (formData.leadUniqueId || "").toUpperCase();
+      return "";
     }
-    return `${phone2}${nameLetters}${ssn2}${center2}`.toUpperCase();
+    const rand4 = leadUniqueIdRandomSuffixRef.current || "0000";
+    return `${phone2}${nameLetters}${ssn2}${center2}${rand4}`.toUpperCase();
   }, [formData.firstName, formData.lastName, formData.phone, formData.social, formData.leadUniqueId, centerName]);
 
   const executeApplicationSubmit = useCallback(async () => {
@@ -1170,6 +1194,7 @@ export default function TransferLeadApplicationForm({
       if (isDncList) {
         setDncStatus("dnc");
         const rootMessage = String(data.message ?? "").trim();
+        const screeningMessage = String(dncData.message ?? "").trim();
         const crmMatch = (data as { crm_phone_match?: { has_match?: boolean; rule_message?: string } })
           .crm_phone_match;
         const serverDupRule =
@@ -1181,18 +1206,13 @@ export default function TransferLeadApplicationForm({
           setDncMessage(serverDupRule);
         } else if (dupRuleForModal) {
           setDncMessage(dupRuleForModal);
+        } else if (screeningMessage) {
+          setDncMessage(screeningMessage);
         } else if (rootMessage) {
           setDncMessage(rootMessage);
         } else {
           setDncMessage("Do not call: this number is on a DNC list.");
         }
-        setShowDncModal(true);
-        setToast({
-          message:
-            String(dncData.message ?? "").trim() ||
-              "DNC flag: you can still save this lead — follow exemption and consent rules before contacting.",
-          type: "warning",
-        });
         return { status: "dnc", duplicateBlocksPhone };
       }
 

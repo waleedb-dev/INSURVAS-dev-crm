@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getTodayDateEST } from "./daily-deal-flow/helpers";
 
 type RetentionMode = "new_sale" | "fixed_payment" | "carrier_requirements";
 
@@ -96,6 +97,7 @@ export default function TransferLeadRetentionFlowPage({ leadRowId, role }: Props
           lead_name: lead.name,
           center_name: row?.call_centers?.name || null,
           call_center_id: row?.call_center_id || null,
+          date: getTodayDateEST(),
         });
         if (ddfError) throw ddfError;
       }

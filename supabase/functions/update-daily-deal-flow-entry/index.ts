@@ -67,6 +67,12 @@ const determineCallResultStatus = (
   return originalCallResult || "Not Submitted";
 };
 
+const cleanString = (value: unknown) => {
+  if (value == null) return null;
+  const cleaned = String(value).trim();
+  return cleaned || null;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -109,6 +115,7 @@ serve(async (req) => {
       application_submitted = null,
       sent_to_underwriting = null,
       lead_vendor,
+      call_center_id = null,
       insured_name,
       client_phone_number,
       is_retention_call = false,
@@ -135,17 +142,33 @@ serve(async (req) => {
       insured_name ||
       null;
     const resolvedPhone = leadData?.phone ?? client_phone_number ?? null;
+    const incomingLeadVendor = cleanString(lead_vendor);
+    const incomingCallCenterId = cleanString(call_center_id);
 
-    const centerName = leadData?.call_centers?.name ?? null;
+    let centerName = leadData?.call_centers?.name ?? null;
     let slackChannel = "#test-bpo";
     if (centerName) {
       const { data: centerData } = await supabase
         .from("call_centers")
-        .select("slack_channel")
+        .select("name, slack_channel")
         .ilike("name", centerName)
         .maybeSingle();
+      centerName = centerData?.name ?? centerName;
       if (centerData?.slack_channel) {
         slackChannel = centerData.slack_channel;
+      }
+    } else {
+      const centerIdForLookup = leadData?.call_center_id ?? incomingCallCenterId;
+      if (centerIdForLookup) {
+        const { data: centerData } = await supabase
+          .from("call_centers")
+          .select("name, slack_channel")
+          .eq("id", centerIdForLookup)
+          .maybeSingle();
+        centerName = centerData?.name ?? null;
+        if (centerData?.slack_channel) {
+          slackChannel = centerData.slack_channel;
+        }
       }
     }
 
@@ -173,16 +196,16 @@ serve(async (req) => {
       if (existingCallbackToday?.submission_id) {
         finalSubmissionId = existingCallbackToday.submission_id;
       } else {
-      const { data: latestEntry } = await supabase
-        .from("daily_deal_flow")
-        .select("id, date")
-        .eq("submission_id", submission_id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        const { data: latestEntry } = await supabase
+          .from("daily_deal_flow")
+          .select("id, date")
+          .eq("submission_id", submission_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      const shouldCreateCallback = !!(latestEntry?.date && latestEntry.date !== todayDate);
-      finalSubmissionId = shouldCreateCallback ? generateCallbackSubmissionId(submission_id) : submission_id;
+        const shouldCreateCallback = !!(latestEntry?.date && latestEntry.date !== todayDate);
+        finalSubmissionId = shouldCreateCallback ? generateCallbackSubmissionId(submission_id) : submission_id;
       }
     }
 
@@ -193,10 +216,15 @@ serve(async (req) => {
       .eq("date", todayDate)
       .maybeSingle();
 
-    const resolvedCallCenterId = leadData?.call_center_id ?? existingTodayEntry?.call_center_id ?? null;
+    const resolvedCallCenterId =
+      leadData?.call_center_id ??
+      existingTodayEntry?.call_center_id ??
+      incomingCallCenterId ??
+      null;
     const resolvedLeadVendor =
-      leadData?.call_centers?.name ??
+      centerName ??
       existingTodayEntry?.lead_vendor ??
+      incomingLeadVendor ??
       null;
 
     const dailyFlowPayload = {

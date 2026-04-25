@@ -505,17 +505,17 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       !tcpaCheckCompleted ||
       tcpaBlocked ||
       agencyDqBlocked ||
-      (dncListBlocked && !transferCheckModalDismissed) ||
       phoneInvalidBlocked ||
       !!transferCheckError ||
       (tcpaCheckCompleted &&
         !tcpaBlocked &&
         !agencyDqBlocked &&
         !phoneInvalidBlocked &&
+        !dncListBlocked &&
         !transferCheckError &&
         !transferCheckModalDismissed));
 
-  /** TCPA, CRM DQ, invalid phone: hard stop. DNC is advisory — workspace can continue after acknowledge. */
+  /** TCPA, CRM DQ, invalid phone: hard stop. DNC is advisory and should not interrupt the workspace. */
   const transferCheckModalCritical = tcpaBlocked || agencyDqBlocked || phoneInvalidBlocked;
   const transferCheckModalLoading = needsTransferCheckModal && (tcpaChecking || !tcpaCheckCompleted);
   const transferCheckModalDncAdvisory = dncListBlocked && !transferCheckModalLoading;

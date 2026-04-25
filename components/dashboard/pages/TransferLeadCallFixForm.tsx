@@ -828,6 +828,7 @@ export default function TransferLeadCallFixForm({
         insured_name: leadName || null,
         client_phone_number: leadPhone || null,
         lead_vendor: leadVendor || null,
+        call_center_id: callCenterId || null,
         call_source: callSource,
         buffer_agent: bufferAgent || null,
         agent: agentWhoTookCall || null,
