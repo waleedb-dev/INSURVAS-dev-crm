@@ -320,8 +320,11 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     const numericQuery = query.replace(/\D/g, "");
 
     const result = leads.filter(l => {
-      const matchesSearch = !query ||
+      const matchesSearch =
+        !query ||
         l.name.toLowerCase().includes(query) ||
+        l.id.toLowerCase().includes(query) ||
+        l.rowUuid.toLowerCase().includes(query) ||
         (numericQuery && l.phone.replace(/\D/g, "").includes(numericQuery)) ||
         (numericQuery && l.social.replace(/\D/g, "").includes(numericQuery));
       const matchesStage = filterStageId === "All" || l.stageId === filterStageId;
@@ -1373,15 +1376,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <StyledSelect
-              value={pipeline}
-              onValueChange={setPipeline}
-              options={pipelines.map(p => ({ value: p, label: p }))}
-              placeholder="Select pipeline..."
-            />
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
               <Search
                 size={16}
@@ -1390,10 +1384,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search opportunities..."
+                placeholder="Search by name, phone, SSN, lead id..."
                 style={{
                   height: 38,
-                  minWidth: 260,
+                  minWidth: 320,
                   paddingLeft: 38,
                   paddingRight: 14,
                   border: `1px solid ${T.border}`,
@@ -1415,7 +1409,15 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 }}
               />
             </div>
+            <StyledSelect
+              value={pipeline}
+              onValueChange={setPipeline}
+              options={pipelines.map(p => ({ value: p, label: p }))}
+              placeholder="Select pipeline..."
+            />
+          </div>
 
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button
               type="button"
               onClick={() => setFilterPanelExpanded((v) => !v)}
