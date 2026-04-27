@@ -493,6 +493,7 @@ function CrmSyncOperationsPageInner() {
   const [statusFilter, setStatusFilter] = useState<ExternalStatusTone | "all">("all");
   const [pipelineFilter, setPipelineFilter] = useState<string>("all");
   const [stageFilter, setStageFilter] = useState<string>("all");
+  const [syncRequiredFilter, setSyncRequiredFilter] = useState<"all" | "true" | "false">("all");
   const [page, setPage] = useState(1);
   
   // Pipeline and stage options
@@ -596,6 +597,10 @@ function CrmSyncOperationsPageInner() {
         query = query.eq("stage", stageFilter);
       }
 
+      if (syncRequiredFilter !== "all") {
+        query = query.eq("sync_required", syncRequiredFilter === "true");
+      }
+
       if (cursorId !== null) {
         query = query.gt("id", cursorId);
       }
@@ -660,7 +665,7 @@ function CrmSyncOperationsPageInner() {
 
     setRows(mapped);
     setLoading(false);
-  }, [supabase, pipelineFilter, stageFilter]);
+  }, [supabase, pipelineFilter, stageFilter, syncRequiredFilter]);
 
   useEffect(() => {
     void loadRows();
@@ -1635,6 +1640,42 @@ function CrmSyncOperationsPageInner() {
             })}
           </div>
           
+          {/* Divider */}
+          <div style={{ width: 1, height: 28, backgroundColor: T.border, margin: "0 4px" }} />
+          
+          {/* Sync Required Filter - Secondary */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {[
+              { key: "all", label: "All Sync", color: "#233217" },
+              { key: "true", label: "Sync Required", color: "#8b5cf6" },
+              { key: "false", label: "No Sync", color: "#647864" },
+            ].map(({ key, label, color }) => {
+              const isActive = syncRequiredFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSyncRequiredFilter(key as "all" | "true" | "false")}
+                  style={{
+                    height: 38,
+                    padding: "0 16px",
+                    borderRadius: 10,
+                    border: isActive ? `2px solid ${color}` : `1px solid ${T.border}`,
+                    background: isActive ? `${color}15` : T.pageBg,
+                    color: isActive ? color : T.textMid,
+                    fontSize: 13,
+                    fontWeight: isActive ? 800 : 600,
+                    cursor: "pointer",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                    boxShadow: isActive ? `0 2px 8px ${color}30` : "none",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Divider */}
           <div style={{ width: 1, height: 28, backgroundColor: T.border, margin: "0 4px" }} />
           
