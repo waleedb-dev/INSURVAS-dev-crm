@@ -5296,6 +5296,7 @@ function PolicyAttachmentTab() {
                           style={{ width: 18, height: 18, cursor: "pointer" }}
                         />
                       </TableHead>
+                      <TableHead>Action</TableHead>
                       <TableHead>Lead Name CRM</TableHead>
                       <TableHead>Lead Name DT</TableHead>
                       <TableHead>Call Center CRM</TableHead>
