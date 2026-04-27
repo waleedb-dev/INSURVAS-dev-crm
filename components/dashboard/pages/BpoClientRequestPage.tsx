@@ -249,6 +249,8 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [requestDetailsExpanded, setRequestDetailsExpanded] = useState(true);
+  const [callHistoryExpanded, setCallHistoryExpanded] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -453,12 +455,6 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
           <ArrowLeft size={16} />
           Back to Kill List
         </button>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: T.textDark }}>BPO Client Request</h1>
-          <p style={{ margin: "6px 0 0", fontSize: 15, fontWeight: 600, color: T.textMuted }}>
-            Review the application, inspect call history, and submit a request for agent follow-up.
-          </p>
-        </div>
       </div>
 
       {loading ? (
@@ -472,34 +468,153 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.7fr) minmax(340px, 0.9fr)", gap: 24, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
+            <TransferLeadApplicationForm
+              onBack={() => {}}
+              onSubmit={() => {}}
+              onChange={setEditedFormData}
+              initialData={initialFormData}
+              submitButtonLabel="Update Lead"
+              centerName={centerName}
+              centerDid={centerDid}
+              hideHeader
+            />
+          </div>
+
+          <div
+            style={{
+              position: "sticky",
+              top: 88,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              maxHeight: "calc(100vh - 112px)",
+              overflow: "auto",
+              paddingRight: 4,
+            }}
+          >
             <div style={{ borderRadius: 18, border: `1px solid ${T.border}`, backgroundColor: "#fff", overflow: "hidden", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
-              <div style={{ padding: "20px 24px", borderBottom: `1px solid ${T.borderLight}`, background: "#f8fbf6", display: "flex", alignItems: "center", gap: 12 }}>
-                <FileText size={22} color="#233217" />
-                <div>
-                  <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: T.textDark }}>Application Form</h2>
-                  <p style={{ margin: "4px 0 0", fontSize: 13, fontWeight: 600, color: T.textMuted }}>
-                    Prefilled from the existing transfer application.
-                  </p>
+              <button
+                type="button"
+                onClick={() => setRequestDetailsExpanded((v) => !v)}
+                style={{
+                  width: "100%",
+                  border: "none",
+                  background: "#fff",
+                  padding: "20px 24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <ClipboardList size={22} color="#233217" />
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: T.textDark }}>Request Details</h2>
+                  </div>
                 </div>
-              </div>
-              <div style={{ padding: 24, maxHeight: "68vh", overflow: "auto", background: T.pageBg }}>
-                <TransferLeadApplicationForm
-                  onBack={() => {}}
-                  onSubmit={() => {}}
-                  onChange={setEditedFormData}
-                  initialData={initialFormData}
-                  submitButtonLabel="Update Lead"
-                  centerName={centerName}
-                  centerDid={centerDid}
-                  embedded
-                  hideHeader
-                  hideActions
-                />
-              </div>
+                <div
+                  style={{
+                    color: T.textMuted,
+                    transform: requestDetailsExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
+              </button>
+
+              {requestDetailsExpanded ? (
+                <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+                  <div>
+                    <label style={transferSelectLabelStyle}>Request Type</label>
+                    <TransferStyledSelect
+                      value={requestType}
+                      onValueChange={setRequestType}
+                      options={REQUEST_TYPE_OPTIONS}
+                      placeholder="Select request type..."
+                    />
+                    <p style={{ margin: "8px 0 0", fontSize: 12, fontWeight: 600, color: T.textMuted }}>
+                      Choose what kind of follow-up is needed for this lead.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label style={transferSelectLabelStyle}>Notes</label>
+                    <textarea
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
+                      placeholder="Provide detailed notes about this request..."
+                      rows={14}
+                      style={{ ...transferFieldStyle, resize: "vertical", minHeight: 280 }}
+                    />
+                    <p style={{ margin: "8px 0 0", fontSize: 12, fontWeight: 600, color: T.textMuted }}>
+                      Include anything the agent should know before following up.
+                    </p>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                    <button
+                      type="button"
+                      onClick={handleSubmitRequest}
+                      disabled={submitting}
+                      style={{
+                        gridColumn: "1 / -1",
+                        height: 48,
+                        borderRadius: 10,
+                        border: "none",
+                        background: submitting ? T.border : "#111827",
+                        color: "#fff",
+                        fontSize: 15,
+                        fontWeight: 800,
+                        cursor: submitting ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {submitting ? "Submitting..." : "Submit Request"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/dashboard/${routeRole}?page=${sourcePage}`)}
+                      style={{
+                        gridColumn: "1 / -1",
+                        height: 44,
+                        borderRadius: 10,
+                        border: `1px solid ${T.border}`,
+                        background: "#fff",
+                        color: T.textDark,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div style={{ borderRadius: 18, border: `1px solid ${T.border}`, backgroundColor: "#fff", overflow: "hidden", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
-              <div style={{ padding: "20px 24px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => setCallHistoryExpanded((v) => !v)}
+                style={{
+                  width: "100%",
+                  border: "none",
+                  background: "#fff",
+                  padding: "20px 24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <Phone size={22} color="#233217" />
                   <div>
@@ -509,144 +624,89 @@ export default function BpoClientRequestPage({ leadRowId }: { leadRowId: string 
                     </p>
                   </div>
                 </div>
-              </div>
+                <div
+                  style={{
+                    color: T.textMuted,
+                    transform: callHistoryExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
+              </button>
 
-              <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-                {callHistory.length === 0 ? (
-                  <div style={{ borderRadius: 12, border: `1px dashed ${T.border}`, padding: 18, textAlign: "center", fontSize: 14, fontWeight: 600, color: T.textMuted }}>
-                    No call history found for this submission.
-                  </div>
-                ) : (
-                  callHistory.map((entry, index) => {
-                    const expanded = expandedHistoryId === entry.id;
-                    return (
-                      <div key={entry.id} style={{ borderRadius: 14, border: `1px solid ${T.border}`, overflow: "hidden", backgroundColor: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedHistoryId((current) => (current === entry.id ? null : entry.id))}
-                          style={{ width: "100%", border: "none", background: "#fff", padding: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, cursor: "pointer", textAlign: "left" }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                            <div style={{ fontSize: 26, fontWeight: 800, color: "#233217" }}>#{index + 1}</div>
-                            <div>
-                              <div style={{ fontSize: 18, fontWeight: 800, color: T.textDark }}>{entry.status || entry.callResult || "Unknown Status"}</div>
-                              <div style={{ marginTop: 4, fontSize: 13, fontWeight: 600, color: T.textMuted }}>{formatDateTime(entry.updatedAt || entry.createdAt)}</div>
-                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                                {entry.callResult ? (
-                                  <span style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 999, background: "#dbeafe", color: "#1d4ed8", fontSize: 12, fontWeight: 700 }}>
-                                    {entry.callResult}
+              {callHistoryExpanded ? (
+                <div
+                  style={{
+                    borderTop: `1px solid ${T.borderLight}`,
+                    padding: 20,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 14,
+                    maxHeight: "52vh",
+                    overflow: "auto",
+                    background: T.pageBg,
+                  }}
+                >
+                  {callHistory.length === 0 ? (
+                    <div style={{ borderRadius: 12, border: `1px dashed ${T.border}`, padding: 18, textAlign: "center", fontSize: 14, fontWeight: 600, color: T.textMuted, background: "#fff" }}>
+                      No call history found for this submission.
+                    </div>
+                  ) : (
+                    callHistory.map((entry, index) => {
+                      const expanded = expandedHistoryId === entry.id;
+                      return (
+                        <div key={entry.id} style={{ borderRadius: 14, border: `1px solid ${T.border}`, overflow: "hidden", backgroundColor: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedHistoryId((current) => (current === entry.id ? null : entry.id))}
+                            style={{ width: "100%", border: "none", background: "#fff", padding: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, cursor: "pointer", textAlign: "left" }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                              <div style={{ fontSize: 26, fontWeight: 800, color: "#233217" }}>#{index + 1}</div>
+                              <div>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: T.textDark }}>{entry.status || entry.callResult || "Unknown Status"}</div>
+                                <div style={{ marginTop: 4, fontSize: 13, fontWeight: 600, color: T.textMuted }}>{formatDateTime(entry.updatedAt || entry.createdAt)}</div>
+                                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                                  {entry.callResult ? (
+                                    <span style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 999, background: "#dbeafe", color: "#1d4ed8", fontSize: 12, fontWeight: 700 }}>
+                                      {entry.callResult}
+                                    </span>
+                                  ) : null}
+                                  <span style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 999, background: "#dcfce7", color: "#166534", fontSize: 12, fontWeight: 700 }}>
+                                    Agent: {entry.agent || entry.licensedAgent || entry.retentionAgent || "N/A"}
                                   </span>
-                                ) : null}
-                                <span style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 999, background: "#dcfce7", color: "#166534", fontSize: 12, fontWeight: 700 }}>
-                                  Agent: {entry.agent || entry.licensedAgent || entry.retentionAgent || "N/A"}
-                                </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div style={{ color: T.textMuted, transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
-                          </div>
-                        </button>
-                        {expanded ? (
-                          <div style={{ padding: "0 18px 18px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, borderTop: `1px solid ${T.borderLight}` }}>
-                            <div style={{ paddingTop: 16 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", marginBottom: 6 }}>Status</div>
-                              <div style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{entry.status || "—"}</div>
+                            <div style={{ color: T.textMuted, transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}>
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
                             </div>
-                            <div style={{ paddingTop: 16 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", marginBottom: 6 }}>Placement</div>
-                              <div style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{entry.placementStatus || "—"}</div>
+                          </button>
+                          {expanded ? (
+                            <div style={{ padding: "0 18px 18px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, borderTop: `1px solid ${T.borderLight}` }}>
+                              <div style={{ paddingTop: 16 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", marginBottom: 6 }}>Status</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{entry.status || "—"}</div>
+                              </div>
+                              <div style={{ paddingTop: 16 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", marginBottom: 6 }}>Placement</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: T.textDark }}>{entry.placementStatus || "—"}</div>
+                              </div>
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", marginBottom: 6 }}>Notes</div>
+                                <div style={{ fontSize: 14, lineHeight: 1.6, color: T.textDark, whiteSpace: "pre-wrap" }}>{entry.notes || "No notes recorded."}</div>
+                              </div>
                             </div>
-                            <div style={{ gridColumn: "1 / -1" }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", marginBottom: 6 }}>Notes</div>
-                              <div style={{ fontSize: 14, lineHeight: 1.6, color: T.textDark, whiteSpace: "pre-wrap" }}>{entry.notes || "No notes recorded."}</div>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ position: "sticky", top: 88 }}>
-            <div style={{ borderRadius: 18, border: `1px solid ${T.border}`, backgroundColor: "#fff", padding: 24, boxShadow: "0 4px 12px rgba(0,0,0,0.03)", display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <ClipboardList size={22} color="#233217" />
-                <div>
-                  <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: T.textDark }}>Request Details</h2>
-                  <p style={{ margin: "4px 0 0", fontSize: 13, fontWeight: 600, color: T.textMuted }}>
-                    {leadHeader.name} • {formatPhoneDisplay(leadHeader.phone)} • {leadHeader.submissionId || "No submission ID"}
-                  </p>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-              </div>
-
-              <div>
-                <label style={transferSelectLabelStyle}>Request Type</label>
-                <TransferStyledSelect
-                  value={requestType}
-                  onValueChange={setRequestType}
-                  options={REQUEST_TYPE_OPTIONS}
-                  placeholder="Select request type..."
-                />
-                <p style={{ margin: "8px 0 0", fontSize: 12, fontWeight: 600, color: T.textMuted }}>
-                  Choose what kind of follow-up is needed for this lead.
-                </p>
-              </div>
-
-              <div>
-                <label style={transferSelectLabelStyle}>Notes</label>
-                <textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Provide detailed notes about this request..."
-                  rows={14}
-                  style={{ ...transferFieldStyle, resize: "vertical", minHeight: 280 }}
-                />
-                <p style={{ margin: "8px 0 0", fontSize: 12, fontWeight: 600, color: T.textMuted }}>
-                  Include anything the agent should know before following up.
-                </p>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
-                <button
-                  type="button"
-                  onClick={handleSubmitRequest}
-                  disabled={submitting}
-                  style={{
-                    gridColumn: "1 / -1",
-                    height: 48,
-                    borderRadius: 10,
-                    border: "none",
-                    background: submitting ? T.border : "#111827",
-                    color: "#fff",
-                    fontSize: 15,
-                    fontWeight: 800,
-                    cursor: submitting ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {submitting ? "Submitting..." : "Submit Request"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/dashboard/${routeRole}?page=${sourcePage}`)}
-                  style={{
-                    gridColumn: "1 / -1",
-                    height: 44,
-                    borderRadius: 10,
-                    border: `1px solid ${T.border}`,
-                    background: "#fff",
-                    color: T.textDark,
-                    fontSize: 14,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
+              ) : null}
             </div>
           </div>
         </div>

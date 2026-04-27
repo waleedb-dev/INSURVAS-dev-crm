@@ -6,6 +6,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Calendar, ChevronDown, AlertTriangle, MinusCircle, Award, Search, Filter } from "lucide-react";
 import type { DailyDealFlowRow } from "./daily-deal-flow/types";
+import { formatYyyyMmDdET, getTodayYyyyMmDdET, parseYyyyMmDdToUtcNoon, shiftDaysYyyyMmDdET } from "@/lib/time";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,29 +49,26 @@ function formatDate(date: Date): string {
 }
 
 function formatDateForInput(date: Date): string {
-  return date.toISOString().split("T")[0];
+  return formatYyyyMmDdET(date);
 }
 
 function getPresetRange(preset: DatePreset): { start: Date; end: Date; label: string } {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayEt = getTodayYyyyMmDdET();
+  const today = parseYyyyMmDdToUtcNoon(todayEt) ?? new Date();
 
   switch (preset) {
     case "today":
       return { start: today, end: today, label: "Today" };
     case "yesterday": {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
+      const y = parseYyyyMmDdToUtcNoon(shiftDaysYyyyMmDdET(todayEt, -1)) ?? new Date(today);
       return { start: y, end: y, label: "Yesterday" };
     }
     case "7": {
-      const s = new Date(today);
-      s.setDate(s.getDate() - 6);
+      const s = parseYyyyMmDdToUtcNoon(shiftDaysYyyyMmDdET(todayEt, -6)) ?? new Date(today);
       return { start: s, end: today, label: "Last 7 Days" };
     }
     case "30": {
-      const s = new Date(today);
-      s.setDate(s.getDate() - 29);
+      const s = parseYyyyMmDdToUtcNoon(shiftDaysYyyyMmDdET(todayEt, -29)) ?? new Date(today);
       return { start: s, end: today, label: "Last 30 Days" };
     }
     case "custom":
@@ -468,8 +466,8 @@ export default function BpoCenterPerformancePage() {
 
   const handleApplyCustomRange = () => {
     if (customStartDate && customEndDate) {
-      const start = new Date(customStartDate);
-      const end = new Date(customEndDate);
+      const start = parseYyyyMmDdToUtcNoon(customStartDate) ?? new Date(customStartDate);
+      const end = parseYyyyMmDdToUtcNoon(customEndDate) ?? new Date(customEndDate);
       setAppliedRange({ start, end, label: `${formatDate(start)} - ${formatDate(end)}` });
       setShowDateDropdown(false);
     }

@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { PermissionKey } from "@/lib/auth/permissions";
 import { isRoleKey, type RoleKey } from "@/lib/auth/roles";
+import { formatYyyyMmDdET, getTodayYyyyMmDdET, parseYyyyMmDdToUtcNoon, shiftDaysYyyyMmDdET } from "@/lib/time";
 
 // Alias so we don't need to touch every reference below
 const C = {
@@ -365,32 +366,28 @@ function formatDate(date: Date): string {
 }
 
 function formatDateForInput(date: Date): string {
-  return date.toISOString().split('T')[0];
+  return formatYyyyMmDdET(date);
 }
 
 // Get date ranges for presets
 function getPresetDateRange(preset: DatePreset): DateRange {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayEt = getTodayYyyyMmDdET();
+  const today = parseYyyyMmDdToUtcNoon(todayEt) ?? new Date();
   
   switch (preset) {
     case 'today':
       return { start: today, end: today, label: 'Today' };
     case 'yesterday':
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterday = parseYyyyMmDdToUtcNoon(shiftDaysYyyyMmDdET(todayEt, -1)) ?? new Date(today);
       return { start: yesterday, end: yesterday, label: 'Yesterday' };
     case '7':
-      const last7 = new Date(today);
-      last7.setDate(last7.getDate() - 7);
+      const last7 = parseYyyyMmDdToUtcNoon(shiftDaysYyyyMmDdET(todayEt, -7)) ?? new Date(today);
       return { start: last7, end: today, label: 'Last 7 Days' };
     case '30':
-      const last30 = new Date(today);
-      last30.setDate(last30.getDate() - 30);
+      const last30 = parseYyyyMmDdToUtcNoon(shiftDaysYyyyMmDdET(todayEt, -30)) ?? new Date(today);
       return { start: last30, end: today, label: 'Last 30 Days' };
     case '90':
-      const last90 = new Date(today);
-      last90.setDate(last90.getDate() - 90);
+      const last90 = parseYyyyMmDdToUtcNoon(shiftDaysYyyyMmDdET(todayEt, -90)) ?? new Date(today);
       return { start: last90, end: today, label: 'Last 90 Days' };
     case 'thisMonth':
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -400,8 +397,7 @@ function getPresetDateRange(preset: DatePreset): DateRange {
       const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
       return { start: startOfLastMonth, end: endOfLastMonth, label: 'Last Month' };
     default:
-      const last30Default = new Date(today);
-      last30Default.setDate(last30Default.getDate() - 30);
+      const last30Default = parseYyyyMmDdToUtcNoon(shiftDaysYyyyMmDdET(todayEt, -30)) ?? new Date(today);
       return { start: last30Default, end: today, label: 'Last 30 Days' };
   }
 }
@@ -476,8 +472,8 @@ export default function MainDashboard({ onViewAllEvents, searchQuery }: Props) {
 
   const handleApplyCustomRange = () => {
     if (customStartDate && customEndDate) {
-      const start = new Date(customStartDate);
-      const end = new Date(customEndDate);
+      const start = parseYyyyMmDdToUtcNoon(customStartDate) ?? new Date(customStartDate);
+      const end = parseYyyyMmDdToUtcNoon(customEndDate) ?? new Date(customEndDate);
       setAppliedDateRange({
         start,
         end,
