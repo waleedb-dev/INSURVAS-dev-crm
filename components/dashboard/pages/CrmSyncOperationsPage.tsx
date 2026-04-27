@@ -54,6 +54,7 @@ type LeadPolicyRow = {
   leadSource: string | null;
   submissionDate: string | null;
   updatedAt: string | null;
+  syncRequired: boolean;
 };
 
 type BulkPreviewRow = {
@@ -644,6 +645,7 @@ function CrmSyncOperationsPageInner() {
           leadSource: lead.lead_source != null ? String(lead.lead_source) : null,
           submissionDate: lead.submission_date != null ? String(lead.submission_date) : null,
           updatedAt: lead.updated_at != null ? String(lead.updated_at) : null,
+          syncRequired: lead.sync_required !== false,
         } satisfies LeadPolicyRow;
       })
       .filter((row): row is LeadPolicyRow => row !== null);
@@ -3847,6 +3849,7 @@ function PolicyAttachmentTab() {
   const [pipelineFilter, setPipelineFilter] = useState<string>("all");
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [policyFilter, setPolicyFilter] = useState<"all" | "has" | "no">("all");
+  const [syncRequiredFilter, setSyncRequiredFilter] = useState<"all" | "true" | "false">("all");
   
   // Options for filters
   const [pipelines, setPipelines] = useState<Array<{ id: string; name: string }>>([]);
@@ -3914,6 +3917,10 @@ function PolicyAttachmentTab() {
           query = query.not("policy_id", "is", null).neq("policy_id", "");
         } else if (policyFilter === "no") {
           query = query.or("policy_id.is.null,policy_id.eq.");
+        }
+
+        if (syncRequiredFilter !== "all") {
+          query = query.eq("sync_required", syncRequiredFilter === "true");
         }
 
         if (cursorId !== null) {
@@ -3986,6 +3993,7 @@ function PolicyAttachmentTab() {
             leadSource: lead.lead_source != null ? String(lead.lead_source) : null,
             submissionDate: lead.submission_date != null ? String(lead.submission_date) : null,
             updatedAt: lead.updated_at != null ? String(lead.updated_at) : null,
+            syncRequired: lead.sync_required !== false,
           } satisfies LeadPolicyRow;
         })
         .filter((row): row is LeadPolicyRow => row !== null);
@@ -4003,7 +4011,7 @@ function PolicyAttachmentTab() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, pipelineFilter, stageFilter, policyFilter]);
+  }, [supabase, pipelineFilter, stageFilter, policyFilter, syncRequiredFilter]);
   
   useEffect(() => {
     loadLeads();
@@ -4165,6 +4173,35 @@ function PolicyAttachmentTab() {
   const clearSelection = useCallback(() => {
     setSelectedLeadIds(new Set());
   }, []);
+
+  const bulkEnableSync = useCallback(async () => {
+    const selectedRows = leads.filter((row) => selectedLeadIds.has(row.leadId));
+    if (selectedRows.length === 0) {
+      setBulkNotice({ tone: "error", message: "Select at least one lead." });
+      return;
+    }
+
+    setBulkSyncing(true);
+    setBulkNotice(null);
+    try {
+      const leadIds = selectedRows.map((row) => row.leadId);
+      const { error: updateError } = await supabase
+        .from("leads")
+        .update({ sync_required: true })
+        .in("id", leadIds);
+
+      if (updateError) throw updateError;
+
+      setBulkNotice({ tone: "success", message: `Enabled sync for ${leadIds.length} lead(s).` });
+      setSelectedLeadIds(new Set());
+      loadLeads();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setBulkNotice({ tone: "error", message: `Failed: ${msg}` });
+    } finally {
+      setBulkSyncing(false);
+    }
+  }, [leads, selectedLeadIds, supabase, loadLeads]);
 
   const openBulkSyncPreview = useCallback(async () => {
     const selectedRows = noPolicyFiltered.filter((row) => selectedLeadIds.has(row.leadId));
@@ -4579,6 +4616,67 @@ function PolicyAttachmentTab() {
           {bulkNotice.message}
         </div>
       )}
+
+      {/* Bulk Enable Sync Action - shows when any leads are selected */}
+      {selectedLeadIds.size > 0 && !bulkPreviewOpen && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 12,
+            padding: "12px 16px",
+            border: `1px solid ${T.border}`,
+            borderRadius: 12,
+            background: "#f8faf8",
+          }}
+        >
+          <div style={{ fontSize: 13, color: T.textDark, fontWeight: 600 }}>
+            Selected {selectedLeadIds.size} lead(s)
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setSelectedLeadIds(new Set())}
+              disabled={bulkSyncing || selectedLeadIds.size === 0}
+              style={{
+                height: 34,
+                padding: "0 12px",
+                borderRadius: 8,
+                border: `1px solid ${T.border}`,
+                background: T.cardBg,
+                color: T.textDark,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: bulkSyncing || selectedLeadIds.size === 0 ? "not-allowed" : "pointer",
+                opacity: bulkSyncing || selectedLeadIds.size === 0 ? 0.6 : 1,
+              }}
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => void bulkEnableSync()}
+              disabled={bulkSyncing || selectedLeadIds.size === 0}
+              style={{
+                height: 34,
+                padding: "0 14px",
+                borderRadius: 8,
+                border: "none",
+                background: "#8b5cf6",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: bulkSyncing || selectedLeadIds.size === 0 ? "not-allowed" : "pointer",
+                opacity: bulkSyncing || selectedLeadIds.size === 0 ? 0.6 : 1,
+              }}
+            >
+              {bulkSyncing ? "Updating..." : "Enable Sync"}
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Stats */}
       <div
@@ -4660,6 +4758,42 @@ function PolicyAttachmentTab() {
             })}
           </div>
           
+          {/* Divider */}
+          <div style={{ width: 1, height: 28, backgroundColor: T.border, margin: "0 4px" }} />
+          
+          {/* Sync Required Filter - Secondary */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {[
+              { key: "all", label: "All Sync", color: "#233217" },
+              { key: "true", label: "Sync Required", color: "#8b5cf6" },
+              { key: "false", label: "No Sync", color: "#647864" },
+            ].map(({ key, label, color }) => {
+              const isActive = syncRequiredFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSyncRequiredFilter(key as "all" | "true" | "false")}
+                  style={{
+                    height: 38,
+                    padding: "0 16px",
+                    borderRadius: 10,
+                    border: isActive ? `2px solid ${color}` : `1px solid ${T.border}`,
+                    background: isActive ? `${color}15` : T.pageBg,
+                    color: isActive ? color : T.textMid,
+                    fontSize: 13,
+                    fontWeight: isActive ? 800 : 600,
+                    cursor: "pointer",
+                    fontFamily: T.font,
+                    transition: "all 0.15s ease-in-out",
+                    boxShadow: isActive ? `0 2px 8px ${color}30` : "none",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Divider */}
           <div style={{ width: 1, height: 28, backgroundColor: T.border, margin: "0 4px" }} />
           
