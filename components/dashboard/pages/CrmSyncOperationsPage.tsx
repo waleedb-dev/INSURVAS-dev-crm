@@ -67,6 +67,7 @@ type BulkPreviewRow = {
   policyIdDt: string;
   carrierCrm: string;
   carrierDt: string;
+  selected: boolean;
 };
 
 type ExternalStatusTone = "matched" | "mismatch" | "missing" | "unknown" | "pending";
@@ -4345,6 +4346,7 @@ function PolicyAttachmentTab() {
         policyIdDt: u.policyIdDt,
         carrierCrm: u.carrierCrm,
         carrierDt: u.carrierDt,
+        selected: true,
       }));
 
       setCarrierOptions(uniqueValues.carriers);
@@ -4392,10 +4394,18 @@ function PolicyAttachmentTab() {
         if (key) localCallCenterByName.set(key, row.id);
       }
 
+      const selectedRows = bulkPreviewRows.filter((r) => r.selected);
+    
+    if (selectedRows.length === 0) {
+      setBulkNotice({ tone: "error", message: "No rows selected. Check at least one row to save." });
+      setBulkPreviewSaving(false);
+      return;
+    }
+
       let synced = 0;
       let failed = 0;
       const successfulLeadIds = new Set<string>();
-      for (const row of bulkPreviewRows) {
+      for (const row of selectedRows) {
         const policy = String(row.policyIdDt ?? "").trim();
         if (!policy) continue;
         const payload: { policy_id: string; carrier?: string; call_center_id?: string } = {
@@ -4436,7 +4446,7 @@ function PolicyAttachmentTab() {
       setBulkPreviewRows([]);
       setBulkNotice({
         tone: failed > 0 ? "error" : "success",
-        message: `Preview save completed. Synced ${synced}/${bulkPreviewRows.length} leads` +
+        message: `Preview save completed. Synced ${synced}/${selectedRows.length} selected leads` +
           `${failed ? `, ${failed} update errors` : ""}.`,
       });
     } catch (e) {
@@ -5275,7 +5285,17 @@ function PolicyAttachmentTab() {
                 <ShadcnTable>
                   <TableHeader>
                     <TableRow>
-                      <TableHead style={{ width: 60, textAlign: "center" }}></TableHead>
+                      <TableHead style={{ width: 50, textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={bulkPreviewRows.every((r) => r.selected)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setBulkPreviewRows((prev) => prev.map((r) => ({ ...r, selected: checked })));
+                          }}
+                          style={{ width: 18, height: 18, cursor: "pointer" }}
+                        />
+                      </TableHead>
                       <TableHead>Lead Name CRM</TableHead>
                       <TableHead>Lead Name DT</TableHead>
                       <TableHead>Call Center CRM</TableHead>
@@ -5288,6 +5308,18 @@ function PolicyAttachmentTab() {
                   <TableBody>
                     {bulkPreviewPaginatedRows.map((row) => (
                       <TableRow key={row.leadId}>
+                        <TableCell style={{ textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={row.selected ?? true}
+                            onChange={(e) => {
+                              setBulkPreviewRows((prev) =>
+                                prev.map((r) => (r.leadId === row.leadId ? { ...r, selected: e.target.checked } : r)),
+                              );
+                            }}
+                            style={{ width: 18, height: 18, cursor: "pointer" }}
+                          />
+                        </TableCell>
                         <TableCell style={{ textAlign: "center" }}>
                           <button
                             type="button"
@@ -5431,10 +5463,10 @@ function PolicyAttachmentTab() {
               </datalist>
             </div>
 
-            {/* Footer - just count */}
+            {/* Footer - count with selected */}
             <div style={{ padding: "16px 24px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fafdfa" }}>
               <div style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
-                {bulkPreviewRows.length} lead(s) selected
+                {bulkPreviewRows.filter((r) => r.selected).length} of {bulkPreviewRows.length} selected
               </div>
             </div>
           </Card>
