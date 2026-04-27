@@ -7,3 +7,7 @@ add column if not exists sync_required boolean not null default true;
 
 -- Create index for filtering
 create index if not exists leads_sync_required_idx on public.leads (sync_required);
+
+-- Disable sync for all existing leads (one-time migration)
+-- Run this if you want to disable sync for all existing leads
+-- update public.leads set sync_required = false where sync_required is not false;

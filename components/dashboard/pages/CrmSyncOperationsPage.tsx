@@ -4174,7 +4174,7 @@ function PolicyAttachmentTab() {
     setSelectedLeadIds(new Set());
   }, []);
 
-  const bulkEnableSync = useCallback(async () => {
+  const bulkSetSync = useCallback(async (value: boolean) => {
     const selectedRows = leads.filter((row) => selectedLeadIds.has(row.leadId));
     if (selectedRows.length === 0) {
       setBulkNotice({ tone: "error", message: "Select at least one lead." });
@@ -4187,12 +4187,12 @@ function PolicyAttachmentTab() {
       const leadIds = selectedRows.map((row) => row.leadId);
       const { error: updateError } = await supabase
         .from("leads")
-        .update({ sync_required: true })
+        .update({ sync_required: value })
         .in("id", leadIds);
 
       if (updateError) throw updateError;
 
-      setBulkNotice({ tone: "success", message: `Enabled sync for ${leadIds.length} lead(s).` });
+      setBulkNotice({ tone: "success", message: `${value ? "Enabled" : "Disabled"} sync for ${leadIds.length} lead(s).` });
       setSelectedLeadIds(new Set());
       loadLeads();
     } catch (err) {
@@ -4657,7 +4657,26 @@ function PolicyAttachmentTab() {
             </button>
             <button
               type="button"
-              onClick={() => void bulkEnableSync()}
+              onClick={() => void bulkSetSync(false)}
+              disabled={bulkSyncing || selectedLeadIds.size === 0}
+              style={{
+                height: 34,
+                padding: "0 14px",
+                borderRadius: 8,
+                border: "none",
+                background: "#647864",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: bulkSyncing || selectedLeadIds.size === 0 ? "not-allowed" : "pointer",
+                opacity: bulkSyncing || selectedLeadIds.size === 0 ? 0.6 : 1,
+              }}
+            >
+              {bulkSyncing ? "Updating..." : "Disable Sync"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void bulkSetSync(true)}
               disabled={bulkSyncing || selectedLeadIds.size === 0}
               style={{
                 height: 34,
