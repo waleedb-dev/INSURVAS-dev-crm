@@ -1257,6 +1257,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         rowUuid: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `temp-${Date.now()}`,
         name: newLead.name,
         phone: "",
+        social: "",
         type: newLead.type,
         premium: newLead.premium,
         source: newLead.source,
