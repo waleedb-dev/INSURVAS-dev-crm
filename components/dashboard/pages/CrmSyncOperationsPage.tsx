@@ -3106,18 +3106,6 @@ function CrmSyncBulkPreviewModal({
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.5px",
-                textTransform: "uppercase",
-                color: T.textMuted,
-                marginBottom: 6,
-              }}
-            >
-              CRM Sync · Bulk preview
-            </div>
             <h3
               style={{
                 margin: 0,
@@ -3140,7 +3128,7 @@ function CrmSyncBulkPreviewModal({
             <p
               style={{
                 margin: "6px 0 0",
-                fontSize: 12,
+                fontSize: 13,
                 color: T.textMuted,
                 fontWeight: 500,
                 lineHeight: 1.5,
@@ -3275,10 +3263,11 @@ function CrmSyncBulkPreviewModal({
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     {(
                       [
-                        { key: "all" as const, label: `All (${previewRows.length})` },
+                        { key: "all" as const, label: `All (${previewRows.length})`, color: "#233217" },
                         {
                           key: "different" as const,
                           label: `Different (${diffCount})`,
+                          color: "#d97706",
                         },
                       ]
                     ).map((tab) => {
@@ -3292,15 +3281,18 @@ function CrmSyncBulkPreviewModal({
                             setPreviewPage(1);
                           }}
                           style={{
-                            height: 32,
-                            padding: "0 12px",
-                            borderRadius: 8,
-                            border: active ? "2px solid #233217" : `1px solid ${T.border}`,
-                            background: active ? "#eef5ee" : T.cardBg,
-                            color: active ? "#233217" : T.textDark,
-                            fontSize: 12,
-                            fontWeight: 700,
+                            height: 38,
+                            padding: "0 16px",
+                            borderRadius: 10,
+                            border: active ? `2px solid ${tab.color}` : `1px solid ${T.border}`,
+                            background: active ? `${tab.color}12` : T.cardBg,
+                            color: active ? tab.color : T.textMid,
+                            fontSize: 13,
+                            fontWeight: active ? 800 : 600,
                             cursor: "pointer",
+                            fontFamily: T.font,
+                            transition: "all 0.15s ease-in-out",
+                            boxShadow: active ? `0 2px 8px ${tab.color}30` : "none",
                           }}
                         >
                           {tab.label}
@@ -3318,7 +3310,7 @@ function CrmSyncBulkPreviewModal({
                       <ShadcnTable>
                         <TableHeader>
                           <TableRow>
-                            <TableHead style={{ width: 72 }}>Action</TableHead>
+                            <TableHead style={{ width: 60, textAlign: "center" }}>Action</TableHead>
                             <TableHead>Lead</TableHead>
                             <TableHead>Policy ID</TableHead>
                             <TableHead>Stage (CRM)</TableHead>
@@ -3330,23 +3322,32 @@ function CrmSyncBulkPreviewModal({
                         <TableBody>
                           {paginatedRows.map((row) => (
                             <TableRow key={row.key}>
-                              <TableCell>
+                              <TableCell style={{ textAlign: "center" }}>
                                 <button
                                   type="button"
                                   onClick={() => removePreviewRow(row.key)}
                                   style={{
-                                    height: 28,
-                                    padding: "0 8px",
-                                    borderRadius: 6,
-                                    border: `1px solid #fecaca`,
-                                    background: "#fff1f2",
-                                    color: "#b91c1c",
-                                    fontSize: 11,
-                                    fontWeight: 700,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: 8,
+                                    border: "none",
+                                    background: "#fef2f2",
+                                    color: "#dc2626",
                                     cursor: "pointer",
+                                    transition: "all 0.15s",
                                   }}
+                                  title="Remove lead"
                                 >
-                                  Remove
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M3 6h18"/>
+                                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                    <line x1="10" y1="11" x2="10" y2="17"/>
+                                    <line x1="14" y1="11" x2="14" y2="17"/>
+                                  </svg>
                                 </button>
                               </TableCell>
                               <TableCell style={{ fontWeight: 700 }}>{row.leadName}</TableCell>
