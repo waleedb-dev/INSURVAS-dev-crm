@@ -27,6 +27,7 @@ type LeadRecord = {
   pipelineName: string;
   productType: string;
   source: string;
+  callCenterName: string;
   owner: string;
   premium: number;
   tags: string[];
@@ -181,8 +182,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [filterStage, setFilterStage] = useState("All");
   const [filterPipeline, setFilterPipeline] = useState("All");
-  const [filterOwner, setFilterOwner] = useState("All");
-  const [filterSource, setFilterSource] = useState("All");
+  const [filterCallCenter, setFilterCallCenter] = useState("All");
   const [filterTag, setFilterTag] = useState("All");
   const [kanbanPage, setKanbanPage] = useState<Record<string, number>>({});
   const [collapsedColumns, setCollapsedColumns] = useState<Record<string, boolean>>({});
@@ -248,7 +248,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
       for (let offset = 0; ; offset += PAGE_SIZE) {
         let query = supabase
           .from("leads")
-          .select("id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, pipeline_id, licensed_agent_account, tags, created_at, updated_at, call_center_id, is_draft")
+          .select("id, lead_unique_id, first_name, last_name, phone, lead_value, monthly_premium, product_type, lead_source, stage, pipeline_id, licensed_agent_account, tags, created_at, updated_at, call_center_id, call_centers(name), is_draft")
           .in("pipeline_id", pipelineIds)
           .in("stage", actualStages)
           .eq("is_draft", false)
@@ -289,6 +289,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
         const pipelineName = pipelineIdMap.get(pipelineId) ?? "Unknown Pipeline";
         const tags = parseTags(row.tags);
         const fullName = `${String(row.first_name ?? "").trim()} ${String(row.last_name ?? "").trim()}`.trim() || "Unnamed Lead";
+        const callCenterName = String((row.call_centers as { name?: string | null } | null)?.name ?? "—");
         const lead: LeadRecord = {
           rowUuid,
           displayId: row.lead_unique_id ? String(row.lead_unique_id) : rowUuid,
@@ -298,6 +299,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
           pipelineName,
           productType: String(row.product_type ?? "—"),
           source: String(row.lead_source ?? "—"),
+          callCenterName,
           owner: String(row.licensed_agent_account ?? "Unassigned"),
           premium: Number(row.lead_value ?? row.monthly_premium ?? 0) || 0,
           tags,
@@ -318,7 +320,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
 
   useEffect(() => {
     setKanbanPage({});
-  }, [variant, search, filterStage, filterPipeline, filterOwner, filterSource, filterTag]);
+  }, [variant, search, filterStage, filterPipeline, filterCallCenter, filterTag]);
 
   const filteredLeads = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -340,13 +342,12 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
 
       const matchesStage = filterStage === "All" || lead.stage === filterStage;
       const matchesPipeline = filterPipeline === "All" || lead.pipelineName === filterPipeline;
-      const matchesOwner = filterOwner === "All" || lead.owner === filterOwner;
-      const matchesSource = filterSource === "All" || lead.source === filterSource;
+      const matchesCallCenter = filterCallCenter === "All" || lead.callCenterName === filterCallCenter;
       const matchesTag = filterTag === "All" || lead.tags.includes(filterTag);
 
-      return matchesSearch && matchesStage && matchesPipeline && matchesOwner && matchesSource && matchesTag;
+      return matchesSearch && matchesStage && matchesPipeline && matchesCallCenter && matchesTag;
     });
-  }, [filterOwner, filterPipeline, filterSource, filterStage, filterTag, leads, search, variant]);
+  }, [filterCallCenter, filterPipeline, filterStage, filterTag, leads, search, variant]);
 
   const totalTagged = filteredLeads.filter((lead) => lead.tags.length > 0).length;
   const uniqueOwners = new Set(filteredLeads.map((lead) => lead.owner).filter(Boolean)).size;
@@ -357,18 +358,16 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
     let count = 0;
     if (filterStage !== "All") count++;
     if (filterPipeline !== "All") count++;
-    if (filterOwner !== "All") count++;
-    if (filterSource !== "All") count++;
+    if (filterCallCenter !== "All") count++;
     if (filterTag !== "All") count++;
     return count;
-  }, [filterOwner, filterPipeline, filterSource, filterStage, filterTag]);
+  }, [filterCallCenter, filterPipeline, filterStage, filterTag]);
 
   const clearAllFilters = () => {
     setSearch("");
     setFilterStage("All");
     setFilterPipeline("All");
-    setFilterOwner("All");
-    setFilterSource("All");
+    setFilterCallCenter("All");
     setFilterTag("All");
   };
 
@@ -382,8 +381,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
     const values = Array.from(new Set(visibleLeads.map((lead) => lead.stage))).sort();
     return [{ value: "All", label: "All Stages" }, ...values.map((stage) => ({ value: stage, label: stage }))];
   }, [filterPipeline, leads]);
-  const ownerOptions = [{ value: "All", label: "All Owners" }, ...Array.from(new Set(leads.map((lead) => lead.owner))).sort().map((value) => ({ value, label: value }))];
-  const sourceOptions = [{ value: "All", label: "All Sources" }, ...Array.from(new Set(leads.map((lead) => lead.source))).sort().map((value) => ({ value, label: value }))];
+  const callCenterOptions = [{ value: "All", label: "All Call Centres" }, ...Array.from(new Set(leads.map((lead) => lead.callCenterName))).sort().map((value) => ({ value, label: value }))];
   const tagOptions = [{ value: "All", label: "All Tags" }, ...Array.from(new Set(leads.flatMap((lead) => lead.tags))).sort().map((value) => ({ value, label: value }))];
 
   useEffect(() => {
@@ -601,7 +599,18 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
               gap: 20,
             }}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase" }}>Call Centre</div>
+                <StyledSelect value={filterCallCenter} onValueChange={setFilterCallCenter} options={callCenterOptions} placeholder="All Call Centres" />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase" }}>Tag</div>
+                <StyledSelect value={filterTag} onValueChange={setFilterTag} options={tagOptions} placeholder="All Tags" />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16 }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase" }}>Pipeline</div>
                 <StyledSelect value={filterPipeline} onValueChange={setFilterPipeline} options={pipelineOptions} placeholder="All Pipelines" />
@@ -609,22 +618,6 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase" }}>Stage</div>
                 <StyledSelect value={filterStage} onValueChange={setFilterStage} options={stageOptions} placeholder="All Stages" />
-              </div>
-              <div />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase" }}>Owner</div>
-                <StyledSelect value={filterOwner} onValueChange={setFilterOwner} options={ownerOptions} placeholder="All Owners" />
-              </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase" }}>Source</div>
-                <StyledSelect value={filterSource} onValueChange={setFilterSource} options={sourceOptions} placeholder="All Sources" />
-              </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase" }}>Tag</div>
-                <StyledSelect value={filterTag} onValueChange={setFilterTag} options={tagOptions} placeholder="All Tags" />
               </div>
             </div>
 
