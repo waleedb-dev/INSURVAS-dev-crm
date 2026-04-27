@@ -179,7 +179,6 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [search, setSearch] = useState("");
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
-  const [filterColumn, setFilterColumn] = useState("All");
   const [filterStage, setFilterStage] = useState("All");
   const [filterPipeline, setFilterPipeline] = useState("All");
   const [filterOwner, setFilterOwner] = useState("All");
@@ -319,7 +318,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
 
   useEffect(() => {
     setKanbanPage({});
-  }, [variant, search, filterColumn, filterStage, filterPipeline, filterOwner, filterSource, filterTag]);
+  }, [variant, search, filterStage, filterPipeline, filterOwner, filterSource, filterTag]);
 
   const filteredLeads = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -339,16 +338,15 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
         lead.tags.some((tag) => tag.toLowerCase().includes(query)) ||
         (numericQuery && lead.phone.replace(/\D/g, "").includes(numericQuery));
 
-      const matchesColumn = filterColumn === "All" || columnId === filterColumn;
       const matchesStage = filterStage === "All" || lead.stage === filterStage;
       const matchesPipeline = filterPipeline === "All" || lead.pipelineName === filterPipeline;
       const matchesOwner = filterOwner === "All" || lead.owner === filterOwner;
       const matchesSource = filterSource === "All" || lead.source === filterSource;
       const matchesTag = filterTag === "All" || lead.tags.includes(filterTag);
 
-      return matchesSearch && matchesColumn && matchesStage && matchesPipeline && matchesOwner && matchesSource && matchesTag;
+      return matchesSearch && matchesStage && matchesPipeline && matchesOwner && matchesSource && matchesTag;
     });
-  }, [filterColumn, filterOwner, filterPipeline, filterSource, filterStage, filterTag, leads, search, variant]);
+  }, [filterOwner, filterPipeline, filterSource, filterStage, filterTag, leads, search, variant]);
 
   const totalTagged = filteredLeads.filter((lead) => lead.tags.length > 0).length;
   const uniqueOwners = new Set(filteredLeads.map((lead) => lead.owner).filter(Boolean)).size;
@@ -357,18 +355,16 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (filterColumn !== "All") count++;
     if (filterStage !== "All") count++;
     if (filterPipeline !== "All") count++;
     if (filterOwner !== "All") count++;
     if (filterSource !== "All") count++;
     if (filterTag !== "All") count++;
     return count;
-  }, [filterColumn, filterOwner, filterPipeline, filterSource, filterStage, filterTag]);
+  }, [filterOwner, filterPipeline, filterSource, filterStage, filterTag]);
 
   const clearAllFilters = () => {
     setSearch("");
-    setFilterColumn("All");
     setFilterStage("All");
     setFilterPipeline("All");
     setFilterOwner("All");
@@ -380,7 +376,6 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
     setCollapsedColumns((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
   };
 
-  const columnOptions = columns.map((column) => ({ value: column.id, label: column.label }));
   const pipelineOptions = [{ value: "All", label: "All Pipelines" }, ...Array.from(new Set(leads.map((lead) => lead.pipelineName))).sort().map((name) => ({ value: name, label: name }))];
   const stageOptions = useMemo(() => {
     const visibleLeads = filterPipeline === "All" ? leads : leads.filter((lead) => lead.pipelineName === filterPipeline);
@@ -608,10 +603,6 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
           >
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16 }}>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase" }}>Column</div>
-                <StyledSelect value={filterColumn} onValueChange={setFilterColumn} options={columnOptions} placeholder="All Columns" />
-              </div>
-              <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase" }}>Pipeline</div>
                 <StyledSelect value={filterPipeline} onValueChange={setFilterPipeline} options={pipelineOptions} placeholder="All Pipelines" />
               </div>
@@ -708,7 +699,7 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
             }
             .kill-list-column-body {
               overflow-y: auto;
-              max-height: calc(100vh - 320px);
+              max-height: calc(100vh - 360px);
               min-height: 420px;
               padding: 12px 10px;
               display: flex;
@@ -819,65 +810,6 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
                           ${columnLeads.reduce((sum, lead) => sum + lead.premium, 0).toLocaleString()}
                         </div>
                       </div>
-
-                      {totalPages > 1 ? (
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "10px 12px",
-                            background: "#fff",
-                            borderBottom: `1px solid ${T.border}`,
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setKanbanPage((prev) => ({
-                                ...prev,
-                                [column.id]: Math.max(1, (prev[column.id] || 1) - 1),
-                              }))
-                            }
-                            disabled={currentPage === 1}
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 6,
-                              border: `1px solid ${T.border}`,
-                              background: "#fff",
-                              color: currentPage === 1 ? T.textMuted : "#233217",
-                              cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                            }}
-                          >
-                            {"<"}
-                          </button>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>
-                            {currentPage} / {totalPages}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setKanbanPage((prev) => ({
-                                ...prev,
-                                [column.id]: Math.min(totalPages, (prev[column.id] || 1) + 1),
-                              }))
-                            }
-                            disabled={currentPage === totalPages}
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 6,
-                              border: `1px solid ${T.border}`,
-                              background: "#fff",
-                              color: currentPage === totalPages ? T.textMuted : "#233217",
-                              cursor: currentPage === totalPages ? "not-allowed" : "pointer",
-                            }}
-                          >
-                            {">"}
-                          </button>
-                        </div>
-                      ) : null}
 
                       <div className="kill-list-column-body">
 
@@ -1025,6 +957,69 @@ export default function BpoKillListPage({ variant }: { variant: KillListVariant 
                             }}
                           >
                             No leads in this column.
+                          </div>
+                        ) : null}
+
+                        {totalPages > 1 ? (
+                          <div
+                            style={{
+                              position: "sticky",
+                              bottom: 0,
+                              zIndex: 5,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "10px 12px",
+                              background: "#fafcf8",
+                              borderTop: `1px solid ${T.border}`,
+                              marginTop: "auto",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setKanbanPage((prev) => ({
+                                  ...prev,
+                                  [column.id]: Math.max(1, (prev[column.id] || 1) - 1),
+                                }))
+                              }
+                              disabled={currentPage === 1}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 6,
+                                border: `1px solid ${T.border}`,
+                                background: "#fff",
+                                color: currentPage === 1 ? T.textMuted : "#233217",
+                                cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                              }}
+                            >
+                              {"<"}
+                            </button>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>
+                              {currentPage} / {totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setKanbanPage((prev) => ({
+                                  ...prev,
+                                  [column.id]: Math.min(totalPages, (prev[column.id] || 1) + 1),
+                                }))
+                              }
+                              disabled={currentPage === totalPages}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 6,
+                                border: `1px solid ${T.border}`,
+                                background: "#fff",
+                                color: currentPage === totalPages ? T.textMuted : "#233217",
+                                cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                              }}
+                            >
+                              {">"}
+                            </button>
                           </div>
                         ) : null}
                       </div>
