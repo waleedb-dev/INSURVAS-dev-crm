@@ -15,6 +15,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   fetchDealTrackerByPolicyNumber,
   fetchDealTrackerByPolicyNumbers,
+  fetchDealTrackerCandidatesByNamesAndPhones,
+  fetchDealTrackerUniqueCarrierAndCallCenterValues,
   type DealTrackerRow,
 } from "@/lib/supabase/dealTrackerClient";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
@@ -41,6 +43,8 @@ type LeadPolicyRow = {
   phone: string;
   stage: string;
   pipelineId: string | null;
+  callCenterId: string | null;
+  callCenterName: string | null;
   /** `policy_id` stored on the lead row itself — matched against deal_tracker.policy_number. */
   policyNumber: string;
   carrier: string | null;
@@ -52,6 +56,18 @@ type LeadPolicyRow = {
   updatedAt: string | null;
 };
 
+type BulkPreviewRow = {
+  leadId: string;
+  leadNameCrm: string;
+  leadNameDt: string;
+  callCenterCrm: string;
+  callCenterDt: string;
+  policyIdCrm: string;
+  policyIdDt: string;
+  carrierCrm: string;
+  carrierDt: string;
+};
+
 type ExternalStatusTone = "matched" | "mismatch" | "missing" | "unknown" | "pending";
 
 type ExternalStatus = {
@@ -61,6 +77,7 @@ type ExternalStatus = {
 };
 
 const ITEMS_PER_PAGE = 50;
+const BULK_PREVIEW_ITEMS_PER_PAGE = 20;
 
 const STATUS_COLORS: Record<ExternalStatusTone, { bg: string; color: string; dot: string }> = {
   matched: { bg: "#dcfce7", color: "#166534", dot: "#22c55e" },
@@ -277,7 +294,9 @@ function resolveStagePayload(
     matches[0] ??
     null;
 
-  const payload: Record<string, unknown> = { stage: targetStage };
+  const payload: Record<string, unknown> = {
+    stage: preferred ? preferred.name : targetStage,
+  };
   let pipelineChanged = false;
   if (preferred) {
     payload.stage_id = preferred.id;
@@ -505,6 +524,29 @@ function CrmSyncOperationsPageInner() {
     }>
   >([]);
   const [bulkFinished, setBulkFinished] = useState(false);
+  const [syncBulkPreviewRows, setSyncBulkPreviewRows] = useState<CrmSyncBulkPreviewRow[]>([]);
+  const [syncBulkPreviewPage, setSyncBulkPreviewPage] = useState(1);
+  const [syncBulkPreviewFilter, setSyncBulkPreviewFilter] = useState<"all" | "different">("all");
+
+  const buildCrmPreviewRow = useCallback(
+    (q: { row: LeadPolicyRow; external: DealTrackerRow }): CrmSyncBulkPreviewRow => {
+      const cc = q.external.cc_value;
+      const leadValueTarget =
+        cc != null && !Number.isNaN(Number(cc)) ? String(Number(cc)) : "";
+      return {
+        key: `${q.row.leadId}:${q.row.policyNumber}`,
+        leadId: q.row.leadId,
+        leadName: q.row.fullName,
+        policyNumber: q.row.policyNumber,
+        pipelineId: q.row.pipelineId,
+        stageCrm: q.row.stage || "",
+        stageTarget: (q.external.ghl_stage || "").trim(),
+        leadValueCrm: q.row.leadValue != null ? String(q.row.leadValue) : "",
+        leadValueTarget,
+      };
+    },
+    [],
+  );
 
   // Load pipelines and stages
   useEffect(() => {
@@ -526,34 +568,37 @@ function CrmSyncOperationsPageInner() {
     setExternalByPolicy(new Map());
     setExternalError(null);
 
-    // Paginate manually — Supabase caps each request at 1000 rows.
+    // Paginate with keyset on id — PostgREST limits each response to max_rows (often 1000).
+    // Offset/range over order(updated_at desc) is unstable when timestamps tie and can stop early.
     const PAGE_SIZE = 1000;
     const collected: Record<string, unknown>[] = [];
-    let from = 0;
-    // Safety cap so we never spin forever if the table grows unexpectedly.
+    let cursorId: string | null = null;
     const MAX_ROWS = 50000;
 
     while (collected.length < MAX_ROWS) {
       let query = supabase
         .from("leads")
         .select(
-          "id, lead_unique_id, first_name, last_name, phone, stage, pipeline_id, policy_id, carrier, product_type, monthly_premium, lead_value, lead_source, submission_date, updated_at",
+          "id, lead_unique_id, first_name, last_name, phone, stage, pipeline_id, call_center_id, policy_id, carrier, product_type, monthly_premium, lead_value, lead_source, submission_date, updated_at",
         )
         .not("policy_id", "is", null)
         .neq("policy_id", "")
-        .order("updated_at", { ascending: false });
-      
-      // Apply pipeline filter
+        .order("id", { ascending: true })
+        .limit(PAGE_SIZE);
+
       if (pipelineFilter !== "all") {
         query = query.eq("pipeline_id", pipelineFilter);
       }
-      
-      // Apply stage filter
+
       if (stageFilter !== "all") {
         query = query.eq("stage", stageFilter);
       }
-      
-      const { data: leadRows, error: leadErr } = await query.range(from, from + PAGE_SIZE - 1);
+
+      if (cursorId !== null) {
+        query = query.gt("id", cursorId);
+      }
+
+      const { data: leadRows, error: leadErr } = await query;
 
       if (leadErr) {
         setLoadError(leadErr.message);
@@ -562,9 +607,12 @@ function CrmSyncOperationsPageInner() {
         return;
       }
       const batch = (leadRows ?? []) as Record<string, unknown>[];
+      if (batch.length === 0) break;
       collected.push(...batch);
+      const lastIdRaw = batch[batch.length - 1]?.id;
+      cursorId = lastIdRaw != null ? String(lastIdRaw) : null;
+      if (!cursorId) break;
       if (batch.length < PAGE_SIZE) break;
-      from += PAGE_SIZE;
     }
 
     const mapped: LeadPolicyRow[] = collected
@@ -586,6 +634,8 @@ function CrmSyncOperationsPageInner() {
           phone: lead.phone != null ? String(lead.phone) : "",
           stage: lead.stage != null ? String(lead.stage) : "",
           pipelineId: lead.pipeline_id != null ? String(lead.pipeline_id) : null,
+          callCenterId: lead.call_center_id != null ? String(lead.call_center_id) : null,
+          callCenterName: null as string | null,
           policyNumber: pNum,
           carrier: lead.carrier != null ? String(lead.carrier) : null,
           productType: lead.product_type != null ? String(lead.product_type) : null,
@@ -598,9 +648,16 @@ function CrmSyncOperationsPageInner() {
       })
       .filter((row): row is LeadPolicyRow => row !== null);
 
+    mapped.sort((a, b) => {
+      const ta = a.updatedAt ? Date.parse(a.updatedAt) : 0;
+      const tb = b.updatedAt ? Date.parse(b.updatedAt) : 0;
+      if (tb !== ta) return tb - ta;
+      return b.leadId.localeCompare(a.leadId);
+    });
+
     setRows(mapped);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, pipelineFilter, stageFilter]);
 
   useEffect(() => {
     void loadRows();
@@ -674,7 +731,17 @@ function CrmSyncOperationsPageInner() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter]);
+  }, [search, statusFilter, pipelineFilter, stageFilter]);
+
+  useEffect(() => {
+    const needsComparison =
+      statusFilter === "matched" ||
+      statusFilter === "mismatch" ||
+      statusFilter === "missing";
+    if (!needsComparison) return;
+    if (loading || externalLoading || externalLoaded || rows.length === 0) return;
+    void runComparison();
+  }, [statusFilter, loading, externalLoading, externalLoaded, rows.length, runComparison]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -799,8 +866,8 @@ function CrmSyncOperationsPageInner() {
     });
   }, [rowsWithStatus, selectedKeys.size]);
 
+  /** Selected leads that can be bulk-synced (must NOT depend on bulkOpen — preview is seeded before modal opens). */
   const bulkQueue = useMemo(() => {
-    if (!bulkOpen) return [] as Array<{ row: LeadPolicyRow; external: DealTrackerRow }>;
     const byKey = new Map(
       rowsWithStatus.map(({ row, external }) => [rowKey(row), { row, external }]),
     );
@@ -814,16 +881,32 @@ function CrmSyncOperationsPageInner() {
         (entry): entry is { row: LeadPolicyRow; external: DealTrackerRow } =>
           !!(entry.external && entry.external.ghl_stage && entry.external.ghl_stage.trim()),
       );
-  }, [bulkOpen, rowsWithStatus, selectedKeys]);
+  }, [rowsWithStatus, selectedKeys]);
 
   const openBulkModal = useCallback(() => {
     if (selectedKeys.size === 0) return;
+    const byKey = new Map(
+      rowsWithStatus.map(({ row, external }) => [rowKey(row), { row, external }]),
+    );
+    const queue = Array.from(selectedKeys)
+      .map((k) => byKey.get(k))
+      .filter(
+        (entry): entry is { row: LeadPolicyRow; external: DealTrackerRow | null } =>
+          !!entry && !!entry.external,
+      )
+      .filter(
+        (entry): entry is { row: LeadPolicyRow; external: DealTrackerRow } =>
+          !!(entry.external && entry.external.ghl_stage && entry.external.ghl_stage.trim()),
+      );
+    setSyncBulkPreviewRows(queue.map(buildCrmPreviewRow));
+    setSyncBulkPreviewPage(1);
+    setSyncBulkPreviewFilter("all");
     setBulkOpen(true);
     setBulkRunning(false);
     setBulkFinished(false);
     setBulkResults([]);
     setBulkProgress({ done: 0, total: 0 });
-  }, [selectedKeys.size]);
+  }, [selectedKeys, rowsWithStatus, buildCrmPreviewRow]);
 
   const [comparingAll, setComparingAll] = useState(false);
 
@@ -834,6 +917,7 @@ function CrmSyncOperationsPageInner() {
       const freshExternal = await runComparison();
       if (!freshExternal) return;
       const nextKeys = new Set<string>();
+      const previewRows: CrmSyncBulkPreviewRow[] = [];
       for (const r of rows) {
         const ext = freshExternal.get(r.policyNumber) ?? null;
         if (!ext) continue;
@@ -842,8 +926,12 @@ function CrmSyncOperationsPageInner() {
         const localNormalised = (r.stage || "").trim().toLowerCase();
         if (localNormalised === ghl.toLowerCase()) continue;
         nextKeys.add(`${r.leadId}:${r.policyNumber}`);
+        previewRows.push(buildCrmPreviewRow({ row: r, external: ext }));
       }
       setSelectedKeys(nextKeys);
+      setSyncBulkPreviewRows(previewRows);
+      setSyncBulkPreviewPage(1);
+      setSyncBulkPreviewFilter("all");
       setBulkOpen(true);
       setBulkRunning(false);
       setBulkFinished(false);
@@ -852,7 +940,7 @@ function CrmSyncOperationsPageInner() {
     } finally {
       setComparingAll(false);
     }
-  }, [rows, runComparison, comparingAll]);
+  }, [rows, runComparison, comparingAll, buildCrmPreviewRow]);
 
   const selectAllMismatched = useCallback(() => {
     setSelectedKeys((prev) => {
@@ -863,115 +951,181 @@ function CrmSyncOperationsPageInner() {
   }, [syncableRowsWithStatus]);
 
   const runBulkSync = useCallback(async () => {
-    if (bulkQueue.length === 0) return;
+    if (syncBulkPreviewRows.length === 0) return;
 
     setBulkRunning(true);
     setBulkFinished(false);
     setBulkResults([]);
-    setBulkProgress({ done: 0, total: bulkQueue.length });
+    setBulkProgress({ done: 0, total: syncBulkPreviewRows.length });
 
     const targetNames = Array.from(
       new Set(
-        bulkQueue
-          .map((q) => (q.external.ghl_stage || "").trim())
+        syncBulkPreviewRows
+          .map((q) => (q.stageTarget || "").trim())
           .filter((n) => n.length > 0),
       ),
     );
+    const targetsLower = new Set(targetNames.map((n) => n.toLowerCase()));
 
     let stagesByName: StagesByName = new Map();
     try {
       if (targetNames.length > 0) {
-        const { data: stageRows, error: stageErr } = await supabase
+        const { data: allStages, error: stageErr } = await supabase
           .from("pipeline_stages")
-          .select("id, pipeline_id, name")
-          .in("name", targetNames);
+          .select("id, pipeline_id, name");
         if (stageErr) throw new Error(stageErr.message);
-        stagesByName = buildStagesByName((stageRows ?? []) as PipelineStageRow[]);
+        const stageRows = ((allStages ?? []) as PipelineStageRow[]).filter((s) =>
+          targetsLower.has(String(s.name ?? "").trim().toLowerCase()),
+        );
+        stagesByName = buildStagesByName(stageRows);
       }
     } catch (e) {
       setBulkResults(
-        bulkQueue.map((q) => ({
-          key: rowKey(q.row),
-          leadId: q.row.leadId,
-          leadName: q.row.fullName,
-          policyNumber: q.row.policyNumber,
-          fromStage: q.row.stage,
-          toStage: (q.external.ghl_stage || "").trim(),
-          outcome: "error",
+        syncBulkPreviewRows.map((q) => ({
+          key: q.key,
+          leadId: q.leadId,
+          leadName: q.leadName,
+          policyNumber: q.policyNumber,
+          fromStage: q.stageCrm,
+          toStage: (q.stageTarget || "").trim(),
+          outcome: "error" as const,
           message:
             e instanceof Error
               ? `Stage lookup failed: ${e.message}`
               : "Stage lookup failed before sync could start.",
         })),
       );
-      setBulkProgress({ done: bulkQueue.length, total: bulkQueue.length });
+      setBulkProgress({ done: syncBulkPreviewRows.length, total: syncBulkPreviewRows.length });
       setBulkRunning(false);
       setBulkFinished(true);
       return;
     }
 
-    const results: typeof bulkResults = [];
+    const results: BulkResult[] = [];
     const updatedRows = new Map<
       string,
-      { stage: string; pipelineId: string | null }
+      { stage: string; pipelineId: string | null; leadValue?: number }
     >();
 
     let done = 0;
-    for (const { row, external } of bulkQueue) {
-      const target = (external.ghl_stage || "").trim();
-      const fromStage = row.stage || "";
+    for (const preview of syncBulkPreviewRows) {
+      const target = (preview.stageTarget || "").trim();
+      const fromStage = preview.stageCrm || "";
 
       if (!target) {
         results.push({
-          key: rowKey(row),
-          leadId: row.leadId,
-          leadName: row.fullName,
-          policyNumber: row.policyNumber,
+          key: preview.key,
+          leadId: preview.leadId,
+          leadName: preview.leadName,
+          policyNumber: preview.policyNumber,
           fromStage,
           toStage: "",
           outcome: "skipped",
-          message: "External row has no ghl_stage",
+          message: "No target stage",
         });
         done += 1;
-        setBulkProgress({ done, total: bulkQueue.length });
+        setBulkProgress({ done, total: syncBulkPreviewRows.length });
         continue;
       }
 
-      if (fromStage.trim().toLowerCase() === target.toLowerCase()) {
+      const lvRaw = String(preview.leadValueTarget ?? "").replace(/,/g, "").trim();
+      let lvNum: number | null = null;
+      if (lvRaw !== "") {
+        const n = parseFloat(lvRaw);
+        if (!Number.isNaN(n)) lvNum = n;
+      }
+      const crmLvParsed =
+        preview.leadValueCrm.trim() !== ""
+          ? parseFloat(preview.leadValueCrm.replace(/,/g, ""))
+          : null;
+      const needsLeadValueUpdate =
+        lvNum != null &&
+        (crmLvParsed == null ||
+          Number.isNaN(crmLvParsed) ||
+          Math.abs(crmLvParsed - lvNum) > 0.005);
+
+      const stageNeedsUpdate =
+        fromStage.trim().toLowerCase() !== target.toLowerCase();
+
+      if (!stageNeedsUpdate && !needsLeadValueUpdate) {
         results.push({
-          key: rowKey(row),
-          leadId: row.leadId,
-          leadName: row.fullName,
-          policyNumber: row.policyNumber,
+          key: preview.key,
+          leadId: preview.leadId,
+          leadName: preview.leadName,
+          policyNumber: preview.policyNumber,
           fromStage,
           toStage: target,
           outcome: "skipped",
-          message: "Already in sync",
+          message: "Nothing to update",
         });
         done += 1;
-        setBulkProgress({ done, total: bulkQueue.length });
+        setBulkProgress({ done, total: syncBulkPreviewRows.length });
+        continue;
+      }
+
+      if (!stageNeedsUpdate && needsLeadValueUpdate && lvNum != null) {
+        const { error: lvErr } = await supabase
+          .from("leads")
+          .update({ lead_value: lvNum })
+          .eq("id", preview.leadId);
+        if (lvErr) {
+          results.push({
+            key: preview.key,
+            leadId: preview.leadId,
+            leadName: preview.leadName,
+            policyNumber: preview.policyNumber,
+            fromStage,
+            toStage: target,
+            outcome: "error",
+            message: lvErr.message,
+          });
+        } else {
+          updatedRows.set(preview.leadId, {
+            stage: fromStage,
+            pipelineId: preview.pipelineId,
+            leadValue: lvNum,
+          });
+          results.push({
+            key: preview.key,
+            leadId: preview.leadId,
+            leadName: preview.leadName,
+            policyNumber: preview.policyNumber,
+            fromStage,
+            toStage: target,
+            outcome: "updated",
+            message: "Lead value synced",
+          });
+        }
+        done += 1;
+        setBulkProgress({ done, total: syncBulkPreviewRows.length });
         continue;
       }
 
       const currentPipelineId =
-        row.pipelineId != null && row.pipelineId !== "" ? Number(row.pipelineId) : null;
+        preview.pipelineId != null && preview.pipelineId !== ""
+          ? Number(preview.pipelineId)
+          : null;
       const { payload, preferred, pipelineChanged } = resolveStagePayload(
         currentPipelineId,
         target,
         stagesByName,
       );
 
+      if (lvNum != null) {
+        (payload as Record<string, unknown>).lead_value = lvNum;
+      }
+
       const { error: updateErr } = await supabase
         .from("leads")
         .update(payload)
-        .eq("id", row.leadId);
+        .eq("id", preview.leadId);
 
       if (updateErr) {
         results.push({
-          key: rowKey(row),
-          leadId: row.leadId,
-          leadName: row.fullName,
-          policyNumber: row.policyNumber,
+          key: preview.key,
+          leadId: preview.leadId,
+          leadName: preview.leadName,
+          policyNumber: preview.policyNumber,
           fromStage,
           toStage: target,
           outcome: "error",
@@ -979,15 +1133,16 @@ function CrmSyncOperationsPageInner() {
         });
       } else {
         const nextPipelineId = preferred?.pipeline_id ?? currentPipelineId ?? null;
-        updatedRows.set(row.leadId, {
+        updatedRows.set(preview.leadId, {
           stage: target,
-          pipelineId: nextPipelineId != null ? String(nextPipelineId) : row.pipelineId,
+          pipelineId: nextPipelineId != null ? String(nextPipelineId) : preview.pipelineId,
+          ...(lvNum != null ? { leadValue: lvNum } : {}),
         });
         results.push({
-          key: rowKey(row),
-          leadId: row.leadId,
-          leadName: row.fullName,
-          policyNumber: row.policyNumber,
+          key: preview.key,
+          leadId: preview.leadId,
+          leadName: preview.leadName,
+          policyNumber: preview.policyNumber,
           fromStage,
           toStage: target,
           outcome: preferred
@@ -1004,14 +1159,20 @@ function CrmSyncOperationsPageInner() {
       }
 
       done += 1;
-      setBulkProgress({ done, total: bulkQueue.length });
+      setBulkProgress({ done, total: syncBulkPreviewRows.length });
     }
 
     if (updatedRows.size > 0) {
       setRows((prev) =>
         prev.map((r) => {
           const upd = updatedRows.get(r.leadId);
-          return upd ? { ...r, stage: upd.stage, pipelineId: upd.pipelineId } : r;
+          if (!upd) return r;
+          return {
+            ...r,
+            stage: upd.stage,
+            pipelineId: upd.pipelineId,
+            ...(upd.leadValue !== undefined ? { leadValue: upd.leadValue } : {}),
+          };
         }),
       );
     }
@@ -1026,11 +1187,14 @@ function CrmSyncOperationsPageInner() {
     setBulkResults(results);
     setBulkRunning(false);
     setBulkFinished(true);
-  }, [bulkQueue, supabase]);
+  }, [syncBulkPreviewRows, supabase]);
 
   const closeBulkModal = useCallback(() => {
     if (bulkRunning) return;
     setBulkOpen(false);
+    setSyncBulkPreviewRows([]);
+    setSyncBulkPreviewPage(1);
+    setSyncBulkPreviewFilter("all");
   }, [bulkRunning]);
 
   const handleSync = useCallback(async () => {
@@ -1079,11 +1243,24 @@ function CrmSyncOperationsPageInner() {
       const resolvedStageId = preferredMatch?.id ?? null;
       const resolvedPipelineId = preferredMatch?.pipeline_id ?? null;
 
+      const mergedPayload: Record<string, unknown> = { ...updatePayload };
+      if (
+        modalExternal.cc_value != null &&
+        !Number.isNaN(Number(modalExternal.cc_value))
+      ) {
+        mergedPayload.lead_value = Number(modalExternal.cc_value);
+      }
+
       const { error: updateErr } = await supabase
         .from("leads")
-        .update(updatePayload)
+        .update(mergedPayload)
         .eq("id", selectedRow.leadId);
       if (updateErr) throw new Error(updateErr.message);
+
+      const nextLeadValue =
+        modalExternal.cc_value != null && !Number.isNaN(Number(modalExternal.cc_value))
+          ? Number(modalExternal.cc_value)
+          : undefined;
 
       setRows((prev) =>
         prev.map((r) =>
@@ -1093,6 +1270,7 @@ function CrmSyncOperationsPageInner() {
                 stage: targetStage,
                 pipelineId:
                   resolvedPipelineId != null ? String(resolvedPipelineId) : r.pipelineId,
+                ...(nextLeadValue !== undefined ? { leadValue: nextLeadValue } : {}),
               }
             : r,
         ),
@@ -1104,6 +1282,7 @@ function CrmSyncOperationsPageInner() {
               stage: targetStage,
               pipelineId:
                 resolvedPipelineId != null ? String(resolvedPipelineId) : prev.pipelineId,
+              ...(nextLeadValue !== undefined ? { leadValue: nextLeadValue } : {}),
             }
           : prev,
       );
@@ -2013,13 +2192,18 @@ function CrmSyncOperationsPageInner() {
       )}
 
       {bulkOpen && (
-        <BulkSyncModal
-          queue={bulkQueue}
+        <CrmSyncBulkPreviewModal
+          previewRows={syncBulkPreviewRows}
+          setPreviewRows={setSyncBulkPreviewRows}
+          previewPage={syncBulkPreviewPage}
+          setPreviewPage={setSyncBulkPreviewPage}
+          previewFilter={syncBulkPreviewFilter}
+          setPreviewFilter={setSyncBulkPreviewFilter}
           running={bulkRunning}
           finished={bulkFinished}
           progress={bulkProgress}
           results={bulkResults}
-          onRun={runBulkSync}
+          onApply={runBulkSync}
           onClose={closeBulkModal}
         />
       )}
@@ -2272,10 +2456,6 @@ function MappingModal({
                     { label: "Policy ID", value: row.policyNumber, mono: true },
                     { label: "Carrier", value: row.carrier || "—" },
                     { label: "Product type", value: row.productType || "—" },
-                    {
-                      label: "Monthly premium",
-                      value: row.monthlyPremium ? `$${row.monthlyPremium}` : "—",
-                    },
                     { label: "Lead value", value: formatMoney(row.leadValue) },
                     { label: "Lead source", value: row.leadSource || "—" },
                     { label: "Submission", value: formatDate(row.submissionDate) },
@@ -2324,7 +2504,7 @@ function MappingModal({
                           { label: "Policy type", value: external.policy_type || "—" },
                           { label: "Policy status", value: external.policy_status || "—" },
                           { label: "Sales agent", value: external.sales_agent || "—" },
-                          { label: "Deal value", value: formatMoney(external.deal_value) },
+                          { label: "CC value", value: formatMoney(external.cc_value) },
                           { label: "Effective", value: formatDate(external.effective_date) },
                           {
                             label: "GHL stage",
@@ -2380,6 +2560,18 @@ function MappingModal({
                         !!row.stage &&
                         external.ghl_stage.trim().toLowerCase() ===
                           row.stage.trim().toLowerCase()
+                      }
+                      highlight
+                    />
+                    <MappingRow
+                      leftLabel="Lead value (local)"
+                      leftValue={formatMoney(row.leadValue)}
+                      rightLabel="CC value (external)"
+                      rightValue={formatMoney(external.cc_value)}
+                      match={
+                        row.leadValue != null &&
+                        external.cc_value != null &&
+                        Math.abs(Number(row.leadValue) - Number(external.cc_value)) < 0.005
                       }
                       highlight
                     />
@@ -2723,21 +2915,58 @@ type BulkResult = {
   message?: string;
 };
 
-function BulkSyncModal({
-  queue,
+/** Editable row for CRM Sync bulk preview (stage + lead_value from Deal Tracker cc_value). */
+type CrmSyncBulkPreviewRow = {
+  key: string;
+  leadId: string;
+  leadName: string;
+  policyNumber: string;
+  pipelineId: string | null;
+  stageCrm: string;
+  stageTarget: string;
+  leadValueCrm: string;
+  leadValueTarget: string;
+};
+
+function crmSyncPreviewRowHasDiff(row: CrmSyncBulkPreviewRow): boolean {
+  const stageDiff =
+    (row.stageCrm || "").trim().toLowerCase() !== (row.stageTarget || "").trim().toLowerCase();
+  const parseN = (s: string) => {
+    const n = parseFloat(String(s ?? "").replace(/,/g, "").trim());
+    return Number.isNaN(n) ? null : n;
+  };
+  const a = parseN(row.leadValueCrm);
+  const b = parseN(row.leadValueTarget);
+  const valDiff =
+    (a === null) !== (b === null) || (a !== null && b !== null && Math.abs(a - b) > 0.005);
+  return stageDiff || valDiff;
+}
+
+function CrmSyncBulkPreviewModal({
+  previewRows,
+  setPreviewRows,
+  previewPage,
+  setPreviewPage,
+  previewFilter,
+  setPreviewFilter,
   running,
   finished,
   progress,
   results,
-  onRun,
+  onApply,
   onClose,
 }: {
-  queue: Array<{ row: LeadPolicyRow; external: DealTrackerRow }>;
+  previewRows: CrmSyncBulkPreviewRow[];
+  setPreviewRows: React.Dispatch<React.SetStateAction<CrmSyncBulkPreviewRow[]>>;
+  previewPage: number;
+  setPreviewPage: React.Dispatch<React.SetStateAction<number>>;
+  previewFilter: "all" | "different";
+  setPreviewFilter: React.Dispatch<React.SetStateAction<"all" | "different">>;
   running: boolean;
   finished: boolean;
   progress: { done: number; total: number };
   results: BulkResult[];
-  onRun: () => void;
+  onApply: () => void;
   onClose: () => void;
 }) {
   const percent =
@@ -2754,6 +2983,42 @@ function BulkSyncModal({
     }
     return s;
   }, [results]);
+
+  const diffCount = useMemo(
+    () => previewRows.filter((r) => crmSyncPreviewRowHasDiff(r)).length,
+    [previewRows],
+  );
+
+  const viewRows = useMemo(() => {
+    if (previewFilter === "all") return previewRows;
+    return previewRows.filter((r) => crmSyncPreviewRowHasDiff(r));
+  }, [previewRows, previewFilter]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(viewRows.length / BULK_PREVIEW_ITEMS_PER_PAGE),
+  );
+  const paginatedRows = viewRows.slice(
+    (previewPage - 1) * BULK_PREVIEW_ITEMS_PER_PAGE,
+    previewPage * BULK_PREVIEW_ITEMS_PER_PAGE,
+  );
+
+  useEffect(() => {
+    setPreviewPage((p) => Math.min(p, totalPages));
+  }, [totalPages, previewFilter, setPreviewPage]);
+
+  const removePreviewRow = (key: string) => {
+    setPreviewRows((prev) => prev.filter((r) => r.key !== key));
+  };
+
+  const updatePreviewRow = (
+    key: string,
+    patch: Partial<Pick<CrmSyncBulkPreviewRow, "stageTarget" | "leadValueTarget">>,
+  ) => {
+    setPreviewRows((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, ...patch } : r)),
+    );
+  };
 
   return (
     <div
@@ -2774,7 +3039,7 @@ function BulkSyncModal({
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
-          maxWidth: 880,
+          maxWidth: 1500,
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
@@ -2807,7 +3072,7 @@ function BulkSyncModal({
                 marginBottom: 6,
               }}
             >
-              CRM Sync · Bulk
+              CRM Sync · Bulk preview
             </div>
             <h3
               style={{
@@ -2821,11 +3086,11 @@ function BulkSyncModal({
               {finished
                 ? "Bulk sync complete"
                 : running
-                  ? "Syncing leads…"
-                  : queue.length === 0
+                  ? "Saving to CRM…"
+                  : previewRows.length === 0
                     ? "Nothing to sync"
-                    : `Confirm bulk sync for ${queue.length.toLocaleString()} ${
-                        queue.length === 1 ? "lead" : "leads"
+                    : `Review ${previewRows.length.toLocaleString()} ${
+                        previewRows.length === 1 ? "lead" : "leads"
                       }`}
             </h3>
             <p
@@ -2840,10 +3105,10 @@ function BulkSyncModal({
               {finished
                 ? "Review the per-lead outcomes below."
                 : running
-                  ? "Each lead is updated one at a time. Please keep this tab open until it finishes."
-                  : queue.length === 0
-                    ? "Every selected lead already matches the GHL stage in Deal Tracker."
-                    : "Each selected lead will have its local stage overwritten with the GHL stage from Deal Tracker. Pipeline may change if the stage lives elsewhere."}
+                  ? "Updating leads one at a time. Keep this tab open."
+                  : previewRows.length === 0
+                    ? "No leads in this batch."
+                    : "Edit target stage and lead value (from Deal Tracker CC value) before saving. Different tab shows rows where stage or lead value differs."}
             </p>
           </div>
           <button
@@ -2949,50 +3214,213 @@ function BulkSyncModal({
           }}
         >
           {!running && !finished && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {queue.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {previewRows.length === 0 ? (
                 <div
                   style={{
                     padding: "28px 24px",
                     textAlign: "center",
                     color: T.textMuted,
                     fontSize: 13,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 10,
                   }}
                 >
-                  <CheckCircle2 size={28} color={STATUS_COLORS.matched.color} />
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#233217" }}>
-                    Everything is already in sync
-                  </div>
-                  <div style={{ maxWidth: 420, lineHeight: 1.55 }}>
-                    No leads differ from Deal Tracker right now. Run comparison again later, or
-                    pick individual leads to sync manually.
-                  </div>
+                  No leads in preview. Close and select leads again.
                 </div>
               ) : (
-                queue.map(({ row, external }) => (
-                  <BulkRow
-                    key={`${row.leadId}:${row.policyNumber}`}
-                    leadName={row.fullName || "—"}
-                    policyNumber={row.policyNumber}
-                    fromStage={row.stage || "—"}
-                    toStage={(external.ghl_stage || "").trim()}
-                  />
-                ))
+                <>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    {(
+                      [
+                        { key: "all" as const, label: `All (${previewRows.length})` },
+                        {
+                          key: "different" as const,
+                          label: `Different (${diffCount})`,
+                        },
+                      ]
+                    ).map((tab) => {
+                      const active = previewFilter === tab.key;
+                      return (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => {
+                            setPreviewFilter(tab.key);
+                            setPreviewPage(1);
+                          }}
+                          style={{
+                            height: 32,
+                            padding: "0 12px",
+                            borderRadius: 8,
+                            border: active ? "2px solid #233217" : `1px solid ${T.border}`,
+                            background: active ? "#eef5ee" : T.cardBg,
+                            color: active ? "#233217" : T.textDark,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {viewRows.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: "center", color: T.textMuted }}>
+                      No rows match the Different filter.
+                    </div>
+                  ) : (
+                    <>
+                      <ShadcnTable>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead style={{ width: 72 }}>Action</TableHead>
+                            <TableHead>Lead</TableHead>
+                            <TableHead>Policy ID</TableHead>
+                            <TableHead>Stage (CRM)</TableHead>
+                            <TableHead>Stage → save</TableHead>
+                            <TableHead>Lead value (CRM)</TableHead>
+                            <TableHead>Lead value → save (CC)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedRows.map((row) => (
+                            <TableRow key={row.key}>
+                              <TableCell>
+                                <button
+                                  type="button"
+                                  onClick={() => removePreviewRow(row.key)}
+                                  style={{
+                                    height: 28,
+                                    padding: "0 8px",
+                                    borderRadius: 6,
+                                    border: `1px solid #fecaca`,
+                                    background: "#fff1f2",
+                                    color: "#b91c1c",
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </TableCell>
+                              <TableCell style={{ fontWeight: 700 }}>{row.leadName}</TableCell>
+                              <TableCell style={{ fontFamily: "monospace", fontSize: 12 }}>
+                                {row.policyNumber}
+                              </TableCell>
+                              <TableCell>{row.stageCrm || "—"}</TableCell>
+                              <TableCell>
+                                <input
+                                  value={row.stageTarget}
+                                  onChange={(e) =>
+                                    updatePreviewRow(row.key, { stageTarget: e.target.value })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    minWidth: 140,
+                                    height: 32,
+                                    border: `1px solid ${T.border}`,
+                                    borderRadius: 8,
+                                    padding: "0 8px",
+                                    fontSize: 13,
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>{row.leadValueCrm || "—"}</TableCell>
+                              <TableCell>
+                                <input
+                                  value={row.leadValueTarget}
+                                  onChange={(e) =>
+                                    updatePreviewRow(row.key, {
+                                      leadValueTarget: e.target.value,
+                                    })
+                                  }
+                                  placeholder="CC value"
+                                  style={{
+                                    width: "100%",
+                                    minWidth: 120,
+                                    height: 32,
+                                    border: `1px solid ${T.border}`,
+                                    borderRadius: 8,
+                                    padding: "0 8px",
+                                    fontSize: 13,
+                                    fontFamily: "monospace",
+                                  }}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </ShadcnTable>
+                      <div
+                        style={{
+                          marginTop: 10,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          gap: 8,
+                        }}
+                      >
+                        <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                          Showing {(previewPage - 1) * BULK_PREVIEW_ITEMS_PER_PAGE + 1}–
+                          {Math.min(
+                            previewPage * BULK_PREVIEW_ITEMS_PER_PAGE,
+                            viewRows.length,
+                          )}{" "}
+                          of {viewRows.length}
+                        </span>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
+                            disabled={previewPage <= 1}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: 8,
+                              border: `1px solid ${T.border}`,
+                              cursor: previewPage <= 1 ? "not-allowed" : "pointer",
+                              opacity: previewPage <= 1 ? 0.5 : 1,
+                            }}
+                          >
+                            Previous
+                          </button>
+                          <span style={{ fontSize: 12, fontWeight: 700 }}>
+                            Page {previewPage} of {totalPages}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreviewPage((p) => Math.min(totalPages, p + 1))
+                            }
+                            disabled={previewPage >= totalPages}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: 8,
+                              border: `1px solid ${T.border}`,
+                              cursor: previewPage >= totalPages ? "not-allowed" : "pointer",
+                              opacity: previewPage >= totalPages ? 0.5 : 1,
+                            }}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
               )}
             </div>
           )}
 
           {(running || finished) && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {(finished ? results : queue.slice(0, progress.done + 1)).map((item) => {
+              {(finished ? results : previewRows.slice(0, progress.done + 1)).map((item) => {
                 const isResult = "outcome" in item;
                 const key = isResult
                   ? (item as BulkResult).key
-                  : `${(item as { row: LeadPolicyRow }).row.leadId}:${(item as { row: LeadPolicyRow }).row.policyNumber}`;
+                  : (item as CrmSyncBulkPreviewRow).key;
                 if (isResult) {
                   const r = item as BulkResult;
                   return (
@@ -3007,14 +3435,14 @@ function BulkSyncModal({
                     />
                   );
                 }
-                const q = item as { row: LeadPolicyRow; external: DealTrackerRow };
+                const q = item as CrmSyncBulkPreviewRow;
                 return (
                   <BulkRow
                     key={key}
-                    leadName={q.row.fullName || "—"}
-                    policyNumber={q.row.policyNumber}
-                    fromStage={q.row.stage || "—"}
-                    toStage={(q.external.ghl_stage || "").trim()}
+                    leadName={q.leadName || "—"}
+                    policyNumber={q.policyNumber}
+                    fromStage={q.stageCrm || "—"}
+                    toStage={(q.stageTarget || "").trim()}
                     inFlight
                   />
                 );
@@ -3056,8 +3484,8 @@ function BulkSyncModal({
               </button>
               <button
                 type="button"
-                onClick={onRun}
-                disabled={queue.length === 0}
+                onClick={onApply}
+                disabled={previewRows.length === 0}
                 style={{
                   height: 36,
                   padding: "0 18px",
@@ -3067,16 +3495,16 @@ function BulkSyncModal({
                   color: "#fff",
                   fontSize: 13,
                   fontWeight: 700,
-                  cursor: queue.length === 0 ? "not-allowed" : "pointer",
+                  cursor: previewRows.length === 0 ? "not-allowed" : "pointer",
                   fontFamily: T.font,
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  opacity: queue.length === 0 ? 0.55 : 1,
+                  opacity: previewRows.length === 0 ? 0.55 : 1,
                 }}
               >
                 <RefreshCw size={14} />
-                Run bulk sync
+                Save preview to CRM
               </button>
             </>
           )}
@@ -3387,6 +3815,28 @@ function StageChip({
 // Policy Attachment & Review Tab Component
 function PolicyAttachmentTab() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const normalizeName = useCallback(
+    (value: string | null | undefined) =>
+      String(value ?? "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLowerCase(),
+    [],
+  );
+  const normalizePhoneDigits = useCallback((value: string | null | undefined) => {
+    const digits = String(value ?? "").replace(/\D/g, "");
+    if (!digits) return "";
+    if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+    return digits;
+  }, []);
+  const tokenizeName = useCallback(
+    (value: string | null | undefined) =>
+      normalizeName(value)
+        .split(" ")
+        .map((p) => p.trim())
+        .filter(Boolean),
+    [normalizeName],
+  );
   
   const [leads, setLeads] = useState<LeadPolicyRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3408,6 +3858,16 @@ function PolicyAttachmentTab() {
   const [attaching, setAttaching] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [attachSuccess, setAttachSuccess] = useState(false);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [bulkSyncing, setBulkSyncing] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [bulkPreviewOpen, setBulkPreviewOpen] = useState(false);
+  const [bulkPreviewRows, setBulkPreviewRows] = useState<BulkPreviewRow[]>([]);
+  const [bulkPreviewSaving, setBulkPreviewSaving] = useState(false);
+  const [carrierOptions, setCarrierOptions] = useState<string[]>([]);
+  const [callCenterOptions, setCallCenterOptions] = useState<string[]>([]);
+  const [bulkPreviewPage, setBulkPreviewPage] = useState(1);
+  const [bulkPreviewView, setBulkPreviewView] = useState<"all" | "different">("all");
   
   // Load pipelines and stages for filters
   useEffect(() => {
@@ -3426,49 +3886,74 @@ function PolicyAttachmentTab() {
   const loadLeads = useCallback(async () => {
     setLoading(true);
     try {
-      // Paginate manually — Supabase caps each request at 1000 rows.
+      // Keyset pagination on id — avoids PostgREST max-rows + unstable offset when updated_at ties.
       const PAGE_SIZE = 1000;
       const collected: Record<string, unknown>[] = [];
-      let from = 0;
-      // Safety cap so we never spin forever if the table grows unexpectedly.
+      let cursorId: string | null = null;
       const MAX_ROWS = 50000;
 
       while (collected.length < MAX_ROWS) {
         let query = supabase
           .from("leads")
           .select(
-            "id, lead_unique_id, first_name, last_name, phone, stage, pipeline_id, policy_id, carrier, product_type, monthly_premium, lead_value, lead_source, submission_date, updated_at"
+            "id, lead_unique_id, first_name, last_name, phone, stage, pipeline_id, call_center_id, policy_id, carrier, product_type, monthly_premium, lead_value, lead_source, submission_date, updated_at"
           )
           .eq("is_draft", false)
-          .order("updated_at", { ascending: false });
-        
-        // Apply pipeline filter
+          .order("id", { ascending: true })
+          .limit(PAGE_SIZE);
+
         if (pipelineFilter !== "all") {
           query = query.eq("pipeline_id", pipelineFilter);
         }
-        
-        // Apply stage filter
+
         if (stageFilter !== "all") {
           query = query.eq("stage", stageFilter);
         }
-        
-        // Apply policy filter
+
         if (policyFilter === "has") {
           query = query.not("policy_id", "is", null).neq("policy_id", "");
         } else if (policyFilter === "no") {
           query = query.or("policy_id.is.null,policy_id.eq.");
         }
-        
-        const { data: leadRows, error } = await query.range(from, from + PAGE_SIZE - 1);
-        
+
+        if (cursorId !== null) {
+          query = query.gt("id", cursorId);
+        }
+
+        const { data: leadRows, error } = await query;
+
         if (error) throw error;
-        
+
         const batch = (leadRows ?? []) as Record<string, unknown>[];
+        if (batch.length === 0) break;
         collected.push(...batch);
+        const lastIdRaw = batch[batch.length - 1]?.id;
+        cursorId = lastIdRaw != null ? String(lastIdRaw) : null;
+        if (!cursorId) break;
         if (batch.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
       }
       
+      const callCenterIds = Array.from(
+        new Set(
+          collected
+            .map((lead) => (lead.call_center_id != null ? String(lead.call_center_id) : ""))
+            .filter(Boolean),
+        ),
+      );
+      let callCenterNameById = new Map<string, string>();
+      if (callCenterIds.length > 0) {
+        const { data: ccRows } = await supabase
+          .from("call_centers")
+          .select("id, name")
+          .in("id", callCenterIds);
+        callCenterNameById = new Map(
+          ((ccRows ?? []) as Array<{ id: string; name: string | null }>).map((r) => [
+            String(r.id),
+            String(r.name ?? "").trim(),
+          ]),
+        );
+      }
+
       const mapped: LeadPolicyRow[] = collected
         .map((lead: Record<string, unknown>) => {
           const leadIdStr = lead?.id != null ? String(lead.id) : "";
@@ -3488,6 +3973,11 @@ function PolicyAttachmentTab() {
             phone: lead.phone != null ? String(lead.phone) : "",
             stage: lead.stage != null ? String(lead.stage) : "",
             pipelineId: lead.pipeline_id != null ? String(lead.pipeline_id) : null,
+            callCenterId: lead.call_center_id != null ? String(lead.call_center_id) : null,
+            callCenterName:
+              lead.call_center_id != null
+                ? callCenterNameById.get(String(lead.call_center_id)) ?? null
+                : null,
             policyNumber: pNum,
             carrier: lead.carrier != null ? String(lead.carrier) : null,
             productType: lead.product_type != null ? String(lead.product_type) : null,
@@ -3499,7 +3989,14 @@ function PolicyAttachmentTab() {
           } satisfies LeadPolicyRow;
         })
         .filter((row): row is LeadPolicyRow => row !== null);
-      
+
+      mapped.sort((a, b) => {
+        const ta = a.updatedAt ? Date.parse(a.updatedAt) : 0;
+        const tb = b.updatedAt ? Date.parse(b.updatedAt) : 0;
+        if (tb !== ta) return tb - ta;
+        return b.leadId.localeCompare(a.leadId);
+      });
+
       setLeads(mapped);
     } catch (err) {
       console.error("Error loading leads:", err);
@@ -3528,10 +4025,61 @@ function PolicyAttachmentTab() {
   
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const noPolicyFiltered = useMemo(
+    () => filtered.filter((row) => !row.policyNumber),
+    [filtered],
+  );
+  const noPolicyPaginated = useMemo(
+    () => paginated.filter((row) => !row.policyNumber),
+    [paginated],
+  );
+  const noPolicySelectedCount = useMemo(
+    () => noPolicyFiltered.filter((row) => selectedLeadIds.has(row.leadId)).length,
+    [noPolicyFiltered, selectedLeadIds],
+  );
+  const pageNoPolicyAllSelected =
+    noPolicyPaginated.length > 0 &&
+    noPolicyPaginated.every((row) => selectedLeadIds.has(row.leadId));
+  const bulkPreviewViewRows = useMemo(() => {
+    if (bulkPreviewView === "all") return bulkPreviewRows;
+    return bulkPreviewRows.filter((row) => {
+      const crmName = normalizeName(row.leadNameCrm);
+      const dtName = normalizeName(row.leadNameDt);
+      const crmCc = normalizeName(row.callCenterCrm);
+      const dtCc = normalizeName(row.callCenterDt);
+      return crmName !== dtName || crmCc !== dtCc;
+    });
+  }, [bulkPreviewRows, bulkPreviewView, normalizeName]);
+  const bulkPreviewTotalPages = Math.max(
+    1,
+    Math.ceil(bulkPreviewViewRows.length / BULK_PREVIEW_ITEMS_PER_PAGE),
+  );
+  const bulkPreviewPaginatedRows = useMemo(
+    () =>
+      bulkPreviewViewRows.slice(
+        (bulkPreviewPage - 1) * BULK_PREVIEW_ITEMS_PER_PAGE,
+        bulkPreviewPage * BULK_PREVIEW_ITEMS_PER_PAGE,
+      ),
+    [bulkPreviewViewRows, bulkPreviewPage],
+  );
   
   useEffect(() => {
     setPage(1);
   }, [search, pipelineFilter, stageFilter, policyFilter]);
+
+  useEffect(() => {
+    setSelectedLeadIds(new Set());
+    setBulkNotice(null);
+  }, [pipelineFilter, stageFilter, search, policyFilter]);
+
+  useEffect(() => {
+    if (!bulkPreviewOpen) {
+      setBulkPreviewPage(1);
+      setBulkPreviewView("all");
+      return;
+    }
+    setBulkPreviewPage((prev) => Math.min(prev, bulkPreviewTotalPages));
+  }, [bulkPreviewOpen, bulkPreviewRows.length, bulkPreviewTotalPages]);
   
   // Stats
   const stats = useMemo(() => {
@@ -3589,6 +4137,280 @@ function PolicyAttachmentTab() {
       setAttaching(false);
     }
   };
+
+  const toggleLeadSelection = useCallback((leadId: string, checked: boolean) => {
+    setSelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(leadId);
+      else next.delete(leadId);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllVisibleNoPolicy = useCallback((checked: boolean) => {
+    setSelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      for (const row of noPolicyPaginated) {
+        if (checked) next.add(row.leadId);
+        else next.delete(row.leadId);
+      }
+      return next;
+    });
+  }, [noPolicyPaginated]);
+
+  const selectAllNoPolicyFiltered = useCallback(() => {
+    setSelectedLeadIds(new Set(noPolicyFiltered.map((row) => row.leadId)));
+  }, [noPolicyFiltered]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedLeadIds(new Set());
+  }, []);
+
+  const openBulkSyncPreview = useCallback(async () => {
+    const selectedRows = noPolicyFiltered.filter((row) => selectedLeadIds.has(row.leadId));
+    if (selectedRows.length === 0) {
+      setBulkNotice({ tone: "error", message: "Select at least one lead with no policy ID." });
+      return;
+    }
+
+    setBulkSyncing(true);
+    setBulkNotice(null);
+    try {
+      const localCallCenterRowsRes = await supabase.from("call_centers").select("id, name");
+      if (localCallCenterRowsRes.error) throw localCallCenterRowsRes.error;
+      const localCallCenterRows = (localCallCenterRowsRes.data ?? []) as Array<{ id: string; name: string | null }>;
+      const localCallCenterByName = new Map<string, string>();
+      for (const row of localCallCenterRows) {
+        const key = normalizeName(row.name);
+        if (key) localCallCenterByName.set(key, row.id);
+      }
+
+      const ghlNames = Array.from(new Set(selectedRows.map((row) => String(row.fullName ?? "").trim()).filter(Boolean)));
+      const names = ghlNames;
+      const phones = Array.from(
+        new Set(
+          selectedRows
+            .map((row) => normalizePhoneDigits(row.phone))
+            .filter((phone) => phone.length > 0),
+        ),
+      );
+
+      const [externalCandidates, uniqueValues] = await Promise.all([
+        fetchDealTrackerCandidatesByNamesAndPhones({ ghlNames, names, phones }),
+        fetchDealTrackerUniqueCarrierAndCallCenterValues(),
+      ]);
+
+      const trackerCarrierSet = new Set(uniqueValues.carriers.map((v) => normalizeName(v)));
+      const trackerCallCenterSet = new Set(uniqueValues.callCenters.map((v) => normalizeName(v)));
+
+      const updates: Array<{
+        leadId: string;
+        leadNameCrm: string;
+        leadNameDt: string;
+        callCenterCrm: string;
+        callCenterDt: string;
+        policyIdCrm: string;
+        policyIdDt: string;
+        carrierCrm: string;
+        carrierDt: string;
+      }> = [];
+      let noMatch = 0;
+      let noPolicyInExternal = 0;
+
+      for (const row of selectedRows) {
+        const nameKey = normalizeName(row.fullName);
+        const rowFirst = normalizeName(row.firstName);
+        const rowLast = normalizeName(row.lastName);
+        const rowTokens = tokenizeName(row.fullName);
+        const rowPhone = normalizePhoneDigits(row.phone);
+        let external: DealTrackerRow | null = null;
+        let bestScore = -1;
+        let matchedBy = "";
+        for (const candidate of externalCandidates) {
+          const candidateGhlName = normalizeName(candidate.ghl_name);
+          const candidateName = normalizeName(candidate.name);
+          const candidateTokens = tokenizeName(candidate.ghl_name || candidate.name);
+          const candidatePhone = normalizePhoneDigits(candidate.phone_number);
+          let score = 0;
+          if (candidateGhlName && candidateGhlName === nameKey) score += 100;
+          if (candidateName && candidateName === nameKey) score += 60;
+          const firstToken = candidateTokens[0] ?? "";
+          const lastToken = candidateTokens[candidateTokens.length - 1] ?? "";
+          if (rowFirst && rowLast && firstToken === rowFirst && lastToken === rowLast) {
+            score += 85;
+          }
+          if (rowLast && candidateTokens.includes(rowLast)) score += 20;
+          if (rowFirst && candidateTokens.includes(rowFirst)) score += 20;
+          if (
+            rowTokens.length >= 2 &&
+            candidateTokens.length >= 2 &&
+            rowTokens.some((t) => t.length > 1 && candidateTokens.includes(t))
+          ) {
+            score += 10;
+          }
+          if (rowPhone && candidatePhone && rowPhone === candidatePhone) score += 50;
+          if (score > bestScore) {
+            bestScore = score;
+            external = candidate;
+            if (candidateGhlName && candidateGhlName === nameKey) matchedBy = "ghl_name";
+            else if (candidateName && candidateName === nameKey) matchedBy = "name";
+            else if (rowPhone && candidatePhone && rowPhone === candidatePhone) matchedBy = "phone";
+            else matchedBy = "name+phone";
+          }
+        }
+        if (bestScore < 70) {
+          external = null;
+        }
+        if (!external) {
+          noMatch += 1;
+          continue;
+        }
+
+        const policyNumber = String(external.policy_number ?? "").trim();
+        if (!policyNumber) {
+          noPolicyInExternal += 1;
+          continue;
+        }
+
+        const externalCarrier = String(external.carrier ?? "").trim();
+        const carrier =
+          externalCarrier && trackerCarrierSet.has(normalizeName(externalCarrier))
+            ? externalCarrier
+            : null;
+
+        const externalCallCenter = String(external.call_center ?? "").trim();
+        const normalizedCallCenter = normalizeName(externalCallCenter);
+        const callCenterName =
+          normalizedCallCenter && trackerCallCenterSet.has(normalizedCallCenter)
+            ? externalCallCenter
+            : "";
+
+        void matchedBy;
+        updates.push({
+          leadId: row.leadId,
+          leadNameCrm: row.fullName,
+          leadNameDt: String(external.ghl_name || external.name || "").trim(),
+          callCenterCrm: String(row.callCenterName ?? "").trim(),
+          callCenterDt: String(callCenterName ?? "").trim(),
+          policyIdCrm: String(row.policyNumber ?? "").trim(),
+          policyIdDt: policyNumber,
+          carrierCrm: String(row.carrier ?? "").trim(),
+          carrierDt: String(carrier ?? "").trim(),
+        });
+      }
+      const previewRows: BulkPreviewRow[] = updates.map((u) => ({
+        leadId: u.leadId,
+        leadNameCrm: u.leadNameCrm,
+        leadNameDt: u.leadNameDt,
+        callCenterCrm: u.callCenterCrm,
+        callCenterDt: u.callCenterDt,
+        policyIdCrm: u.policyIdCrm,
+        policyIdDt: u.policyIdDt,
+        carrierCrm: u.carrierCrm,
+        carrierDt: u.carrierDt,
+      }));
+
+      setCarrierOptions(uniqueValues.carriers);
+      setCallCenterOptions(uniqueValues.callCenters);
+      setBulkPreviewRows(previewRows);
+      setBulkPreviewPage(1);
+      setBulkPreviewView("all");
+      setBulkPreviewOpen(true);
+      setBulkNotice({
+        tone: previewRows.length > 0 ? "success" : "error",
+        message:
+          (previewRows.length > 0
+            ? `Prepared preview for ${previewRows.length}/${selectedRows.length} leads`
+            : "No preview rows generated") +
+          `${noMatch ? `, ${noMatch} no Deal Tracker name match` : ""}` +
+          `${noPolicyInExternal ? `, ${noPolicyInExternal} missing external policy number` : ""}.`,
+      });
+    } catch (e) {
+      setBulkNotice({
+        tone: "error",
+        message: e instanceof Error ? e.message : "Bulk sync failed.",
+      });
+    } finally {
+      setBulkSyncing(false);
+    }
+  }, [noPolicyFiltered, normalizeName, normalizePhoneDigits, selectedLeadIds, supabase, tokenizeName]);
+
+  const removePreviewLead = useCallback((leadId: string) => {
+    setBulkPreviewRows((prev) => prev.filter((row) => row.leadId !== leadId));
+  }, []);
+
+  const saveBulkPreviewToDb = useCallback(async () => {
+    if (bulkPreviewRows.length === 0) {
+      setBulkNotice({ tone: "error", message: "No preview rows to save." });
+      return;
+    }
+    setBulkPreviewSaving(true);
+    try {
+      const localCallCenterRowsRes = await supabase.from("call_centers").select("id, name");
+      if (localCallCenterRowsRes.error) throw localCallCenterRowsRes.error;
+      const localCallCenterRows = (localCallCenterRowsRes.data ?? []) as Array<{ id: string; name: string | null }>;
+      const localCallCenterByName = new Map<string, string>();
+      for (const row of localCallCenterRows) {
+        const key = normalizeName(row.name);
+        if (key) localCallCenterByName.set(key, row.id);
+      }
+
+      let synced = 0;
+      let failed = 0;
+      const successfulLeadIds = new Set<string>();
+      for (const row of bulkPreviewRows) {
+        const policy = String(row.policyIdDt ?? "").trim();
+        if (!policy) continue;
+        const payload: { policy_id: string; carrier?: string; call_center_id?: string } = {
+          policy_id: policy,
+        };
+        const carrier = String(row.carrierDt ?? "").trim();
+        if (carrier) payload.carrier = carrier;
+        const ccName = String(row.callCenterDt ?? "").trim();
+        const ccId = ccName ? localCallCenterByName.get(normalizeName(ccName)) : null;
+        if (ccId) payload.call_center_id = ccId;
+
+        const { error } = await supabase.from("leads").update(payload).eq("id", row.leadId);
+        if (error) {
+          failed += 1;
+          continue;
+        }
+        synced += 1;
+        successfulLeadIds.add(row.leadId);
+      }
+
+      const syncedByLeadId = new Map(
+        bulkPreviewRows.filter((u) => successfulLeadIds.has(u.leadId)).map((u) => [u.leadId, u]),
+      );
+      setLeads((prev) =>
+        prev.map((lead) => {
+          const s = syncedByLeadId.get(lead.leadId);
+          if (!s) return lead;
+          return {
+            ...lead,
+            policyNumber: s.policyIdDt,
+            carrier: s.carrierDt || lead.carrier,
+            callCenterName: s.callCenterDt || lead.callCenterName,
+          };
+        }),
+      );
+      setSelectedLeadIds(new Set());
+      setBulkPreviewOpen(false);
+      setBulkPreviewRows([]);
+      setBulkNotice({
+        tone: failed > 0 ? "error" : "success",
+        message: `Preview save completed. Synced ${synced}/${bulkPreviewRows.length} leads` +
+          `${failed ? `, ${failed} update errors` : ""}.`,
+      });
+    } catch (e) {
+      setBulkNotice({
+        tone: "error",
+        message: e instanceof Error ? e.message : "Failed to save preview data.",
+      });
+    } finally {
+      setBulkPreviewSaving(false);
+    }
+  }, [bulkPreviewRows, normalizeName, supabase]);
   
   // Get available stages based on selected pipeline
   const availableStages = useMemo(() => {
@@ -3636,7 +4458,7 @@ function PolicyAttachmentTab() {
         <button
           type="button"
           onClick={() => loadLeads()}
-          disabled={loading}
+          disabled={loading || bulkSyncing}
           style={{
             height: 40,
             padding: "0 18px",
@@ -3660,6 +4482,103 @@ function PolicyAttachmentTab() {
           Refresh
         </button>
       </div>
+
+      {policyFilter === "no" && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+            marginBottom: 12,
+            padding: "12px 16px",
+            border: `1px solid ${T.border}`,
+            borderRadius: 12,
+            background: "#f8faf8",
+          }}
+        >
+          <div style={{ fontSize: 13, color: T.textDark, fontWeight: 600 }}>
+            Selected {noPolicySelectedCount} of {noPolicyFiltered.length} no-policy leads
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={selectAllNoPolicyFiltered}
+              disabled={bulkSyncing || noPolicyFiltered.length === 0}
+              style={{
+                height: 34,
+                padding: "0 12px",
+                borderRadius: 8,
+                border: `1px solid ${T.border}`,
+                background: T.cardBg,
+                color: T.textDark,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: bulkSyncing || noPolicyFiltered.length === 0 ? "not-allowed" : "pointer",
+                opacity: bulkSyncing || noPolicyFiltered.length === 0 ? 0.6 : 1,
+              }}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              disabled={bulkSyncing || noPolicySelectedCount === 0}
+              style={{
+                height: 34,
+                padding: "0 12px",
+                borderRadius: 8,
+                border: `1px solid ${T.border}`,
+                background: T.cardBg,
+                color: T.textDark,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: bulkSyncing || noPolicySelectedCount === 0 ? "not-allowed" : "pointer",
+                opacity: bulkSyncing || noPolicySelectedCount === 0 ? 0.6 : 1,
+              }}
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => void openBulkSyncPreview()}
+              disabled={bulkSyncing || noPolicySelectedCount === 0}
+              style={{
+                height: 34,
+                padding: "0 14px",
+                borderRadius: 8,
+                border: "none",
+                background: "#233217",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: bulkSyncing || noPolicySelectedCount === 0 ? "not-allowed" : "pointer",
+                opacity: bulkSyncing || noPolicySelectedCount === 0 ? 0.6 : 1,
+              }}
+            >
+              {bulkSyncing ? "Preparing..." : "Preview Bulk Sync"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {bulkNotice && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "10px 14px",
+            borderRadius: 10,
+            border: `1px solid ${bulkNotice.tone === "success" ? "#86efac" : "#fecaca"}`,
+            background: bulkNotice.tone === "success" ? "#f0fdf4" : "#fef2f2",
+            color: bulkNotice.tone === "success" ? "#166534" : "#991b1b",
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          {bulkNotice.message}
+        </div>
+      )}
       
       {/* Stats */}
       <div
@@ -3865,6 +4784,9 @@ function PolicyAttachmentTab() {
                 <TableHeader style={{ backgroundColor: "#233217" }}>
                   <TableRow style={{ borderBottom: "none" }} className="hover:bg-transparent">
                     {[
+                      ...(policyFilter === "no"
+                        ? [{ label: "", align: "center" as const }]
+                        : []),
                       { label: "S.No", align: "left" as const },
                       { label: "Lead", align: "left" as const },
                       { label: "Phone", align: "left" as const },
@@ -3885,7 +4807,14 @@ function PolicyAttachmentTab() {
                           textAlign: align,
                         }}
                       >
-                        {label}
+                        {label || (policyFilter === "no" ? (
+                          <input
+                            type="checkbox"
+                            checked={pageNoPolicyAllSelected}
+                            onChange={(e) => toggleSelectAllVisibleNoPolicy(e.target.checked)}
+                            disabled={noPolicyPaginated.length === 0 || bulkSyncing}
+                          />
+                        ) : null)}
                       </TableHead>
                     ))}
                   </TableRow>
@@ -3897,6 +4826,16 @@ function PolicyAttachmentTab() {
                       style={{ borderBottom: `1px solid ${T.border}` }}
                       className="hover:bg-muted/30 transition-all duration-150"
                     >
+                      {policyFilter === "no" && (
+                        <TableCell style={{ padding: "14px 12px", textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedLeadIds.has(row.leadId)}
+                            onChange={(e) => toggleLeadSelection(row.leadId, e.target.checked)}
+                            disabled={!!row.policyNumber || bulkSyncing}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell style={{ padding: "14px 20px" }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: T.textMuted }}>
                           {(page - 1) * ITEMS_PER_PAGE + i + 1}
@@ -4068,6 +5007,274 @@ function PolicyAttachmentTab() {
       </div>
       
       {/* Policy Attachment Modal */}
+      {bulkPreviewOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            zIndex: 9998,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+          onClick={() => {
+            if (!bulkPreviewSaving) setBulkPreviewOpen(false);
+          }}
+        >
+          <Card
+            style={{
+              width: "100%",
+              maxWidth: 1500,
+              maxHeight: "90vh",
+              overflow: "auto",
+              backgroundColor: T.cardBg,
+              borderRadius: 16,
+              border: `1px solid ${T.border}`,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, color: "#233217" }}>Bulk Sync Preview (Editable)</h3>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted }}>
+                  Review/edit values, remove unwanted leads, then save.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBulkPreviewOpen(false)}
+                disabled={bulkPreviewSaving}
+                style={{ border: "none", background: "transparent", cursor: bulkPreviewSaving ? "not-allowed" : "pointer" }}
+              >
+                <X size={18} color={T.textMid} />
+              </button>
+            </div>
+
+            <div style={{ padding: 16 }}>
+              {bulkPreviewRows.length > 0 && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  {[
+                    { key: "all" as const, label: `All (${bulkPreviewRows.length})` },
+                    {
+                      key: "different" as const,
+                      label: `Different (${bulkPreviewRows.filter((row) => {
+                        const crmName = normalizeName(row.leadNameCrm);
+                        const dtName = normalizeName(row.leadNameDt);
+                        const crmCc = normalizeName(row.callCenterCrm);
+                        const dtCc = normalizeName(row.callCenterDt);
+                        return crmName !== dtName || crmCc !== dtCc;
+                      }).length})`,
+                    },
+                  ].map((tab) => {
+                    const active = bulkPreviewView === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => {
+                          setBulkPreviewView(tab.key);
+                          setBulkPreviewPage(1);
+                        }}
+                        style={{
+                          height: 32,
+                          padding: "0 12px",
+                          borderRadius: 8,
+                          border: active ? "2px solid #233217" : `1px solid ${T.border}`,
+                          background: active ? "#eef5ee" : T.cardBg,
+                          color: active ? "#233217" : T.textDark,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {bulkPreviewRows.length === 0 ? (
+                <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 600 }}>
+                  No rows in preview.
+                </div>
+              ) : (
+                <ShadcnTable>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead style={{ textAlign: "left" }}>Action</TableHead>
+                      <TableHead>Lead Name CRM</TableHead>
+                      <TableHead>Lead Name DT</TableHead>
+                      <TableHead>Call Center CRM</TableHead>
+                      <TableHead>Call Center DT</TableHead>
+                      <TableHead>Policy ID CRM</TableHead>
+                      <TableHead>Policy ID DT</TableHead>
+                      <TableHead>Carrier CRM</TableHead>
+                      <TableHead>Carrier DT</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bulkPreviewPaginatedRows.map((row) => (
+                      <TableRow key={row.leadId}>
+                        <TableCell style={{ textAlign: "left" }}>
+                          <button
+                            type="button"
+                            onClick={() => removePreviewLead(row.leadId)}
+                            style={{
+                              height: 30,
+                              borderRadius: 8,
+                              border: `1px solid #fecaca`,
+                              background: "#fff1f2",
+                              color: "#b91c1c",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              padding: "0 10px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </TableCell>
+                        <TableCell>{row.leadNameCrm || "—"}</TableCell>
+                        <TableCell>{row.leadNameDt || "—"}</TableCell>
+                        <TableCell>{row.callCenterCrm || "—"}</TableCell>
+                        <TableCell>
+                          <input
+                            list="bulk-callcenter-options"
+                            value={row.callCenterDt}
+                            onChange={(e) =>
+                              setBulkPreviewRows((prev) =>
+                                prev.map((r) => (r.leadId === row.leadId ? { ...r, callCenterDt: e.target.value } : r)),
+                              )
+                            }
+                            style={{ width: 190, height: 32, border: `1px solid ${T.border}`, borderRadius: 8, padding: "0 10px" }}
+                          />
+                        </TableCell>
+                        <TableCell>{row.policyIdCrm || "—"}</TableCell>
+                        <TableCell>
+                          <input
+                            value={row.policyIdDt}
+                            onChange={(e) =>
+                              setBulkPreviewRows((prev) =>
+                                prev.map((r) => (r.leadId === row.leadId ? { ...r, policyIdDt: e.target.value } : r)),
+                              )
+                            }
+                            style={{ width: 180, height: 32, border: `1px solid ${T.border}`, borderRadius: 8, padding: "0 10px", fontFamily: "monospace" }}
+                          />
+                        </TableCell>
+                        <TableCell>{row.carrierCrm || "—"}</TableCell>
+                        <TableCell>
+                          <input
+                            list="bulk-carrier-options"
+                            value={row.carrierDt}
+                            onChange={(e) =>
+                              setBulkPreviewRows((prev) =>
+                                prev.map((r) => (r.leadId === row.leadId ? { ...r, carrierDt: e.target.value } : r)),
+                              )
+                            }
+                            style={{ width: 180, height: 32, border: `1px solid ${T.border}`, borderRadius: 8, padding: "0 10px" }}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </ShadcnTable>
+              )}
+              {bulkPreviewRows.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                    Showing {(bulkPreviewPage - 1) * BULK_PREVIEW_ITEMS_PER_PAGE + 1} -{" "}
+                    {Math.min(bulkPreviewPage * BULK_PREVIEW_ITEMS_PER_PAGE, bulkPreviewViewRows.length)} of{" "}
+                    {bulkPreviewViewRows.length}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setBulkPreviewPage((p) => Math.max(1, p - 1))}
+                      disabled={bulkPreviewPage === 1}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 8,
+                        border: `1px solid ${T.border}`,
+                        background: T.cardBg,
+                        color: bulkPreviewPage === 1 ? T.textMuted : T.textDark,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: bulkPreviewPage === 1 ? "not-allowed" : "pointer",
+                        opacity: bulkPreviewPage === 1 ? 0.6 : 1,
+                      }}
+                    >
+                      Previous
+                    </button>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>
+                      Page {bulkPreviewPage} of {bulkPreviewTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setBulkPreviewPage((p) => Math.min(bulkPreviewTotalPages, p + 1))}
+                      disabled={bulkPreviewPage >= bulkPreviewTotalPages}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 8,
+                        border: `1px solid ${T.border}`,
+                        background: T.cardBg,
+                        color: bulkPreviewPage >= bulkPreviewTotalPages ? T.textMuted : T.textDark,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: bulkPreviewPage >= bulkPreviewTotalPages ? "not-allowed" : "pointer",
+                        opacity: bulkPreviewPage >= bulkPreviewTotalPages ? 0.6 : 1,
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+              <datalist id="bulk-carrier-options">
+                {carrierOptions.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+              <datalist id="bulk-callcenter-options">
+                {callCenterOptions.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </div>
+
+            <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setBulkPreviewOpen(false)}
+                disabled={bulkPreviewSaving}
+                style={{ height: 36, padding: "0 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", fontWeight: 700 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveBulkPreviewToDb()}
+                disabled={bulkPreviewSaving || bulkPreviewRows.length === 0}
+                style={{ height: 36, padding: "0 14px", borderRadius: 8, border: "none", background: "#233217", color: "#fff", fontWeight: 700, opacity: bulkPreviewSaving || bulkPreviewRows.length === 0 ? 0.6 : 1 }}
+              >
+                {bulkPreviewSaving ? "Saving..." : "Save Preview to DB"}
+              </button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {selectedLead && (
         <div
           style={{

@@ -148,3 +148,158 @@ export async function fetchDealTrackerByPolicyNumbers(
 
   return byPolicy;
 }
+
+function normalizeName(value: string | null | undefined): string {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+export async function fetchDealTrackerByGhlNames(
+  ghlNames: string[],
+): Promise<Map<string, DealTrackerRow>> {
+  const cleaned = Array.from(
+    new Set(
+      ghlNames
+        .map((n) => String(n ?? "").trim())
+        .filter((n) => n.length > 0),
+    ),
+  );
+  if (cleaned.length === 0) return new Map();
+
+  const client = getDealTrackerSupabaseClient();
+  const byName = new Map<string, DealTrackerRow>();
+
+  const mergeRow = (row: DealTrackerRow) => {
+    const key = normalizeName(row.ghl_name || row.name || null);
+    if (!key) return;
+    const existing = byName.get(key);
+    if (!existing) {
+      byName.set(key, row);
+      return;
+    }
+    const a = existing.last_updated ? Date.parse(existing.last_updated) : 0;
+    const b = row.last_updated ? Date.parse(row.last_updated) : 0;
+    if (b > a) byName.set(key, row);
+  };
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < cleaned.length; i += DEAL_TRACKER_IN_CHUNK_SIZE) {
+    chunks.push(cleaned.slice(i, i + DEAL_TRACKER_IN_CHUNK_SIZE));
+  }
+
+  const fetchChunk = async (chunk: string[]) => {
+    const { data, error } = await client
+      .from("deal_tracker")
+      .select(DEAL_TRACKER_SELECT_COLUMNS)
+      .in("ghl_name", chunk);
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as DealTrackerRow[]) {
+      mergeRow(row);
+    }
+  };
+
+  for (let i = 0; i < chunks.length; i += DEAL_TRACKER_IN_CONCURRENCY) {
+    const window = chunks.slice(i, i + DEAL_TRACKER_IN_CONCURRENCY);
+    await Promise.all(window.map(fetchChunk));
+  }
+
+  return byName;
+}
+
+export async function fetchDealTrackerCandidatesByNamesAndPhones(params: {
+  ghlNames: string[];
+  names: string[];
+  phones: string[];
+}): Promise<DealTrackerRow[]> {
+  const ghlNames = Array.from(
+    new Set(params.ghlNames.map((v) => String(v ?? "").trim()).filter(Boolean)),
+  );
+  const names = Array.from(
+    new Set(params.names.map((v) => String(v ?? "").trim()).filter(Boolean)),
+  );
+  const phones = Array.from(
+    new Set(params.phones.map((v) => String(v ?? "").trim()).filter(Boolean)),
+  );
+  if (ghlNames.length === 0 && names.length === 0 && phones.length === 0) return [];
+
+  const client = getDealTrackerSupabaseClient();
+  const byId = new Map<string, DealTrackerRow>();
+
+  const mergeRows = (rows: DealTrackerRow[]) => {
+    for (const row of rows) {
+      const id = String(row.id ?? "");
+      if (!id) continue;
+      const existing = byId.get(id);
+      if (!existing) {
+        byId.set(id, row);
+        continue;
+      }
+      const a = existing.last_updated ? Date.parse(existing.last_updated) : 0;
+      const b = row.last_updated ? Date.parse(row.last_updated) : 0;
+      if (b > a) byId.set(id, row);
+    }
+  };
+
+  const fetchInChunks = async (column: "ghl_name" | "name" | "phone_number", values: string[]) => {
+    if (values.length === 0) return;
+    const chunks: string[][] = [];
+    for (let i = 0; i < values.length; i += DEAL_TRACKER_IN_CHUNK_SIZE) {
+      chunks.push(values.slice(i, i + DEAL_TRACKER_IN_CHUNK_SIZE));
+    }
+    const fetchChunk = async (chunk: string[]) => {
+      const { data, error } = await client
+        .from("deal_tracker")
+        .select(DEAL_TRACKER_SELECT_COLUMNS)
+        .in(column, chunk);
+      if (error) throw new Error(error.message);
+      mergeRows((data ?? []) as DealTrackerRow[]);
+    };
+    for (let i = 0; i < chunks.length; i += DEAL_TRACKER_IN_CONCURRENCY) {
+      const window = chunks.slice(i, i + DEAL_TRACKER_IN_CONCURRENCY);
+      await Promise.all(window.map(fetchChunk));
+    }
+  };
+
+  await fetchInChunks("ghl_name", ghlNames);
+  await fetchInChunks("name", names);
+  await fetchInChunks("phone_number", phones);
+
+  return Array.from(byId.values());
+}
+
+export async function fetchDealTrackerUniqueCarrierAndCallCenterValues(): Promise<{
+  carriers: string[];
+  callCenters: string[];
+}> {
+  const client = getDealTrackerSupabaseClient();
+  const PAGE_SIZE = 1000;
+  const maxRows = 50000;
+  let from = 0;
+  const carriers = new Set<string>();
+  const callCenters = new Set<string>();
+
+  while (from < maxRows) {
+    const { data, error } = await client
+      .from("deal_tracker")
+      .select("carrier, call_center")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+
+    const rows = (data ?? []) as Array<{ carrier?: string | null; call_center?: string | null }>;
+    for (const row of rows) {
+      const carrier = String(row.carrier ?? "").trim();
+      const callCenter = String(row.call_center ?? "").trim();
+      if (carrier) carriers.add(carrier);
+      if (callCenter) callCenters.add(callCenter);
+    }
+    if (rows.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return {
+    carriers: Array.from(carriers).sort((a, b) => a.localeCompare(b)),
+    callCenters: Array.from(callCenters).sort((a, b) => a.localeCompare(b)),
+  };
+}
