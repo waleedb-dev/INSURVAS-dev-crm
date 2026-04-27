@@ -4404,10 +4404,15 @@ function PolicyAttachmentTab() {
 
       let synced = 0;
       let failed = 0;
+      let skipped = 0;
+      const failedDetails: string[] = [];
       const successfulLeadIds = new Set<string>();
       for (const row of selectedRows) {
         const policy = String(row.policyIdDt ?? "").trim();
-        if (!policy) continue;
+        if (!policy) {
+          skipped += 1;
+          continue;
+        }
         const payload: { policy_id: string; carrier?: string; call_center_id?: string } = {
           policy_id: policy,
         };
@@ -4420,6 +4425,7 @@ function PolicyAttachmentTab() {
         const { error } = await supabase.from("leads").update(payload).eq("id", row.leadId);
         if (error) {
           failed += 1;
+          failedDetails.push(`${row.leadNameCrm}: ${error.message}`);
           continue;
         }
         synced += 1;
@@ -4444,11 +4450,21 @@ function PolicyAttachmentTab() {
       setSelectedLeadIds(new Set());
       setBulkPreviewOpen(false);
       setBulkPreviewRows([]);
+      
+      let message = `Preview save completed. Synced ${synced}/${selectedRows.length} selected leads`;
+      if (skipped > 0) message += `, ${skipped} skipped (no Policy ID)`;
+      if (failed > 0) message += `, ${failed} failed. Check console for details.`;
+      message += ".";
+      
       setBulkNotice({
         tone: failed > 0 ? "error" : "success",
-        message: `Preview save completed. Synced ${synced}/${selectedRows.length} selected leads` +
-          `${failed ? `, ${failed} update errors` : ""}.`,
+        message,
       });
+      
+      if (failedDetails.length > 0) {
+        console.error("Bulk sync errors:", failedDetails);
+        alert(`Failed leads:\n${failedDetails.slice(0, 5).join("\n")}${failedDetails.length > 5 ? `\n...and ${failedDetails.length - 5} more` : ""}`);
+      }
     } catch (e) {
       setBulkNotice({
         tone: "error",
