@@ -5165,12 +5165,13 @@ function PolicyAttachmentTab() {
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
+            backgroundColor: "rgba(0,0,0,0.45)",
             zIndex: 9998,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             padding: 20,
+            backdropFilter: "blur(4px)",
           }}
           onClick={() => {
             if (!bulkPreviewSaving) setBulkPreviewOpen(false);
@@ -5179,76 +5180,93 @@ function PolicyAttachmentTab() {
           <Card
             style={{
               width: "100%",
-              maxWidth: 1500,
-              maxHeight: "90vh",
-              overflow: "auto",
+              maxWidth: 1400,
+              maxHeight: "88vh",
+              overflow: "hidden",
               backgroundColor: T.cardBg,
-              borderRadius: 16,
+              borderRadius: 20,
               border: `1px solid ${T.border}`,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            {/* Header */}
+            <div style={{ padding: "20px 24px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fafdfa" }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: 18, color: "#233217" }}>Bulk Sync Preview (Editable)</h3>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: T.textMuted }}>
-                  Review/edit values, remove unwanted leads, then save.
+                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#233217" }}>Bulk Sync Preview</h3>
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: T.textMuted, lineHeight: 1.4 }}>
+                  Review and edit values for {bulkPreviewRows.length} selected lead(s). Remove unwanted leads before saving.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setBulkPreviewOpen(false)}
                 disabled={bulkPreviewSaving}
-                style={{ border: "none", background: "transparent", cursor: bulkPreviewSaving ? "not-allowed" : "pointer" }}
+                style={{ 
+                  border: "none", 
+                  background: "transparent", 
+                  cursor: bulkPreviewSaving ? "not-allowed" : "pointer",
+                  padding: 8,
+                  borderRadius: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = T.pageBg; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
-                <X size={18} color={T.textMid} />
+                <X size={20} color={T.textMuted} />
               </button>
             </div>
 
-            <div style={{ padding: 16 }}>
-              {bulkPreviewRows.length > 0 && (
-                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                  {[
-                    { key: "all" as const, label: `All (${bulkPreviewRows.length})` },
-                    {
-                      key: "different" as const,
-                      label: `Different (${bulkPreviewRows.filter((row) => {
-                        const crmName = normalizeName(row.leadNameCrm);
-                        const dtName = normalizeName(row.leadNameDt);
-                        const crmCc = normalizeName(row.callCenterCrm);
-                        const dtCc = normalizeName(row.callCenterDt);
-                        return crmName !== dtName || crmCc !== dtCc;
-                      }).length})`,
-                    },
-                  ].map((tab) => {
-                    const active = bulkPreviewView === tab.key;
-                    return (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        onClick={() => {
-                          setBulkPreviewView(tab.key);
-                          setBulkPreviewPage(1);
-                        }}
-                        style={{
-                          height: 32,
-                          padding: "0 12px",
-                          borderRadius: 8,
-                          border: active ? "2px solid #233217" : `1px solid ${T.border}`,
-                          background: active ? "#eef5ee" : T.cardBg,
-                          color: active ? "#233217" : T.textDark,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+            {/* Tabs */}
+            <div style={{ padding: "16px 24px", borderBottom: `1px solid ${T.border}`, display: "flex", gap: 8 }}>
+              {[
+                { key: "all" as const, label: `All (${bulkPreviewRows.length})`, color: "#233217" },
+                {
+                  key: "different" as const,
+                  label: `Different (${bulkPreviewRows.filter((row) => {
+                    const crmName = normalizeName(row.leadNameCrm);
+                    const dtName = normalizeName(row.leadNameDt);
+                    const crmCc = normalizeName(row.callCenterCrm);
+                    const dtCc = normalizeName(row.callCenterDt);
+                    return crmName !== dtName || crmCc !== dtCc;
+                  }).length})`,
+                  color: "#d97706",
+                },
+              ].map((tab) => {
+                const active = bulkPreviewView === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      setBulkPreviewView(tab.key);
+                      setBulkPreviewPage(1);
+                    }}
+                    style={{
+                      height: 38,
+                      padding: "0 16px",
+                      borderRadius: 10,
+                      border: active ? `2px solid ${tab.color}` : `1px solid ${T.border}`,
+                      background: active ? `${tab.color}12` : T.cardBg,
+                      color: active ? tab.color : T.textMid,
+                      fontSize: 13,
+                      fontWeight: active ? 700 : 600,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease-in-out",
+                      boxShadow: active ? `0 2px 8px ${tab.color}20` : "none",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Table Content */}
+            <div style={{ padding: 16, overflowY: "auto", maxHeight: "calc(88vh - 280px)" }}>
               {bulkPreviewRows.length === 0 ? (
                 <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontWeight: 600 }}>
                   No rows in preview.
@@ -5406,23 +5424,53 @@ function PolicyAttachmentTab() {
               </datalist>
             </div>
 
-            <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setBulkPreviewOpen(false)}
-                disabled={bulkPreviewSaving}
-                style={{ height: 36, padding: "0 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", fontWeight: 700 }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void saveBulkPreviewToDb()}
-                disabled={bulkPreviewSaving || bulkPreviewRows.length === 0}
-                style={{ height: 36, padding: "0 14px", borderRadius: 8, border: "none", background: "#233217", color: "#fff", fontWeight: 700, opacity: bulkPreviewSaving || bulkPreviewRows.length === 0 ? 0.6 : 1 }}
-              >
-                {bulkPreviewSaving ? "Saving..." : "Save Preview to DB"}
-              </button>
+            {/* Footer */}
+            <div style={{ padding: "16px 24px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fafdfa" }}>
+              <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                {bulkPreviewRows.length} lead(s) selected
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setBulkPreviewOpen(false)}
+                  disabled={bulkPreviewSaving}
+                  style={{ 
+                    height: 40, 
+                    padding: "0 20px", 
+                    borderRadius: 10, 
+                    border: `1px solid ${T.border}`, 
+                    background: T.cardBg, 
+                    color: T.textDark, 
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: bulkPreviewSaving ? "not-allowed" : "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveBulkPreviewToDb()}
+                  disabled={bulkPreviewSaving || bulkPreviewRows.length === 0}
+                  style={{ 
+                    height: 40, 
+                    padding: "0 24px", 
+                    borderRadius: 10, 
+                    border: "none", 
+                    background: "#233217", 
+                    color: "#fff", 
+                    fontSize: 13,
+                    fontWeight: 700, 
+                    cursor: bulkPreviewSaving || bulkPreviewRows.length === 0 ? "not-allowed" : "pointer",
+                    opacity: bulkPreviewSaving || bulkPreviewRows.length === 0 ? 0.6 : 1,
+                    boxShadow: "0 4px 12px rgba(35, 50, 23, 0.3)",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {bulkPreviewSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
             </div>
           </Card>
         </div>
