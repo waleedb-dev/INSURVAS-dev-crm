@@ -21,6 +21,7 @@ import ProductGuidePage from "@/components/dashboard/pages/ProductGuidePage";
 import AnnouncementsPage from "@/components/dashboard/pages/AnnouncementsPage";
 import TransferCheckTesterPage from "@/components/dashboard/pages/TransferCheckTesterPage";
 import CrmSyncOperationsPage from "@/components/dashboard/pages/CrmSyncOperationsPage";
+import PolicyAttachmentPage from "@/components/dashboard/pages/PolicyAttachmentPage";
 import GhlDataImportPage from "@/components/dashboard/pages/GhlDataImportPage";
 import LiveMonitoringPage from "@/components/dashboard/pages/LiveMonitoringPage";
 import PublisherSupportTicketsPage from "@/components/dashboard/pages/PublisherSupportTicketsPage";
@@ -93,6 +94,8 @@ export default function RoleDashboardPage() {
       {activePage === "bpo-kill-list-retention" && <BpoKillListPage variant="retention" />}
       {activePage === "transfer-check-tester" && <TransferCheckTesterPage />}
       {activePage === "crm-sync" && <CrmSyncOperationsPage />}
+      {activePage === "crm-sync-operations" && <CrmSyncOperationsPage />}
+      {activePage === "policy-attachment" && <PolicyAttachmentPage />}
       {activePage === "ghl-data-import" && <GhlDataImportPage />}
       {activePage === "live-monitoring" && <LiveMonitoringPage />}
       {activePage === "users-access" && <UsersAccessPage />}

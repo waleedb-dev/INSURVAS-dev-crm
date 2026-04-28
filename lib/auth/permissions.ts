@@ -175,7 +175,7 @@ export function canAccessPage(
     return permissionKeys.has("page.transfer_leads.access");
   }
 
-  if (page === "crm-sync" || page === "ghl-data-import") {
+  if (page === "crm-sync" || page === "crm-sync-operations" || page === "policy-attachment" || page === "ghl-data-import") {
     return role === "system_admin";
   }
 

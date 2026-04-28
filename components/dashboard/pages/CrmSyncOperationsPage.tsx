@@ -339,76 +339,12 @@ type TabView = "policy-attachment" | "crm-sync";
 
 export default function CrmSyncOperationsPage() {
   const { currentRole } = useDashboardContext();
-  const [activeTab, setActiveTab] = useState<TabView>("crm-sync");
-  
+
   if (currentRole !== "system_admin") {
     return <AccessRestricted />;
   }
-  
-  return (
-    <div style={{ fontFamily: T.font }}>
-      {/* Tab Navigation */}
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          marginBottom: 20,
-          borderBottom: `1px solid ${T.border}`,
-          paddingBottom: 0,
-        }}
-      >
-        {[
-          { key: "policy-attachment", label: "Policy Attachment & Review", icon: Link2 },
-          { key: "crm-sync", label: "CRM Sync", icon: RefreshCw },
-        ].map(({ key, label, icon: Icon }) => {
-          const isActive = activeTab === key;
-          return (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key as TabView)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "12px 20px",
-                borderRadius: "10px 10px 0 0",
-                border: "none",
-                borderBottom: isActive ? "3px solid #233217" : "3px solid transparent",
-                backgroundColor: isActive ? "#EEF5EE" : "transparent",
-                color: isActive ? "#233217" : "#647864",
-                fontSize: 14,
-                fontWeight: isActive ? 700 : 600,
-                fontFamily: T.font,
-                cursor: "pointer",
-                transition: "all 0.15s ease-in-out",
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = "#f5f9f5";
-                  e.currentTarget.style.color = "#233217";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "#647864";
-                }
-              }}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          );
-        })}
-      </div>
-      
-      {activeTab === "policy-attachment" ? (
-        <PolicyAttachmentTab />
-      ) : (
-        <CrmSyncOperationsPageInner />
-      )}
-    </div>
-  );
+
+  return <CrmSyncOperationsPageInner />;
 }
 
 function AccessRestricted() {
@@ -546,6 +482,7 @@ function CrmSyncOperationsPageInner() {
         stageTarget: (q.external.ghl_stage || "").trim(),
         leadValueCrm: q.row.leadValue != null ? String(q.row.leadValue) : "",
         leadValueTarget,
+        selected: true,
       };
     },
     [],
@@ -959,16 +896,21 @@ function CrmSyncOperationsPageInner() {
   }, [syncableRowsWithStatus]);
 
   const runBulkSync = useCallback(async () => {
-    if (syncBulkPreviewRows.length === 0) return;
+    const selectedRows = syncBulkPreviewRows.filter((r) => r.selected);
+    
+    if (selectedRows.length === 0) {
+      setBulkNotice({ tone: "error", message: "No rows selected. Check at least one row to sync." });
+      return;
+    }
 
     setBulkRunning(true);
     setBulkFinished(false);
     setBulkResults([]);
-    setBulkProgress({ done: 0, total: syncBulkPreviewRows.length });
+    setBulkProgress({ done: 0, total: selectedRows.length });
 
     const targetNames = Array.from(
       new Set(
-        syncBulkPreviewRows
+        selectedRows
           .map((q) => (q.stageTarget || "").trim())
           .filter((n) => n.length > 0),
       ),
@@ -1016,7 +958,7 @@ function CrmSyncOperationsPageInner() {
     >();
 
     let done = 0;
-    for (const preview of syncBulkPreviewRows) {
+    for (const preview of selectedRows) {
       const target = (preview.stageTarget || "").trim();
       const fromStage = preview.stageCrm || "";
 
@@ -1032,7 +974,7 @@ function CrmSyncOperationsPageInner() {
           message: "No target stage",
         });
         done += 1;
-        setBulkProgress({ done, total: syncBulkPreviewRows.length });
+        setBulkProgress({ done, total: selectedRows.length });
         continue;
       }
 
@@ -2970,6 +2912,7 @@ type CrmSyncBulkPreviewRow = {
   stageTarget: string;
   leadValueCrm: string;
   leadValueTarget: string;
+  selected: boolean;
 };
 
 function crmSyncPreviewRowHasDiff(row: CrmSyncBulkPreviewRow): boolean {
@@ -3310,7 +3253,18 @@ function CrmSyncBulkPreviewModal({
                       <ShadcnTable>
                         <TableHeader>
                           <TableRow>
-                            <TableHead style={{ width: 60, textAlign: "center" }}>Action</TableHead>
+                            <TableHead style={{ width: 50, textAlign: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={previewRows.every((r) => r.selected)}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setPreviewRows((prev) => prev.map((r) => ({ ...r, selected: checked })));
+                                }}
+                                style={{ width: 18, height: 18, cursor: "pointer" }}
+                              />
+                            </TableHead>
+                            <TableHead>Action</TableHead>
                             <TableHead>Lead</TableHead>
                             <TableHead>Policy ID</TableHead>
                             <TableHead>Stage (CRM)</TableHead>
@@ -3322,6 +3276,18 @@ function CrmSyncBulkPreviewModal({
                         <TableBody>
                           {paginatedRows.map((row) => (
                             <TableRow key={row.key}>
+                              <TableCell style={{ textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={row.selected ?? true}
+                                  onChange={(e) => {
+                                    setPreviewRows((prev) =>
+                                      prev.map((r) => (r.key === row.key ? { ...r, selected: e.target.checked } : r)),
+                                    );
+                                  }}
+                                  style={{ width: 18, height: 18, cursor: "pointer" }}
+                                />
+                              </TableCell>
                               <TableCell style={{ textAlign: "center" }}>
                                 <button
                                   type="button"

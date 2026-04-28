@@ -24,6 +24,8 @@ const ALL_PAGES: DashPage[] = [
   "bpo-kill-list-retention",
   "transfer-check-tester",
   "crm-sync",
+  "crm-sync-operations",
+  "policy-attachment",
   "ghl-data-import",
   "live-monitoring",
   "users-access",

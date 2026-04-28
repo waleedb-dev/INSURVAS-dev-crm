@@ -32,6 +32,7 @@ import {
   Upload,
   BarChart3,
   MonitorUp,
+  Link2,
 } from "lucide-react";
 import { callCenterNameInitials, displayCallCenterName } from "@/lib/callCenterBranding";
 
@@ -45,6 +46,8 @@ export type DashPage =
   | "bpo-kill-list-retention"
   | "transfer-check-tester"
   | "crm-sync"
+  | "crm-sync-operations"
+  | "policy-attachment"
   | "ghl-data-import"
   | "live-monitoring"
   | "users-access" | "pipeline-management"
@@ -113,8 +116,12 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "crm-sync",
-    label: "CRM Sync Operations",
+    label: "CRM Sync",
     icon: <RefreshCw size={22} strokeWidth={1.8} />,
+    children: [
+      { id: "policy-attachment", label: "Policy Attachment & Review", icon: <Link2 size={18} strokeWidth={1.8} /> },
+      { id: "crm-sync-operations", label: "CRM Sync Operations", icon: <RefreshCw size={18} strokeWidth={1.8} /> },
+    ],
   },
   {
     id: "ghl-data-import",
@@ -169,7 +176,9 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "bpo-kill-list-new-sale": "BPO Kill List / New Sale",
   "bpo-kill-list-retention": "BPO Kill List / Retention",
   "transfer-check-tester": "Transfer Checker",
-  "crm-sync": "CRM Sync Operations",
+  "crm-sync": "CRM Sync",
+  "crm-sync-operations": "CRM Sync / Operations",
+  "policy-attachment": "CRM Sync / Policy Attachment & Review",
   "ghl-data-import": "GHL Data Import",
   "live-monitoring": "Live Monitoring",
   "users-access": "Users & Access",
