@@ -897,9 +897,9 @@ function CrmSyncOperationsPageInner() {
 
   const runBulkSync = useCallback(async () => {
     const selectedRows = syncBulkPreviewRows.filter((r) => r.selected);
-    
+
     if (selectedRows.length === 0) {
-      setBulkNotice({ tone: "error", message: "No rows selected. Check at least one row to sync." });
+      setSyncNotice({ tone: "error", message: "No rows selected. Check at least one row to sync." });
       return;
     }
 
