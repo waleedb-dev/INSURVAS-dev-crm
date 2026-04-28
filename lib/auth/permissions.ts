@@ -119,6 +119,8 @@ export function canAccessPage(
     | "bpo-kill-list-retention"
     | "transfer-check-tester"
     | "crm-sync"
+    | "crm-sync-operations"
+    | "policy-attachment"
     | "ghl-data-import"
     | "live-monitoring"
     | "commissions"
