@@ -772,7 +772,7 @@ export default function PoliciesPage() {
                       { label: "Agent", align: "left" as const },
                       { label: "Carrier", align: "left" as const },
                       { label: "Type", align: "left" as const },
-                      { label: "Status", align: "left" as const },
+                      { label: "Policy Status", align: "left" as const },
                       { label: "Carrier Status", align: "left" as const },
                       { label: "Call Center", align: "left" as const },
                       { label: "Phone", align: "left" as const },
@@ -836,8 +836,8 @@ export default function PoliciesPage() {
                       <TableCell style={{ padding: "14px 20px" }}>
                         <span style={{ fontSize: 12, color: T.textMid, fontWeight: 500 }}>{r.policy_type || "—"}</span>
                       </TableCell>
-                      <TableCell style={{ padding: "14px 20px" }}>
-                        {r.status ? (
+<TableCell style={{ padding: "14px 20px" }}>
+                        {r.policy_status ? (
                           <span style={{
                             display: "inline-flex",
                             alignItems: "center",
@@ -848,13 +848,13 @@ export default function PoliciesPage() {
                             fontSize: 11,
                             fontWeight: 700
                           }}>
-                            {r.status}
+                            {r.policy_status}
                           </span>
                         ) : (
                           <span style={{ color: T.textMuted, fontSize: 13 }}>—</span>
                         )}
                       </TableCell>
-<TableCell style={{ padding: "14px 20px" }}>
+                      <TableCell style={{ padding: "14px 20px" }}>
                         {r.carrier_status ? (
                           <span style={{
                             display: "inline-flex",
