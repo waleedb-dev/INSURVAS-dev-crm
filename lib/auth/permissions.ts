@@ -3,6 +3,7 @@ import type { RoleKey } from "@/lib/auth/roles";
 
 export const PERMISSION_KEYS = [
   "page.daily_deal_flow.access",
+  "page.policies.access",
   "action.daily_deal_flow.process",
   "page.assigning.access",
   "action.assigning.assign",
@@ -198,7 +199,7 @@ export function canAccessPage(
   }
 
   if (page === "policies") {
-    return role === "system_admin";
+    return role === "system_admin" || permissionKeys.has("page.policies.access");
   }
 
   if (page === "imo-management" || page === "imo-settings") {
