@@ -1,0 +1,564 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, RefreshCw, Search } from "lucide-react";
+import { T } from "@/lib/theme";
+import { useDashboardContext } from "@/components/dashboard/DashboardContext";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  fetchQueueAssignees,
+  fetchQueueSnapshot,
+  managerAssignQueueItem,
+  markQueueReady,
+  resolveQueueRole,
+  sendQueueTransfer,
+  type LeadQueueItem,
+} from "@/lib/queue/queueClient";
+
+type Props = {
+  /** Embedded inside Live Monitoring: tighter paddings and no outer card chrome. */
+  variant?: "default" | "liveMonitoringEmbed";
+};
+
+type DraftAssign = {
+  baId: string;
+  laId: string;
+  eta: string;
+};
+
+function elapsedLabel(iso: string | null): string {
+  if (!iso) return "N/A";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms) || ms < 0) return "N/A";
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return `${hours}h ${rem}m`;
+}
+
+function normalise(s: string | null | undefined): string {
+  return String(s ?? "").trim().toLowerCase();
+}
+
+function matchesSearch(row: LeadQueueItem, q: string): boolean {
+  const query = normalise(q);
+  if (!query) return true;
+  const hay = [
+    row.client_name,
+    row.submission_id,
+    row.call_center_name,
+    row.state,
+    row.carrier,
+    row.action_required,
+    row.queue_type,
+  ]
+    .map((x) => normalise(String(x ?? "")))
+    .join(" | ");
+  return hay.includes(query);
+}
+
+export default function QueueManagementPage({ variant = "default" }: Props) {
+  const { currentRole, currentUserId } = useDashboardContext();
+  const queueRole = useMemo(() => resolveQueueRole(currentRole), [currentRole]);
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+
+  const isEmbed = variant === "liveMonitoringEmbed";
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const [rows, setRows] = useState<LeadQueueItem[]>([]);
+  const [assignees, setAssignees] = useState<Array<{ id: string; name: string; queueRole: "ba" | "la" }>>([]);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, DraftAssign>>({});
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [groupBy, setGroupBy] = useState<"none" | "queue_type" | "centre">("none");
+
+  const loadSnapshot = useCallback(
+    async (silent = false) => {
+      if (queueRole === "none") {
+        setRows([]);
+        setAssignees([]);
+        setLoading(false);
+        return;
+      }
+      if (silent) setRefreshing(true);
+      else setLoading(true);
+      if (!silent) setError(null);
+      try {
+        const [queueRows, agents] = await Promise.all([
+          fetchQueueSnapshot(supabase, queueRole, currentUserId),
+          queueRole === "manager" ? fetchQueueAssignees(supabase) : Promise.resolve([]),
+        ]);
+        setRows(queueRows);
+        setAssignees(agents);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load queue");
+      } finally {
+        if (silent) setRefreshing(false);
+        else setLoading(false);
+      }
+    },
+    [queueRole, supabase, currentUserId],
+  );
+
+  useEffect(() => {
+    void loadSnapshot(false);
+    const timer = window.setInterval(() => {
+      void loadSnapshot(true);
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [loadSnapshot]);
+
+  const assigneeNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of assignees) map.set(a.id, a.name);
+    return map;
+  }, [assignees]);
+
+  const filteredRows = useMemo(
+    () => rows.filter((r) => matchesSearch(r, searchTerm)),
+    [rows, searchTerm],
+  );
+
+  const grouped = useMemo(() => {
+    if (groupBy === "queue_type") {
+      const map = new Map<string, LeadQueueItem[]>();
+      for (const row of filteredRows) {
+        const key = row.queue_type;
+        const next = map.get(key) ?? [];
+        next.push(row);
+        map.set(key, next);
+      }
+      return Array.from(map.entries()).map(([key, items]) => ({ key, title: key.replaceAll("_", " "), items }));
+    }
+    if (groupBy === "centre") {
+      const map = new Map<string, LeadQueueItem[]>();
+      for (const row of filteredRows) {
+        const key = (row.call_center_name || "Unknown centre").trim() || "Unknown centre";
+        const next = map.get(key) ?? [];
+        next.push(row);
+        map.set(key, next);
+      }
+      return Array.from(map.entries()).map(([key, items]) => ({ key, title: key, items }));
+    }
+    return [
+      { key: "unclaimed_transfer", title: "Unclaimed transfers", items: filteredRows.filter((r) => r.queue_type === "unclaimed_transfer") },
+      { key: "ba_active", title: "BA active calls", items: filteredRows.filter((r) => r.queue_type === "ba_active") },
+      { key: "la_active", title: "LA active calls", items: filteredRows.filter((r) => r.queue_type === "la_active") },
+    ];
+  }, [filteredRows, groupBy]);
+
+  const runAction = async (queueId: string, fn: () => Promise<void>) => {
+    setSavingId(queueId);
+    setError(null);
+    try {
+      await fn();
+      await loadSnapshot(true);
+      setNotice("Updated");
+      window.setTimeout(() => setNotice(null), 1400);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Action failed");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const renderCard = (row: LeadQueueItem) => {
+    const draft = drafts[row.id] ?? {
+      baId: row.assigned_ba_id ?? "",
+      laId: row.assigned_la_id ?? "",
+      eta: row.eta_minutes != null ? String(row.eta_minutes) : "",
+    };
+    const isSaving = savingId === row.id;
+    const hasAnyAssignment = Boolean(row.assigned_ba_id || row.assigned_la_id);
+
+    const assignedBaName = row.assigned_ba_id ? assigneeNameById.get(row.assigned_ba_id) ?? "Assigned BA" : null;
+    const assignedLaName = row.assigned_la_id ? assigneeNameById.get(row.assigned_la_id) ?? "Assigned LA" : null;
+
+    const showSendTransfer = queueRole === "ba" && row.queue_type === "ba_active" && !!row.la_ready_at;
+    const showReady =
+      (queueRole === "ba" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active")) ||
+      (queueRole === "la" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active"));
+
+    return (
+      <div
+        key={row.id}
+        style={{
+          border: `1px solid ${hasAnyAssignment ? "#86b97b" : T.border}`,
+          borderRadius: 12,
+          background: hasAnyAssignment ? "#f6fbf4" : T.cardBg,
+          padding: 10,
+          display: "grid",
+          gap: 8,
+          transition: "all 0.15s ease-in-out",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 900,
+                color: T.textDark,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+              title={row.client_name || "Unnamed client"}
+            >
+              {row.client_name || "Unnamed client"}
+            </div>
+            {hasAnyAssignment && (
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 900,
+                  color: "#166534",
+                  background: "#dcfce7",
+                  border: "1px solid #86efac",
+                  borderRadius: 999,
+                  padding: "2px 8px",
+                  flexShrink: 0,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Assigned
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 10, fontWeight: 800, color: T.textMuted, flexShrink: 0 }}>
+            {elapsedLabel(row.queued_at)}
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11, color: T.textMuted }}>
+          {(row.call_center_name || "Unknown centre")} | {row.state || "N/A"} | {row.carrier || "N/A"}
+        </div>
+
+        {(assignedBaName || assignedLaName) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {assignedBaName && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  color: "#0f172a",
+                  background: "#e2e8f0",
+                  borderRadius: 999,
+                  padding: "2px 10px",
+                }}
+              >
+                BA: {assignedBaName}
+              </span>
+            )}
+            {assignedLaName && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  color: "#0f172a",
+                  background: "#dbeafe",
+                  borderRadius: 999,
+                  padding: "2px 10px",
+                }}
+              >
+                LA: {assignedLaName}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: T.textMuted }}>
+          Action: <strong style={{ color: T.textDark }}>{row.action_required || "unknown"}</strong>
+          {row.ba_verification_percent != null ? ` | Verification ${Number(row.ba_verification_percent).toFixed(0)}%` : ""}
+          {row.eta_minutes != null ? ` | ETA ${row.eta_minutes}m` : ""}
+          {row.la_ready_at ? " | LA ready" : ""}
+        </div>
+
+        {queueRole === "manager" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 78px auto", gap: 6 }}>
+            <select
+              value={draft.baId}
+              onChange={(e) => setDrafts((prev) => ({ ...prev, [row.id]: { ...draft, baId: e.target.value } }))}
+              style={{
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
+                padding: "7px 8px",
+                fontSize: 12,
+                background: T.pageBg,
+              }}
+            >
+              <option value="">Assign BA</option>
+              {assignees
+                .filter((a) => a.queueRole === "ba")
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </select>
+            <select
+              value={draft.laId}
+              onChange={(e) => setDrafts((prev) => ({ ...prev, [row.id]: { ...draft, laId: e.target.value } }))}
+              style={{
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
+                padding: "7px 8px",
+                fontSize: 12,
+                background: T.pageBg,
+              }}
+            >
+              <option value="">Assign LA</option>
+              {assignees
+                .filter((a) => a.queueRole === "la")
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </select>
+            <input
+              type="number"
+              placeholder="ETA"
+              min={0}
+              value={draft.eta}
+              onChange={(e) => setDrafts((prev) => ({ ...prev, [row.id]: { ...draft, eta: e.target.value } }))}
+              style={{
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
+                padding: "7px 8px",
+                fontSize: 12,
+                background: T.pageBg,
+              }}
+            />
+            <button
+              type="button"
+              disabled={isSaving || !currentUserId}
+              onClick={() =>
+                runAction(row.id, async () =>
+                  managerAssignQueueItem(supabase, row.id, String(currentUserId), {
+                    assignedBaId: draft.baId || null,
+                    assignedLaId: draft.laId || null,
+                    etaMinutes: draft.eta ? Number(draft.eta) : null,
+                  }),
+                )
+              }
+              style={{
+                border: "none",
+                borderRadius: 10,
+                background: "#233217",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 900,
+                padding: "7px 12px",
+                cursor: isSaving ? "not-allowed" : "pointer",
+                opacity: isSaving ? 0.65 : 1,
+                transition: "all 0.15s ease-in-out",
+              }}
+            >
+              Save
+            </button>
+          </div>
+        )}
+
+        {(showReady || showSendTransfer) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {showReady && (
+              <button
+                type="button"
+                disabled={isSaving || !currentUserId}
+                onClick={() => runAction(row.id, () => markQueueReady(supabase, row, String(currentUserId), queueRole as "ba" | "la"))}
+                style={{
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  background: T.pageBg,
+                  color: T.textDark,
+                  fontSize: 12,
+                  fontWeight: 900,
+                  padding: "7px 12px",
+                  cursor: isSaving ? "not-allowed" : "pointer",
+                }}
+              >
+                Mark ready
+              </button>
+            )}
+            {showSendTransfer && (
+              <button
+                type="button"
+                disabled={isSaving || !currentUserId}
+                onClick={() => runAction(row.id, () => sendQueueTransfer(supabase, row, String(currentUserId)))}
+                style={{
+                  border: "none",
+                  borderRadius: 10,
+                  background: "#0d9488",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 900,
+                  padding: "7px 12px",
+                  cursor: isSaving ? "not-allowed" : "pointer",
+                  opacity: isSaving ? 0.65 : 1,
+                }}
+              >
+                Send transfer
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  if (queueRole === "none") {
+    return (
+      <div
+        style={{
+          border: `1px dashed ${T.border}`,
+          borderRadius: 16,
+          padding: 16,
+          background: isEmbed ? "transparent" : T.cardBg,
+          color: T.textMuted,
+          fontSize: 13,
+          fontWeight: 600,
+        }}
+      >
+        Queue management is not available for your role.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, minHeight: 0 }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          padding: isEmbed ? 0 : "12px 14px",
+          borderRadius: isEmbed ? 0 : 16,
+          border: isEmbed ? "none" : `1px solid ${T.border}`,
+          background: isEmbed ? "transparent" : T.cardBg,
+        }}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+          <div style={{ position: "relative", display: "flex", alignItems: "center", minWidth: 240, flex: "1 1 260px" }}>
+            <Search size={16} style={{ position: "absolute", left: 12, pointerEvents: "none", color: T.textMuted }} />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search queue..."
+              style={{
+                height: 38,
+                width: "100%",
+                paddingLeft: 36,
+                paddingRight: 12,
+                border: `1px solid ${T.border}`,
+                borderRadius: 12,
+                fontSize: 13,
+                fontWeight: 600,
+                color: T.textDark,
+                background: T.pageBg,
+                outline: "none",
+                fontFamily: T.font,
+                transition: "all 0.15s ease-in-out",
+              }}
+            />
+          </div>
+          <select
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as "none" | "queue_type" | "centre")}
+            style={{
+              height: 38,
+              border: `1px solid ${T.border}`,
+              borderRadius: 12,
+              padding: "0 12px",
+              fontSize: 13,
+              fontWeight: 700,
+              background: T.pageBg,
+              color: T.textDark,
+            }}
+            title="Group by"
+          >
+            <option value="none">No grouping</option>
+            <option value="queue_type">Queue type</option>
+            <option value="centre">Centre</option>
+          </select>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void loadSnapshot(true)}
+          style={{
+            height: 38,
+            padding: "0 14px",
+            borderRadius: 12,
+            border: `1px solid ${T.border}`,
+            background: "#233217",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 900,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            boxShadow: "0 6px 16px rgba(35, 50, 23, 0.18)",
+          }}
+          title="Refresh queue"
+        >
+          <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c", background: "#fef2f2", borderRadius: 12, padding: 10, border: "1px solid #fecaca" }}>
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#166534", background: "#ecfdf5", borderRadius: 12, padding: 10, border: "1px solid #bbf7d0" }}>
+          {notice}
+        </div>
+      )}
+
+      {loading && rows.length === 0 ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 700, color: T.textMuted, padding: "10px 2px" }}>
+          <Loader2 size={16} className="animate-spin" /> Loading queue...
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+            alignContent: "start",
+          }}
+        >
+          {grouped.map((section) => (
+            <div key={section.key} style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: T.textDark }}>
+                {section.title} ({section.items.length})
+              </div>
+              {section.items.length === 0 ? (
+                <div style={{ fontSize: 12, color: T.textMuted, border: `1px dashed ${T.border}`, borderRadius: 12, padding: 12 }}>
+                  No calls
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {section.items.map(renderCard)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

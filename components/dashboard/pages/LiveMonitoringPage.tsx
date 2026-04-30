@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { ExternalLink, RefreshCw, ChevronDown } from "lucide-react";
 import { T } from "@/lib/theme";
-import DailyDealFlowPage from "./DailyDealFlowPage";
+import QueueManagementPage from "@/components/dashboard/pages/QueueManagementPage";
 
 const AIRCALL_TOOL = {
   name: "Aircall" as const,
@@ -14,15 +14,15 @@ type AircallToolName = typeof AIRCALL_TOOL.name;
 
 export default function LiveMonitoringPage() {
   const [aircallReloadKey, setAircallReloadKey] = useState(0);
-  const [ddfPanelOpen, setDdfPanelOpen] = useState(true);
-  const [ddfRemountKey, setDdfRemountKey] = useState(0);
+  const [queuePanelOpen, setQueuePanelOpen] = useState(true);
+  const [queueRemountKey, setQueueRemountKey] = useState(0);
 
   const refreshAircall = useCallback(() => {
     setAircallReloadKey((k) => k + 1);
   }, []);
 
-  const refreshDailyDealFlow = useCallback(() => {
-    setDdfRemountKey((k) => k + 1);
+  const refreshQueueManagement = useCallback(() => {
+    setQueueRemountKey((k) => k + 1);
   }, []);
 
   return (
@@ -160,14 +160,14 @@ export default function LiveMonitoringPage() {
               justifyContent: "space-between",
               gap: 12,
               padding: "8px 14px 8px 12px",
-              borderBottom: ddfPanelOpen ? `1px solid ${T.borderLight}` : "none",
+              borderBottom: queuePanelOpen ? `1px solid ${T.borderLight}` : "none",
               background: "#f8fbf5",
             }}
           >
             <button
               type="button"
-              onClick={() => setDdfPanelOpen((v) => !v)}
-              title={ddfPanelOpen ? "Collapse Daily Deal Flow" : "Expand Daily Deal Flow"}
+              onClick={() => setQueuePanelOpen((v) => !v)}
+              title={queuePanelOpen ? "Collapse Queue Management" : "Expand Queue Management"}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -187,7 +187,7 @@ export default function LiveMonitoringPage() {
                 style={{
                   flexShrink: 0,
                   color: "#233217",
-                  transform: ddfPanelOpen ? "rotate(0deg)" : "rotate(-90deg)",
+                  transform: queuePanelOpen ? "rotate(0deg)" : "rotate(-90deg)",
                   transition: "transform 0.2s ease",
                 }}
               />
@@ -201,17 +201,17 @@ export default function LiveMonitoringPage() {
                     lineHeight: 1.2,
                   }}
                 >
-                  Daily Deal Flow
+                  Queue Management
                 </h2>
                 <p style={{ margin: "2px 0 0", fontSize: 11, fontWeight: 600, color: T.textMuted }}>
-                  View only — same filters as the main page
+                  Same queue controls as the main widget
                 </p>
               </div>
             </button>
             <button
               type="button"
-              onClick={() => refreshDailyDealFlow()}
-              title="Reload Daily Deal Flow data"
+              onClick={() => refreshQueueManagement()}
+              title="Reload Queue Management data"
               style={{
                 width: 34,
                 height: 34,
@@ -230,7 +230,7 @@ export default function LiveMonitoringPage() {
               <RefreshCw size={16} strokeWidth={2.2} />
             </button>
           </div>
-          {ddfPanelOpen && (
+          {queuePanelOpen && (
             <div
               style={{
                 flex: 1,
@@ -241,13 +241,7 @@ export default function LiveMonitoringPage() {
                 flexDirection: "column",
               }}
             >
-              <DailyDealFlowPage
-                key={ddfRemountKey}
-                variant="liveMonitoringEmbed"
-                canProcessActions={false}
-                isCallCenterScoped={false}
-                isSalesManager={false}
-              />
+              <QueueManagementPage key={queueRemountKey} variant="liveMonitoringEmbed" />
             </div>
           )}
         </section>
