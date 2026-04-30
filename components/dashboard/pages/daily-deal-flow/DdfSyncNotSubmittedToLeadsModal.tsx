@@ -96,6 +96,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
   const [filterFromDate, setFilterFromDate] = useState(() => getTodayDateEST());
   const [filterToDate, setFilterToDate] = useState(() => getTodayDateEST());
   const [filterCurrentStage, setFilterCurrentStage] = useState("All");
+  const [filterNAStatus, setFilterNAStatus] = useState<"all" | "na_only">("all");
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   const stageNames = useMemo(() => stageOptions.map((s) => s.name), [stageOptions]);
@@ -120,9 +121,13 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
       if (from && d < from) return false;
       if (to && d > to) return false;
       if (filterCurrentStage !== "All" && r.currentStage !== filterCurrentStage) return false;
+      if (filterNAStatus === "na_only") {
+        const status = String(r.sourceStatus || "").trim().toUpperCase();
+        if (status !== "N/A" && status !== "NA" && status !== "N/A/" && status !== "") return false;
+      }
       return true;
     });
-  }, [rows, filterFromDate, filterToDate, filterCurrentStage]);
+  }, [rows, filterFromDate, filterToDate, filterCurrentStage, filterNAStatus]);
 
   const selectOptions = useMemo(() => {
     const s = new Set(stageNames);
@@ -559,6 +564,27 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
               {[...new Set(rows.map(r => r.currentStage).filter(s => s && s !== "—"))].sort().map(stage => (
                 <option key={stage} value={stage}>{stage}</option>
               ))}
+            </select>
+            <div style={{ width: 1, height: 24, backgroundColor: T.borderLight, margin: "0 4px" }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark }}>Status:</span>
+            <select
+              value={filterNAStatus}
+              onChange={(e) => setFilterNAStatus(e.target.value as "all" | "na_only")}
+              style={{
+                height: 36,
+                padding: "0 10px",
+                borderRadius: 8,
+                border: `1px solid ${T.border}`,
+                fontSize: 13,
+                fontWeight: 600,
+                color: T.textDark,
+                fontFamily: T.font,
+                backgroundColor: "#fff",
+                minWidth: 140,
+              }}
+            >
+              <option value="all">All Status</option>
+              <option value="na_only">N/A Only</option>
             </select>
           </div>
 

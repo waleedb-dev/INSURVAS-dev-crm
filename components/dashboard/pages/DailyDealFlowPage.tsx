@@ -410,6 +410,8 @@ export default function DailyDealFlowPage({
     if (statusFilter !== ALL_OPTION && statusFilter !== "All") {
       if (statusFilter === "Pending Approval") {
         query = query.or("status.eq.Pending Approval,status.eq.Underwriting");
+      } else if (statusFilter === "N/A") {
+        query = query.or("status.is.null,status.eq.,status.eq.N/A,status.eq.NA,status.eq.N/A/");
       } else {
         query = query.eq("status", statusFilter);
       }
@@ -572,7 +574,7 @@ export default function DailyDealFlowPage({
     setToast({ message: `Exported ${data.length} records`, type: "success" });
   };
 
-  const statusOptions = [{ value: "All", label: "All Status" }, ...statusOptionsDynamic.map(v => ({ value: v, label: v }))];
+  const statusOptions = [{ value: "All", label: "All Status" }, { value: "N/A", label: "N/A" }, ...statusOptionsDynamic.map(v => ({ value: v, label: v }))];
   const carrierOptions = [{ value: "All", label: "All Carriers" }, ...CARRIER_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
   const callResultOptions = [{ value: "All", label: "All Results" }, ...CALL_RESULT_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
   const laCallbackOptions = [{ value: "All", label: "All Callbacks" }, ...LA_CALLBACK_OPTIONS.filter(v => v !== "All").map(v => ({ value: v, label: v }))];
