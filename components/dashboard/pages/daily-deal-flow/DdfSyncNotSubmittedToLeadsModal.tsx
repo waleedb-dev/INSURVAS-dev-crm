@@ -39,7 +39,7 @@ type SyncRowState = {
   sourceStatus: string;
   selectedStage: string;
   selectedStageId: number | null;
-  reasonSummary: string | null;
+  notes: string | null;
   include: boolean;
   rowStatus: "idle" | "syncing" | "done" | "error";
   errorMessage?: string;
@@ -61,20 +61,17 @@ function leadDisplayName(lead: LeadRow) {
 
 const REASON_SUMMARY_MAX = 200;
 
-function summarizeCallResultReason(r: CallResultRow): string | null {
+function getCallResultNotes(r: CallResultRow): string {
   const ordered = [
+    r.notes,
+    r.manual_note,
+    r.generated_note,
     r.dq_reason,
     r.quick_disposition_tag,
-    r.generated_note,
-    r.manual_note,
-    r.notes,
   ]
     .map((x) => String(x ?? "").trim())
     .filter(Boolean);
-  const text = ordered[0];
-  if (!text) return null;
-  if (text.length <= REASON_SUMMARY_MAX) return text;
-  return `${text.slice(0, REASON_SUMMARY_MAX - 1)}…`;
+  return ordered.join("\n---\n") || "";
 }
 
 function normaliseStageLabel(label: string): string {
@@ -90,14 +87,14 @@ function leadDayKeyEastern(createdAtIso: string): string {
   return dateObjectToESTString(d);
 }
 
-function buildDdfSyncNoteBody(p: { currentStage: string; nextStage: string; reasonSummary: string | null }): string {
+function buildDdfSyncNoteBody(p: { currentStage: string; nextStage: string; notes: string | null }): string {
   const prev = normaliseStageLabel(p.currentStage);
   const next = String(p.nextStage ?? "").trim();
   let body = `Daily Deal Flow (sync not-submitted): lead stage updated from ${
     prev ? `"${prev}"` : "(none)"
   } to "${next}".`;
-  const reason = String(p.reasonSummary ?? "").trim();
-  if (reason) body += ` Disposition context: ${reason}`;
+  const notes = String(p.notes ?? "").trim();
+  if (notes) body += `\n\nCall Notes:\n${notes}`;
   return body;
 }
 
@@ -265,7 +262,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
           sourceStatus,
           selectedStage: selectedStageName,
           selectedStageId,
-          reasonSummary: summarizeCallResultReason(r),
+          notes: getCallResultNotes(r),
           include: drift,
           rowStatus: "idle",
           leadCreatedAtIso: createdAtIso,
@@ -350,7 +347,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
       return false;
     }
 
-    const body = buildDdfSyncNoteBody({ currentStage: row.currentStage, nextStage: stageName, reasonSummary: row.reasonSummary });
+    const body = buildDdfSyncNoteBody({ currentStage: row.currentStage, nextStage: stageName, notes: row.notes });
     const { error: noteError } = await supabase.from("lead_notes").insert({
       lead_id: row.leadId,
       body,
@@ -565,7 +562,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
                     <th style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>Created (ET)</th>
                     <th style={{ padding: "8px 6px" }}>Current Stage</th>
                     <th style={{ padding: "8px 6px" }}>Target Stage</th>
-                    <th style={{ padding: "8px 6px" }}>Reason</th>
+                    <th style={{ padding: "8px 6px" }}>Notes</th>
                     <th style={{ padding: "8px 6px", width: 100 }}>Status</th>
                   </tr>
                 </thead>
@@ -650,8 +647,8 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
                             />
                           )}
                         </td>
-                        <td style={{ padding: "10px 6px", verticalAlign: "middle", color: T.textMid, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.reasonSummary || undefined}>
-                          {r.reasonSummary || "—"}
+                        <td style={{ padding: "10px 6px", verticalAlign: "middle", color: T.textMid, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.notes || undefined}>
+                          {r.notes || "—"}
                         </td>
                         <td style={{ padding: "10px 6px", verticalAlign: "middle" }}>
                           {isSyncing ? (
