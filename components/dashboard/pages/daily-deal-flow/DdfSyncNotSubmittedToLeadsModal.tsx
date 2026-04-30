@@ -6,18 +6,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { T } from "@/lib/theme";
 import { getTodayDateEST } from "./helpers";
 
-type CallResultRow = {
+type DailyDealFlowRow = {
   id: string;
-  submission_id: string | null;
   lead_id: string | null;
-  status: string | null;
-  dq_reason: string | null;
-  notes: string | null;
-  generated_note: string | null;
-  manual_note: string | null;
-  quick_disposition_tag: string | null;
-  updated_at: string | null;
+  submission_id: string | null;
   date: string | null;
+  call_result: string | null;
+  status: string | null;
+  notes: string | null;
 };
 
 type LeadRow = {
@@ -61,13 +57,10 @@ function leadDisplayName(lead: LeadRow) {
 
 const REASON_SUMMARY_MAX = 200;
 
-function getCallResultNotes(r: CallResultRow): string {
+function getDdfNotes(r: DailyDealFlowRow): string {
   const ordered = [
     r.notes,
-    r.manual_note,
-    r.generated_note,
-    r.dq_reason,
-    r.quick_disposition_tag,
+    r.call_result,
   ]
     .map((x) => String(x ?? "").trim())
     .filter(Boolean);
@@ -196,28 +189,29 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
     setRows([]);
     try {
       await loadStages();
-      const { data: crRows, error: crErr } = await supabase
-        .from("call_results")
-        .select(
-          "id, submission_id, lead_id, status, dq_reason, notes, generated_note, manual_note, quick_disposition_tag, updated_at, date",
-        )
-        .eq("application_submitted", false)
+      const { data: ddfRows, error: ddfErr } = await supabase
+        .from("daily_deal_flow")
+        .select("id, lead_id, submission_id, date, call_result, status, notes")
+        .not("lead_id", "is", null)
         .order("date", { ascending: false })
         .limit(400);
-      if (crErr) throw new Error(crErr.message);
+      if (ddfErr) throw new Error(ddfErr.message);
 
-      const list = (crRows || []) as CallResultRow[];
-      const bySubmission = new Map<string, CallResultRow>();
+      const list = (ddfRows || []) as DailyDealFlowRow[];
+      if (list.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      const bySubmission = new Map<string, DailyDealFlowRow>();
       for (const r of list) {
         const sid = String(r.submission_id || "").trim();
         if (!sid) continue;
         if (!bySubmission.has(sid)) bySubmission.set(sid, r);
       }
 
-      const unique = [...bySubmission.values()].filter((r) => {
-        const st = String(r.status || "").trim();
-        return st.length > 0;
-      });
+      const unique = [...bySubmission.values()];
 
       const leadIds = [...new Set(unique.map((r) => String(r.lead_id || "").trim()).filter(Boolean))];
       const leadById = new Map<string, LeadRow>();
@@ -238,9 +232,10 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
       for (const r of unique) {
         const leadId = String(r.lead_id || "").trim();
         if (!leadId) continue;
+
         const lead = leadById.get(leadId);
         if (!lead) continue;
-        const sourceStatus = String(r.status || "").trim();
+        const sourceStatus = String(r.call_result || "").trim();
         const current = String(lead.stage || "").trim();
         const currentStageId = lead.stage_id != null ? Number(lead.stage_id) : null;
 
@@ -263,7 +258,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
           sourceStatus,
           selectedStage: selectedStageName,
           selectedStageId,
-          notes: getCallResultNotes(r),
+          notes: getDdfNotes(r),
           include: drift,
           rowStatus: "idle",
           callResultDate,
@@ -553,14 +548,14 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
             ) : rows.length === 0 ? (
               <div style={{ textAlign: "center", padding: 40 }}>
                 <p style={{ margin: 0, color: T.textMuted, fontWeight: 600, fontSize: 14 }}>
-                  No matching call results found.<br />
-                  <span style={{ fontWeight: 400, fontSize: 13 }}>Not submitted calls with saved disposition status will appear here.</span>
+                  No leads to sync.<br />
+                  <span style={{ fontWeight: 400, fontSize: 13 }}>All Daily Deal Flow entries have been synced or there are none to sync.</span>
                 </p>
               </div>
             ) : displayRows.length === 0 ? (
               <div style={{ textAlign: "center", padding: 40 }}>
                 <p style={{ margin: 0, color: T.textMuted, fontWeight: 600 }}>
-                  No leads for selected date. Try another day or "All dates".
+                  No leads for selected date range. Try different dates or "All dates".
                 </p>
               </div>
             ) : (
