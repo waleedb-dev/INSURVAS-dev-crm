@@ -431,8 +431,8 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
             <>
               {queueRole !== "manager" && section("Assigned To You (Next)", assignedToMe)}
               {section("Unclaimed Transfers", grouped.unclaimed)}
-              {section("BA Active Calls", grouped.baActive)}
-              {section("LA Active Calls", grouped.laActive)}
+              {(queueRole === "manager" || queueRole === "la") && section("BA Active Calls", grouped.baActive)}
+              {(queueRole === "manager" || queueRole === "ba") && section("LA Active Calls", grouped.laActive)}
             </>
           )}
         </div>

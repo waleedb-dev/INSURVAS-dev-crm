@@ -58,6 +58,18 @@ function allowedQueueTypes(queueRole: QueueRole): QueueType[] {
   return [];
 }
 
+/** After merging “assigned to me” rows, drop queue types this role must not see (see role-specific queue UX). */
+function filterSnapshotRowsForRole(rows: LeadQueueItem[], queueRole: QueueRole): LeadQueueItem[] {
+  if (queueRole === "manager") return rows;
+  if (queueRole === "la") {
+    return rows.filter((r) => r.queue_type === "unclaimed_transfer" || r.queue_type === "ba_active");
+  }
+  if (queueRole === "ba") {
+    return rows.filter((r) => r.queue_type === "unclaimed_transfer" || r.queue_type === "la_active");
+  }
+  return rows;
+}
+
 async function logQueueEvent(
   supabase: SupabaseClient,
   queueItemId: string,
@@ -136,7 +148,9 @@ export async function fetchQueueSnapshot(
   };
 
   if (!currentUserId || queueRole === "manager") {
-    return applyVerificationProgress((baseRows ?? []) as LeadQueueItem[]);
+    return applyVerificationProgress(
+      filterSnapshotRowsForRole((baseRows ?? []) as LeadQueueItem[], queueRole),
+    );
   }
 
   let assignedQuery = supabase
@@ -162,7 +176,7 @@ export async function fetchQueueSnapshot(
   const mergedRows = Array.from(merged.values()).sort(
     (a, b) => new Date(a.queued_at).getTime() - new Date(b.queued_at).getTime(),
   );
-  return applyVerificationProgress(mergedRows);
+  return applyVerificationProgress(filterSnapshotRowsForRole(mergedRows, queueRole));
 }
 
 export async function fetchQueueAssignees(supabase: SupabaseClient): Promise<

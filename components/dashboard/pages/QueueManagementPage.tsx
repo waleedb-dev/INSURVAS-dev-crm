@@ -327,12 +327,27 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
       }
       return Array.from(map.entries()).map(([key, items]) => ({ key, title: key, items }));
     }
-    return [
-      { key: "unclaimed_transfer", title: "Unclaimed transfers", items: filteredRows.filter((r) => r.queue_type === "unclaimed_transfer") },
-      { key: "ba_active", title: "BA active calls", items: filteredRows.filter((r) => r.queue_type === "ba_active") },
-      { key: "la_active", title: "LA active calls", items: filteredRows.filter((r) => r.queue_type === "la_active") },
-    ];
-  }, [filteredRows, groupBy]);
+    if (queueRole === "manager") {
+      return [
+        { key: "unclaimed_transfer", title: "Unclaimed transfers", items: filteredRows.filter((r) => r.queue_type === "unclaimed_transfer") },
+        { key: "ba_active", title: "BA active calls", items: filteredRows.filter((r) => r.queue_type === "ba_active") },
+        { key: "la_active", title: "LA active calls", items: filteredRows.filter((r) => r.queue_type === "la_active") },
+      ];
+    }
+    if (queueRole === "la") {
+      return [
+        { key: "unclaimed_transfer", title: "Unclaimed transfers", items: filteredRows.filter((r) => r.queue_type === "unclaimed_transfer") },
+        { key: "ba_active", title: "BA active calls", items: filteredRows.filter((r) => r.queue_type === "ba_active") },
+      ];
+    }
+    if (queueRole === "ba") {
+      return [
+        { key: "unclaimed_transfer", title: "Unclaimed transfers", items: filteredRows.filter((r) => r.queue_type === "unclaimed_transfer") },
+        { key: "la_active", title: "LA active calls", items: filteredRows.filter((r) => r.queue_type === "la_active") },
+      ];
+    }
+    return [];
+  }, [filteredRows, groupBy, queueRole]);
 
   const runAction = async (queueId: string, fn: () => Promise<void>) => {
     setSavingId(queueId);
