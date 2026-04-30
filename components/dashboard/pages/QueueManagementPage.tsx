@@ -6,6 +6,7 @@ import { T } from "@/lib/theme";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TransferStyledSelect } from "./TransferStyledSelect";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   fetchQueueAssignees,
   fetchQueueSnapshot,
@@ -26,6 +27,14 @@ type DraftAssign = {
   laId: string;
   eta: string;
 };
+
+type EligibleAgentsResponse =
+  | {
+      success?: boolean;
+      eligible_agents_count?: number;
+      eligible_agents?: Array<{ name: string; upline?: string | null; upline_required?: boolean | null }>;
+    }
+  | { error?: string };
 
 function elapsedLabel(iso: string | null): string {
   if (!iso) return "N/A";
@@ -59,6 +68,66 @@ function matchesSearch(row: LeadQueueItem, q: string): boolean {
   return hay.includes(query);
 }
 
+function normaliseUsState(value: string | null | undefined): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const t = raw.toUpperCase();
+  const MAP: Record<string, string> = {
+    AL: "Alabama",
+    AK: "Alaska",
+    AZ: "Arizona",
+    AR: "Arkansas",
+    CA: "California",
+    CO: "Colorado",
+    CT: "Connecticut",
+    DE: "Delaware",
+    DC: "District of Columbia",
+    FL: "Florida",
+    GA: "Georgia",
+    HI: "Hawaii",
+    ID: "Idaho",
+    IL: "Illinois",
+    IN: "Indiana",
+    IA: "Iowa",
+    KS: "Kansas",
+    KY: "Kentucky",
+    LA: "Louisiana",
+    ME: "Maine",
+    MD: "Maryland",
+    MA: "Massachusetts",
+    MI: "Michigan",
+    MN: "Minnesota",
+    MS: "Mississippi",
+    MO: "Missouri",
+    MT: "Montana",
+    NE: "Nebraska",
+    NV: "Nevada",
+    NH: "New Hampshire",
+    NJ: "New Jersey",
+    NM: "New Mexico",
+    NY: "New York",
+    NC: "North Carolina",
+    ND: "North Dakota",
+    OH: "Ohio",
+    OK: "Oklahoma",
+    OR: "Oregon",
+    PA: "Pennsylvania",
+    RI: "Rhode Island",
+    SC: "South Carolina",
+    SD: "South Dakota",
+    TN: "Tennessee",
+    TX: "Texas",
+    UT: "Utah",
+    VT: "Vermont",
+    VA: "Virginia",
+    WA: "Washington",
+    WV: "West Virginia",
+    WI: "Wisconsin",
+    WY: "Wyoming",
+  };
+  return MAP[t] || raw;
+}
+
 export default function QueueManagementPage({ variant = "default" }: Props) {
   const { currentRole, currentUserId } = useDashboardContext();
   const queueRole = useMemo(() => resolveQueueRole(currentRole), [currentRole]);
@@ -78,6 +147,86 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [groupBy, setGroupBy] = useState<"none" | "queue_type" | "centre">("none");
+  const [language, setLanguage] = useState<"English" | "Spanish">("English");
+
+  const [eligibleCache, setEligibleCache] = useState<
+    Record<
+      string,
+      {
+        loading: boolean;
+        error: string | null;
+        options: Array<{ value: string; label: string }>;
+      }
+    >
+  >({});
+
+  const fetchEligibleAgents = useCallback(
+    async (args: { carrier: string; state: string; leadVendor: string; language: "English" | "Spanish" }) => {
+      const key = `${args.carrier}||${args.state}||${args.leadVendor}||${args.language}`;
+      const hit = eligibleCache[key];
+      if (hit?.loading) return key;
+      if (hit && hit.options.length > 0) return key;
+
+      setEligibleCache((prev) => ({
+        ...prev,
+        [key]: { loading: true, error: null, options: prev[key]?.options ?? [] },
+      }));
+
+      try {
+        const resp = await fetch("/api/get-eligible-agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            carrier: args.carrier,
+            state: args.state,
+            lead_vendor: args.leadVendor,
+            language: args.language,
+          }),
+        });
+        const payload = (await resp.json()) as EligibleAgentsResponse;
+        if (!resp.ok) {
+          const msg =
+            (payload && "error" in payload && typeof payload.error === "string" && payload.error) ||
+            `HTTP ${resp.status}`;
+          throw new Error(msg);
+        }
+
+        const list = (payload && "eligible_agents" in payload ? payload.eligible_agents : null) ?? [];
+        const options = list
+          .map((a) => {
+            const name = String(a?.name ?? "").trim();
+            if (!name) return null;
+            const needsUpline = Boolean(a?.upline_required);
+            return {
+              value: name,
+              label: needsUpline ? `${name} (upline required)` : name,
+            };
+          })
+          .filter(Boolean) as Array<{ value: string; label: string }>;
+
+        setEligibleCache((prev) => ({
+          ...prev,
+          [key]: {
+            loading: false,
+            error: null,
+            options: [{ value: "__unassigned__", label: "Unassigned" }, ...options],
+          },
+        }));
+      } catch (e) {
+        setEligibleCache((prev) => ({
+          ...prev,
+          [key]: {
+            loading: false,
+            error: e instanceof Error ? e.message : "Failed to load eligible agents",
+            options: prev[key]?.options?.length ? prev[key].options : [],
+          },
+        }));
+      }
+
+      return key;
+    },
+    [eligibleCache, supabase.functions],
+  );
 
   const loadSnapshot = useCallback(
     async (silent = false) => {
@@ -144,6 +293,14 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     return [{ value: "__unassigned__", label: "Unassigned" }, ...opts];
   }, [assignees]);
 
+  const languageOptions = useMemo(
+    () => [
+      { value: "English", label: "English" },
+      { value: "Spanish", label: "Spanish" },
+    ],
+    [],
+  );
+
   const filteredRows = useMemo(
     () => rows.filter((r) => matchesSearch(r, searchTerm)),
     [rows, searchTerm],
@@ -208,6 +365,28 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     const showReady =
       (queueRole === "ba" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active")) ||
       (queueRole === "la" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active"));
+
+    const carrierForEligibility = String(row.carrier ?? "").trim();
+    const stateForEligibility = normaliseUsState(row.state);
+    const vendorForEligibility = String(row.call_center_name ?? "").trim();
+    const eligibilityKey =
+      carrierForEligibility && stateForEligibility && vendorForEligibility
+        ? `${carrierForEligibility}||${stateForEligibility}||${vendorForEligibility}||${language}`
+        : null;
+    const eligibleState = eligibilityKey ? eligibleCache[eligibilityKey] : null;
+    const laOptionsForRow =
+      eligibleState?.options?.length ? eligibleState.options : laAssigneeOptions;
+
+    const ensureEligibleLoaded = async () => {
+      if (!eligibilityKey) return;
+      if (eligibleCache[eligibilityKey]?.options?.length) return;
+      await fetchEligibleAgents({
+        carrier: carrierForEligibility,
+        state: stateForEligibility,
+        leadVendor: vendorForEligibility,
+        language,
+      });
+    };
 
     return (
       <div
@@ -318,17 +497,81 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
               options={baAssigneeOptions}
               placeholder="Assign BA"
             />
-            <TransferStyledSelect
-              value={draft.laId || "__unassigned__"}
-              onValueChange={(val) =>
+            <Select
+              value={draft.laId ? draft.laId : undefined}
+              onValueChange={(val) => {
+                const next = val ?? "";
                 setDrafts((prev) => ({
                   ...prev,
-                  [row.id]: { ...draft, laId: val === "__unassigned__" ? "" : val },
-                }))
-              }
-              options={laAssigneeOptions}
-              placeholder="Assign LA"
-            />
+                  [row.id]: { ...draft, laId: next === "__unassigned__" ? "" : next },
+                }));
+              }}
+              onOpenChange={(open) => {
+                if (!open) return;
+                void ensureEligibleLoaded();
+              }}
+            >
+              <SelectTrigger
+                style={{
+                  width: "100%",
+                  height: 42,
+                  borderRadius: 10,
+                  border: `1.5px solid ${T.border}`,
+                  backgroundColor: "#fff",
+                  color: draft.laId ? T.textDark : T.textMuted,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  paddingLeft: 14,
+                  paddingRight: 12,
+                  transition: "all 0.15s ease-in-out",
+                  opacity: !eligibilityKey ? 0.7 : 1,
+                }}
+                className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+                title={!eligibilityKey ? "Needs carrier, state, and centre to load eligible agents" : undefined}
+              >
+                <SelectValue placeholder="Assign LA" />
+              </SelectTrigger>
+              <SelectContent
+                style={{
+                  borderRadius: 12,
+                  border: `1px solid ${T.border}`,
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+                  backgroundColor: "#fff",
+                  padding: 6,
+                  maxHeight: 300,
+                  zIndex: 99999,
+                }}
+              >
+                {eligibleState?.loading && (
+                  <div style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, color: T.textMuted }}>
+                    Loading eligible agents…
+                  </div>
+                )}
+                {eligibleState?.error && (
+                  <div style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#b91c1c" }}>
+                    {eligibleState.error}
+                  </div>
+                )}
+                {laOptionsForRow.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value}
+                    style={{
+                      borderRadius: 8,
+                      padding: "10px 14px",
+                      fontSize: 14,
+                      fontWeight: 400,
+                      color: T.textDark,
+                      cursor: "pointer",
+                      transition: "all 0.1s ease-in-out",
+                    }}
+                    className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <input
               type="number"
               placeholder="ETA"
@@ -483,6 +726,17 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
               onValueChange={(val) => setGroupBy(val as "none" | "queue_type" | "centre")}
               options={groupByOptions}
               placeholder="No grouping"
+            />
+          </div>
+          <div style={{ minWidth: 180, flex: "0 0 180px" }}>
+            <TransferStyledSelect
+              value={language}
+              onValueChange={(val) => {
+                const next = val === "Spanish" ? "Spanish" : "English";
+                setLanguage(next);
+              }}
+              options={languageOptions}
+              placeholder="Language"
             />
           </div>
         </div>

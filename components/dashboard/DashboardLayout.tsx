@@ -623,7 +623,8 @@ export default function DashboardLayout({
           height: 68, backgroundColor: T.sidebarBg,
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 28px", gap: 20,
-          position: "sticky", top: 0, zIndex: 50,
+          /* Above page-level filter toolbars / sticky panels (e.g. Daily Deal Flow) so header dropdowns are not covered */
+          position: "sticky", top: 0, zIndex: 2000,
           borderBottom: `1px solid ${T.borderLight}`,
           minWidth: 0,
         }}>
@@ -670,7 +671,7 @@ export default function DashboardLayout({
                 </span>
               </button>
               {showNotif && (
-                <div style={{ position: "absolute", right: 0, top: "calc(100% + 10px)", width: 310, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 250, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
+                <div style={{ position: "absolute", right: 0, top: "calc(100% + 10px)", width: 310, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 2100, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
                   <div style={{ padding: "13px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.borderLight}` }}>
                     <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>Notifications</span>
                     {unread > 0 && <button type="button" onClick={markAllRead} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: T.blue, fontFamily: T.font }}>Mark all read</button>}
@@ -786,7 +787,7 @@ export default function DashboardLayout({
                 <ChevronDown size={14} style={{ flexShrink: 0, transition: "transform 0.18s", transform: showUser ? "rotate(180deg)" : "rotate(0)" }} />
               </button>
               {showUser && (
-                <div style={{ position: "absolute", right: 0, top: "calc(100% + 10px)", width: 220, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 250, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
+                <div style={{ position: "absolute", right: 0, top: "calc(100% + 10px)", width: 220, backgroundColor: T.cardBg, borderRadius: T.radiusLg, boxShadow: T.shadowLg, border: `1px solid ${T.border}`, zIndex: 2100, overflow: "hidden", animation: "fadeInDown 0.15s ease" }}>
                   <div style={{ padding: "13px 16px", borderBottom: `1px solid ${T.borderLight}` }}>
                     <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.textDark }}>{userDisplayName}</p>
                     <p style={{ margin: "4px 0 0", fontSize: 11, color: T.textMuted, fontWeight: 600, wordBreak: "break-all" }}>{userEmail}</p>
