@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { T } from "@/lib/theme";
-import { formatDateTimeET } from "@/lib/time";
-import { dateObjectToESTString, getTodayDateEST } from "./helpers";
+import { getTodayDateEST } from "./helpers";
 
 type CallResultRow = {
   id: string;
@@ -18,6 +17,7 @@ type CallResultRow = {
   manual_note: string | null;
   quick_disposition_tag: string | null;
   updated_at: string | null;
+  date: string | null;
 };
 
 type LeadRow = {
@@ -43,7 +43,7 @@ type SyncRowState = {
   include: boolean;
   rowStatus: "idle" | "syncing" | "done" | "error";
   errorMessage?: string;
-  leadCreatedAtIso: string;
+  callResultDate: string;
 };
 
 type Props = {
@@ -80,13 +80,6 @@ function normaliseStageLabel(label: string): string {
   return t;
 }
 
-function leadDayKeyEastern(createdAtIso: string): string {
-  if (!String(createdAtIso || "").trim()) return "";
-  const d = new Date(createdAtIso);
-  if (Number.isNaN(d.getTime())) return "";
-  return dateObjectToESTString(d);
-}
-
 function buildDdfSyncNoteBody(p: { currentStage: string; nextStage: string; notes: string | null }): string {
   const prev = normaliseStageLabel(p.currentStage);
   const next = String(p.nextStage ?? "").trim();
@@ -107,7 +100,8 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
   const [transferPipelineId, setTransferPipelineId] = useState<number | null>(null);
   const [stageOptions, setStageOptions] = useState<StageOption[]>([]);
   const [bulkSyncing, setBulkSyncing] = useState(false);
-  const [filterCreatedAtDateYmd, setFilterCreatedAtDateYmd] = useState(() => getTodayDateEST());
+  const [filterFromDate, setFilterFromDate] = useState(() => getTodayDateEST());
+  const [filterToDate, setFilterToDate] = useState(() => getTodayDateEST());
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   const stageNames = useMemo(() => stageOptions.map((s) => s.name), [stageOptions]);
@@ -125,9 +119,16 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
   }, [stageOptions]);
 
   const displayRows = useMemo(() => {
-    if (!String(filterCreatedAtDateYmd || "").trim()) return rows;
-    return rows.filter((r) => leadDayKeyEastern(r.leadCreatedAtIso) === filterCreatedAtDateYmd);
-  }, [rows, filterCreatedAtDateYmd]);
+    const from = filterFromDate;
+    const to = filterToDate;
+    if (!from && !to) return rows;
+    return rows.filter((r) => {
+      const d = r.callResultDate;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
+  }, [rows, filterFromDate, filterToDate]);
 
   const selectOptions = useMemo(() => {
     const s = new Set(stageNames);
@@ -198,10 +199,10 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
       const { data: crRows, error: crErr } = await supabase
         .from("call_results")
         .select(
-          "id, submission_id, lead_id, status, dq_reason, notes, generated_note, manual_note, quick_disposition_tag, updated_at",
+          "id, submission_id, lead_id, status, dq_reason, notes, generated_note, manual_note, quick_disposition_tag, updated_at, date",
         )
         .eq("application_submitted", false)
-        .order("updated_at", { ascending: false })
+        .order("date", { ascending: false })
         .limit(400);
       if (crErr) throw new Error(crErr.message);
 
@@ -242,7 +243,6 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
         const sourceStatus = String(r.status || "").trim();
         const current = String(lead.stage || "").trim();
         const currentStageId = lead.stage_id != null ? Number(lead.stage_id) : null;
-        const createdAtIso = lead.created_at != null ? String(lead.created_at) : "";
 
         const selectedStageName = sourceStatus;
         let selectedStageId: number | null = null;
@@ -252,6 +252,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
         }
 
         const drift = current !== sourceStatus;
+        const callResultDate = r.date || "";
         next.push({
           key: `${r.id}-${leadId}`,
           callResultId: r.id,
@@ -265,7 +266,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
           notes: getCallResultNotes(r),
           include: drift,
           rowStatus: "idle",
-          leadCreatedAtIso: createdAtIso,
+          callResultDate,
         });
       }
       setRows(next);
@@ -471,11 +472,28 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
               backgroundColor: "#fafcff",
             }}
           >
-            <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark }}>Lead created:</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark }}>Date (ET):</span>
+            <span style={{ fontSize: 12, color: T.textMid }}>From</span>
             <input
               type="date"
-              value={filterCreatedAtDateYmd}
-              onChange={(e) => setFilterCreatedAtDateYmd(e.target.value)}
+              value={filterFromDate}
+              onChange={(e) => setFilterFromDate(e.target.value)}
+              style={{
+                height: 36,
+                padding: "0 10px",
+                borderRadius: 8,
+                border: `1px solid ${T.border}`,
+                fontSize: 13,
+                fontWeight: 600,
+                color: T.textDark,
+                fontFamily: T.font,
+              }}
+            />
+            <span style={{ fontSize: 12, color: T.textMid }}>to</span>
+            <input
+              type="date"
+              value={filterToDate}
+              onChange={(e) => setFilterToDate(e.target.value)}
               style={{
                 height: 36,
                 padding: "0 10px",
@@ -489,7 +507,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
             />
             <button
               type="button"
-              onClick={() => setFilterCreatedAtDateYmd("")}
+              onClick={() => { setFilterFromDate(""); setFilterToDate(""); }}
               style={{
                 height: 36,
                 padding: "0 12px",
@@ -507,7 +525,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
             </button>
             <button
               type="button"
-              onClick={() => setFilterCreatedAtDateYmd(getTodayDateEST())}
+              onClick={() => { setFilterFromDate(getTodayDateEST()); setFilterToDate(getTodayDateEST()); }}
               style={{
                 height: 36,
                 padding: "0 12px",
@@ -559,7 +577,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
                       />
                     </th>
                     <th style={{ padding: "8px 6px" }}>Lead</th>
-                    <th style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>Created (ET)</th>
+                    <th style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>Date</th>
                     <th style={{ padding: "8px 6px" }}>Current Stage</th>
                     <th style={{ padding: "8px 6px" }}>Target Stage</th>
                     <th style={{ padding: "8px 6px" }}>Notes</th>
@@ -595,7 +613,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
                           </div>
                         </td>
                         <td style={{ padding: "10px 6px", verticalAlign: "middle", color: T.textMid, fontSize: 11, whiteSpace: "nowrap" }}>
-                          {r.leadCreatedAtIso ? formatDateTimeET(r.leadCreatedAtIso) : "—"}
+                          {r.callResultDate || "—"}
                         </td>
                         <td style={{ padding: "10px 6px", verticalAlign: "middle", fontWeight: 600 }}>
                           <span style={{
