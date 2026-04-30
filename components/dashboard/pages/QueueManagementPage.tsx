@@ -36,6 +36,9 @@ type EligibleAgentsResponse =
     }
   | { error?: string };
 
+/** Match `TransferStyledSelect` trigger height for one clean toolbar / assignment row */
+const QUEUE_CONTROL_HEIGHT = 42;
+
 function elapsedLabel(iso: string | null): string {
   if (!iso) return "N/A";
   const ms = Date.now() - new Date(iso).getTime();
@@ -146,7 +149,6 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
   const [drafts, setDrafts] = useState<Record<string, DraftAssign>>({});
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [groupBy, setGroupBy] = useState<"none" | "queue_type" | "centre">("none");
   const [language, setLanguage] = useState<"English" | "Spanish">("English");
 
   const [eligibleCache, setEligibleCache] = useState<
@@ -273,15 +275,6 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     return map;
   }, [assignees]);
 
-  const groupByOptions = useMemo(
-    () => [
-      { value: "none", label: "No grouping" },
-      { value: "queue_type", label: "Queue type" },
-      { value: "centre", label: "Centre" },
-    ],
-    [],
-  );
-
   const baAssigneeOptions = useMemo(() => {
     const opts = assignees
       .filter((a) => a.queueRole === "ba")
@@ -303,26 +296,6 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
   );
 
   const grouped = useMemo(() => {
-    if (groupBy === "queue_type") {
-      const map = new Map<string, LeadQueueItem[]>();
-      for (const row of filteredRows) {
-        const key = row.queue_type;
-        const next = map.get(key) ?? [];
-        next.push(row);
-        map.set(key, next);
-      }
-      return Array.from(map.entries()).map(([key, items]) => ({ key, title: key.replaceAll("_", " "), items }));
-    }
-    if (groupBy === "centre") {
-      const map = new Map<string, LeadQueueItem[]>();
-      for (const row of filteredRows) {
-        const key = (row.call_center_name || "Unknown centre").trim() || "Unknown centre";
-        const next = map.get(key) ?? [];
-        next.push(row);
-        map.set(key, next);
-      }
-      return Array.from(map.entries()).map(([key, items]) => ({ key, title: key, items }));
-    }
     if (queueRole === "manager") {
       return [
         { key: "unclaimed_transfer", title: "Unclaimed transfers", items: filteredRows.filter((r) => r.queue_type === "unclaimed_transfer") },
@@ -343,7 +316,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
       ];
     }
     return [];
-  }, [filteredRows, groupBy, queueRole]);
+  }, [filteredRows, queueRole]);
 
   const runAction = async (queueId: string, fn: () => Promise<void>) => {
     setSavingId(queueId);
@@ -406,9 +379,9 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
           border: `1px solid ${hasAnyAssignment ? "#86b97b" : T.border}`,
           borderRadius: 12,
           background: hasAnyAssignment ? "#f6fbf4" : T.cardBg,
-          padding: 10,
+          padding: 12,
           display: "grid",
-          gap: 8,
+          gap: 10,
           transition: "all 0.15s ease-in-out",
         }}
       >
@@ -496,18 +469,28 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         </div>
 
         {queueRole === "manager" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 78px auto", gap: 6 }}>
-            <TransferStyledSelect
-              value={draft.baId || "__unassigned__"}
-              onValueChange={(val) =>
-                setDrafts((prev) => ({
-                  ...prev,
-                  [row.id]: { ...draft, baId: val === "__unassigned__" ? "" : val },
-                }))
-              }
-              options={baAssigneeOptions}
-              placeholder="Assign BA"
-            />
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 92px minmax(min-content, auto)",
+              gap: 8,
+              alignItems: "stretch",
+            }}
+          >
+            <div style={{ minWidth: 0, width: "100%", display: "flex", alignItems: "stretch" }}>
+              <TransferStyledSelect
+                value={draft.baId || "__unassigned__"}
+                onValueChange={(val) =>
+                  setDrafts((prev) => ({
+                    ...prev,
+                    [row.id]: { ...draft, baId: val === "__unassigned__" ? "" : val },
+                  }))
+                }
+                options={baAssigneeOptions}
+                placeholder="Assign BA"
+              />
+            </div>
+            <div style={{ minWidth: 0, width: "100%", display: "flex", alignItems: "stretch" }}>
             <Select
               value={draft.laId ? draft.laId : undefined}
               onValueChange={(val) => {
@@ -525,7 +508,8 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
               <SelectTrigger
                 style={{
                   width: "100%",
-                  height: 42,
+                  height: QUEUE_CONTROL_HEIGHT,
+                  minHeight: QUEUE_CONTROL_HEIGHT,
                   borderRadius: 10,
                   border: `1.5px solid ${T.border}`,
                   backgroundColor: "#fff",
@@ -536,6 +520,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
                   paddingRight: 12,
                   transition: "all 0.15s ease-in-out",
                   opacity: !eligibilityKey ? 0.7 : 1,
+                  boxSizing: "border-box",
                 }}
                 className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
                 title={!eligibilityKey ? "Needs carrier, state, and centre to load eligible agents" : undefined}
@@ -583,6 +568,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
                 ))}
               </SelectContent>
             </Select>
+            </div>
             <input
               type="number"
               placeholder="ETA"
@@ -590,12 +576,22 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
               value={draft.eta}
               onChange={(e) => setDrafts((prev) => ({ ...prev, [row.id]: { ...draft, eta: e.target.value } }))}
               style={{
-                border: `1px solid ${T.border}`,
+                width: "100%",
+                height: QUEUE_CONTROL_HEIGHT,
+                minHeight: QUEUE_CONTROL_HEIGHT,
+                boxSizing: "border-box",
+                border: `1.5px solid ${T.border}`,
                 borderRadius: 10,
-                padding: "7px 8px",
-                fontSize: 12,
-                background: T.pageBg,
+                padding: "0 10px",
+                fontSize: 14,
+                fontWeight: 600,
+                color: T.textDark,
+                background: "#fff",
+                outline: "none",
+                fontFamily: T.font,
+                transition: "all 0.15s ease-in-out",
               }}
+              className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
             />
             <button
               type="button"
@@ -614,12 +610,19 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
                 borderRadius: 10,
                 background: "#233217",
                 color: "#fff",
-                fontSize: 12,
-                fontWeight: 900,
-                padding: "7px 12px",
+                height: QUEUE_CONTROL_HEIGHT,
+                minHeight: QUEUE_CONTROL_HEIGHT,
+                padding: "0 18px",
+                fontSize: 14,
+                fontWeight: 800,
                 cursor: isSaving ? "not-allowed" : "pointer",
                 opacity: isSaving ? 0.65 : 1,
                 transition: "all 0.15s ease-in-out",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                boxSizing: "border-box",
               }}
             >
               Save
@@ -696,50 +699,59 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, minHeight: 0 }}>
       <div
         style={{
-          display: "flex",
-          flexWrap: "wrap",
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) auto",
           alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
+          gap: 12,
           padding: isEmbed ? 0 : "12px 14px",
           borderRadius: isEmbed ? 0 : 16,
           border: isEmbed ? "none" : `1px solid ${T.border}`,
           background: isEmbed ? "transparent" : T.cardBg,
         }}
       >
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
-          <div style={{ position: "relative", display: "flex", alignItems: "center", minWidth: 240, flex: "1 1 260px" }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 10,
+            minWidth: 0,
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              minWidth: 200,
+              flex: "1 1 220px",
+            }}
+          >
             <Search size={16} style={{ position: "absolute", left: 12, pointerEvents: "none", color: T.textMuted }} />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search queue..."
               style={{
-                height: 38,
+                height: QUEUE_CONTROL_HEIGHT,
                 width: "100%",
+                boxSizing: "border-box",
                 paddingLeft: 36,
                 paddingRight: 12,
-                border: `1px solid ${T.border}`,
-                borderRadius: 12,
-                fontSize: 13,
+                border: `1.5px solid ${T.border}`,
+                borderRadius: 10,
+                fontSize: 14,
                 fontWeight: 600,
                 color: T.textDark,
-                background: T.pageBg,
+                background: "#fff",
                 outline: "none",
                 fontFamily: T.font,
                 transition: "all 0.15s ease-in-out",
               }}
+              className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
             />
           </div>
-          <div style={{ minWidth: 220, flex: "0 0 220px" }}>
-            <TransferStyledSelect
-              value={groupBy}
-              onValueChange={(val) => setGroupBy(val as "none" | "queue_type" | "centre")}
-              options={groupByOptions}
-              placeholder="No grouping"
-            />
-          </div>
-          <div style={{ minWidth: 180, flex: "0 0 180px" }}>
+          <div style={{ width: 160, minWidth: 140, flex: "0 0 auto" }}>
             <TransferStyledSelect
               value={language}
               onValueChange={(val) => {
@@ -756,19 +768,23 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
           type="button"
           onClick={() => void loadSnapshot(true)}
           style={{
-            height: 38,
-            padding: "0 14px",
-            borderRadius: 12,
+            height: QUEUE_CONTROL_HEIGHT,
+            minHeight: QUEUE_CONTROL_HEIGHT,
+            padding: "0 16px",
+            borderRadius: 10,
             border: `1px solid ${T.border}`,
             background: "#233217",
             color: "#fff",
-            fontSize: 13,
-            fontWeight: 900,
+            fontSize: 14,
+            fontWeight: 800,
             cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
+            justifyContent: "center",
             gap: 8,
             boxShadow: "0 6px 16px rgba(35, 50, 23, 0.18)",
+            flexShrink: 0,
+            boxSizing: "border-box",
           }}
           title="Refresh queue"
         >
@@ -796,14 +812,23 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         <div
           style={{
             display: "grid",
-            gap: 12,
+            gap: 16,
             alignContent: "start",
           }}
         >
           {grouped.map((section) => (
-            <div key={section.key} style={{ display: "grid", gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: T.textDark }}>
-                {section.title} ({section.items.length})
+            <div key={section.key} style={{ display: "grid", gap: 10 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  color: T.textMuted,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {section.title}{" "}
+                <span style={{ color: T.textDark }}>({section.items.length})</span>
               </div>
               {section.items.length === 0 ? (
                 <div style={{ fontSize: 12, color: T.textMuted, border: `1px dashed ${T.border}`, borderRadius: 12, padding: 12 }}>
