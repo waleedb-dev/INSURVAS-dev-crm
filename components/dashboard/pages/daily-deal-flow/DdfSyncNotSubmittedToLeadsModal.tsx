@@ -277,12 +277,17 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
     } finally {
       setLoading(false);
     }
-  }, [supabase, loadStages, stageOptions]);
+  }, [supabase, loadStages]);
 
   useEffect(() => {
     if (!open) return;
+    void loadStages();
+  }, [open, loadStages]);
+
+  useEffect(() => {
+    if (!open || transferPipelineId === null) return;
     void loadCandidates();
-  }, [open, loadCandidates]);
+  }, [open, transferPipelineId]);
 
   const patchRow = (key: string, patch: Partial<SyncRowState>) => {
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
