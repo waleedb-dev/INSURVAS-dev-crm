@@ -168,6 +168,8 @@ import {
   type ClaimLeadContext,
   type ClaimSelections,
 } from "./transferLeadParity";
+import { markQueueClaimed } from "@/lib/queue/queueClient";
+import { enqueueUnclaimedTransfer } from "@/lib/queue/queueClient";
 
 type IntakeLead = {
   rowId: string;
@@ -192,6 +194,11 @@ type IntakeLead = {
   verificationSessionStatus: string | null;
   latestCallResult: string | null;
   latestCallResultStatus: string | null;
+  queueType?: "unclaimed_transfer" | "ba_active" | "la_active" | null;
+  queueStatus?: "active" | "completed" | "dropped" | "cancelled" | "expired" | null;
+  queueAssignedBaId?: string | null;
+  queueAssignedLaId?: string | null;
+  queueCurrentOwnerId?: string | null;
 };
 
 type VerificationSessionLookupRow = {
@@ -231,6 +238,10 @@ const TRANSFER_KANBAN_COLUMNS: Array<{
 
 function getTransferColumnForLead(lead: IntakeLead): TransferKanbanColumnId {
   if (lead.isDraft) return "new-lead-in";
+  if (lead.queueStatus === "active") {
+    if (lead.queueType === "unclaimed_transfer") return "new-transfer-enqueue";
+    if (lead.queueType === "ba_active" || lead.queueType === "la_active") return "pending-disposition";
+  }
   if (lead.latestCallResult === "Not Submitted") return "not-submitted";
   if (lead.stage === "Pending Approval") return "submitted";
   if (lead.hasVerificationSession) return "pending-disposition";
@@ -1311,14 +1322,37 @@ export default function CallCenterLeadIntakePage({
       currentRole === "sales_agent_licensed" ||
       currentRole === "sales_agent_unlicensed";
 
-    const scopedQuery = canViewAll
-      ? baseQuery
-      : canViewCallCenter && userProfile?.call_center_id
-        ? baseQuery.eq("call_center_id", userProfile.call_center_id)
-        : canViewOwn
-          ? baseQuery.eq("submitted_by", session.user.id)
+    let query;
+    // For BA/LA roles, queue assignment is the source of truth.
+    if (currentRole === "sales_agent_licensed" || currentRole === "sales_agent_unlicensed") {
+      const assigneeKey = currentRole === "sales_agent_licensed" ? "assigned_la_id" : "assigned_ba_id";
+      const { data: assignedQueueRows } = await supabase
+        .from("lead_queue_items")
+        .select("lead_id")
+        .eq("status", "active")
+        .or(`${assigneeKey}.eq.${session.user.id},current_owner_user_id.eq.${session.user.id}`)
+        .not("lead_id", "is", null);
+      const assignedLeadIds = Array.from(
+        new Set(
+          (assignedQueueRows ?? [])
+            .map((r) => (r.lead_id ? String(r.lead_id) : ""))
+            .filter(Boolean),
+        ),
+      );
+      query =
+        assignedLeadIds.length > 0
+          ? baseQuery.in("id", assignedLeadIds).eq("is_draft", false)
           : baseQuery.eq("id", "00000000-0000-0000-0000-000000000000");
-    const query = hideDraftsForSalesRole ? scopedQuery.eq("is_draft", false) : scopedQuery;
+    } else {
+      const scopedQuery = canViewAll
+        ? baseQuery
+        : canViewCallCenter && userProfile?.call_center_id
+          ? baseQuery.eq("call_center_id", userProfile.call_center_id)
+          : canViewOwn
+            ? baseQuery.eq("submitted_by", session.user.id)
+            : baseQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+      query = hideDraftsForSalesRole ? scopedQuery.eq("is_draft", false) : scopedQuery;
+    }
 
     const { data, error } = await query;
 
@@ -1341,6 +1375,16 @@ export default function CallCenterLeadIntakePage({
 
     const verificationBySubmission = new Map<string, VerificationSessionLookupRow>();
     const latestDailyDealFlowBySubmission = new Map<string, DailyDealFlowLookupRow>();
+    const queueByLeadId = new Map<
+      string,
+      {
+        queue_type: "unclaimed_transfer" | "ba_active" | "la_active";
+        status: "active" | "completed" | "dropped" | "cancelled" | "expired";
+        assigned_ba_id: string | null;
+        assigned_la_id: string | null;
+        current_owner_user_id: string | null;
+      }
+    >();
 
     if (submissionIds.length > 0) {
       const { data: verificationRows, error: verificationError } = await supabase
@@ -1376,6 +1420,29 @@ export default function CallCenterLeadIntakePage({
       }
     }
 
+    const leadIds = (data || [])
+      .map((lead: Record<string, unknown>) => (typeof lead.id === "string" ? lead.id : String(lead.id ?? "")))
+      .filter(Boolean);
+    if (leadIds.length > 0) {
+      const { data: queueRows } = await supabase
+        .from("lead_queue_items")
+        .select("lead_id, queue_type, status, assigned_ba_id, assigned_la_id, current_owner_user_id, updated_at")
+        .in("lead_id", leadIds)
+        .eq("status", "active")
+        .order("updated_at", { ascending: false });
+      for (const row of queueRows ?? []) {
+        const key = String(row.lead_id ?? "");
+        if (!key || queueByLeadId.has(key)) continue;
+        queueByLeadId.set(key, {
+          queue_type: row.queue_type,
+          status: row.status,
+          assigned_ba_id: row.assigned_ba_id,
+          assigned_la_id: row.assigned_la_id,
+          current_owner_user_id: row.current_owner_user_id,
+        });
+      }
+    }
+
     const mapped: IntakeLead[] = (data || []).map((lead: Record<string, unknown>) => {
       const callCenterObj = lead.call_centers as { name?: unknown } | null | undefined;
       const pipelineObj = lead.pipelines as { name?: unknown } | null | undefined;
@@ -1384,6 +1451,7 @@ export default function CallCenterLeadIntakePage({
       const submissionId = typeof submissionIdRaw === "string" && submissionIdRaw.trim() !== "" ? submissionIdRaw.trim() : null;
       const verificationSession = submissionId ? verificationBySubmission.get(submissionId) : undefined;
       const latestDailyDealFlow = submissionId ? latestDailyDealFlowBySubmission.get(submissionId) : undefined;
+      const queue = queueByLeadId.get(typeof lead.id === "string" ? lead.id : String(lead.id ?? ""));
 
       return {
         rowId: typeof lead.id === "string" ? lead.id : String(lead.id ?? ""),
@@ -1407,16 +1475,33 @@ export default function CallCenterLeadIntakePage({
         verificationSessionStatus: verificationSession?.status || null,
         latestCallResult: latestDailyDealFlow?.call_result || null,
         latestCallResultStatus: latestDailyDealFlow?.status || null,
+        queueType: queue?.queue_type ?? null,
+        queueStatus: queue?.status ?? null,
+        queueAssignedBaId: queue?.assigned_ba_id ?? null,
+        queueAssignedLaId: queue?.assigned_la_id ?? null,
+        queueCurrentOwnerId: queue?.current_owner_user_id ?? null,
       };
     });
 
-    setLeads(mapped.filter((lead) => {
+    const filteredByBusinessRules = mapped.filter((lead) => {
       if (lead.isDraft) return true;
       if (lead.latestCallResult === "Not Submitted") return true;
       if (lead.stage === "Pending Approval") return true;
       if (lead.hasVerificationSession) return true;
       return lead.stage === "Transfer API";
-    }));
+    });
+    const queueScoped =
+      currentRole === "sales_agent_licensed"
+        ? filteredByBusinessRules.filter(
+            (lead) => lead.queueAssignedLaId === session.user.id || lead.queueCurrentOwnerId === session.user.id,
+          )
+        : currentRole === "sales_agent_unlicensed"
+          ? filteredByBusinessRules.filter(
+              (lead) => lead.queueAssignedBaId === session.user.id || lead.queueCurrentOwnerId === session.user.id,
+            )
+          : filteredByBusinessRules;
+
+    setLeads(queueScoped);
     setIsLoading(false);
   };
 
@@ -1524,6 +1609,17 @@ export default function CallCenterLeadIntakePage({
       // Standard claim workflow
       const found = await findOrCreateVerificationSession(supabase, claimLeadContext, claimSelection);
       await applyClaimSelectionToSession(supabase, found.sessionId, found.submissionId, claimSelection);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        await markQueueClaimed(supabase, {
+          leadRowId: claimLeadContext.rowId,
+          submissionId: claimLeadContext.submissionId,
+          actorUserId: session.user.id,
+          actorRole: claimSelection.workflowType === "licensed" ? "la" : "ba",
+        });
+      }
       setClaimModalOpen(false);
       await refreshLeads();
       router.push(`/dashboard/${routeRole}/transfer-leads/${claimLeadContext.rowId}`);
@@ -1979,6 +2075,22 @@ export default function CallCenterLeadIntakePage({
     const feCreateLeadSyncError: string | null = null;
     if (insertedLead?.id) {
       const leadName = `${payload.firstName} ${payload.lastName}`.trim() || "Unnamed Lead";
+      try {
+        await enqueueUnclaimedTransfer(supabase, {
+          leadRowId: insertedLead.id,
+          submissionId: generatedSubmissionId,
+          clientName: leadName,
+          phoneNumber: payload.phone || null,
+          callCenterId: userProfile?.call_center_id || null,
+          callCenterName: callCenterName || null,
+          state: payload.state || null,
+          carrier: payload.carrier || null,
+          actionRequired: "new_sale",
+          actorUserId: session.user.id,
+        });
+      } catch (queueErr) {
+        console.warn("[CallCenterLeadIntake] queue enqueue failed after insert", queueErr);
+      }
       await insertDailyDealFlowEntry(supabase, {
         submissionId: generatedSubmissionId,
         leadVendor: callCenterName,

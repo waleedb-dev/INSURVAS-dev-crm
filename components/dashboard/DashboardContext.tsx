@@ -7,6 +7,7 @@ import type { PermissionKey } from "@/lib/auth/permissions";
 
 export type DashboardContextValue = {
   currentRole: RoleKey;
+  currentUserId: string | null;
   permissionKeys: Set<PermissionKey>;
   visiblePages: DashPage[];
   userDisplayName: string;

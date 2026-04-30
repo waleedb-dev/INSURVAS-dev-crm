@@ -35,6 +35,7 @@ import {
   Link2,
 } from "lucide-react";
 import { callCenterNameInitials, displayCallCenterName } from "@/lib/callCenterBranding";
+import GlobalQueueWidget from "@/components/dashboard/GlobalQueueWidget";
 
 export type DashPage =
   | "dashboard" | "nearest-events"
@@ -216,7 +217,7 @@ export default function DashboardLayout({
   userInitials = "U",
   callCenter = null,
 }: Props) {
-  const { pageHeaderTitle, pageHeaderActions } = useDashboardContext();
+  const { pageHeaderTitle, pageHeaderActions, currentRole, currentUserId } = useDashboardContext();
   const [collapsed, setCollapsed]             = useState(false);
   const [showNotif,  setShowNotif]            = useState(false);
   const [showUser,   setShowUser]             = useState(false);
@@ -831,6 +832,7 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+      <GlobalQueueWidget currentRole={currentRole} currentUserId={currentUserId} />
     </div>
   );
 }

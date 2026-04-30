@@ -65,6 +65,7 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState<RoleKey | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [permissionKeys, setPermissionKeys] = useState<Set<PermissionKey>>(new Set());
   const [userDisplayName, setUserDisplayName] = useState("User");
   const [userEmail, setUserEmail] = useState("");
@@ -94,6 +95,7 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
         router.replace("/");
         return;
       }
+      setCurrentUserId(session.user.id);
 
       const resolvedRole = await getCurrentUserPrimaryRole(supabase, session.user.id);
 
@@ -213,6 +215,7 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
     <DashboardProvider
       value={{
         currentRole,
+        currentUserId,
         permissionKeys,
         visiblePages,
         userDisplayName,
