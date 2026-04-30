@@ -8,7 +8,6 @@ import { getTodayDateEST } from "./helpers";
 
 type DailyDealFlowRow = {
   id: string;
-  lead_id: string | null;
   submission_id: string | null;
   date: string | null;
   call_result: string | null;
@@ -18,6 +17,7 @@ type DailyDealFlowRow = {
 
 type LeadRow = {
   id: string;
+  submission_id: string | null;
   first_name: string | null;
   last_name: string | null;
   stage: string | null;
@@ -191,8 +191,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
       await loadStages();
       const { data: ddfRows, error: ddfErr } = await supabase
         .from("daily_deal_flow")
-        .select("id, lead_id, submission_id, date, call_result, status, notes")
-        .not("lead_id", "is", null)
+        .select("id, submission_id, date, call_result, status, notes")
         .order("date", { ascending: false })
         .limit(400);
       if (ddfErr) throw new Error(ddfErr.message);
@@ -213,16 +212,16 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
 
       const unique = [...bySubmission.values()];
 
-      const leadIds = [...new Set(unique.map((r) => String(r.lead_id || "").trim()).filter(Boolean))];
-      const leadById = new Map<string, LeadRow>();
-      if (leadIds.length) {
+      const submissionIds = [...new Set(unique.map((r) => String(r.submission_id || "").trim()).filter(Boolean))];
+      const leadBySubmissionId = new Map<string, LeadRow>();
+      if (submissionIds.length) {
         const { data: leads, error: lErr } = await supabase
           .from("leads")
-          .select("id, first_name, last_name, stage, stage_id, created_at")
-          .in("id", leadIds);
+          .select("id, first_name, last_name, stage, stage_id, created_at, submission_id")
+          .in("submission_id", submissionIds);
         if (lErr) throw new Error(lErr.message);
         for (const L of leads || []) {
-          leadById.set(String((L as LeadRow).id), L as LeadRow);
+          leadBySubmissionId.set(String((L as LeadRow).submission_id), L as LeadRow);
         }
       }
 
@@ -230,11 +229,12 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
 
       const next: SyncRowState[] = [];
       for (const r of unique) {
-        const leadId = String(r.lead_id || "").trim();
-        if (!leadId) continue;
+        const submissionId = String(r.submission_id || "").trim();
+        if (!submissionId) continue;
 
-        const lead = leadById.get(leadId);
+        const lead = leadBySubmissionId.get(submissionId);
         if (!lead) continue;
+        const leadId = String(lead.id);
         const sourceStatus = String(r.call_result || "").trim();
         const current = String(lead.stage || "").trim();
         const currentStageId = lead.stage_id != null ? Number(lead.stage_id) : null;
