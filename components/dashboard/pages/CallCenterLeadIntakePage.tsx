@@ -1121,7 +1121,6 @@ Date & Time (EST): ${new Date().toLocaleString("en-US", { timeZone: "America/New
           body: JSON.stringify({
             carrier: payload.carrier,
             state: stateFullName,
-            lead_vendor: centerName,
             language: payload.language,
           }),
         });

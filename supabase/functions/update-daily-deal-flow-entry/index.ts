@@ -312,8 +312,8 @@ serve(async (req) => {
     }
 
     // Keep draft-edit flow aligned with first-time create flow:
-    // notify eligible agents when we have carrier/state/vendor context.
-    if (application_submitted === true && carrier && leadData?.state && resolvedLeadVendor) {
+    // notify eligible agents when we have carrier and state.
+    if (application_submitted === true && carrier && leadData?.state) {
       try {
         const notifyResponse = await fetch(NOTIFY_ELIGIBLE_AGENTS_ENDPOINT, {
           method: "POST",
@@ -324,7 +324,6 @@ serve(async (req) => {
           body: JSON.stringify({
             carrier,
             state: leadData.state,
-            lead_vendor: resolvedLeadVendor,
             language: "English",
           }),
         });

@@ -76,7 +76,7 @@ serve(async (req) => {
     const rawBody = await req.text();
     console.log("[DEBUG] Notify eligible agents request:", rawBody);
 
-    const { carrier, state, lead_vendor, language = "English" } = JSON.parse(rawBody);
+    const { carrier, state, language = "English" } = JSON.parse(rawBody);
     const isSpanishLead = String(language).toLowerCase() === "spanish";
 
     if (!SLACK_BOT_TOKEN) {
@@ -84,12 +84,12 @@ serve(async (req) => {
       throw new Error("SLACK_BOT_TOKEN not configured");
     }
 
-    if (!carrier || !state || !lead_vendor) {
-      console.error("[ERROR] Missing required fields: carrier, state, or lead_vendor");
+    if (!carrier || !state) {
+      console.error("[ERROR] Missing required fields: carrier or state");
       return new Response(
         JSON.stringify({
           success: false,
-          message: "Missing required fields: carrier, state, or lead_vendor",
+          message: "Missing required fields: carrier and state",
         }),
         {
           status: 400,
@@ -142,18 +142,6 @@ serve(async (req) => {
       }
     }
 
-    if (lead_vendor === "Techvated Marketing" && agents) {
-      console.log("[DEBUG] Applying Techvated Marketing exception filter");
-      agents = agents.filter((agent) => {
-        const agentInfo = agentSlackIdMapping[agent.agent_name];
-        if (agentInfo && agentInfo.slackId === "U08216BSGE4") {
-          console.log(`[DEBUG] Excluding agent ${agent.agent_name} (Lydia) from Techvated Marketing`);
-          return false;
-        }
-        return true;
-      });
-    }
-
     eligibleAgents = agents;
     console.log(
       `[DEBUG] Found ${eligibleAgents?.length || 0} eligible agents (after filters):`,
@@ -181,7 +169,6 @@ serve(async (req) => {
           {
             type: "section",
             fields: [
-              { type: "mrkdwn", text: `*Call Center:*\n${lead_vendor}` },
               { type: "mrkdwn", text: `*Carrier:*\n${carrier}` },
               { type: "mrkdwn", text: `*State:*\n${state}` },
               ...(isSpanishLead ? [{ type: "mrkdwn", text: `*Language:*\nSpanish 🇪🇸` }] : []),
@@ -277,7 +264,6 @@ serve(async (req) => {
       {
         type: "section",
         fields: [
-          { type: "mrkdwn", text: `*Call Center:*\n${lead_vendor}` },
           { type: "mrkdwn", text: `*Carrier:*\n${carrier}` },
           { type: "mrkdwn", text: `*State:*\n${state}` },
           ...(isSpanishLead ? [{ type: "mrkdwn", text: `*Language:*\nSpanish 🇪🇸` }] : []),
