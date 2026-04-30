@@ -1364,6 +1364,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         daysInStage: 0,
         stage: newLead.stage as Stage,
         stageId: null,
+        callCenterId: null,
       };
       setLeads(prev => [mappedLead, ...prev]);
       setShowAddLead(false);
