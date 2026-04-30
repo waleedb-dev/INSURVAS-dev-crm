@@ -180,27 +180,41 @@ export async function fetchQueueSnapshot(
   return applyVerificationProgress(filterSnapshotRowsForRole(mergedRows, queueRole));
 }
 
-export async function fetchQueueAssignees(supabase: SupabaseClient): Promise<
-  Array<{ id: string; name: string; queueRole: "ba" | "la" }>
-> {
+export type QueueAssignee = {
+  id: string;
+  name: string;
+  email: string | null;
+  queueRole: "ba" | "la";
+};
+
+export async function fetchQueueAssignees(supabase: SupabaseClient): Promise<QueueAssignee[]> {
   const { data, error } = await supabase
     .from("users")
-    .select("id, full_name, roles(key)")
+    .select("id, full_name, email, roles(key)")
     .order("full_name");
 
   if (error) throw new Error(error.message);
 
-  const out: Array<{ id: string; name: string; queueRole: "ba" | "la" }> = [];
+  const out: QueueAssignee[] = [];
   for (const row of data ?? []) {
     const rolesRaw = row.roles as { key: string } | { key: string }[] | null;
-    const roleObj = Array.isArray(rolesRaw) ? rolesRaw[0] : rolesRaw;
-    const key = roleObj?.key;
-    if (key !== "sales_agent_unlicensed" && key !== "sales_agent_licensed") continue;
-    out.push({
-      id: String(row.id),
-      name: String(row.full_name ?? "Unnamed Agent").trim() || "Unnamed Agent",
-      queueRole: key === "sales_agent_licensed" ? "la" : "ba",
-    });
+    const keys = new Set<string>();
+    if (Array.isArray(rolesRaw)) {
+      for (const r of rolesRaw) {
+        if (r?.key) keys.add(r.key);
+      }
+    } else if (rolesRaw?.key) {
+      keys.add(rolesRaw.key);
+    }
+    const id = String(row.id);
+    const name = String(row.full_name ?? "Unnamed Agent").trim() || "Unnamed Agent";
+    const email = row.email != null ? String(row.email).trim() || null : null;
+    if (keys.has("sales_agent_licensed")) {
+      out.push({ id, name, email, queueRole: "la" });
+    }
+    if (keys.has("sales_agent_unlicensed")) {
+      out.push({ id, name, email, queueRole: "ba" });
+    }
   }
 
   return out;

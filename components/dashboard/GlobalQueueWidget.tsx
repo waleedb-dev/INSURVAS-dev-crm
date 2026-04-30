@@ -13,6 +13,7 @@ import {
   resolveQueueRole,
   sendQueueTransfer,
   type LeadQueueItem,
+  type QueueAssignee,
 } from "@/lib/queue/queueClient";
 import {
   IDLE_TRANSFER_SCREENING,
@@ -56,7 +57,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<LeadQueueItem[]>([]);
-  const [assignees, setAssignees] = useState<Array<{ id: string; name: string; queueRole: "ba" | "la" }>>([]);
+  const [assignees, setAssignees] = useState<QueueAssignee[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftAssign>>({});
   const [notice, setNotice] = useState<string | null>(null);
