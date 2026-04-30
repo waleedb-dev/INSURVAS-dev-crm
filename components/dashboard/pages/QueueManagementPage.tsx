@@ -5,6 +5,7 @@ import { Loader2, RefreshCw, Search } from "lucide-react";
 import { T } from "@/lib/theme";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { TransferStyledSelect } from "./TransferStyledSelect";
 import {
   fetchQueueAssignees,
   fetchQueueSnapshot,
@@ -118,6 +119,29 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     const map = new Map<string, string>();
     for (const a of assignees) map.set(a.id, a.name);
     return map;
+  }, [assignees]);
+
+  const groupByOptions = useMemo(
+    () => [
+      { value: "none", label: "No grouping" },
+      { value: "queue_type", label: "Queue type" },
+      { value: "centre", label: "Centre" },
+    ],
+    [],
+  );
+
+  const baAssigneeOptions = useMemo(() => {
+    const opts = assignees
+      .filter((a) => a.queueRole === "ba")
+      .map((a) => ({ value: a.id, label: a.name }));
+    return [{ value: "__unassigned__", label: "Unassigned" }, ...opts];
+  }, [assignees]);
+
+  const laAssigneeOptions = useMemo(() => {
+    const opts = assignees
+      .filter((a) => a.queueRole === "la")
+      .map((a) => ({ value: a.id, label: a.name }));
+    return [{ value: "__unassigned__", label: "Unassigned" }, ...opts];
   }, [assignees]);
 
   const filteredRows = useMemo(
@@ -283,46 +307,28 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
 
         {queueRole === "manager" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 78px auto", gap: 6 }}>
-            <select
-              value={draft.baId}
-              onChange={(e) => setDrafts((prev) => ({ ...prev, [row.id]: { ...draft, baId: e.target.value } }))}
-              style={{
-                border: `1px solid ${T.border}`,
-                borderRadius: 10,
-                padding: "7px 8px",
-                fontSize: 12,
-                background: T.pageBg,
-              }}
-            >
-              <option value="">Assign BA</option>
-              {assignees
-                .filter((a) => a.queueRole === "ba")
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-            </select>
-            <select
-              value={draft.laId}
-              onChange={(e) => setDrafts((prev) => ({ ...prev, [row.id]: { ...draft, laId: e.target.value } }))}
-              style={{
-                border: `1px solid ${T.border}`,
-                borderRadius: 10,
-                padding: "7px 8px",
-                fontSize: 12,
-                background: T.pageBg,
-              }}
-            >
-              <option value="">Assign LA</option>
-              {assignees
-                .filter((a) => a.queueRole === "la")
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-            </select>
+            <TransferStyledSelect
+              value={draft.baId || "__unassigned__"}
+              onValueChange={(val) =>
+                setDrafts((prev) => ({
+                  ...prev,
+                  [row.id]: { ...draft, baId: val === "__unassigned__" ? "" : val },
+                }))
+              }
+              options={baAssigneeOptions}
+              placeholder="Assign BA"
+            />
+            <TransferStyledSelect
+              value={draft.laId || "__unassigned__"}
+              onValueChange={(val) =>
+                setDrafts((prev) => ({
+                  ...prev,
+                  [row.id]: { ...draft, laId: val === "__unassigned__" ? "" : val },
+                }))
+              }
+              options={laAssigneeOptions}
+              placeholder="Assign LA"
+            />
             <input
               type="number"
               placeholder="ETA"
@@ -471,25 +477,14 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
               }}
             />
           </div>
-          <select
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as "none" | "queue_type" | "centre")}
-            style={{
-              height: 38,
-              border: `1px solid ${T.border}`,
-              borderRadius: 12,
-              padding: "0 12px",
-              fontSize: 13,
-              fontWeight: 700,
-              background: T.pageBg,
-              color: T.textDark,
-            }}
-            title="Group by"
-          >
-            <option value="none">No grouping</option>
-            <option value="queue_type">Queue type</option>
-            <option value="centre">Centre</option>
-          </select>
+          <div style={{ minWidth: 220, flex: "0 0 220px" }}>
+            <TransferStyledSelect
+              value={groupBy}
+              onValueChange={(val) => setGroupBy(val as "none" | "queue_type" | "centre")}
+              options={groupByOptions}
+              placeholder="No grouping"
+            />
+          </div>
         </div>
 
         <button
