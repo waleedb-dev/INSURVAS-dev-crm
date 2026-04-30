@@ -11,6 +11,7 @@ export type LeadQueueItem = {
   lead_id: string | null;
   submission_id: string | null;
   client_name: string | null;
+  phone_number: string | null;
   call_center_name: string | null;
   state: string | null;
   carrier: string | null;
@@ -100,7 +101,7 @@ export async function fetchQueueSnapshot(
   const baseQuery = supabase
     .from("lead_queue_items")
     .select(
-      "id, lead_id, submission_id, client_name, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at",
+      "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at",
     )
     .eq("status", "active")
     .in("queue_type", allowed)
@@ -156,7 +157,7 @@ export async function fetchQueueSnapshot(
   let assignedQuery = supabase
     .from("lead_queue_items")
     .select(
-      "id, lead_id, submission_id, client_name, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at",
+      "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at",
     )
     .eq("status", "active")
     .order("queued_at", { ascending: true })

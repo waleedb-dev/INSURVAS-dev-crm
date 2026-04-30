@@ -7,6 +7,7 @@ import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TransferStyledSelect } from "./TransferStyledSelect";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import TransferCheckGateModal from "@/components/dashboard/TransferCheckGateModal";
 import {
   fetchQueueAssignees,
   fetchQueueSnapshot,
@@ -16,6 +17,11 @@ import {
   sendQueueTransfer,
   type LeadQueueItem,
 } from "@/lib/queue/queueClient";
+import {
+  IDLE_TRANSFER_SCREENING,
+  runTransferScreeningForPhone,
+  type TransferScreeningSnapshot,
+} from "@/lib/transferScreening";
 
 type Props = {
   /** Embedded inside Live Monitoring: tighter paddings and no outer card chrome. */
@@ -38,6 +44,9 @@ type EligibleAgentsResponse =
 
 /** Match `TransferStyledSelect` trigger height for one clean toolbar / assignment row */
 const QUEUE_CONTROL_HEIGHT = 42;
+
+/** Sent to `get-eligible-agent`; no toolbar control — English default */
+const ELIGIBILITY_LANGUAGE: "English" | "Spanish" = "English";
 
 function elapsedLabel(iso: string | null): string {
   if (!iso) return "N/A";
@@ -149,7 +158,12 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
   const [drafts, setDrafts] = useState<Record<string, DraftAssign>>({});
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [language, setLanguage] = useState<"English" | "Spanish">("English");
+
+  const [transferCheckModalOpen, setTransferCheckModalOpen] = useState(false);
+  const [transferCheckModalLoading, setTransferCheckModalLoading] = useState(false);
+  const [transferCheckModalClient, setTransferCheckModalClient] = useState("");
+  const [transferCheckModalSnapshot, setTransferCheckModalSnapshot] =
+    useState<TransferScreeningSnapshot>(IDLE_TRANSFER_SCREENING);
 
   const [eligibleCache, setEligibleCache] = useState<
     Record<
@@ -282,14 +296,6 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     return [{ value: "__unassigned__", label: "Unassigned" }, ...opts];
   }, [assignees]);
 
-  const languageOptions = useMemo(
-    () => [
-      { value: "English", label: "English" },
-      { value: "Spanish", label: "Spanish" },
-    ],
-    [],
-  );
-
   const filteredRows = useMemo(
     () => rows.filter((r) => matchesSearch(r, searchTerm)),
     [rows, searchTerm],
@@ -333,6 +339,34 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     }
   };
 
+  const runManagerAssignWithTransferCheck = async (row: LeadQueueItem, draft: DraftAssign) => {
+    if (!currentUserId) return;
+    setSavingId(row.id);
+    setError(null);
+    try {
+      await managerAssignQueueItem(supabase, row.id, String(currentUserId), {
+        assignedBaId: draft.baId || null,
+        assignedLaId: draft.laId || null,
+        etaMinutes: draft.eta ? Number(draft.eta) : null,
+      });
+      await loadSnapshot(true);
+      setNotice("Updated");
+      window.setTimeout(() => setNotice(null), 1400);
+      setTransferCheckModalClient(row.client_name ?? "");
+      setTransferCheckModalSnapshot(IDLE_TRANSFER_SCREENING);
+      setTransferCheckModalLoading(true);
+      setTransferCheckModalOpen(true);
+      const snap = await runTransferScreeningForPhone(supabase, row.phone_number);
+      setTransferCheckModalSnapshot(snap);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Action failed");
+      setTransferCheckModalOpen(false);
+    } finally {
+      setTransferCheckModalLoading(false);
+      setSavingId(null);
+    }
+  };
+
   const renderCard = (row: LeadQueueItem) => {
     const draft = drafts[row.id] ?? {
       baId: row.assigned_ba_id ?? "",
@@ -355,7 +389,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     const vendorForEligibility = String(row.call_center_name ?? "").trim();
     const eligibilityKey =
       carrierForEligibility && stateForEligibility && vendorForEligibility
-        ? `${carrierForEligibility}||${stateForEligibility}||${vendorForEligibility}||${language}`
+        ? `${carrierForEligibility}||${stateForEligibility}||${vendorForEligibility}||${ELIGIBILITY_LANGUAGE}`
         : null;
     const eligibleState = eligibilityKey ? eligibleCache[eligibilityKey] : null;
     const laOptionsForRow =
@@ -368,7 +402,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         carrier: carrierForEligibility,
         state: stateForEligibility,
         leadVendor: vendorForEligibility,
-        language,
+        language: ELIGIBILITY_LANGUAGE,
       });
     };
 
@@ -596,15 +630,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
             <button
               type="button"
               disabled={isSaving || !currentUserId}
-              onClick={() =>
-                runAction(row.id, async () =>
-                  managerAssignQueueItem(supabase, row.id, String(currentUserId), {
-                    assignedBaId: draft.baId || null,
-                    assignedLaId: draft.laId || null,
-                    etaMinutes: draft.eta ? Number(draft.eta) : null,
-                  }),
-                )
-              }
+              onClick={() => void runManagerAssignWithTransferCheck(row, draft)}
               style={{
                 border: "none",
                 borderRadius: 10,
@@ -751,17 +777,6 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
               className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
             />
           </div>
-          <div style={{ width: 160, minWidth: 140, flex: "0 0 auto" }}>
-            <TransferStyledSelect
-              value={language}
-              onValueChange={(val) => {
-                const next = val === "Spanish" ? "Spanish" : "English";
-                setLanguage(next);
-              }}
-              options={languageOptions}
-              placeholder="Language"
-            />
-          </div>
         </div>
 
         <button
@@ -843,6 +858,17 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
           ))}
         </div>
       )}
+
+      <TransferCheckGateModal
+        open={transferCheckModalOpen}
+        loading={transferCheckModalLoading}
+        clientName={transferCheckModalClient}
+        snapshot={transferCheckModalSnapshot}
+        onDismiss={() => {
+          setTransferCheckModalOpen(false);
+          setTransferCheckModalSnapshot(IDLE_TRANSFER_SCREENING);
+        }}
+      />
     </div>
   );
 }
