@@ -126,7 +126,7 @@ export async function fetchQueueSnapshot(
     }
 
     return rows.map((row) => {
-      if (row.queue_type !== "la_active") return row;
+      if (row.queue_type !== "la_active" && row.queue_type !== "ba_active") return row;
       const key = String(row.submission_id ?? "").trim();
       if (!key) return row;
       const pct = bySubmission.get(key);
