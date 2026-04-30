@@ -95,6 +95,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
   const [bulkSyncing, setBulkSyncing] = useState(false);
   const [filterFromDate, setFilterFromDate] = useState(() => getTodayDateEST());
   const [filterToDate, setFilterToDate] = useState(() => getTodayDateEST());
+  const [filterCurrentStage, setFilterCurrentStage] = useState("All");
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   const stageNames = useMemo(() => stageOptions.map((s) => s.name), [stageOptions]);
@@ -114,14 +115,14 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
   const displayRows = useMemo(() => {
     const from = filterFromDate;
     const to = filterToDate;
-    if (!from && !to) return rows;
     return rows.filter((r) => {
       const d = r.callResultDate;
       if (from && d < from) return false;
       if (to && d > to) return false;
+      if (filterCurrentStage !== "All" && r.currentStage !== filterCurrentStage) return false;
       return true;
     });
-  }, [rows, filterFromDate, filterToDate]);
+  }, [rows, filterFromDate, filterToDate, filterCurrentStage]);
 
   const selectOptions = useMemo(() => {
     const s = new Set(stageNames);
@@ -536,6 +537,29 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
             >
               Today (ET)
             </button>
+            <div style={{ width: 1, height: 24, backgroundColor: T.borderLight, margin: "0 4px" }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.textDark }}>Current Stage:</span>
+            <select
+              value={filterCurrentStage}
+              onChange={(e) => setFilterCurrentStage(e.target.value)}
+              style={{
+                height: 36,
+                padding: "0 10px",
+                borderRadius: 8,
+                border: `1px solid ${T.border}`,
+                fontSize: 13,
+                fontWeight: 600,
+                color: T.textDark,
+                fontFamily: T.font,
+                backgroundColor: "#fff",
+                minWidth: 160,
+              }}
+            >
+              <option value="All">All Stages</option>
+              {[...new Set(rows.map(r => r.currentStage).filter(s => s && s !== "—"))].sort().map(stage => (
+                <option key={stage} value={stage}>{stage}</option>
+              ))}
+            </select>
           </div>
 
           <div style={{ padding: "12px 20px", flex: 1, overflow: "auto", minHeight: 0 }}>
