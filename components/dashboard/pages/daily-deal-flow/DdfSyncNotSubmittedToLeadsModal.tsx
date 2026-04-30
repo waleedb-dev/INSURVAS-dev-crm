@@ -235,7 +235,7 @@ export function DdfSyncNotSubmittedToLeadsModal({ open, onClose, supabase, dashb
         const lead = leadBySubmissionId.get(submissionId);
         if (!lead) continue;
         const leadId = String(lead.id);
-        const sourceStatus = String(r.call_result || "").trim();
+        const sourceStatus = String(r.status || "").trim();
         const current = String(lead.stage || "").trim();
         const currentStageId = lead.stage_id != null ? Number(lead.stage_id) : null;
 
