@@ -154,6 +154,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
       string,
       {
         loading: boolean;
+        loaded: boolean;
         error: string | null;
         options: Array<{ value: string; label: string }>;
       }
@@ -165,11 +166,11 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
       const key = `${args.carrier}||${args.state}||${args.leadVendor}||${args.language}`;
       const hit = eligibleCache[key];
       if (hit?.loading) return key;
-      if (hit && hit.options.length > 0) return key;
+      if (hit?.loaded) return key;
 
       setEligibleCache((prev) => ({
         ...prev,
-        [key]: { loading: true, error: null, options: prev[key]?.options ?? [] },
+        [key]: { loading: true, loaded: false, error: null, options: [] },
       }));
 
       try {
@@ -208,6 +209,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
           ...prev,
           [key]: {
             loading: false,
+            loaded: true,
             error: null,
             options: [{ value: "__unassigned__", label: "Unassigned" }, ...options],
           },
@@ -217,15 +219,16 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
           ...prev,
           [key]: {
             loading: false,
+            loaded: true,
             error: e instanceof Error ? e.message : "Failed to load eligible agents",
-            options: prev[key]?.options?.length ? prev[key].options : [],
+            options: [{ value: "__unassigned__", label: "Unassigned" }],
           },
         }));
       }
 
       return key;
     },
-    [eligibleCache, supabase.functions],
+    [eligibleCache],
   );
 
   const loadSnapshot = useCallback(
@@ -282,13 +285,6 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
   const baAssigneeOptions = useMemo(() => {
     const opts = assignees
       .filter((a) => a.queueRole === "ba")
-      .map((a) => ({ value: a.id, label: a.name }));
-    return [{ value: "__unassigned__", label: "Unassigned" }, ...opts];
-  }, [assignees]);
-
-  const laAssigneeOptions = useMemo(() => {
-    const opts = assignees
-      .filter((a) => a.queueRole === "la")
       .map((a) => ({ value: a.id, label: a.name }));
     return [{ value: "__unassigned__", label: "Unassigned" }, ...opts];
   }, [assignees]);
@@ -390,11 +386,11 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         : null;
     const eligibleState = eligibilityKey ? eligibleCache[eligibilityKey] : null;
     const laOptionsForRow =
-      eligibleState?.options?.length ? eligibleState.options : laAssigneeOptions;
+      eligibilityKey && eligibleState?.loaded ? eligibleState.options : [];
 
     const ensureEligibleLoaded = async () => {
       if (!eligibilityKey) return;
-      if (eligibleCache[eligibilityKey]?.options?.length) return;
+      if (eligibleCache[eligibilityKey]?.loaded) return;
       await fetchEligibleAgents({
         carrier: carrierForEligibility,
         state: stateForEligibility,
