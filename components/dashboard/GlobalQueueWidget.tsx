@@ -901,11 +901,12 @@ export default function GlobalQueueWidget() {
           style={{
             position: "fixed",
             left: 16,
-            bottom: 70,
+            top: 24,
+            bottom: 72,
             zIndex: QUEUE_WIDGET_Z_BASE + 10,
             width: "min(620px, calc(100vw - 32px))",
             maxWidth: "calc(100vw - 32px)",
-            maxHeight: "min(88vh, calc(100vh - 120px))",
+            minHeight: 0,
             display: "flex",
             flexDirection: "column",
             background: T.cardBg,
@@ -985,68 +986,70 @@ export default function GlobalQueueWidget() {
 
           <div
             style={{
-              flex: 1,
+              flex: "1 1 0%",
               minHeight: 0,
-              overflow: "auto",
+              overflowX: "hidden",
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+              overscrollBehaviorY: "contain",
               padding: "16px 18px 20px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
               background: T.cardBg,
             }}
           >
-            {error && (
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: "#b91c1c",
-                  background: "#fef2f2",
-                  borderRadius: 12,
-                  padding: 10,
-                  border: "1px solid #fecaca",
-                }}
-              >
-                {error}
-              </div>
-            )}
-            {notice && (
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 800,
-                  color: "#166534",
-                  background: "#ecfdf5",
-                  borderRadius: 12,
-                  padding: 10,
-                  border: "1px solid #bbf7d0",
-                }}
-              >
-                {notice}
-              </div>
-            )}
+            <div className="flex flex-col gap-3">
+              {error && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#b91c1c",
+                    background: "#fef2f2",
+                    borderRadius: 12,
+                    padding: 10,
+                    border: "1px solid #fecaca",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+              {notice && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: "#166534",
+                    background: "#ecfdf5",
+                    borderRadius: 12,
+                    padding: 10,
+                    border: "1px solid #bbf7d0",
+                  }}
+                >
+                  {notice}
+                </div>
+              )}
 
-            {loading && rows.length === 0 ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 700, color: T.textMuted }}>
-                <Loader2 size={16} className="animate-spin" /> Loading queue…
-              </div>
-            ) : (
-              <>
-                {(queueRole === "ba" || queueRole === "la") &&
-                  renderCollapsibleSection("assignedToMe", "Assigned to you (next)", assignedToMe)}
-                {renderCollapsibleSection("unclaimed", "Unclaimed transfers", unclaimedForDisplay)}
-                {(queueRole === "manager" ||
-                  queueRole === "la" ||
-                  queueRole === "call_center_agent" ||
-                  queueRole === "call_center_admin") &&
-                  renderCollapsibleSection("baActive", "BA active calls", grouped.baActive)}
-                {(queueRole === "manager" ||
-                  queueRole === "ba" ||
-                  queueRole === "call_center_agent" ||
-                  queueRole === "call_center_admin") &&
-                  renderCollapsibleSection("laActive", "LA active calls", grouped.laActive)}
-              </>
-            )}
+              {loading && rows.length === 0 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 700, color: T.textMuted }}>
+                  <Loader2 size={16} className="animate-spin" /> Loading queue…
+                </div>
+              ) : (
+                <>
+                  {(queueRole === "ba" || queueRole === "la") &&
+                    renderCollapsibleSection("assignedToMe", "Assigned to you (next)", assignedToMe)}
+                  {renderCollapsibleSection("unclaimed", "Unclaimed transfers", unclaimedForDisplay)}
+                  {(queueRole === "manager" ||
+                    queueRole === "la" ||
+                    queueRole === "call_center_agent" ||
+                    queueRole === "call_center_admin") &&
+                    renderCollapsibleSection("baActive", "BA active calls", grouped.baActive)}
+                  {(queueRole === "manager" ||
+                    queueRole === "ba" ||
+                    queueRole === "call_center_agent" ||
+                    queueRole === "call_center_admin") &&
+                    renderCollapsibleSection("laActive", "LA active calls", grouped.laActive)}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
