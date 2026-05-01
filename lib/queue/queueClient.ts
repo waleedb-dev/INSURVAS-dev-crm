@@ -69,7 +69,7 @@ function allowedQueueTypes(queueRole: QueueRole): QueueType[] {
     return ["unclaimed_transfer", "ba_active", "la_active"];
   }
   if (queueRole === "la") return ["unclaimed_transfer", "ba_active"];
-  if (queueRole === "ba") return ["unclaimed_transfer", "la_active"];
+  if (queueRole === "ba") return ["unclaimed_transfer", "ba_active"];
   return [];
 }
 
@@ -82,7 +82,7 @@ function filterSnapshotRowsForRole(rows: LeadQueueItem[], queueRole: QueueRole):
     return rows.filter((r) => r.queue_type === "unclaimed_transfer" || r.queue_type === "ba_active");
   }
   if (queueRole === "ba") {
-    return rows.filter((r) => r.queue_type === "unclaimed_transfer" || r.queue_type === "la_active");
+    return rows.filter((r) => r.queue_type === "unclaimed_transfer" || r.queue_type === "ba_active");
   }
   return rows;
 }

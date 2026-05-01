@@ -1038,12 +1038,13 @@ export default function GlobalQueueWidget() {
                     renderCollapsibleSection("assignedToMe", "Assigned to you (next)", assignedToMe)}
                   {renderCollapsibleSection("unclaimed", "Unclaimed transfers", unclaimedForDisplay)}
                   {(queueRole === "manager" ||
+                    queueRole === "ba" ||
                     queueRole === "la" ||
                     queueRole === "call_center_agent" ||
                     queueRole === "call_center_admin") &&
                     renderCollapsibleSection("baActive", "BA active calls", grouped.baActive)}
                   {(queueRole === "manager" ||
-                    queueRole === "ba" ||
+                    queueRole === "la" ||
                     queueRole === "call_center_agent" ||
                     queueRole === "call_center_admin") &&
                     renderCollapsibleSection("laActive", "LA active calls", grouped.laActive)}
