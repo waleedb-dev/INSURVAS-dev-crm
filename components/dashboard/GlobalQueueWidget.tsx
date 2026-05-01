@@ -41,6 +41,9 @@ type DraftAssign = {
 /** Match `TransferStyledSelect` trigger height for one aligned manager row */
 const WIDGET_CONTROL_HEIGHT = 42;
 
+/** Above `DashboardLayout` sticky header (`z-index: 2000`) and its dropdowns (`2100`). */
+const QUEUE_WIDGET_Z_BASE = 4000;
+
 type QueueSectionKey = "assignedToMe" | "unclaimed" | "baActive" | "laActive";
 
 /**
@@ -848,7 +851,7 @@ export default function GlobalQueueWidget() {
           position: "fixed",
           left: 16,
           bottom: 16,
-          zIndex: 500,
+          zIndex: QUEUE_WIDGET_Z_BASE,
           border: "none",
           borderRadius: 999,
           background: "#233217",
@@ -872,7 +875,7 @@ export default function GlobalQueueWidget() {
             position: "fixed",
             left: 16,
             bottom: 70,
-            zIndex: 550,
+            zIndex: QUEUE_WIDGET_Z_BASE + 10,
             width: "min(620px, calc(100vw - 32px))",
             maxWidth: "calc(100vw - 32px)",
             maxHeight: "min(88vh, calc(100vh - 120px))",
