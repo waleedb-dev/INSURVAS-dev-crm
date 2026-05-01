@@ -1,11 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, Loader2, RefreshCw, X } from "lucide-react";
+import { BellRing, ChevronDown, Loader2, RefreshCw, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TransferStyledSelect } from "@/components/dashboard/pages/TransferStyledSelect";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import TransferCheckGateModal from "@/components/dashboard/TransferCheckGateModal";
+import {
+  ELIGIBILITY_LANGUAGE,
+  buildQueueLaEligibilityKey,
+  normaliseUsState,
+  requestQueueEligibleLaOptions,
+  type LaMatchRow,
+} from "@/lib/queue/eligibleLaAgents";
 import {
   fetchQueueAssignees,
   fetchQueueSnapshot,
@@ -36,6 +45,28 @@ type DraftAssign = {
 
 /** Match `TransferStyledSelect` trigger height for one aligned manager row */
 const WIDGET_CONTROL_HEIGHT = 42;
+
+type QueueSectionKey = "assignedToMe" | "unclaimed" | "baActive" | "laActive";
+
+/** Muted tints aligned with `T` (sage / mint) — avoids loud yellow–purple contrast */
+const QUEUE_SECTION_PILLS: Record<
+  QueueSectionKey,
+  { background: string; color: string; border?: string }
+> = {
+  assignedToMe: { background: T.asideChrome, color: "#f4f7f2", border: `1px solid ${T.blueHover}` },
+  unclaimed: { background: "#f4f6f0", color: T.textMid, border: `1px solid ${T.border}` },
+  baActive: { background: T.blueLight, color: T.textMid, border: `1px solid ${T.border}` },
+  laActive: { background: T.blueFaint, color: T.textDark, border: `1px solid ${T.borderLight}` },
+};
+
+/** Collapse accidental duplicated client labels (e.g. same string pasted twice). */
+function displayQueueClientName(raw: string | null | undefined): string {
+  const n = (raw ?? "").trim();
+  if (!n) return "Unnamed client";
+  const half = Math.floor(n.length / 2);
+  if (half >= 3 && n.slice(0, half) === n.slice(half)) return n.slice(0, half).trim();
+  return n;
+}
 
 function elapsedLabel(iso: string | null): string {
   if (!iso) return "N/A";
@@ -68,6 +99,26 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
   const [transferCheckModalSnapshot, setTransferCheckModalSnapshot] =
     useState<TransferScreeningSnapshot>(IDLE_TRANSFER_SCREENING);
 
+  const [sectionOpen, setSectionOpen] = useState<Record<QueueSectionKey, boolean>>({
+    assignedToMe: true,
+    unclaimed: true,
+    baActive: true,
+    laActive: true,
+  });
+
+  const [eligibleCache, setEligibleCache] = useState<
+    Record<
+      string,
+      {
+        loading: boolean;
+        loaded: boolean;
+        error: string | null;
+        unmatchedEligible: string[];
+        options: Array<{ value: string; label: string }>;
+      }
+    >
+  >({});
+
   const loadSnapshot = useCallback(async (silent = false) => {
     if (queueRole === "none") return;
     if (silent) setRefreshing(true);
@@ -97,6 +148,76 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
     }, 30000);
     return () => window.clearInterval(timer);
   }, [open, queueRole, loadSnapshot]);
+
+  const licensedAgentsFingerprint = useMemo(
+    () =>
+      assignees
+        .filter((a) => a.queueRole === "la")
+        .map((a) => `${a.id}\0${a.name}`)
+        .sort()
+        .join("|"),
+    [assignees],
+  );
+
+  useEffect(() => {
+    if (queueRole !== "manager") return;
+    setEligibleCache({});
+  }, [licensedAgentsFingerprint, queueRole]);
+
+  const fetchEligibleAgents = useCallback(
+    async (args: {
+      carrier: string;
+      state: string;
+      leadVendor: string;
+      language: "English" | "Spanish";
+      licensedAgents: LaMatchRow[];
+    }) => {
+      const key = buildQueueLaEligibilityKey(args.carrier, args.state, args.leadVendor, args.language);
+      const hit = eligibleCache[key];
+      if (hit?.loading) return key;
+      if (hit?.loaded) return key;
+
+      setEligibleCache((prev) => ({
+        ...prev,
+        [key]: { loading: true, loaded: false, error: null, unmatchedEligible: [], options: [] },
+      }));
+
+      try {
+        const { options, unmatchedEligible } = await requestQueueEligibleLaOptions({
+          carrier: args.carrier,
+          state: args.state,
+          leadVendor: args.leadVendor,
+          language: args.language,
+          licensedAgents: args.licensedAgents,
+        });
+
+        setEligibleCache((prev) => ({
+          ...prev,
+          [key]: {
+            loading: false,
+            loaded: true,
+            error: null,
+            unmatchedEligible,
+            options,
+          },
+        }));
+      } catch (e) {
+        setEligibleCache((prev) => ({
+          ...prev,
+          [key]: {
+            loading: false,
+            loaded: true,
+            error: e instanceof Error ? e.message : "Failed to load eligible agents",
+            unmatchedEligible: [],
+            options: [{ value: "__unassigned__", label: "Unassigned" }],
+          },
+        }));
+      }
+
+      return key;
+    },
+    [eligibleCache],
+  );
 
   const grouped = useMemo(
     () => ({
@@ -130,13 +251,6 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
       .filter((a) => a.queueRole === "ba")
       .map((a) => ({ value: a.id, label: a.name }));
     return [{ value: "__unassigned__", label: "Assign BA" }, ...opts];
-  }, [assignees]);
-
-  const laAssigneeOptions = useMemo(() => {
-    const opts = assignees
-      .filter((a) => a.queueRole === "la")
-      .map((a) => ({ value: a.id, label: a.name }));
-    return [{ value: "__unassigned__", label: "Assign LA" }, ...opts];
   }, [assignees]);
 
   if (queueRole === "none") return null;
@@ -200,44 +314,98 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
       ? assigneeNameById.get(row.assigned_la_id) ?? "Assigned LA"
       : null;
 
+    const carrierForEligibility = String(row.carrier ?? "").trim();
+    const stateForEligibility = normaliseUsState(row.state);
+    const vendorForEligibility = String(row.call_center_name ?? "").trim();
+    const eligibilityKey =
+      carrierForEligibility && stateForEligibility && vendorForEligibility
+        ? buildQueueLaEligibilityKey(carrierForEligibility, stateForEligibility, vendorForEligibility, ELIGIBILITY_LANGUAGE)
+        : null;
+    const eligibleState = eligibilityKey ? eligibleCache[eligibilityKey] : null;
+    const laOptionsFromCache =
+      eligibilityKey && eligibleState?.loaded ? eligibleState.options : [];
+    const laOptionsForRow = (() => {
+      let opts = laOptionsFromCache;
+      const ensureOptionForId = (rawId: string | null | undefined) => {
+        const id = rawId?.trim();
+        if (!id || opts.some((o) => o.value === id)) return;
+        const name =
+          assignees.find((a) => a.id === id)?.name ??
+          assigneeNameById.get(id) ??
+          "Current assignee";
+        const head = opts[0];
+        const tail = opts.slice(1);
+        opts = head ? [head, { value: id, label: name }, ...tail] : opts;
+      };
+      ensureOptionForId(row.assigned_la_id);
+      ensureOptionForId(drafts[row.id]?.laId);
+      return opts;
+    })();
+
+    const laSelectDisplayLabel = (() => {
+      const id = draft.laId?.trim();
+      if (!id) return null;
+      return (
+        laOptionsForRow.find((o) => o.value === id)?.label ??
+        assignees.find((a) => a.id === id)?.name ??
+        assigneeNameById.get(id) ??
+        "Licensed agent"
+      );
+    })();
+
+    const ensureEligibleLoaded = async () => {
+      if (!eligibilityKey) return;
+      if (eligibleCache[eligibilityKey]?.loaded) return;
+      await fetchEligibleAgents({
+        carrier: carrierForEligibility,
+        state: stateForEligibility,
+        leadVendor: vendorForEligibility,
+        language: ELIGIBILITY_LANGUAGE,
+        licensedAgents: assignees.filter((a) => a.queueRole === "la"),
+      });
+    };
+
+    const clientLabel = displayQueueClientName(row.client_name);
+
     return (
       <div
         key={row.id}
         style={{
-          border: `1px solid ${hasAnyAssignment ? "#86b97b" : T.border}`,
-          borderRadius: 12,
-          background: hasAnyAssignment ? "#f6fbf4" : "#fff",
-          padding: 12,
+          border: `1px solid ${hasAnyAssignment ? T.memberSky : T.border}`,
+          borderRadius: T.radiusMd,
+          background: hasAnyAssignment ? T.rowBg : T.cardBg,
+          padding: "18px 18px 16px",
           display: "grid",
-          gap: 10,
-          boxShadow: "0 1px 2px rgba(35, 50, 23, 0.04)",
+          gap: 14,
+          boxShadow: T.shadowSm,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
             <div
               style={{
-                fontSize: 12,
-                fontWeight: 900,
+                fontSize: 13,
+                fontWeight: 800,
                 color: T.textDark,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
+                letterSpacing: "-0.02em",
               }}
-              title={row.client_name || "Unnamed client"}
+              title={clientLabel}
             >
-              {row.client_name || "Unnamed client"}
+              {clientLabel}
             </div>
             {hasAnyAssignment && (
               <span
                 style={{
                   fontSize: 9,
                   fontWeight: 900,
-                  color: "#166534",
-                  background: "#dcfce7",
-                  border: "1px solid #86efac",
+                  color: T.blueHover,
+                  background: T.blueLight,
+                  border: `1px solid ${T.border}`,
                   borderRadius: 999,
-                  padding: "3px 8px",
+                  padding: "4px 9px",
                   flexShrink: 0,
                   letterSpacing: "0.06em",
                 }}
@@ -249,7 +417,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
           <div
             style={{
               fontSize: 11,
-              fontWeight: 800,
+              fontWeight: 700,
               color: T.textMuted,
               flexShrink: 0,
               fontVariantNumeric: "tabular-nums",
@@ -258,8 +426,15 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
             {elapsedLabel(row.queued_at)}
           </div>
         </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, lineHeight: 1.45 }}>
-          {(row.call_center_name || "Unknown centre")} | {row.state || "N/A"} | {row.carrier || "N/A"}
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: T.textMuted,
+            lineHeight: 1.5,
+          }}
+        >
+          {(row.call_center_name || "Unknown centre")} · {row.state || "N/A"} · {row.carrier || "N/A"}
         </div>
         {(assignedBaName || assignedLaName) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -268,10 +443,11 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                 style={{
                   fontSize: 10,
                   fontWeight: 800,
-                  color: "#0f172a",
-                  background: "#e2e8f0",
+                  color: T.textMid,
+                  background: T.blueLight,
+                  border: `1px solid ${T.borderLight}`,
                   borderRadius: 999,
-                  padding: "4px 10px",
+                  padding: "5px 11px",
                 }}
               >
                 BA: {assignedBaName}
@@ -282,10 +458,11 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                 style={{
                   fontSize: 10,
                   fontWeight: 800,
-                  color: "#0f172a",
-                  background: "#dbeafe",
+                  color: T.textMid,
+                  background: T.pageBg,
+                  border: `1px solid ${T.borderLight}`,
                   borderRadius: 999,
-                  padding: "4px 10px",
+                  padding: "5px 11px",
                 }}
               >
                 LA: {assignedLaName}
@@ -293,27 +470,17 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
             )}
           </div>
         )}
-        <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, lineHeight: 1.5 }}>
-          Action:{" "}
-          <strong style={{ color: T.textDark, fontWeight: 800 }}>{row.action_required || "unknown"}</strong>
-          {row.queue_type === "ba_active" && row.ba_verification_percent != null
-            ? ` · Verification ${Number(row.ba_verification_percent).toFixed(0)}%`
-            : ""}
-          {row.queue_type === "la_active" && row.ba_verification_percent != null
-            ? ` · Verification ${Number(row.ba_verification_percent).toFixed(0)}%`
-            : ""}
-          {row.queue_type === "la_active" && row.eta_minutes != null ? ` · ETA ${row.eta_minutes}m` : ""}
-          {row.la_ready_at ? " · LA ready" : ""}
-        </div>
 
         {queueRole === "manager" && (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 76px minmax(min-content, auto)",
-              gap: 8,
+              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 84px minmax(min-content, auto)",
+              gap: 10,
               alignItems: "stretch",
-              paddingTop: 2,
+              marginTop: 2,
+              paddingTop: 16,
+              borderTop: `1px solid ${T.borderLight}`,
             }}
           >
             <div style={{ minWidth: 0, width: "100%", display: "flex", alignItems: "stretch" }}>
@@ -330,17 +497,89 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
               />
             </div>
             <div style={{ minWidth: 0, width: "100%", display: "flex", alignItems: "stretch" }}>
-              <TransferStyledSelect
-                value={draft.laId ? draft.laId : "__unassigned__"}
-                onValueChange={(val) =>
+              <Select
+                value={draft.laId ? draft.laId : undefined}
+                onValueChange={(val) => {
+                  const next = val ?? "";
                   setDrafts((prev) => ({
                     ...prev,
-                    [row.id]: { ...draft, laId: val === "__unassigned__" ? "" : val },
-                  }))
-                }
-                options={laAssigneeOptions}
-                placeholder="Assign LA"
-              />
+                    [row.id]: { ...draft, laId: next === "__unassigned__" ? "" : next },
+                  }));
+                }}
+                onOpenChange={(opened) => {
+                  if (!opened) return;
+                  void ensureEligibleLoaded();
+                }}
+              >
+                <SelectTrigger
+                  style={{
+                    width: "100%",
+                    height: WIDGET_CONTROL_HEIGHT,
+                    minHeight: WIDGET_CONTROL_HEIGHT,
+                    borderRadius: 10,
+                    border: `1.5px solid ${T.border}`,
+                    backgroundColor: T.cardBg,
+                    color: draft.laId ? T.textDark : T.textMuted,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    paddingLeft: 12,
+                    paddingRight: 10,
+                    transition: "all 0.15s ease-in-out",
+                    opacity: !eligibilityKey ? 0.7 : 1,
+                    boxSizing: "border-box",
+                  }}
+                  className="hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-2 focus:ring-[#638b4b]/20"
+                  title={!eligibilityKey ? "Needs carrier, state, and centre to load eligible agents" : undefined}
+                >
+                  <SelectValue placeholder="Assign LA">{laSelectDisplayLabel ?? undefined}</SelectValue>
+                </SelectTrigger>
+                <SelectContent
+                  style={{
+                    borderRadius: 12,
+                    border: `1px solid ${T.border}`,
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+                    backgroundColor: "#fff",
+                    padding: 6,
+                    maxHeight: 300,
+                    zIndex: 99999,
+                  }}
+                >
+                  {eligibleState?.loading && (
+                    <div style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, color: T.textMuted }}>
+                      Loading eligible agents…
+                    </div>
+                  )}
+                  {eligibleState?.error && (
+                    <div style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#b91c1c" }}>
+                      {eligibleState.error}
+                    </div>
+                  )}
+                  {eligibleState?.unmatchedEligible && eligibleState.unmatchedEligible.length > 0 && (
+                    <div style={{ padding: "8px 10px", fontSize: 11, fontWeight: 600, color: T.textMuted, lineHeight: 1.4 }}>
+                      No unique CRM user for eligible name(s) (duplicate first names need tie-break — see team):{" "}
+                      {eligibleState.unmatchedEligible.join(", ")}
+                    </div>
+                  )}
+                  {laOptionsForRow.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      style={{
+                        borderRadius: 8,
+                        padding: "10px 14px",
+                        fontSize: 13,
+                        fontWeight: 400,
+                        color: T.textDark,
+                        cursor: "pointer",
+                        transition: "all 0.1s ease-in-out",
+                      }}
+                      className="hover:bg-[#ddecd4] hover:text-[#3b5229] focus:bg-[#ddecd4] focus:text-[#3b5229] data-[state=checked]:bg-[#638b4b] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <input
               type="number"
@@ -363,7 +602,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                 outline: "none",
                 fontFamily: T.font,
               }}
-              className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+              className="hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-2 focus:ring-[#638b4b]/20"
             />
             <button
               type="button"
@@ -372,19 +611,21 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
               style={{
                 border: "none",
                 borderRadius: 10,
-                background: "#233217",
+                background: T.blue,
                 color: "#fff",
                 fontSize: 13,
                 fontWeight: 800,
                 height: WIDGET_CONTROL_HEIGHT,
                 minHeight: WIDGET_CONTROL_HEIGHT,
-                padding: "0 16px",
+                padding: "0 18px",
                 cursor: isSaving ? "not-allowed" : "pointer",
                 opacity: isSaving ? 0.65 : 1,
-                boxShadow: "0 4px 12px rgba(35, 50, 23, 0.15)",
+                boxShadow: T.shadowSm,
                 flexShrink: 0,
                 boxSizing: "border-box",
+                fontFamily: T.font,
               }}
+              className="transition-all duration-150 ease-in-out hover:brightness-95 active:scale-[0.98]"
             >
               Save
             </button>
@@ -392,7 +633,15 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
         )}
 
         {(showReady || showSendTransfer) && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 2 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              paddingTop: queueRole === "manager" ? 4 : 2,
+              marginTop: queueRole === "manager" ? 0 : 0,
+            }}
+          >
             {showReady && (
               <button
                 type="button"
@@ -403,15 +652,17 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                 style={{
                   border: "none",
                   borderRadius: 10,
-                  background: "#233217",
+                  background: T.blue,
                   color: "#fff",
                   fontSize: 12,
-                  fontWeight: 900,
-                  padding: "10px 14px",
+                  fontWeight: 800,
+                  padding: "11px 16px",
                   cursor: isSaving ? "not-allowed" : "pointer",
                   opacity: isSaving ? 0.65 : 1,
-                  boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                  boxShadow: T.shadowSm,
+                  fontFamily: T.font,
                 }}
+                className="transition-all duration-150 ease-in-out hover:brightness-95 active:scale-[0.98]"
               >
                 {readyLabel}
               </button>
@@ -422,17 +673,19 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                 disabled={isSaving || !currentUserId}
                 onClick={() => runAction(row.id, () => sendQueueTransfer(supabase, row, String(currentUserId)))}
                 style={{
-                  border: "none",
+                  border: `1.5px solid ${T.border}`,
                   borderRadius: 10,
-                  background: "#0d9488",
-                  color: "#fff",
+                  background: T.cardBg,
+                  color: T.textDark,
                   fontSize: 12,
-                  fontWeight: 900,
-                  padding: "10px 14px",
+                  fontWeight: 800,
+                  padding: "11px 16px",
                   cursor: isSaving ? "not-allowed" : "pointer",
                   opacity: isSaving ? 0.65 : 1,
-                  boxShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
+                  boxShadow: T.shadowSm,
+                  fontFamily: T.font,
                 }}
+                className="transition-all duration-150 ease-in-out hover:bg-[#f2f8ee] active:scale-[0.98]"
               >
                 Send transfer
               </button>
@@ -443,40 +696,101 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
     );
   };
 
-  const section = (title: string, items: LeadQueueItem[]) => (
-    <div style={{ display: "grid", gap: 10 }}>
+  const renderCollapsibleSection = (sectionKey: QueueSectionKey, title: string, items: LeadQueueItem[]) => {
+    const isOpen = sectionOpen[sectionKey];
+    const pill = QUEUE_SECTION_PILLS[sectionKey];
+    const countChipBg =
+      sectionKey === "assignedToMe" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.07)";
+    const chevronColor =
+      sectionKey === "assignedToMe" ? "rgba(244,247,242,0.92)" : pill.color;
+
+    return (
       <div
-        style={{
-          fontSize: 10,
-          fontWeight: 800,
-          color: T.textMuted,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-        }}
+        className="overflow-hidden rounded-xl bg-white transition-all duration-150 ease-in-out hover:shadow-md"
+        style={{ border: `1px solid ${T.border}`, boxShadow: T.shadowSm }}
       >
-        {title}{" "}
-        <span style={{ color: T.textDark }}>({items.length})</span>
-      </div>
-      {items.length === 0 ? (
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: T.textMuted,
-            border: `1px dashed ${T.border}`,
-            borderRadius: 12,
-            padding: 14,
-            textAlign: "center",
-            background: "#fafcf8",
-          }}
+        <button
+          type="button"
+          className="w-full px-4 py-3 text-left transition-transform duration-150 ease-in-out active:scale-[0.998]"
+          style={{ fontFamily: T.font, background: "transparent", border: "none", margin: 0 }}
+          aria-expanded={isOpen}
+          id={`queue-section-${sectionKey}-trigger`}
+          onClick={() => setSectionOpen((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
         >
-          No calls
-        </div>
-      ) : (
-        items.map(renderCard)
-      )}
-    </div>
-  );
+          <span
+            className={cn(
+              "flex min-h-[42px] w-full min-w-0 items-center gap-3 rounded-xl px-3.5 py-2.5 transition-[filter,box-shadow] duration-150 ease-in-out",
+              "hover:brightness-[0.98] active:brightness-[0.96]",
+            )}
+            style={{
+              background: pill.background,
+              color: pill.color,
+              border: pill.border,
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: "-0.01em",
+              boxSizing: "border-box",
+            }}
+          >
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out",
+                isOpen ? "rotate-180" : "rotate-0",
+              )}
+              style={{ color: chevronColor, opacity: sectionKey === "assignedToMe" ? 1 : 0.85 }}
+              aria-hidden
+            />
+            <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-left">{title}</span>
+              <span
+                className="shrink-0 tabular-nums"
+                style={{
+                  background: countChipBg,
+                  borderRadius: 8,
+                  padding: "2px 8px",
+                  fontSize: 11,
+                  fontWeight: 900,
+                }}
+              >
+                {items.length}
+              </span>
+            </span>
+          </span>
+        </button>
+        {isOpen && (
+          <div
+            className="px-4 pb-5 pt-1"
+            style={{
+              borderTop: `1px solid ${T.borderLight}`,
+              background: T.pageBg,
+              fontFamily: T.font,
+            }}
+            role="region"
+            aria-labelledby={`queue-section-${sectionKey}-trigger`}
+          >
+            {items.length === 0 ? (
+              <div
+                className="rounded-xl px-5 py-12 text-center"
+                style={{
+                  border: `1px dashed ${T.border}`,
+                  background: T.cardBg,
+                }}
+              >
+                <p className="text-sm font-semibold" style={{ color: T.textMuted }}>
+                  No calls
+                </p>
+                <p className="mt-2 text-xs font-medium leading-relaxed" style={{ color: T.textMuted, opacity: 0.92 }}>
+                  Nothing queued in this section right now.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">{items.map(renderCard)}</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -512,15 +826,15 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
             left: 16,
             bottom: 70,
             zIndex: 550,
-            width: "min(560px, calc(100vw - 32px))",
+            width: "min(720px, calc(100vw - 32px))",
             maxWidth: "calc(100vw - 32px)",
-            maxHeight: "72vh",
+            maxHeight: "min(88vh, calc(100vh - 120px))",
             display: "flex",
             flexDirection: "column",
-            background: "#fafcf8",
+            background: T.pageBg,
             border: `1px solid ${T.border}`,
-            borderRadius: 16,
-            boxShadow: "0 16px 40px rgba(35, 50, 23, 0.12), 0 0 1px rgba(35, 50, 23, 0.08)",
+            borderRadius: T.radiusLg,
+            boxShadow: T.shadowLg,
             overflow: "hidden",
           }}
         >
@@ -531,9 +845,9 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
               justifyContent: "space-between",
               alignItems: "center",
               gap: 12,
-              padding: "14px 16px",
-              background: "#fff",
-              borderBottom: `1px solid ${T.border}`,
+              padding: "16px 18px",
+              background: T.cardBg,
+              borderBottom: `1px solid ${T.borderLight}`,
             }}
           >
             <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
@@ -544,26 +858,27 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                 {lastUpdatedAt ? `Last sync ${new Date(lastUpdatedAt).toLocaleTimeString()}` : "Not synced yet"}
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               <button
                 type="button"
                 onClick={() => void loadSnapshot(true)}
                 style={{
-                  height: 36,
-                  border: `1px solid ${T.border}`,
+                  height: 38,
+                  border: `1px solid ${T.blueHover}`,
                   borderRadius: 10,
-                  background: "#233217",
-                  color: "#fff",
+                  background: T.asideChrome,
+                  color: "#f4f7f2",
                   cursor: "pointer",
-                  padding: "0 12px",
+                  padding: "0 14px",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 6,
+                  gap: 8,
                   fontSize: 12,
                   fontWeight: 800,
                   fontFamily: T.font,
-                  boxShadow: "0 4px 12px rgba(35, 50, 23, 0.18)",
+                  boxShadow: T.shadowSm,
                 }}
+                className="transition-all duration-150 ease-in-out hover:brightness-110 active:scale-[0.98]"
               >
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : undefined} />
                 Refresh
@@ -577,14 +892,14 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                   height: 36,
                   border: `1px solid ${T.border}`,
                   borderRadius: 10,
-                  background: "#fff",
+                  background: T.cardBg,
                   color: T.textMuted,
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
-                className="hover:text-[#233217] hover:border-[#233217]"
+                className="transition-colors duration-150 hover:border-[#638b4b] hover:text-[#3b5229]"
               >
                 <X size={18} />
               </button>
@@ -596,9 +911,11 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
               flex: 1,
               minHeight: 0,
               overflow: "auto",
-              padding: "14px 16px 16px",
-              display: "grid",
+              padding: "18px 18px 20px",
+              display: "flex",
+              flexDirection: "column",
               gap: 14,
+              background: T.pageBg,
             }}
           >
             {error && (
@@ -638,10 +955,13 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
               </div>
             ) : (
               <>
-                {queueRole !== "manager" && section("Assigned to you (next)", assignedToMe)}
-                {section("Unclaimed transfers", unclaimedForDisplay)}
-                {(queueRole === "manager" || queueRole === "la") && section("BA active calls", grouped.baActive)}
-                {(queueRole === "manager" || queueRole === "ba") && section("LA active calls", grouped.laActive)}
+                {queueRole !== "manager" &&
+                  renderCollapsibleSection("assignedToMe", "Assigned to you (next)", assignedToMe)}
+                {renderCollapsibleSection("unclaimed", "Unclaimed transfers", unclaimedForDisplay)}
+                {(queueRole === "manager" || queueRole === "la") &&
+                  renderCollapsibleSection("baActive", "BA active calls", grouped.baActive)}
+                {(queueRole === "manager" || queueRole === "ba") &&
+                  renderCollapsibleSection("laActive", "LA active calls", grouped.laActive)}
               </>
             )}
           </div>

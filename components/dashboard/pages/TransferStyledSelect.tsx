@@ -45,7 +45,7 @@ export function TransferStyledSelect({
           transition: "all 0.15s ease-in-out",
           boxShadow: error ? "0 0 0 3px rgba(220, 38, 38, 0.1)" : "none",
         }}
-        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+        className="transition-all duration-150 hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-2 focus:ring-[#638b4b]/20"
       >
         <SelectValue placeholder={placeholder}>
           {value ? options.find((o) => o.value === value)?.label || value : placeholder}
@@ -75,7 +75,7 @@ export function TransferStyledSelect({
               cursor: "pointer",
               transition: "all 0.1s ease-in-out",
             }}
-            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+            className="hover:bg-[#ddecd4] hover:text-[#3b5229] focus:bg-[#ddecd4] focus:text-[#3b5229] data-[state=checked]:bg-[#638b4b] data-[state=checked]:text-white data-[state=checked]:font-semibold"
           >
             {option.label}
           </SelectItem>
