@@ -10,6 +10,7 @@ import {
   fetchQueueAssignees,
   fetchQueueSnapshot,
   managerAssignQueueItem,
+  markQueueReady,
   resolveQueueRole,
   sendQueueTransfer,
   type LeadQueueItem,
@@ -112,6 +113,12 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
       return queueRole === "la" ? r.assigned_la_id === currentUserId : r.assigned_ba_id === currentUserId;
     });
   }, [rows, currentUserId, queueRole]);
+  /** Avoid listing the same unclaimed row in both "Assigned to you" and "Unclaimed transfers". */
+  const unclaimedForDisplay = useMemo(() => {
+    if (queueRole !== "la" && queueRole !== "ba") return grouped.unclaimed;
+    const mine = new Set(assignedToMe.map((r) => r.id));
+    return grouped.unclaimed.filter((r) => !mine.has(r.id));
+  }, [grouped.unclaimed, assignedToMe, queueRole]);
   const assigneeNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const a of assignees) map.set(a.id, a.name);
@@ -181,6 +188,10 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
     const draft = drafts[row.id] ?? { baId: row.assigned_ba_id ?? "", laId: row.assigned_la_id ?? "", eta: row.eta_minutes != null ? String(row.eta_minutes) : "" };
     const isSaving = savingId === row.id;
     const showSendTransfer = queueRole === "ba" && row.queue_type === "ba_active" && !!row.la_ready_at;
+    const showReady =
+      (queueRole === "ba" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active")) ||
+      (queueRole === "la" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active"));
+    const readyLabel = row.queue_type === "unclaimed_transfer" ? "Claim" : "Mark ready";
     const hasAnyAssignment = Boolean(row.assigned_ba_id || row.assigned_la_id);
     const assignedBaName = row.assigned_ba_id
       ? assigneeNameById.get(row.assigned_ba_id) ?? "Assigned BA"
@@ -380,27 +391,52 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
           </div>
         )}
 
-        {showSendTransfer && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              disabled={isSaving || !currentUserId}
-              onClick={() => runAction(row.id, () => sendQueueTransfer(supabase, row, String(currentUserId)))}
-              style={{
-                border: "none",
-                borderRadius: 10,
-                background: "#0d9488",
-                color: "#fff",
-                fontSize: 12,
-                fontWeight: 900,
-                padding: "10px 14px",
-                cursor: isSaving ? "not-allowed" : "pointer",
-                opacity: isSaving ? 0.65 : 1,
-                boxShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
-              }}
-            >
-              Send transfer
-            </button>
+        {(showReady || showSendTransfer) && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 2 }}>
+            {showReady && (
+              <button
+                type="button"
+                disabled={isSaving || !currentUserId}
+                onClick={() =>
+                  runAction(row.id, () => markQueueReady(supabase, row, String(currentUserId), queueRole as "ba" | "la"))
+                }
+                style={{
+                  border: "none",
+                  borderRadius: 10,
+                  background: "#233217",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 900,
+                  padding: "10px 14px",
+                  cursor: isSaving ? "not-allowed" : "pointer",
+                  opacity: isSaving ? 0.65 : 1,
+                  boxShadow: "0 4px 12px rgba(35, 50, 23, 0.2)",
+                }}
+              >
+                {readyLabel}
+              </button>
+            )}
+            {showSendTransfer && (
+              <button
+                type="button"
+                disabled={isSaving || !currentUserId}
+                onClick={() => runAction(row.id, () => sendQueueTransfer(supabase, row, String(currentUserId)))}
+                style={{
+                  border: "none",
+                  borderRadius: 10,
+                  background: "#0d9488",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 900,
+                  padding: "10px 14px",
+                  cursor: isSaving ? "not-allowed" : "pointer",
+                  opacity: isSaving ? 0.65 : 1,
+                  boxShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
+                }}
+              >
+                Send transfer
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -603,7 +639,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
             ) : (
               <>
                 {queueRole !== "manager" && section("Assigned to you (next)", assignedToMe)}
-                {section("Unclaimed transfers", grouped.unclaimed)}
+                {section("Unclaimed transfers", unclaimedForDisplay)}
                 {(queueRole === "manager" || queueRole === "la") && section("BA active calls", grouped.baActive)}
                 {(queueRole === "manager" || queueRole === "ba") && section("LA active calls", grouped.laActive)}
               </>

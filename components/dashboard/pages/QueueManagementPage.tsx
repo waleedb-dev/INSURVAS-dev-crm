@@ -557,12 +557,32 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     const laOptionsFromCache =
       eligibilityKey && eligibleState?.loaded ? eligibleState.options : [];
     const laOptionsForRow = (() => {
-      const id = row.assigned_la_id?.trim();
-      if (!id || laOptionsFromCache.some((o) => o.value === id)) return laOptionsFromCache;
-      const name = assigneeNameById.get(id) ?? "Current assignee";
-      const head = laOptionsFromCache[0];
-      const tail = laOptionsFromCache.slice(1);
-      return head ? [head, { value: id, label: name }, ...tail] : laOptionsFromCache;
+      let opts = laOptionsFromCache;
+      const ensureOptionForId = (rawId: string | null | undefined) => {
+        const id = rawId?.trim();
+        if (!id || opts.some((o) => o.value === id)) return;
+        const name =
+          assignees.find((a) => a.id === id)?.name ??
+          assigneeNameById.get(id) ??
+          "Current assignee";
+        const head = opts[0];
+        const tail = opts.slice(1);
+        opts = head ? [head, { value: id, label: name }, ...tail] : opts;
+      };
+      ensureOptionForId(row.assigned_la_id);
+      ensureOptionForId(drafts[row.id]?.laId);
+      return opts;
+    })();
+
+    const laSelectDisplayLabel = (() => {
+      const id = draft.laId?.trim();
+      if (!id) return null;
+      return (
+        laOptionsForRow.find((o) => o.value === id)?.label ??
+        assignees.find((a) => a.id === id)?.name ??
+        assigneeNameById.get(id) ??
+        "Licensed agent"
+      );
     })();
 
     const ensureEligibleLoaded = async () => {
@@ -730,7 +750,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
                 className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
                 title={!eligibilityKey ? "Needs carrier, state, and centre to load eligible agents" : undefined}
               >
-                <SelectValue placeholder="Assign LA" />
+                <SelectValue placeholder="Assign LA">{laSelectDisplayLabel ?? undefined}</SelectValue>
               </SelectTrigger>
               <SelectContent
                 style={{
