@@ -20,6 +20,7 @@ import {
   fetchQueueSnapshot,
   managerAssignQueueItem,
   markQueueReady,
+  notifyLaReadyForTransferIfNeeded,
   requestTransferScreeningBackfillForQueueRows,
   resolveQueueRole,
   sendQueueTransfer,
@@ -665,7 +666,16 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
               <button
                 type="button"
                 disabled={isSaving || !currentUserId}
-                onClick={() => runAction(row.id, () => markQueueReady(supabase, row, String(currentUserId), queueRole as "ba" | "la"))}
+                onClick={() =>
+                  runAction(row.id, async () => {
+                    await markQueueReady(supabase, row, String(currentUserId), queueRole as "ba" | "la");
+                    await notifyLaReadyForTransferIfNeeded(supabase, {
+                      queueItemBefore: row,
+                      actorUserId: String(currentUserId),
+                      actorRole: queueRole as "ba" | "la",
+                    });
+                  })
+                }
                 style={{
                   border: `1px solid ${T.border}`,
                   borderRadius: 10,

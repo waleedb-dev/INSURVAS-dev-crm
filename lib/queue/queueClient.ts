@@ -23,6 +23,8 @@ export type LeadQueueItem = {
   submission_id: string | null;
   client_name: string | null;
   phone_number: string | null;
+  /** Used to resolve `call_centers.slack_channel` for centre Slack notifications. */
+  call_center_id: string | null;
   call_center_name: string | null;
   state: string | null;
   carrier: string | null;
@@ -92,7 +94,7 @@ function filterSnapshotRowsForRole(rows: LeadQueueItem[], queueRole: QueueRole):
 }
 
 const QUEUE_SNAPSHOT_SELECT =
-  "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at, transfer_screening_json, transfer_screening_at";
+  "id, lead_id, submission_id, client_name, phone_number, call_center_id, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at, transfer_screening_json, transfer_screening_at";
 
 /** Supabase `in()` payloads stay small to avoid oversized URLs. */
 const LEAD_ID_CHUNK = 120;
@@ -430,6 +432,84 @@ export async function markQueueReady(
     null,
     payload,
   );
+}
+
+/**
+ * After an LA uses Claim / LA ready on an **unclaimed** queue row, notify the call centre Slack channel.
+ * Resolves `call_centers.slack_channel` the same way as `center-transfer-notification`: prefer the queue row's
+ * `call_center_id`, otherwise the lead's `call_centers` row.
+ */
+export async function notifyLaReadyForTransferIfNeeded(
+  supabase: SupabaseClient,
+  args: {
+    queueItemBefore: LeadQueueItem;
+    actorUserId: string;
+    actorRole: "ba" | "la";
+  },
+): Promise<void> {
+  if (args.actorRole !== "la") return;
+  if (args.queueItemBefore.queue_type !== "unclaimed_transfer") return;
+
+  const { data: userRow } = await supabase.from("users").select("full_name").eq("id", args.actorUserId).maybeSingle();
+  const licensedAgentName =
+    typeof userRow?.full_name === "string" && userRow.full_name.trim() !== ""
+      ? userRow.full_name.trim()
+      : "Licensed agent";
+
+  let slackChannel: string | null = null;
+  let centerName: string | null = null;
+
+  const ccIdFromQueue = args.queueItemBefore.call_center_id?.trim();
+  if (ccIdFromQueue) {
+    const { data: cc } = await supabase
+      .from("call_centers")
+      .select("name, slack_channel")
+      .eq("id", ccIdFromQueue)
+      .maybeSingle();
+    slackChannel = typeof cc?.slack_channel === "string" ? cc.slack_channel.trim() || null : null;
+    centerName = typeof cc?.name === "string" ? cc.name.trim() || null : null;
+  }
+
+  if (!slackChannel && args.queueItemBefore.lead_id) {
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("call_center_id")
+      .eq("id", args.queueItemBefore.lead_id)
+      .maybeSingle();
+    const lcId = lead?.call_center_id ? String(lead.call_center_id).trim() : "";
+    if (lcId) {
+      const { data: cc } = await supabase
+        .from("call_centers")
+        .select("name, slack_channel")
+        .eq("id", lcId)
+        .maybeSingle();
+      slackChannel = typeof cc?.slack_channel === "string" ? cc.slack_channel.trim() || null : null;
+      centerName = typeof cc?.name === "string" ? cc.name.trim() || null : null;
+    }
+  }
+
+  const queueCcRaw = args.queueItemBefore.call_center_name?.trim() ?? "";
+  const queueCcLower = queueCcRaw.toLowerCase();
+  if (queueCcLower === "test-popup" || queueCcLower.includes("test-popup")) {
+    slackChannel = "#test-bpo";
+  }
+
+  if (!slackChannel) {
+    console.warn("[notifyLaReadyForTransferIfNeeded] No Slack channel for queue item", args.queueItemBefore.id);
+    return;
+  }
+
+  const { error } = await supabase.functions.invoke("la-queue-ready-notification", {
+    body: {
+      slackChannel,
+      centerName,
+      licensedAgentName,
+      submissionId: args.queueItemBefore.submission_id,
+      clientName: args.queueItemBefore.client_name,
+      queueCallCenterName: args.queueItemBefore.call_center_name,
+    },
+  });
+  if (error) console.warn("[notifyLaReadyForTransferIfNeeded]", error.message);
 }
 
 export async function sendQueueTransfer(

@@ -19,6 +19,7 @@ import {
   fetchQueueSnapshot,
   managerAssignQueueItem,
   markQueueReady,
+  notifyLaReadyForTransferIfNeeded,
   requestTransferScreeningBackfillForQueueRows,
   resolveQueueRole,
   sendQueueTransfer,
@@ -496,8 +497,8 @@ export default function GlobalQueueWidget() {
             </p>
           </div>
         )}
-        {(assignedBaName || assignedLaName) && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {(assignedBaName || assignedLaName || row.eta_minutes != null) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
             {assignedBaName && (
               <span
                 style={{
@@ -526,6 +527,23 @@ export default function GlobalQueueWidget() {
                 }}
               >
                 LA: {assignedLaName}
+              </span>
+            )}
+            {row.eta_minutes != null && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  color: "#0f172a",
+                  background: "#fef9c3",
+                  border: "1px solid #fde047",
+                  borderRadius: 999,
+                  padding: "3px 9px",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+                title="Manager ETA (minutes)"
+              >
+                ETA {row.eta_minutes}m
               </span>
             )}
           </div>
@@ -708,7 +726,14 @@ export default function GlobalQueueWidget() {
                 type="button"
                 disabled={isSaving || !currentUserId}
                 onClick={() =>
-                  runAction(row.id, () => markQueueReady(supabase, row, String(currentUserId), queueRole as "ba" | "la"))
+                  runAction(row.id, async () => {
+                    await markQueueReady(supabase, row, String(currentUserId), queueRole as "ba" | "la");
+                    await notifyLaReadyForTransferIfNeeded(supabase, {
+                      queueItemBefore: row,
+                      actorUserId: String(currentUserId),
+                      actorRole: queueRole as "ba" | "la",
+                    });
+                  })
                 }
                 style={{
                   border: "none",
