@@ -7,7 +7,6 @@ import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TransferStyledSelect } from "@/components/dashboard/pages/TransferStyledSelect";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import TransferCheckGateModal from "@/components/dashboard/TransferCheckGateModal";
 import {
   ELIGIBILITY_LANGUAGE,
   buildQueueLaEligibilityKey,
@@ -27,12 +26,9 @@ import {
   type QueueAssignee,
 } from "@/lib/queue/queueClient";
 import {
-  IDLE_TRANSFER_SCREENING,
   parsePersistedTransferScreening,
-  runTransferScreeningForPhone,
   transferScreeningBadgeChrome,
   transferScreeningBadgeMeta,
-  type TransferScreeningSnapshot,
 } from "@/lib/transferScreening";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
@@ -115,11 +111,6 @@ export default function GlobalQueueWidget() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftAssign>>({});
   const [notice, setNotice] = useState<string | null>(null);
-  const [transferCheckModalOpen, setTransferCheckModalOpen] = useState(false);
-  const [transferCheckModalLoading, setTransferCheckModalLoading] = useState(false);
-  const [transferCheckModalClient, setTransferCheckModalClient] = useState("");
-  const [transferCheckModalSnapshot, setTransferCheckModalSnapshot] =
-    useState<TransferScreeningSnapshot>(IDLE_TRANSFER_SCREENING);
 
   const [sectionOpen, setSectionOpen] = useState<Record<QueueSectionKey, boolean>>({
     assignedToMe: true,
@@ -293,32 +284,15 @@ export default function GlobalQueueWidget() {
     }
   };
 
-  const runManagerAssignWithTransferCheck = async (row: LeadQueueItem, draft: DraftAssign) => {
+  const runManagerAssign = async (row: LeadQueueItem, draft: DraftAssign) => {
     if (!currentUserId) return;
-    setSavingId(row.id);
-    setError(null);
-    try {
-      await managerAssignQueueItem(supabase, row.id, String(currentUserId), {
+    await runAction(row.id, () =>
+      managerAssignQueueItem(supabase, row.id, String(currentUserId), {
         assignedBaId: draft.baId || null,
         assignedLaId: draft.laId || null,
         etaMinutes: draft.eta ? Number(draft.eta) : null,
-      });
-      await loadSnapshot(true);
-      setNotice("Updated");
-      window.setTimeout(() => setNotice(null), 1400);
-      setTransferCheckModalClient(row.client_name ?? "");
-      setTransferCheckModalSnapshot(IDLE_TRANSFER_SCREENING);
-      setTransferCheckModalLoading(true);
-      setTransferCheckModalOpen(true);
-      const snap = await runTransferScreeningForPhone(supabase, row.phone_number);
-      setTransferCheckModalSnapshot(snap);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Action failed");
-      setTransferCheckModalOpen(false);
-    } finally {
-      setTransferCheckModalLoading(false);
-      setSavingId(null);
-    }
+      }),
+    );
   };
 
   const renderCard = (row: LeadQueueItem) => {
@@ -400,13 +374,13 @@ export default function GlobalQueueWidget() {
           border: `1px solid ${hasAnyAssignment ? T.memberSky : T.border}`,
           borderRadius: T.radiusMd,
           background: hasAnyAssignment ? T.rowBg : T.cardBg,
-          padding: "18px 18px 16px",
+          padding: "11px 12px 10px",
           display: "grid",
-          gap: 14,
+          gap: 7,
           boxShadow: T.shadowSm,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
           <div
             style={{
               display: "flex",
@@ -482,80 +456,32 @@ export default function GlobalQueueWidget() {
           </div>
         </div>
         {screeningMeta && screeningChrome && (
-          <details
-            className={cn(
-              "overflow-hidden rounded-xl border",
-              "[& summary::-webkit-details-marker]:hidden",
-              "shadow-[0_1px_2px_rgba(59,82,41,0.06)] transition-[box-shadow,border-color] duration-200",
-              "open:border-[#b8c9a8] open:shadow-[0_6px_20px_-4px_rgba(59,82,41,0.12)]",
-            )}
+          <div
+            className="min-w-0 rounded-md py-1.5 pl-2.5 pr-2.5"
             style={{
-              borderColor: T.borderLight,
               fontFamily: T.font,
+              border: screeningChrome.border,
+              borderLeft: `3px solid ${screeningChrome.color}`,
+              background: screeningChrome.background,
             }}
+            role="status"
           >
-            <summary
-              aria-label={`${screeningMeta.shortLabel} screening — click to show or hide message`}
-              title="Click to show or hide the screening message"
-              className={cn(
-                "flex w-full cursor-pointer list-none items-center px-3 py-3 outline-none",
-                "min-h-[48px] rounded-xl transition-[background] duration-200",
-                "hover:bg-[#e8f0e3]/85 active:brightness-[0.98]",
-                "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2",
-              )}
+            <p
               style={{
-                background: `linear-gradient(100deg, ${T.blueFaint} 0%, ${T.cardBg} 70%)`,
+                margin: 0,
+                fontSize: 13,
+                fontWeight: 600,
+                color: T.textDark,
+                lineHeight: 1.5,
+                wordBreak: "break-word",
               }}
             >
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 900,
-                  color: screeningChrome.color,
-                  background: screeningChrome.background,
-                  border: screeningChrome.border,
-                  borderRadius: 999,
-                  padding: "5px 12px",
-                  flexShrink: 0,
-                  letterSpacing: "0.03em",
-                }}
-              >
-                {screeningMeta.shortLabel}
-              </span>
-            </summary>
-            <div
-              className="px-3 pb-3 pt-1"
-              style={{
-                background: `linear-gradient(180deg, ${T.cardBg} 0%, ${T.pageBg} 100%)`,
-              }}
-            >
-              <div
-                style={{
-                  borderRadius: T.radiusMd,
-                  padding: "14px 16px",
-                  background: T.cardBg,
-                  border: `1px solid ${T.borderLight}`,
-                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.85), 0 2px 8px rgba(59,82,41,0.04), inset 3px 0 0 0 ${screeningChrome.color}`,
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: T.textDark,
-                    lineHeight: 1.6,
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {screeningMeta.message}
-                </p>
-              </div>
-            </div>
-          </details>
+              {screeningMeta.message}
+            </p>
+          </div>
         )}
         {(assignedBaName || assignedLaName) && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {assignedBaName && (
               <span
                 style={{
@@ -565,7 +491,7 @@ export default function GlobalQueueWidget() {
                   background: T.blueLight,
                   border: `1px solid ${T.borderLight}`,
                   borderRadius: 999,
-                  padding: "5px 11px",
+                  padding: "3px 9px",
                 }}
               >
                 BA: {assignedBaName}
@@ -580,7 +506,7 @@ export default function GlobalQueueWidget() {
                   background: T.pageBg,
                   border: `1px solid ${T.borderLight}`,
                   borderRadius: 999,
-                  padding: "5px 11px",
+                  padding: "3px 9px",
                 }}
               >
                 LA: {assignedLaName}
@@ -594,10 +520,10 @@ export default function GlobalQueueWidget() {
             style={{
               display: "grid",
               gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 84px minmax(min-content, auto)",
-              gap: 10,
+              gap: 8,
               alignItems: "stretch",
-              marginTop: 2,
-              paddingTop: 16,
+              marginTop: 0,
+              paddingTop: 8,
               borderTop: `1px solid ${T.borderLight}`,
             }}
           >
@@ -727,7 +653,7 @@ export default function GlobalQueueWidget() {
             <button
               type="button"
               disabled={isSaving || !currentUserId}
-              onClick={() => void runManagerAssignWithTransferCheck(row, draft)}
+              onClick={() => void runManagerAssign(row, draft)}
               style={{
                 border: "none",
                 borderRadius: 10,
@@ -756,9 +682,9 @@ export default function GlobalQueueWidget() {
           <div
             style={{
               display: "flex",
-              gap: 10,
+              gap: 8,
               flexWrap: "wrap",
-              paddingTop: 2,
+              paddingTop: 0,
             }}
           >
             {showReady && (
@@ -852,10 +778,10 @@ export default function GlobalQueueWidget() {
             letterSpacing: "-0.015em",
             boxSizing: "border-box",
             /* Inline padding so it wins over `globals.css` universal `* { padding: 0 }` */
-            paddingTop: 14,
-            paddingBottom: 14,
-            paddingLeft: 28,
-            paddingRight: 24,
+            paddingTop: 11,
+            paddingBottom: 11,
+            paddingLeft: 22,
+            paddingRight: 18,
           }}
           aria-expanded={isOpen}
           id={`queue-section-${sectionKey}-trigger`}
@@ -890,7 +816,7 @@ export default function GlobalQueueWidget() {
         </button>
         {isOpen && (
           <div
-            className="px-4 pb-5 pt-4 sm:px-5"
+            className="px-3 pb-3 pt-2.5 sm:px-4 sm:pb-3.5"
             style={{
               background: `linear-gradient(180deg, ${T.blueFaint} 0%, ${T.pageBg} 48%, ${T.pageBg} 100%)`,
               fontFamily: T.font,
@@ -915,7 +841,7 @@ export default function GlobalQueueWidget() {
                 </p>
               </div>
             ) : (
-              <div className="flex flex-col gap-4">{items.map(renderCard)}</div>
+              <div className="flex flex-col gap-2">{items.map(renderCard)}</div>
             )}
           </div>
         )}
@@ -1046,11 +972,11 @@ export default function GlobalQueueWidget() {
               overflowY: "auto",
               WebkitOverflowScrolling: "touch",
               overscrollBehaviorY: "contain",
-              padding: "16px 18px 20px",
+              padding: "12px 14px 16px",
               background: T.cardBg,
             }}
           >
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {error && (
                 <div
                   style={{
@@ -1108,17 +1034,6 @@ export default function GlobalQueueWidget() {
           </div>
         </div>
       )}
-
-      <TransferCheckGateModal
-        open={transferCheckModalOpen}
-        loading={transferCheckModalLoading}
-        clientName={transferCheckModalClient}
-        snapshot={transferCheckModalSnapshot}
-        onDismiss={() => {
-          setTransferCheckModalOpen(false);
-          setTransferCheckModalSnapshot(IDLE_TRANSFER_SCREENING);
-        }}
-      />
     </>
   );
 }

@@ -8,7 +8,6 @@ import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TransferStyledSelect } from "./TransferStyledSelect";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import TransferCheckGateModal from "@/components/dashboard/TransferCheckGateModal";
 import {
   ELIGIBILITY_LANGUAGE,
   buildQueueLaEligibilityKey,
@@ -28,12 +27,9 @@ import {
   type QueueAssignee,
 } from "@/lib/queue/queueClient";
 import {
-  IDLE_TRANSFER_SCREENING,
   parsePersistedTransferScreening,
-  runTransferScreeningForPhone,
   transferScreeningBadgeChrome,
   transferScreeningBadgeMeta,
-  type TransferScreeningSnapshot,
 } from "@/lib/transferScreening";
 
 type Props = {
@@ -100,12 +96,6 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
   const [drafts, setDrafts] = useState<Record<string, DraftAssign>>({});
 
   const [searchTerm, setSearchTerm] = useState("");
-
-  const [transferCheckModalOpen, setTransferCheckModalOpen] = useState(false);
-  const [transferCheckModalLoading, setTransferCheckModalLoading] = useState(false);
-  const [transferCheckModalClient, setTransferCheckModalClient] = useState("");
-  const [transferCheckModalSnapshot, setTransferCheckModalSnapshot] =
-    useState<TransferScreeningSnapshot>(IDLE_TRANSFER_SCREENING);
 
   const [eligibleCache, setEligibleCache] = useState<
     Record<
@@ -290,32 +280,15 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     }
   };
 
-  const runManagerAssignWithTransferCheck = async (row: LeadQueueItem, draft: DraftAssign) => {
+  const runManagerAssign = async (row: LeadQueueItem, draft: DraftAssign) => {
     if (!currentUserId) return;
-    setSavingId(row.id);
-    setError(null);
-    try {
-      await managerAssignQueueItem(supabase, row.id, String(currentUserId), {
+    await runAction(row.id, () =>
+      managerAssignQueueItem(supabase, row.id, String(currentUserId), {
         assignedBaId: draft.baId || null,
         assignedLaId: draft.laId || null,
         etaMinutes: draft.eta ? Number(draft.eta) : null,
-      });
-      await loadSnapshot(true);
-      setNotice("Updated");
-      window.setTimeout(() => setNotice(null), 1400);
-      setTransferCheckModalClient(row.client_name ?? "");
-      setTransferCheckModalSnapshot(IDLE_TRANSFER_SCREENING);
-      setTransferCheckModalLoading(true);
-      setTransferCheckModalOpen(true);
-      const snap = await runTransferScreeningForPhone(supabase, row.phone_number);
-      setTransferCheckModalSnapshot(snap);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Action failed");
-      setTransferCheckModalOpen(false);
-    } finally {
-      setTransferCheckModalLoading(false);
-      setSavingId(null);
-    }
+      }),
+    );
   };
 
   const renderCard = (row: LeadQueueItem) => {
@@ -397,9 +370,9 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
           border: `1px solid ${hasAnyAssignment ? "#86b97b" : T.border}`,
           borderRadius: 12,
           background: hasAnyAssignment ? "#f6fbf4" : T.cardBg,
-          padding: 12,
+          padding: "10px 11px",
           display: "grid",
-          gap: 10,
+          gap: 6,
           transition: "all 0.15s ease-in-out",
         }}
       >
@@ -447,74 +420,28 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         </div>
 
         {screeningMeta && screeningChrome && (
-          <details
-            className={cn(
-              "overflow-hidden rounded-xl border",
-              "[& summary::-webkit-details-marker]:hidden",
-              "shadow-[0_1px_2px_rgba(59,82,41,0.06)] transition-[box-shadow,border-color] duration-200",
-              "open:border-[#b8c9a8] open:shadow-[0_6px_20px_-4px_rgba(59,82,41,0.12)]",
-            )}
-            style={{ borderColor: T.borderLight }}
+          <div
+            className="min-w-0 rounded-md py-1.5 pl-2.5 pr-2.5"
+            style={{
+              border: screeningChrome.border,
+              borderLeft: `3px solid ${screeningChrome.color}`,
+              background: screeningChrome.background,
+            }}
+            role="status"
           >
-            <summary
-              aria-label={`${screeningMeta.shortLabel} screening — click to show or hide message`}
-              title="Click to show or hide the screening message"
-              className={cn(
-                "flex w-full cursor-pointer list-none items-center px-2.5 py-2.5 outline-none",
-                "min-h-[44px] rounded-xl transition-[background] duration-200",
-                "hover:bg-[#e8f0e3]/85 active:brightness-[0.98]",
-                "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2",
-              )}
+            <p
               style={{
-                background: `linear-gradient(100deg, ${T.blueFaint} 0%, ${T.cardBg} 70%)`,
+                margin: 0,
+                fontSize: 13,
+                fontWeight: 600,
+                color: T.textDark,
+                lineHeight: 1.5,
+                wordBreak: "break-word",
               }}
             >
-              <span
-                style={{
-                  fontSize: 9,
-                  fontWeight: 900,
-                  color: screeningChrome.color,
-                  background: screeningChrome.background,
-                  border: screeningChrome.border,
-                  borderRadius: 999,
-                  padding: "4px 11px",
-                  flexShrink: 0,
-                  letterSpacing: "0.03em",
-                }}
-              >
-                {screeningMeta.shortLabel}
-              </span>
-            </summary>
-            <div
-              className="px-2.5 pb-2.5 pt-1"
-              style={{
-                background: `linear-gradient(180deg, ${T.cardBg} 0%, ${T.pageBg} 100%)`,
-              }}
-            >
-              <div
-                style={{
-                  borderRadius: T.radiusMd,
-                  padding: "12px 14px",
-                  background: T.cardBg,
-                  border: `1px solid ${T.borderLight}`,
-                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.85), 0 2px 8px rgba(59,82,41,0.04), inset 3px 0 0 0 ${screeningChrome.color}`,
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: T.textDark,
-                    lineHeight: 1.6,
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {screeningMeta.message}
-                </p>
-              </div>
-            </div>
-          </details>
+              {screeningMeta.message}
+            </p>
+          </div>
         )}
 
         {(assignedBaName || assignedLaName) && (
@@ -568,8 +495,11 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
             style={{
               display: "grid",
               gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 92px minmax(min-content, auto)",
-              gap: 8,
+              gap: 6,
               alignItems: "stretch",
+              paddingTop: 6,
+              marginTop: 2,
+              borderTop: `1px solid ${T.borderLight}`,
             }}
           >
             <div style={{ minWidth: 0, width: "100%", display: "flex", alignItems: "stretch" }}>
@@ -697,7 +627,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
             <button
               type="button"
               disabled={isSaving || !currentUserId}
-              onClick={() => void runManagerAssignWithTransferCheck(row, draft)}
+              onClick={() => void runManagerAssign(row, draft)}
               style={{
                 border: "none",
                 borderRadius: 10,
@@ -894,12 +824,12 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         <div
           style={{
             display: "grid",
-            gap: 16,
+            gap: 12,
             alignContent: "start",
           }}
         >
           {grouped.map((section) => (
-            <div key={section.key} style={{ display: "grid", gap: 10 }}>
+            <div key={section.key} style={{ display: "grid", gap: 8 }}>
               <div
                 style={{
                   fontSize: 11,
@@ -917,7 +847,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
                   No calls
                 </div>
               ) : (
-                <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gap: 6 }}>
                   {section.items.map(renderCard)}
                 </div>
               )}
@@ -925,17 +855,6 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
           ))}
         </div>
       )}
-
-      <TransferCheckGateModal
-        open={transferCheckModalOpen}
-        loading={transferCheckModalLoading}
-        clientName={transferCheckModalClient}
-        snapshot={transferCheckModalSnapshot}
-        onDismiss={() => {
-          setTransferCheckModalOpen(false);
-          setTransferCheckModalSnapshot(IDLE_TRANSFER_SCREENING);
-        }}
-      />
     </div>
   );
 }
