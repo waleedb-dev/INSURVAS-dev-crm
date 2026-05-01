@@ -68,6 +68,112 @@ export const IDLE_TRANSFER_SCREENING: TransferScreeningSnapshot = {
   phoneInvalidBlocked: false,
 };
 
+/** Stored on `lead_queue_items.transfer_screening_json` (versioned for migrations). */
+export type PersistedTransferScreeningV1 = {
+  v: 1;
+  noPhoneSkip: boolean;
+  transferCheckMessage: string;
+  transferCheckError: string | null;
+  tcpaBlocked: boolean;
+  agencyDqBlocked: boolean;
+  dncListBlocked: boolean;
+  phoneInvalidBlocked: boolean;
+};
+
+export function snapshotToPersistedPayload(snapshot: TransferScreeningSnapshot): PersistedTransferScreeningV1 {
+  return {
+    v: 1,
+    noPhoneSkip: snapshot.noPhoneSkip,
+    transferCheckMessage: snapshot.transferCheckMessage,
+    transferCheckError: snapshot.transferCheckError,
+    tcpaBlocked: snapshot.tcpaBlocked,
+    agencyDqBlocked: snapshot.agencyDqBlocked,
+    dncListBlocked: snapshot.dncListBlocked,
+    phoneInvalidBlocked: snapshot.phoneInvalidBlocked,
+  };
+}
+
+export function parsePersistedTransferScreening(raw: unknown): PersistedTransferScreeningV1 | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (o.v !== 1) return null;
+  return {
+    v: 1,
+    noPhoneSkip: Boolean(o.noPhoneSkip),
+    transferCheckMessage: String(o.transferCheckMessage ?? ""),
+    transferCheckError:
+      o.transferCheckError == null || o.transferCheckError === ""
+        ? null
+        : String(o.transferCheckError),
+    tcpaBlocked: Boolean(o.tcpaBlocked),
+    agencyDqBlocked: Boolean(o.agencyDqBlocked),
+    dncListBlocked: Boolean(o.dncListBlocked),
+    phoneInvalidBlocked: Boolean(o.phoneInvalidBlocked),
+  };
+}
+
+export type TransferScreeningBadgeTone = "critical" | "warning" | "error" | "success" | "muted";
+
+export function transferScreeningBadgeMeta(p: PersistedTransferScreeningV1): {
+  shortLabel: string;
+  message: string;
+  tone: TransferScreeningBadgeTone;
+} {
+  if (p.transferCheckError) {
+    return {
+      shortLabel: "Check failed",
+      message: p.transferCheckError,
+      tone: "error",
+    };
+  }
+  if (p.noPhoneSkip) {
+    return {
+      shortLabel: "No phone",
+      message: "Transfer check skipped — no phone on this queue row.",
+      tone: "muted",
+    };
+  }
+  if (p.tcpaBlocked) {
+    return {
+      shortLabel: "TCPA",
+      message:
+        p.transferCheckMessage.trim() ||
+        "This number is flagged as a TCPA litigator. No contact or transfers.",
+      tone: "critical",
+    };
+  }
+  if (p.phoneInvalidBlocked) {
+    return {
+      shortLabel: "Invalid phone",
+      message: p.transferCheckMessage.trim() || "This phone number appears to be invalid.",
+      tone: "critical",
+    };
+  }
+  if (p.dncListBlocked) {
+    return {
+      shortLabel: "DNC",
+      message:
+        p.transferCheckMessage.trim() ||
+        "Do-not-call list match — follow your centre's compliance rules.",
+      tone: "warning",
+    };
+  }
+  if (p.agencyDqBlocked) {
+    return {
+      shortLabel: "CRM DQ",
+      message:
+        p.transferCheckMessage.trim() ||
+        "Not permitted based on CRM stage / agency rules.",
+      tone: "critical",
+    };
+  }
+  return {
+    shortLabel: "Clear",
+    message: p.transferCheckMessage.trim() || TRANSFER_CHECK_CLEAR_USER_MESSAGE,
+    tone: "success",
+  };
+}
+
 const emptySnapshot = (): Omit<TransferScreeningSnapshot, "noPhoneSkip"> => ({
   transferCheckData: null,
   transferCheckMessage: "",
