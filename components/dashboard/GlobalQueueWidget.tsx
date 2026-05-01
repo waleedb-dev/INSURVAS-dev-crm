@@ -734,8 +734,6 @@ export default function GlobalQueueWidget() {
   const renderCollapsibleSection = (sectionKey: QueueSectionKey, title: string, items: LeadQueueItem[]) => {
     const isOpen = sectionOpen[sectionKey];
     const pill = QUEUE_SECTION_PILLS[sectionKey];
-    const countChipBg = "rgba(255,255,255,0.28)";
-    const chevronColor = "rgba(244,247,242,0.96)";
 
     return (
       <div
@@ -743,91 +741,70 @@ export default function GlobalQueueWidget() {
         style={{
           borderRadius: T.radiusLg,
           border: `1px solid ${isOpen ? T.border : T.borderLight}`,
-          background: T.cardBg,
+          background: "transparent",
           boxShadow: isOpen
-            ? "0 12px 32px -14px rgba(59, 82, 41, 0.17), 0 4px 12px rgba(0, 0, 0, 0.05)"
-            : "0 2px 10px rgba(59, 82, 41, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04)",
+            ? "0 12px 32px -14px rgba(59, 82, 41, 0.2), 0 4px 14px rgba(0, 0, 0, 0.06)"
+            : "0 6px 20px -8px rgba(59, 82, 41, 0.16), 0 2px 8px rgba(0, 0, 0, 0.05)",
         }}
       >
         <button
           type="button"
           className={cn(
-            "w-full text-left outline-none transition-[transform,opacity] duration-150 ease-out active:scale-[0.998]",
+            "flex w-full min-h-[48px] min-w-0 items-center gap-3 px-4 py-3 text-left outline-none sm:gap-4 sm:px-4",
+            "transition-[filter,transform] duration-200 ease-out",
+            "hover:brightness-[1.08] active:brightness-[0.93] active:scale-[0.997]",
             "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f2f8ee]",
           )}
           style={{
             fontFamily: T.font,
-            background: "transparent",
+            background: pill.background,
+            color: pill.color,
             border: "none",
+            borderBottom: isOpen ? `1px solid rgba(0, 0, 0, 0.1)` : "none",
             margin: 0,
-            padding: "12px 14px 13px",
+            cursor: "pointer",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "-0.015em",
+            boxSizing: "border-box",
           }}
           aria-expanded={isOpen}
           id={`queue-section-${sectionKey}-trigger`}
           onClick={() => setSectionOpen((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
         >
+          <span className="min-w-0 flex-1 truncate">{title}</span>
           <span
-            className={cn(
-              "flex min-h-[44px] w-full min-w-0 items-center gap-3 rounded-[11px] px-3 py-2.5 sm:gap-3.5 sm:px-4",
-              "transition-[filter,box-shadow] duration-200 ease-out",
-              "hover:brightness-[1.06] active:brightness-[0.96]",
-            )}
+            className="flex shrink-0 items-center justify-center tabular-nums"
             style={{
-              background: pill.background,
-              color: pill.color,
-              border: pill.border,
-              fontSize: 13,
-              fontWeight: 800,
-              letterSpacing: "-0.015em",
-              boxSizing: "border-box",
-              boxShadow:
-                "inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(35, 50, 23, 0.12), 0 1px 2px rgba(35, 50, 23, 0.06)",
+              background: T.asideChrome,
+              color: "#ffffff",
+              borderRadius: 9999,
+              minWidth: 28,
+              minHeight: 28,
+              padding: "4px 11px",
+              fontSize: 11,
+              fontWeight: 900,
+              lineHeight: 1,
+              border: `1px solid ${T.memberTeal}`,
+              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.18)",
             }}
           >
-            <span
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 ease-out sm:h-9 sm:w-9"
-              style={{
-                background: "rgba(255,255,255,0.2)",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35)",
-              }}
-            >
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-                  isOpen ? "rotate-180" : "rotate-0",
-                )}
-                style={{ color: chevronColor }}
-                aria-hidden
-              />
-            </span>
-            <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
-              <span className="min-w-0 truncate text-left sm:pr-1">{title}</span>
-              <span
-                className="flex min-h-[26px] min-w-[28px] shrink-0 items-center justify-center tabular-nums"
-                style={{
-                  background: countChipBg,
-                  borderRadius: 9999,
-                  padding: "3px 10px",
-                  fontSize: 11,
-                  fontWeight: 900,
-                  lineHeight: 1,
-                  border: "1px solid rgba(255,255,255,0.38)",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                }}
-              >
-                {items.length}
-              </span>
-            </span>
+            {items.length}
           </span>
+          <ChevronDown
+            className={cn(
+              "h-5 w-5 shrink-0 text-white transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              isOpen ? "rotate-180" : "rotate-0",
+            )}
+            aria-hidden
+          />
         </button>
         {isOpen && (
           <div
             className="px-4 pb-5 pt-4 sm:px-5"
             style={{
-              borderTop: `1px solid ${T.borderLight}`,
               background: `linear-gradient(180deg, ${T.blueFaint} 0%, ${T.pageBg} 48%, ${T.pageBg} 100%)`,
               fontFamily: T.font,
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.65)",
             }}
             role="region"
             aria-labelledby={`queue-section-${sectionKey}-trigger`}
