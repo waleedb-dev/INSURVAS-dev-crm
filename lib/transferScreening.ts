@@ -174,6 +174,26 @@ export function transferScreeningBadgeMeta(p: PersistedTransferScreeningV1): {
   };
 }
 
+/** Inline pill styles for queue cards (no theme import — safe in shared lib). */
+export function transferScreeningBadgeChrome(tone: TransferScreeningBadgeTone): {
+  background: string;
+  color: string;
+  border: string;
+} {
+  switch (tone) {
+    case "critical":
+    case "error":
+      return { background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca" };
+    case "warning":
+      return { background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a" };
+    case "success":
+      return { background: "#ecfdf5", color: "#166534", border: "1px solid #86efac" };
+    case "muted":
+    default:
+      return { background: "#f4f4f5", color: "#52525b", border: "1px solid #e4e4e7" };
+  }
+}
+
 const emptySnapshot = (): Omit<TransferScreeningSnapshot, "noPhoneSkip"> => ({
   transferCheckData: null,
   transferCheckMessage: "",

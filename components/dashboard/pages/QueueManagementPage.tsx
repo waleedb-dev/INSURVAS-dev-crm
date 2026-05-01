@@ -27,7 +27,10 @@ import {
 } from "@/lib/queue/queueClient";
 import {
   IDLE_TRANSFER_SCREENING,
+  parsePersistedTransferScreening,
   runTransferScreeningForPhone,
+  transferScreeningBadgeChrome,
+  transferScreeningBadgeMeta,
   type TransferScreeningSnapshot,
 } from "@/lib/transferScreening";
 
@@ -426,6 +429,30 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
                 Assigned
               </span>
             )}
+            {(() => {
+              const persisted = parsePersistedTransferScreening(row.transfer_screening_json);
+              if (!persisted) return null;
+              const { shortLabel, message, tone } = transferScreeningBadgeMeta(persisted);
+              const chrome = transferScreeningBadgeChrome(tone);
+              return (
+                <span
+                  title={message}
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 900,
+                    color: chrome.color,
+                    background: chrome.background,
+                    border: chrome.border,
+                    borderRadius: 999,
+                    padding: "2px 8px",
+                    flexShrink: 0,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {shortLabel}
+                </span>
+              );
+            })()}
           </div>
           <div style={{ fontSize: 10, fontWeight: 800, color: T.textMuted, flexShrink: 0 }}>
             {elapsedLabel(row.queued_at)}
@@ -469,12 +496,18 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
           </div>
         )}
 
-        <div style={{ fontSize: 11, color: T.textMuted }}>
-          Action: <strong style={{ color: T.textDark }}>{row.action_required || "unknown"}</strong>
-          {row.ba_verification_percent != null ? ` | Verification ${Number(row.ba_verification_percent).toFixed(0)}%` : ""}
-          {row.eta_minutes != null ? ` | ETA ${row.eta_minutes}m` : ""}
-          {row.la_ready_at ? " | LA ready" : ""}
-        </div>
+        {(() => {
+          const bits: string[] = [];
+          if (row.ba_verification_percent != null) {
+            bits.push(`Verification ${Number(row.ba_verification_percent).toFixed(0)}%`);
+          }
+          if (row.eta_minutes != null) bits.push(`ETA ${row.eta_minutes}m`);
+          if (row.la_ready_at) bits.push("LA ready");
+          if (bits.length === 0) return null;
+          return (
+            <div style={{ fontSize: 11, color: T.textMuted }}>{bits.join(" · ")}</div>
+          );
+        })()}
 
         {queueRole === "manager" && (
           <div

@@ -27,7 +27,10 @@ import {
 } from "@/lib/queue/queueClient";
 import {
   IDLE_TRANSFER_SCREENING,
+  parsePersistedTransferScreening,
   runTransferScreeningForPhone,
+  transferScreeningBadgeChrome,
+  transferScreeningBadgeMeta,
   type TransferScreeningSnapshot,
 } from "@/lib/transferScreening";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
@@ -460,6 +463,30 @@ export default function GlobalQueueWidget() {
                 ASSIGNED
               </span>
             )}
+            {(() => {
+              const persisted = parsePersistedTransferScreening(row.transfer_screening_json);
+              if (!persisted) return null;
+              const { shortLabel, message, tone } = transferScreeningBadgeMeta(persisted);
+              const chrome = transferScreeningBadgeChrome(tone);
+              return (
+                <span
+                  title={message}
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 900,
+                    color: chrome.color,
+                    background: chrome.background,
+                    border: chrome.border,
+                    borderRadius: 999,
+                    padding: "4px 9px",
+                    flexShrink: 0,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {shortLabel}
+                </span>
+              );
+            })()}
           </div>
           <div
             style={{

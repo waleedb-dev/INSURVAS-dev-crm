@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RoleKey } from "@/lib/auth/roles";
+import { runTransferScreeningForPhone, snapshotToPersistedPayload } from "@/lib/transferScreening";
 
 export type QueueRole =
   | "manager"
@@ -31,6 +32,8 @@ export type LeadQueueItem = {
   la_ready_at: string | null;
   queued_at: string;
   updated_at: string;
+  transfer_screening_json: unknown | null;
+  transfer_screening_at: string | null;
 };
 
 export type QueueOutcome = "completed" | "dropped_callback";
@@ -85,7 +88,7 @@ function filterSnapshotRowsForRole(rows: LeadQueueItem[], queueRole: QueueRole):
 }
 
 const QUEUE_SNAPSHOT_SELECT =
-  "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at";
+  "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at, transfer_screening_json, transfer_screening_at";
 
 /** Supabase `in()` payloads stay small to avoid oversized URLs. */
 const LEAD_ID_CHUNK = 120;
@@ -131,6 +134,30 @@ async function logQueueEvent(
     old_payload: oldPayload,
     new_payload: newPayload,
   });
+}
+
+/** Fire-and-forget: does not block enqueue; failures are logged only. */
+function schedulePersistTransferScreeningForQueueItem(
+  supabase: SupabaseClient,
+  queueItemId: string,
+  phoneNumber: string | null | undefined,
+) {
+  void (async () => {
+    try {
+      const snapshot = await runTransferScreeningForPhone(supabase, phoneNumber);
+      const payload = snapshotToPersistedPayload(snapshot);
+      const { error } = await supabase
+        .from("lead_queue_items")
+        .update({
+          transfer_screening_json: payload,
+          transfer_screening_at: new Date().toISOString(),
+        })
+        .eq("id", queueItemId);
+      if (error) console.warn("[lead_queue_items] transfer screening persist failed:", error.message);
+    } catch (e) {
+      console.warn("[lead_queue_items] transfer screening failed:", e);
+    }
+  })();
 }
 
 export type FetchQueueSnapshotOptions = {
@@ -491,6 +518,7 @@ export async function applyQueueOutcomeFromCallFix(
   if (insErr) throw new Error(insErr.message);
   if (inserted?.id) {
     await logQueueEvent(supabase, inserted.id, "queue_created", actorUserId, "manager", null, insertPayload);
+    schedulePersistTransferScreeningForQueueItem(supabase, inserted.id, insertPayload.phone_number);
   }
 }
 
@@ -554,6 +582,7 @@ export async function enqueueUnclaimedTransfer(
   if (insErr) throw new Error(insErr.message);
   if (inserted?.id) {
     await logQueueEvent(supabase, inserted.id, "queue_created", actorUserId, "manager", null, payload);
+    schedulePersistTransferScreeningForQueueItem(supabase, inserted.id, phoneNumber);
     return inserted.id as string;
   }
   return null;
