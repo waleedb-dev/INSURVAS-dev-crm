@@ -3,7 +3,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RoleKey } from "@/lib/auth/roles";
 
-export type QueueRole = "manager" | "ba" | "la" | "none";
+export type QueueRole =
+  | "manager"
+  | "ba"
+  | "la"
+  | "call_center_agent"
+  | "call_center_admin"
+  | "none";
 export type QueueType = "unclaimed_transfer" | "ba_active" | "la_active";
 
 export type LeadQueueItem = {
@@ -49,11 +55,16 @@ export function resolveQueueRole(role: RoleKey): QueueRole {
   if (MANAGER_ROLES.has(role)) return "manager";
   if (role === "sales_agent_licensed") return "la";
   if (role === "sales_agent_unlicensed") return "ba";
+  if (role === "call_center_agent") return "call_center_agent";
+  if (role === "call_center_admin") return "call_center_admin";
   return "none";
 }
 
 function allowedQueueTypes(queueRole: QueueRole): QueueType[] {
   if (queueRole === "manager") return ["unclaimed_transfer", "ba_active", "la_active"];
+  if (queueRole === "call_center_agent" || queueRole === "call_center_admin") {
+    return ["unclaimed_transfer", "ba_active", "la_active"];
+  }
   if (queueRole === "la") return ["unclaimed_transfer", "ba_active"];
   if (queueRole === "ba") return ["unclaimed_transfer", "la_active"];
   return [];
@@ -61,7 +72,9 @@ function allowedQueueTypes(queueRole: QueueRole): QueueType[] {
 
 /** After merging “assigned to me” rows, drop queue types this role must not see (see role-specific queue UX). */
 function filterSnapshotRowsForRole(rows: LeadQueueItem[], queueRole: QueueRole): LeadQueueItem[] {
-  if (queueRole === "manager") return rows;
+  if (queueRole === "manager" || queueRole === "call_center_agent" || queueRole === "call_center_admin") {
+    return rows;
+  }
   if (queueRole === "la") {
     return rows.filter((r) => r.queue_type === "unclaimed_transfer" || r.queue_type === "ba_active");
   }
@@ -69,6 +82,36 @@ function filterSnapshotRowsForRole(rows: LeadQueueItem[], queueRole: QueueRole):
     return rows.filter((r) => r.queue_type === "unclaimed_transfer" || r.queue_type === "la_active");
   }
   return rows;
+}
+
+const QUEUE_SNAPSHOT_SELECT =
+  "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at";
+
+/** Supabase `in()` payloads stay small to avoid oversized URLs. */
+const LEAD_ID_CHUNK = 120;
+
+async function fetchQueueRowsForLeadIdChunks(
+  supabase: SupabaseClient,
+  leadIds: string[],
+  allowed: QueueType[],
+): Promise<LeadQueueItem[]> {
+  const merged = new Map<string, LeadQueueItem>();
+  for (let i = 0; i < leadIds.length; i += LEAD_ID_CHUNK) {
+    const chunk = leadIds.slice(i, i + LEAD_ID_CHUNK);
+    const { data, error } = await supabase
+      .from("lead_queue_items")
+      .select(QUEUE_SNAPSHOT_SELECT)
+      .eq("status", "active")
+      .in("queue_type", allowed)
+      .in("lead_id", chunk)
+      .order("queued_at", { ascending: true })
+      .limit(500);
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as LeadQueueItem[]) merged.set(row.id, row);
+  }
+  return Array.from(merged.values()).sort(
+    (a, b) => new Date(a.queued_at).getTime() - new Date(b.queued_at).getTime(),
+  );
 }
 
 async function logQueueEvent(
@@ -90,25 +133,19 @@ async function logQueueEvent(
   });
 }
 
+export type FetchQueueSnapshotOptions = {
+  /** Required for `call_center_admin`: rows where `lead_queue_items.call_center_id` matches. */
+  callCenterId?: string | null;
+};
+
 export async function fetchQueueSnapshot(
   supabase: SupabaseClient,
   queueRole: QueueRole,
   currentUserId?: string | null,
+  options?: FetchQueueSnapshotOptions,
 ): Promise<LeadQueueItem[]> {
   const allowed = allowedQueueTypes(queueRole);
   if (allowed.length === 0) return [];
-
-  const baseQuery = supabase
-    .from("lead_queue_items")
-    .select(
-      "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at",
-    )
-    .eq("status", "active")
-    .in("queue_type", allowed)
-    .order("queued_at", { ascending: true });
-
-  const { data: baseRows, error: baseError } = await baseQuery.limit(300);
-  if (baseError) throw new Error(baseError.message);
 
   const applyVerificationProgress = async (rows: LeadQueueItem[]) => {
     const submissionIds = Array.from(
@@ -148,6 +185,46 @@ export async function fetchQueueSnapshot(
     });
   };
 
+  if (queueRole === "call_center_agent") {
+    if (!currentUserId) return [];
+    const { data: myLeads, error: leadsErr } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("submitted_by", currentUserId);
+    if (leadsErr) throw new Error(leadsErr.message);
+    const leadIds = (myLeads ?? []).map((r) => String((r as { id: string }).id ?? "").trim()).filter(Boolean);
+    if (leadIds.length === 0) return [];
+    const scoped = await fetchQueueRowsForLeadIdChunks(supabase, leadIds, allowed);
+    return applyVerificationProgress(filterSnapshotRowsForRole(scoped, queueRole));
+  }
+
+  if (queueRole === "call_center_admin") {
+    const ccId = options?.callCenterId ?? null;
+    if (!ccId) return [];
+    const { data: adminRows, error: adminErr } = await supabase
+      .from("lead_queue_items")
+      .select(QUEUE_SNAPSHOT_SELECT)
+      .eq("status", "active")
+      .in("queue_type", allowed)
+      .eq("call_center_id", ccId)
+      .order("queued_at", { ascending: true })
+      .limit(500);
+    if (adminErr) throw new Error(adminErr.message);
+    return applyVerificationProgress(
+      filterSnapshotRowsForRole((adminRows ?? []) as LeadQueueItem[], queueRole),
+    );
+  }
+
+  const baseQuery = supabase
+    .from("lead_queue_items")
+    .select(QUEUE_SNAPSHOT_SELECT)
+    .eq("status", "active")
+    .in("queue_type", allowed)
+    .order("queued_at", { ascending: true });
+
+  const { data: baseRows, error: baseError } = await baseQuery.limit(300);
+  if (baseError) throw new Error(baseError.message);
+
   if (!currentUserId || queueRole === "manager") {
     return applyVerificationProgress(
       filterSnapshotRowsForRole((baseRows ?? []) as LeadQueueItem[], queueRole),
@@ -156,9 +233,7 @@ export async function fetchQueueSnapshot(
 
   let assignedQuery = supabase
     .from("lead_queue_items")
-    .select(
-      "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at",
-    )
+    .select(QUEUE_SNAPSHOT_SELECT)
     .eq("status", "active")
     .order("queued_at", { ascending: true })
     .limit(300);

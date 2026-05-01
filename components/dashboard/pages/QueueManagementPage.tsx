@@ -78,7 +78,7 @@ function matchesSearch(row: LeadQueueItem, q: string): boolean {
 }
 
 export default function QueueManagementPage({ variant = "default" }: Props) {
-  const { currentRole, currentUserId } = useDashboardContext();
+  const { currentRole, currentUserId, userCallCenterId } = useDashboardContext();
   const queueRole = useMemo(() => resolveQueueRole(currentRole), [currentRole]);
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
 
@@ -183,7 +183,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
       if (!silent) setError(null);
       try {
         const [queueRows, agents] = await Promise.all([
-          fetchQueueSnapshot(supabase, queueRole, currentUserId),
+          fetchQueueSnapshot(supabase, queueRole, currentUserId, { callCenterId: userCallCenterId }),
           queueRole === "manager" ? fetchQueueAssignees(supabase) : Promise.resolve([]),
         ]);
         setRows(queueRows);
@@ -195,7 +195,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         else setLoading(false);
       }
     },
-    [queueRole, supabase, currentUserId],
+    [queueRole, supabase, currentUserId, userCallCenterId],
   );
 
   useEffect(() => {
@@ -256,6 +256,13 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     if (queueRole === "ba") {
       return [
         { key: "unclaimed_transfer", title: "Unclaimed transfers", items: filteredRows.filter((r) => r.queue_type === "unclaimed_transfer") },
+        { key: "la_active", title: "LA active calls", items: filteredRows.filter((r) => r.queue_type === "la_active") },
+      ];
+    }
+    if (queueRole === "call_center_agent" || queueRole === "call_center_admin") {
+      return [
+        { key: "unclaimed_transfer", title: "Unclaimed transfers", items: filteredRows.filter((r) => r.queue_type === "unclaimed_transfer") },
+        { key: "ba_active", title: "BA active calls", items: filteredRows.filter((r) => r.queue_type === "ba_active") },
         { key: "la_active", title: "LA active calls", items: filteredRows.filter((r) => r.queue_type === "la_active") },
       ];
     }

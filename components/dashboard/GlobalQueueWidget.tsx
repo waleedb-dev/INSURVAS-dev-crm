@@ -30,12 +30,7 @@ import {
   runTransferScreeningForPhone,
   type TransferScreeningSnapshot,
 } from "@/lib/transferScreening";
-import type { RoleKey } from "@/lib/auth/roles";
-
-type Props = {
-  currentRole: RoleKey;
-  currentUserId: string | null;
-};
+import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 type DraftAssign = {
   baId: string;
@@ -98,7 +93,8 @@ function elapsedLabel(iso: string | null): string {
   return `${hours}h ${rem}m`;
 }
 
-export default function GlobalQueueWidget({ currentRole, currentUserId }: Props) {
+export default function GlobalQueueWidget() {
+  const { currentRole, currentUserId, userCallCenterId } = useDashboardContext();
   const queueRole = useMemo(() => resolveQueueRole(currentRole), [currentRole]);
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
 
@@ -145,7 +141,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
     if (!silent) setError(null);
     try {
       const [queueRows, agents] = await Promise.all([
-        fetchQueueSnapshot(supabase, queueRole, currentUserId),
+        fetchQueueSnapshot(supabase, queueRole, currentUserId, { callCenterId: userCallCenterId }),
         queueRole === "manager" ? fetchQueueAssignees(supabase) : Promise.resolve([]),
       ]);
       setRows(queueRows);
@@ -157,7 +153,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
       if (silent) setRefreshing(false);
       else setLoading(false);
     }
-  }, [queueRole, supabase, currentUserId]);
+  }, [queueRole, supabase, currentUserId, userCallCenterId]);
 
   useEffect(() => {
     if (!open || queueRole === "none") return;
@@ -247,7 +243,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
     [rows],
   );
   const assignedToMe = useMemo(() => {
-    if (!currentUserId) return [] as LeadQueueItem[];
+    if (!currentUserId || (queueRole !== "ba" && queueRole !== "la")) return [] as LeadQueueItem[];
     return rows.filter((r) => {
       if (r.queue_type !== "unclaimed_transfer") return false;
       return queueRole === "la" ? r.assigned_la_id === currentUserId : r.assigned_ba_id === currentUserId;
@@ -400,20 +396,49 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 8,
+              minWidth: 0,
+              flex: 1,
+            }}
+            title={`${clientLabel} — ${row.call_center_name || "Unknown centre"} · ${row.state || "N/A"} · ${row.carrier || "N/A"}`}
+          >
             <div
               style={{
-                fontSize: 13,
-                fontWeight: 800,
-                color: T.textDark,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                letterSpacing: "-0.02em",
+                display: "flex",
+                alignItems: "baseline",
+                flexWrap: "wrap",
+                gap: "6px 10px",
+                minWidth: 0,
+                rowGap: 4,
               }}
-              title={clientLabel}
             >
-              {clientLabel}
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 800,
+                  color: T.textDark,
+                  letterSpacing: "-0.02em",
+                  flexShrink: 0,
+                }}
+              >
+                {clientLabel}
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: T.textMuted,
+                  lineHeight: 1.45,
+                  wordBreak: "break-word",
+                }}
+              >
+                {(row.call_center_name || "Unknown centre")} · {row.state || "N/A"} · {row.carrier || "N/A"}
+              </span>
             </div>
             {hasAnyAssignment && (
               <span
@@ -444,16 +469,6 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
           >
             {elapsedLabel(row.queued_at)}
           </div>
-        </div>
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: T.textMuted,
-            lineHeight: 1.5,
-          }}
-        >
-          {(row.call_center_name || "Unknown centre")} · {row.state || "N/A"} · {row.carrier || "N/A"}
         </div>
         {(assignedBaName || assignedLaName) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -535,19 +550,20 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                     width: "100%",
                     height: WIDGET_CONTROL_HEIGHT,
                     minHeight: WIDGET_CONTROL_HEIGHT,
-                    borderRadius: 10,
-                    border: `1.5px solid ${T.border}`,
-                    backgroundColor: T.cardBg,
+                    borderRadius: 11,
+                    border: `1px solid ${T.borderLight}`,
+                    backgroundColor: T.pageBg,
                     color: draft.laId ? T.textDark : T.textMuted,
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 600,
-                    paddingLeft: 12,
-                    paddingRight: 10,
+                    paddingLeft: 14,
+                    paddingRight: 12,
                     transition: "all 0.15s ease-in-out",
                     opacity: !eligibilityKey ? 0.7 : 1,
                     boxSizing: "border-box",
+                    boxShadow: `${T.shadowSm}, inset 0 1px 0 rgba(255,255,255,0.65)`,
                   }}
-                  className="hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-2 focus:ring-[#638b4b]/20"
+                  className="transition-all duration-150 ease-in-out hover:border-[#c8d4bb] hover:shadow-md focus:border-[#94c278] focus:ring-2 focus:ring-[#94c278]/25 data-[state=open]:border-[#94c278] data-[state=open]:shadow-md"
                   title={!eligibilityKey ? "Needs carrier, state, and centre to load eligible agents" : undefined}
                 >
                   <SelectValue placeholder="Assign LA">{laSelectDisplayLabel ?? undefined}</SelectValue>
@@ -555,9 +571,9 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                 <SelectContent
                   style={{
                     borderRadius: 12,
-                    border: `1px solid ${T.border}`,
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-                    backgroundColor: "#fff",
+                    border: `1px solid ${T.borderLight}`,
+                    boxShadow: T.shadowMd,
+                    backgroundColor: T.cardBg,
                     padding: 6,
                     maxHeight: 300,
                     zIndex: 99999,
@@ -586,7 +602,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                       style={{
                         borderRadius: 8,
                         padding: "10px 14px",
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: 400,
                         color: T.textDark,
                         cursor: "pointer",
@@ -611,17 +627,18 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                 height: WIDGET_CONTROL_HEIGHT,
                 minHeight: WIDGET_CONTROL_HEIGHT,
                 boxSizing: "border-box",
-                border: `1.5px solid ${T.border}`,
-                borderRadius: 10,
-                padding: "0 10px",
-                fontSize: 13,
+                border: `1px solid ${T.borderLight}`,
+                borderRadius: 11,
+                padding: "0 12px",
+                fontSize: 14,
                 fontWeight: 600,
                 color: T.textDark,
-                background: "#fff",
+                background: T.pageBg,
                 outline: "none",
                 fontFamily: T.font,
+                boxShadow: `${T.shadowSm}, inset 0 1px 0 rgba(255,255,255,0.65)`,
               }}
-              className="hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-2 focus:ring-[#638b4b]/20"
+              className="transition-all duration-150 ease-in-out hover:border-[#c8d4bb] hover:shadow-md focus:border-[#94c278] focus:ring-2 focus:ring-[#94c278]/25"
             />
             <button
               type="button"
@@ -657,8 +674,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
               display: "flex",
               gap: 10,
               flexWrap: "wrap",
-              paddingTop: queueRole === "manager" ? 4 : 2,
-              marginTop: queueRole === "manager" ? 0 : 0,
+              paddingTop: 2,
             }}
           >
             {showReady && (
@@ -718,26 +734,43 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
   const renderCollapsibleSection = (sectionKey: QueueSectionKey, title: string, items: LeadQueueItem[]) => {
     const isOpen = sectionOpen[sectionKey];
     const pill = QUEUE_SECTION_PILLS[sectionKey];
-    const countChipBg = "rgba(255,255,255,0.26)";
-    const chevronColor = "rgba(244,247,242,0.95)";
+    const countChipBg = "rgba(255,255,255,0.28)";
+    const chevronColor = "rgba(244,247,242,0.96)";
 
     return (
       <div
-        className="overflow-hidden rounded-xl bg-white transition-all duration-150 ease-in-out hover:shadow-md"
-        style={{ border: `1px solid ${T.border}`, boxShadow: T.shadowSm }}
+        className="overflow-hidden transition-[box-shadow,border-color] duration-200 ease-out"
+        style={{
+          borderRadius: T.radiusLg,
+          border: `1px solid ${isOpen ? T.border : T.borderLight}`,
+          background: T.cardBg,
+          boxShadow: isOpen
+            ? "0 12px 32px -14px rgba(59, 82, 41, 0.17), 0 4px 12px rgba(0, 0, 0, 0.05)"
+            : "0 2px 10px rgba(59, 82, 41, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04)",
+        }}
       >
         <button
           type="button"
-          className="w-full px-4 py-3 text-left transition-transform duration-150 ease-in-out active:scale-[0.998]"
-          style={{ fontFamily: T.font, background: "transparent", border: "none", margin: 0 }}
+          className={cn(
+            "w-full text-left outline-none transition-[transform,opacity] duration-150 ease-out active:scale-[0.998]",
+            "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f2f8ee]",
+          )}
+          style={{
+            fontFamily: T.font,
+            background: "transparent",
+            border: "none",
+            margin: 0,
+            padding: "12px 14px 13px",
+          }}
           aria-expanded={isOpen}
           id={`queue-section-${sectionKey}-trigger`}
           onClick={() => setSectionOpen((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
         >
           <span
             className={cn(
-              "flex min-h-[42px] w-full min-w-0 items-center gap-3 rounded-xl px-3.5 py-2.5 transition-[filter,box-shadow] duration-150 ease-in-out",
-              "hover:brightness-110 active:brightness-[0.97]",
+              "flex min-h-[44px] w-full min-w-0 items-center gap-3 rounded-[11px] px-3 py-2.5 sm:gap-3.5 sm:px-4",
+              "transition-[filter,box-shadow] duration-200 ease-out",
+              "hover:brightness-[1.06] active:brightness-[0.96]",
             )}
             style={{
               background: pill.background,
@@ -747,26 +780,39 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
               fontWeight: 800,
               letterSpacing: "-0.015em",
               boxSizing: "border-box",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(35, 50, 23, 0.12), 0 1px 2px rgba(35, 50, 23, 0.06)",
             }}
           >
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out",
-                isOpen ? "rotate-180" : "rotate-0",
-              )}
-              style={{ color: chevronColor }}
-              aria-hidden
-            />
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 ease-out sm:h-9 sm:w-9"
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35)",
+              }}
+            >
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                  isOpen ? "rotate-180" : "rotate-0",
+                )}
+                style={{ color: chevronColor }}
+                aria-hidden
+              />
+            </span>
             <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
-              <span className="min-w-0 truncate text-left">{title}</span>
+              <span className="min-w-0 truncate text-left sm:pr-1">{title}</span>
               <span
-                className="shrink-0 tabular-nums"
+                className="flex min-h-[26px] min-w-[28px] shrink-0 items-center justify-center tabular-nums"
                 style={{
                   background: countChipBg,
-                  borderRadius: 8,
-                  padding: "2px 8px",
+                  borderRadius: 9999,
+                  padding: "3px 10px",
                   fontSize: 11,
                   fontWeight: 900,
+                  lineHeight: 1,
+                  border: "1px solid rgba(255,255,255,0.38)",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
                 }}
               >
                 {items.length}
@@ -776,21 +822,23 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
         </button>
         {isOpen && (
           <div
-            className="px-4 pb-5 pt-1"
+            className="px-4 pb-5 pt-4 sm:px-5"
             style={{
               borderTop: `1px solid ${T.borderLight}`,
-              background: T.pageBg,
+              background: `linear-gradient(180deg, ${T.blueFaint} 0%, ${T.pageBg} 48%, ${T.pageBg} 100%)`,
               fontFamily: T.font,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.65)",
             }}
             role="region"
             aria-labelledby={`queue-section-${sectionKey}-trigger`}
           >
             {items.length === 0 ? (
               <div
-                className="rounded-xl px-5 py-12 text-center"
+                className="rounded-xl px-5 py-11 text-center"
                 style={{
                   border: `1px dashed ${T.border}`,
                   background: T.cardBg,
+                  boxShadow: T.shadowSm,
                 }}
               >
                 <p className="text-sm font-semibold" style={{ color: T.textMuted }}>
@@ -972,12 +1020,18 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
               </div>
             ) : (
               <>
-                {queueRole !== "manager" &&
+                {(queueRole === "ba" || queueRole === "la") &&
                   renderCollapsibleSection("assignedToMe", "Assigned to you (next)", assignedToMe)}
                 {renderCollapsibleSection("unclaimed", "Unclaimed transfers", unclaimedForDisplay)}
-                {(queueRole === "manager" || queueRole === "la") &&
+                {(queueRole === "manager" ||
+                  queueRole === "la" ||
+                  queueRole === "call_center_agent" ||
+                  queueRole === "call_center_admin") &&
                   renderCollapsibleSection("baActive", "BA active calls", grouped.baActive)}
-                {(queueRole === "manager" || queueRole === "ba") &&
+                {(queueRole === "manager" ||
+                  queueRole === "ba" ||
+                  queueRole === "call_center_agent" ||
+                  queueRole === "call_center_admin") &&
                   renderCollapsibleSection("laActive", "LA active calls", grouped.laActive)}
               </>
             )}

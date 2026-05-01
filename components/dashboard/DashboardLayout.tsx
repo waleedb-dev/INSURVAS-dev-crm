@@ -217,7 +217,7 @@ export default function DashboardLayout({
   userInitials = "U",
   callCenter = null,
 }: Props) {
-  const { pageHeaderTitle, pageHeaderActions, currentRole, currentUserId } = useDashboardContext();
+  const { pageHeaderTitle, pageHeaderActions } = useDashboardContext();
   const [collapsed, setCollapsed]             = useState(false);
   const [showNotif,  setShowNotif]            = useState(false);
   const [showUser,   setShowUser]             = useState(false);
@@ -833,7 +833,7 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
-      <GlobalQueueWidget currentRole={currentRole} currentUserId={currentUserId} />
+      <GlobalQueueWidget />
     </div>
   );
 }

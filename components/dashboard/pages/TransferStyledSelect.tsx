@@ -34,18 +34,20 @@ export function TransferStyledSelect({
         style={{
           width: "100%",
           height: 42,
-          borderRadius: 10,
-          border: `1.5px solid ${error ? "#dc2626" : T.border}`,
-          backgroundColor: disabled ? T.pageBg : "#fff",
+          borderRadius: 11,
+          border: error ? "1.5px solid #dc2626" : `1px solid ${T.borderLight}`,
+          backgroundColor: disabled ? T.blueFaint : T.pageBg,
           color: value ? T.textDark : T.textMuted,
           fontSize: 14,
           fontWeight: 600,
           paddingLeft: 14,
           paddingRight: 12,
           transition: "all 0.15s ease-in-out",
-          boxShadow: error ? "0 0 0 3px rgba(220, 38, 38, 0.1)" : "none",
+          boxShadow: error
+            ? "0 0 0 3px rgba(220, 38, 38, 0.1)"
+            : `${T.shadowSm}, inset 0 1px 0 rgba(255,255,255,0.65)`,
         }}
-        className="transition-all duration-150 hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-2 focus:ring-[#638b4b]/20"
+        className="transition-all duration-150 ease-in-out hover:border-[#c8d4bb] hover:shadow-md focus:border-[#94c278] focus:ring-2 focus:ring-[#94c278]/25 data-[state=open]:border-[#94c278] data-[state=open]:shadow-md"
       >
         <SelectValue placeholder={placeholder}>
           {value ? options.find((o) => o.value === value)?.label || value : placeholder}
@@ -54,9 +56,9 @@ export function TransferStyledSelect({
       <SelectContent
         style={{
           borderRadius: 12,
-          border: `1px solid ${T.border}`,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-          backgroundColor: "#fff",
+          border: `1px solid ${T.borderLight}`,
+          boxShadow: T.shadowMd,
+          backgroundColor: T.cardBg,
           padding: 6,
           maxHeight: 300,
           zIndex: 99999,
