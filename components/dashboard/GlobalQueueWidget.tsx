@@ -44,6 +44,17 @@ const WIDGET_CONTROL_HEIGHT = 42;
 /** Above `DashboardLayout` sticky header (`z-index: 2000`) and its dropdowns (`2100`). */
 const QUEUE_WIDGET_Z_BASE = 4000;
 
+/** Panel header row (padding + title + sync line); used to cap scroll area so the shell does not stretch. */
+const QUEUE_PANEL_HEADER_RESERVED_PX = 92;
+
+/** Queue FAB is `bottom: 16`; panel sits above it with a small gap so both stay visible. */
+const QUEUE_FAB_BOTTOM_PX = 16;
+const QUEUE_PANEL_GAP_ABOVE_FAB_PX = 10;
+/** Approximate FAB control height (padding + icon + label). */
+const QUEUE_FAB_APPROX_HEIGHT_PX = 46;
+const QUEUE_PANEL_BOTTOM_PX =
+  QUEUE_FAB_BOTTOM_PX + QUEUE_FAB_APPROX_HEIGHT_PX + QUEUE_PANEL_GAP_ABOVE_FAB_PX;
+
 type QueueSectionKey = "assignedToMe" | "unclaimed" | "baActive" | "laActive";
 
 /**
@@ -760,7 +771,7 @@ export default function GlobalQueueWidget() {
         <button
           type="button"
           className={cn(
-            "flex w-full min-h-[48px] min-w-0 items-center gap-3 text-left outline-none sm:gap-4",
+            "flex w-full min-h-[44px] min-w-0 items-center gap-3 text-left outline-none sm:gap-3",
             "transition-[filter,transform] duration-200 ease-out",
             "hover:brightness-[1.08] active:brightness-[0.93] active:scale-[0.997]",
             "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
@@ -826,7 +837,7 @@ export default function GlobalQueueWidget() {
           >
             {items.length === 0 ? (
               <div
-                className="rounded-xl px-5 py-11 text-center"
+                className="rounded-xl px-4 py-7 text-center"
                 style={{
                   border: `1px dashed ${T.border}`,
                   background: T.cardBg,
@@ -836,7 +847,7 @@ export default function GlobalQueueWidget() {
                 <p className="text-sm font-semibold" style={{ color: T.textMuted }}>
                   No calls
                 </p>
-                <p className="mt-2 text-xs font-medium leading-relaxed" style={{ color: T.textMuted, opacity: 0.92 }}>
+                <p className="mt-1.5 text-xs font-medium leading-relaxed" style={{ color: T.textMuted, opacity: 0.92 }}>
                   Nothing queued in this section right now.
                 </p>
               </div>
@@ -857,7 +868,7 @@ export default function GlobalQueueWidget() {
         style={{
           position: "fixed",
           left: 16,
-          bottom: 16,
+          bottom: QUEUE_FAB_BOTTOM_PX,
           zIndex: QUEUE_WIDGET_Z_BASE,
           border: "none",
           borderRadius: 999,
@@ -881,12 +892,11 @@ export default function GlobalQueueWidget() {
           style={{
             position: "fixed",
             left: 16,
-            top: 24,
-            bottom: 72,
+            bottom: QUEUE_PANEL_BOTTOM_PX,
             zIndex: QUEUE_WIDGET_Z_BASE + 10,
             width: "min(620px, calc(100vw - 32px))",
             maxWidth: "calc(100vw - 32px)",
-            minHeight: 0,
+            maxHeight: `calc(100vh - ${QUEUE_PANEL_BOTTOM_PX}px - 24px)`,
             display: "flex",
             flexDirection: "column",
             background: T.cardBg,
@@ -903,20 +913,20 @@ export default function GlobalQueueWidget() {
               justifyContent: "space-between",
               alignItems: "center",
               gap: 12,
-              padding: "16px 18px",
+              padding: "14px 16px",
               background: T.cardBg,
               borderBottom: `1px solid ${T.borderLight}`,
             }}
           >
-            <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 900, color: T.textDark, letterSpacing: "-0.02em" }}>
+            <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 900, color: T.textDark, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
                 Transfer queue
               </div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, lineHeight: 1.3 }}>
                 {lastUpdatedAt ? `Last sync ${new Date(lastUpdatedAt).toLocaleTimeString()}` : "Not synced yet"}
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, alignSelf: "center" }}>
               <button
                 type="button"
                 onClick={() => void loadSnapshot(true)}
@@ -966,17 +976,18 @@ export default function GlobalQueueWidget() {
 
           <div
             style={{
-              flex: "1 1 0%",
+              flex: "0 1 auto",
               minHeight: 0,
+              maxHeight: `calc(100vh - ${QUEUE_PANEL_BOTTOM_PX}px - 24px - ${QUEUE_PANEL_HEADER_RESERVED_PX}px)`,
               overflowX: "hidden",
               overflowY: "auto",
               WebkitOverflowScrolling: "touch",
               overscrollBehaviorY: "contain",
-              padding: "12px 14px 16px",
+              padding: "10px 14px 12px",
               background: T.cardBg,
             }}
           >
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               {error && (
                 <div
                   style={{
