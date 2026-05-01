@@ -750,10 +750,10 @@ export default function GlobalQueueWidget() {
         <button
           type="button"
           className={cn(
-            "flex w-full min-h-[48px] min-w-0 items-center gap-3 px-4 py-3 text-left outline-none sm:gap-4 sm:px-4",
+            "flex w-full min-h-[48px] min-w-0 items-center gap-3 text-left outline-none sm:gap-4",
             "transition-[filter,transform] duration-200 ease-out",
             "hover:brightness-[1.08] active:brightness-[0.93] active:scale-[0.997]",
-            "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f2f8ee]",
+            "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
           )}
           style={{
             fontFamily: T.font,
@@ -767,6 +767,11 @@ export default function GlobalQueueWidget() {
             fontWeight: 800,
             letterSpacing: "-0.015em",
             boxSizing: "border-box",
+            /* Inline padding so it wins over `globals.css` universal `* { padding: 0 }` */
+            paddingTop: 14,
+            paddingBottom: 14,
+            paddingLeft: 28,
+            paddingRight: 24,
           }}
           aria-expanded={isOpen}
           id={`queue-section-${sectionKey}-trigger`}
@@ -868,12 +873,12 @@ export default function GlobalQueueWidget() {
             left: 16,
             bottom: 70,
             zIndex: 550,
-            width: "min(720px, calc(100vw - 32px))",
+            width: "min(620px, calc(100vw - 32px))",
             maxWidth: "calc(100vw - 32px)",
             maxHeight: "min(88vh, calc(100vh - 120px))",
             display: "flex",
             flexDirection: "column",
-            background: T.pageBg,
+            background: T.cardBg,
             border: `1px solid ${T.border}`,
             borderRadius: T.radiusLg,
             boxShadow: T.shadowLg,
@@ -953,11 +958,11 @@ export default function GlobalQueueWidget() {
               flex: 1,
               minHeight: 0,
               overflow: "auto",
-              padding: "18px 18px 20px",
+              padding: "16px 18px 20px",
               display: "flex",
               flexDirection: "column",
-              gap: 14,
-              background: T.pageBg,
+              gap: 12,
+              background: T.cardBg,
             }}
           >
             {error && (
