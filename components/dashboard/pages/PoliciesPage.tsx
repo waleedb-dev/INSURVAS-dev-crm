@@ -4,7 +4,8 @@ import { T } from "@/lib/theme";
 import { Card } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Search, Filter, Plus, RefreshCw } from "lucide-react";
+import { getDealTrackerSupabaseClient } from "@/lib/supabase/dealTrackerClient";
+import { Search, RefreshCw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -14,9 +15,9 @@ import {
 } from "@/components/ui/select";
 
 type Policy = {
-  id: number;
+  id: string;
   policy_number: string | null;
-  deal_name: string | null;
+  name: string | null;
   policy_status: string | null;
   policy_type: string | null;
   sales_agent: string | null;
@@ -26,19 +27,23 @@ type Policy = {
   deal_value: number | null;
   effective_date: string | null;
   status: string | null;
-  is_active: boolean;
-  lock_status: string | null;
+  carrier_status: string | null;
+  phone_number: string | null;
+  ghl_name: string | null;
+  ghl_stage: string | null;
+  writing_number: string | null;
+  deal_creation_date: string | null;
   created_at: string;
   updated_at: string;
 };
 
 const LOCK_COLORS: Record<string, { bg: string; color: string }> = {
   pending:  { bg: "#fffbeb", color: "#d97706" },
-  locked:   { bg: "#fef2f2", color: "#3b5229" },
-  unlocked: { bg: "#ecfdf5", color: "#059669" },
+  active:   { bg: "#ecfdf5", color: "#059669" },
+  inactive: { bg: "#fef2f2", color: "#b91c1c" },
 };
 
-const ITEMS_PER_PAGE = 100;
+const ITEMS_PER_PAGE = 25;
 
 const ALL_OPTION = "All";
 
@@ -184,24 +189,22 @@ function StatSkeleton() {
   );
 }
 
-const ACTIVE_OPTS = [
-  { value: ALL_OPTION, label: "All" },
-  { value: "active",   label: "Active Only" },
-  { value: "inactive", label: "Inactive Only" },
-];
+
 
 export default function PoliciesPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const dealTrackerSupabase = useMemo(() => getDealTrackerSupabaseClient(), []);
   const [rows, setRows] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
 
   const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState(ALL_OPTION);
   const [carrierFilter, setCarrierFilter] = useState(ALL_OPTION);
   const [agentFilter, setAgentFilter] = useState(ALL_OPTION);
   const [typeFilter, setTypeFilter] = useState(ALL_OPTION);
+  const [ghlStageFilter, setGhlStageFilter] = useState(ALL_OPTION);
+  const [callCenterFilter, setCallCenterFilter] = useState(ALL_OPTION);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
@@ -210,17 +213,32 @@ export default function PoliciesPage() {
   const loadRows = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await supabase
-      .from("policies")
-      .select("id, policy_number, deal_name, policy_status, policy_type, sales_agent, carrier, call_center, commission_type, deal_value, effective_date, status, is_active, lock_status, created_at, updated_at")
-      .order("created_at", { ascending: false });
-    if (error) { setLoadError(error.message); setRows([]); }
-    else { setRows((data || []) as Policy[]); }
+
+    const PAGE_SIZE = 1000;
+    const MAX_RECORDS = 50000;
+    let allData: Policy[] = [];
+    let from = 0;
+
+    while (from < MAX_RECORDS) {
+      const { data, error } = await dealTrackerSupabase
+        .from("deal_tracker")
+        .select("id, policy_number, name, policy_status, policy_type, sales_agent, carrier, call_center, commission_type, deal_value, effective_date, status, carrier_status, phone_number, ghl_name, ghl_stage, writing_number, deal_creation_date, created_at, updated_at")
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) { setLoadError(error.message); setRows([]); setLoading(false); return; }
+      if (!data || data.length === 0) break;
+      allData = allData.concat(data as Policy[]);
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+
+    setRows(allData);
     setLoading(false);
-  }, [supabase]);
+  }, [dealTrackerSupabase]);
 
   useEffect(() => { void loadRows(); }, [loadRows]);
-  useEffect(() => { setPage(1); }, [search, activeFilter, carrierFilter, agentFilter, typeFilter, fromDate, toDate]);
+  useEffect(() => { setPage(1); }, [search, carrierFilter, agentFilter, typeFilter, ghlStageFilter, callCenterFilter, fromDate, toDate]);
 
   const carrierOptions = useMemo(() => {
     const vals = [...new Set(rows.map((r) => r.carrier).filter(Boolean))] as string[];
@@ -237,38 +255,44 @@ export default function PoliciesPage() {
     return mapOpts(vals);
   }, [rows]);
 
+  const ghlStageOptions = useMemo(() => {
+    const vals = [...new Set(rows.map((r) => r.ghl_stage).filter(Boolean))] as string[];
+    return mapOpts(vals);
+  }, [rows]);
+
+  const callCenterOptions = useMemo(() => {
+    const vals = [...new Set(rows.map((r) => r.call_center).filter(Boolean))] as string[];
+    return mapOpts(vals);
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return rows.filter((r) => {
       if (q && !(
         (r.policy_number || "").toLowerCase().includes(q) ||
-        (r.deal_name || "").toLowerCase().includes(q) ||
+        (r.name || "").toLowerCase().includes(q) ||
         (r.sales_agent || "").toLowerCase().includes(q) ||
         (r.carrier || "").toLowerCase().includes(q)
       )) return false;
-      if (activeFilter === "active" && !r.is_active) return false;
-      if (activeFilter === "inactive" && r.is_active) return false;
       if (carrierFilter !== ALL_OPTION && r.carrier !== carrierFilter) return false;
       if (agentFilter !== ALL_OPTION && r.sales_agent !== agentFilter) return false;
       if (typeFilter !== ALL_OPTION && r.policy_type !== typeFilter) return false;
+      if (ghlStageFilter !== ALL_OPTION && r.ghl_stage !== ghlStageFilter) return false;
+      if (callCenterFilter !== ALL_OPTION && r.call_center !== callCenterFilter) return false;
       const effDate = r.effective_date ? r.effective_date.slice(0, 10) : r.created_at.slice(0, 10);
       if (fromDate && effDate < fromDate) return false;
       if (toDate && effDate > toDate) return false;
       return true;
     });
-  }, [rows, search, activeFilter, carrierFilter, agentFilter, typeFilter, fromDate, toDate]);
+  }, [rows, search, carrierFilter, agentFilter, typeFilter, ghlStageFilter, callCenterFilter, fromDate, toDate]);
 
-  const hasFilters = search !== "" || activeFilter !== ALL_OPTION || carrierFilter !== ALL_OPTION || agentFilter !== ALL_OPTION || typeFilter !== ALL_OPTION || fromDate !== "" || toDate !== "";
-  const clearFilters = () => { setSearch(""); setActiveFilter(ALL_OPTION); setCarrierFilter(ALL_OPTION); setAgentFilter(ALL_OPTION); setTypeFilter(ALL_OPTION); setFromDate(""); setToDate(""); };
+  const hasFilters = search !== "" || carrierFilter !== ALL_OPTION || agentFilter !== ALL_OPTION || typeFilter !== ALL_OPTION || ghlStageFilter !== ALL_OPTION || callCenterFilter !== ALL_OPTION || fromDate !== "" || toDate !== "";
+  const clearFilters = () => { setSearch(""); setCarrierFilter(ALL_OPTION); setAgentFilter(ALL_OPTION); setTypeFilter(ALL_OPTION); setGhlStageFilter(ALL_OPTION); setCallCenterFilter(ALL_OPTION); setFromDate(""); setToDate(""); };
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
-  const totalDealValue = useMemo(
-    () => filtered.reduce((sum, row) => sum + (Number(row.deal_value) || 0), 0),
-    [filtered],
-  );
   const activePolicies = useMemo(
-    () => filtered.filter((row) => row.is_active).length,
+    () => filtered.filter((row) => row.status === "active").length,
     [filtered],
   );
   const activeCarriers = useMemo(
@@ -276,12 +300,13 @@ export default function PoliciesPage() {
     [filtered],
   );
 
-  const hasActiveFilters = activeFilter !== ALL_OPTION || carrierFilter !== ALL_OPTION || agentFilter !== ALL_OPTION || typeFilter !== ALL_OPTION || fromDate !== "" || toDate !== "";
+  const hasActiveFilters = carrierFilter !== ALL_OPTION || agentFilter !== ALL_OPTION || typeFilter !== ALL_OPTION || ghlStageFilter !== ALL_OPTION || callCenterFilter !== ALL_OPTION || fromDate !== "" || toDate !== "";
   const activeFilterCount = [
-    activeFilter !== ALL_OPTION,
     carrierFilter !== ALL_OPTION,
     agentFilter !== ALL_OPTION,
     typeFilter !== ALL_OPTION,
+    ghlStageFilter !== ALL_OPTION,
+    callCenterFilter !== ALL_OPTION,
     fromDate !== "",
     toDate !== "",
   ].filter(Boolean).length;
@@ -310,9 +335,6 @@ export default function PoliciesPage() {
               ) },
             { label: "Active Policies", value: activePolicies.toLocaleString(), color: "#233217", icon: (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
-              ) },
-            { label: "Total Deal Value", value: `$${totalDealValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: "#233217", icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               ) },
             { label: "Active Carriers", value: activeCarriers.toLocaleString(), color: "#233217", icon: (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
@@ -521,53 +543,45 @@ export default function PoliciesPage() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Effective From</div>
-                  <input 
-                    type="date" 
-                    value={fromDate} 
-                    onChange={(e) => setFromDate(e.target.value)} 
-                    style={{ 
-                      width: "100%", 
-                      height: 38, 
-                      border: `1px solid ${T.border}`, 
-                      borderRadius: 10, 
-                      fontSize: 13, 
-                      color: T.textDark, 
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: 38,
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 10,
+                      fontSize: 13,
+                      color: T.textDark,
                       padding: "0 12px",
                       backgroundColor: T.cardBg,
                       outline: "none",
                       fontFamily: T.font,
-                    }} 
+                    }}
                   />
                 </div>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Effective To</div>
-                  <input 
-                    type="date" 
-                    value={toDate} 
-                    onChange={(e) => setToDate(e.target.value)} 
-                    style={{ 
-                      width: "100%", 
-                      height: 38, 
-                      border: `1px solid ${T.border}`, 
-                      borderRadius: 10, 
-                      fontSize: 13, 
-                      color: T.textDark, 
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: 38,
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 10,
+                      fontSize: 13,
+                      color: T.textDark,
                       padding: "0 12px",
                       backgroundColor: T.cardBg,
                       outline: "none",
                       fontFamily: T.font,
-                    }} 
+                    }}
                   />
                 </div>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Active Status</div>
-                  <StyledSelect
-                    value={activeFilter}
-                    onValueChange={setActiveFilter}
-                    options={ACTIVE_OPTS}
-                    placeholder="All"
-                  />
-                </div>
+
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Carrier</div>
                   <StyledSelect
@@ -598,19 +612,29 @@ export default function PoliciesPage() {
                     placeholder="All Types"
                   />
                 </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>GHL Stage</div>
+                  <StyledSelect
+                    value={ghlStageFilter}
+                    onValueChange={setGhlStageFilter}
+                    options={ghlStageOptions}
+                    placeholder="All GHL Stages"
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Call Center</div>
+                  <StyledSelect
+                    value={callCenterFilter}
+                    onValueChange={setCallCenterFilter}
+                    options={callCenterOptions}
+                    placeholder="All Call Centers"
+                  />
+                </div>
               </div>
 
               {hasActiveFilters && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {activeFilter !== ALL_OPTION && (
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
-                        Status: {activeFilter}
-                        <button onClick={() => setActiveFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                        </button>
-                      </div>
-                    )}
                     {carrierFilter !== ALL_OPTION && (
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
                         Carrier: {carrierFilter}
@@ -631,6 +655,22 @@ export default function PoliciesPage() {
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
                         Type: {typeFilter}
                         <button onClick={() => setTypeFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {ghlStageFilter !== ALL_OPTION && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        GHL Stage: {ghlStageFilter}
+                        <button onClick={() => setGhlStageFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {callCenterFilter !== ALL_OPTION && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                        Call Center: {callCenterFilter}
+                        <button onClick={() => setCallCenterFilter(ALL_OPTION)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
                         </button>
                       </div>
@@ -728,14 +768,18 @@ export default function PoliciesPage() {
                     {[
                       { label: "S.No", align: "left" as const },
                       { label: "Policy #", align: "left" as const },
-                      { label: "Deal Name", align: "left" as const },
+                      { label: "Name", align: "left" as const },
                       { label: "Agent", align: "left" as const },
                       { label: "Carrier", align: "left" as const },
                       { label: "Type", align: "left" as const },
-                      { label: "Deal Value", align: "right" as const },
-                      { label: "Status", align: "left" as const },
-                      { label: "Lock", align: "left" as const },
-                      { label: "Active", align: "center" as const },
+                      { label: "Policy Status", align: "left" as const },
+                      { label: "Carrier Status", align: "left" as const },
+                      { label: "Call Center", align: "left" as const },
+                      { label: "Phone", align: "left" as const },
+                      { label: "GHL Name", align: "left" as const },
+                      { label: "GHL Stage", align: "left" as const },
+                      { label: "Writing #", align: "left" as const },
+                      { label: "Deal Date", align: "left" as const },
                       { label: "Effective", align: "left" as const },
                     ].map(({ label, align }) => (
                       <TableHead key={label} style={{ 
@@ -766,7 +810,7 @@ export default function PoliciesPage() {
                         <span style={{ fontSize: 12, fontWeight: 700, color: "#233217", fontFamily: "monospace" }}>{r.policy_number || "—"}</span>
                       </TableCell>
                       <TableCell style={{ padding: "14px 20px" }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: T.textDark }}>{r.deal_name || "—"}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: T.textDark }}>{r.name || "—"}</span>
                       </TableCell>
                       <TableCell style={{ padding: "14px 20px" }}>
                         <span style={{ fontSize: 13, color: T.textMid, fontWeight: 500 }}>{r.sales_agent || "—"}</span>
@@ -792,22 +836,17 @@ export default function PoliciesPage() {
                       <TableCell style={{ padding: "14px 20px" }}>
                         <span style={{ fontSize: 12, color: T.textMid, fontWeight: 500 }}>{r.policy_type || "—"}</span>
                       </TableCell>
-                      <TableCell style={{ padding: "14px 20px", textAlign: "right" }}>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>
-                          {r.deal_value != null ? `$${r.deal_value.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell style={{ padding: "14px 20px" }}>
+<TableCell style={{ padding: "14px 20px" }}>
                         {r.policy_status ? (
-                          <span style={{ 
-                            display: "inline-flex", 
-                            alignItems: "center", 
-                            padding: "4px 10px", 
-                            borderRadius: 6, 
-                            backgroundColor: "#f0f9ff", 
-                            color: "#0369a1", 
-                            fontSize: 11, 
-                            fontWeight: 700 
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            padding: "4px 10px",
+                            borderRadius: 6,
+                            backgroundColor: "#f0f9ff",
+                            color: "#0369a1",
+                            fontSize: 11,
+                            fontWeight: 700
                           }}>
                             {r.policy_status}
                           </span>
@@ -816,39 +855,41 @@ export default function PoliciesPage() {
                         )}
                       </TableCell>
                       <TableCell style={{ padding: "14px 20px" }}>
-                        {(() => {
-                          const ls = r.lock_status || "pending";
-                          const lc = LOCK_COLORS[ls] ?? { bg: "#f3f4f6", color: "#6b7a5f" };
-                          return (
-                            <span style={{ 
-                              display: "inline-flex", 
-                              alignItems: "center", 
-                              padding: "4px 10px", 
-                              borderRadius: 6, 
-                              backgroundColor: lc.bg, 
-                              color: lc.color, 
-                              fontSize: 11, 
-                              fontWeight: 700 
-                            }}>
-                              {ls.charAt(0).toUpperCase() + ls.slice(1)}
-                            </span>
-                          );
-                        })()}
+                        {r.carrier_status ? (
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            padding: "4px 10px",
+                            borderRadius: 6,
+                            backgroundColor: "#f0f9ff",
+                            color: "#0369a1",
+                            fontSize: 11,
+                            fontWeight: 700
+                          }}>
+                            {r.carrier_status}
+                          </span>
+                        ) : (
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>—</span>
+                        )}
                       </TableCell>
-                      <TableCell style={{ padding: "14px 20px", textAlign: "center" }}>
-                        <span style={{ 
-                          display: "inline-flex", 
-                          alignItems: "center", 
-                          gap: 6,
-                          padding: "4px 10px",
-                          borderRadius: 999,
-                          backgroundColor: r.is_active ? "#dcfce7" : "#f3f4f6",
-                          color: r.is_active ? "#166534" : "#6b7a5f",
-                          fontSize: 11,
-                          fontWeight: 700
-                        }}>
-                          <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: r.is_active ? "#22c55e" : "#9ca3af" }}/>
-                          {r.is_active ? "Active" : "Inactive"}
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.textMid, fontWeight: 500 }}>{r.call_center || "—"}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.textMid, fontWeight: 500 }}>{r.phone_number || "—"}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.textMid, fontWeight: 500 }}>{r.ghl_name || "—"}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.textMid, fontWeight: 500 }}>{r.ghl_stage || "—"}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.textMid, fontWeight: 500 }}>{r.writing_number || "—"}</span>
+                      </TableCell>
+                      <TableCell style={{ padding: "14px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.textMid, fontWeight: 500 }}>
+                          {r.deal_creation_date ? new Date(r.deal_creation_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" }) : "—"}
                         </span>
                       </TableCell>
                       <TableCell style={{ padding: "14px 20px" }}>

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import LeadViewComponent from "./LeadViewComponent";
 import CreateLeadModal from "./CreateLeadModal";
+import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 
 type Stage = string;
 
@@ -40,6 +41,7 @@ interface Lead {
   daysInStage: number;
   stage: Stage;
   stageId: number | null;
+  callCenterId: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -115,19 +117,24 @@ function StyledSelect({
   value,
   onValueChange,
   options,
-  placeholder = "Select..."
+  placeholder = "Select...",
+  maxWidth,
 }: {
   value: string;
   onValueChange: (value: string) => void;
   options: { value: string; label: string }[];
   placeholder?: string;
+  maxWidth?: number;
 }) {
   return (
     <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
       <SelectTrigger
         style={{
           width: "100%",
+          maxWidth: maxWidth ?? "100%",
+          minWidth: 140,
           height: 38,
+          flexShrink: 0,
           borderRadius: 10,
           border: `1px solid ${T.border}`,
           backgroundColor: T.cardBg,
@@ -254,7 +261,9 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const router = useRouter();
   const params = useParams<{ role?: string }>();
   const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role;
+  const { currentRole } = useDashboardContext();
   const canEditLeadPipeline = canUpdateActions;
+  const isSystemAdmin = currentRole === "system_admin";
 
   const goToLead = useCallback(
     (leadUuid: string) => {
@@ -286,7 +295,14 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const [filterStageId, setFilterStageId] = useState<number | "All">("All");
   const [filterType, setFilterType] = useState("All");
   const [filterAgent, setFilterAgent] = useState("All");
-  const [filterSource, setFilterSource] = useState("All");
+  const [filterCallCenter, setFilterCallCenter] = useState("All");
+  const [callCenterOptions, setCallCenterOptions] = useState<Array<{ id: string; name: string }>>([]);
+
+  const callCenterFilterOptions = useMemo(() => {
+    const uniqueIds = [...new Set(leads.map(l => l.callCenterId).filter(Boolean))] as string[];
+    if (uniqueIds.length === 0) return [{ value: "All", label: "All Call Centers" }];
+    return [{ value: "All", label: "All Call Centers" }, ...uniqueIds.map(id => ({ value: id, label: callCenterOptions.find(cc => cc.id === id)?.name ?? id }))];
+  }, [leads, callCenterOptions]);
   const [filterMinPremium, setFilterMinPremium] = useState("");
   const [filterMaxPremium, setFilterMaxPremium] = useState("");
   const [quickEditLead, setQuickEditLead] = useState<Lead | null>(null);
@@ -330,16 +346,16 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       const matchesStage = filterStageId === "All" || l.stageId === filterStageId;
       const matchesType = filterType === "All" || l.type === filterType;
       const matchesAgent = filterAgent === "All" || l.agent === filterAgent;
-      const matchesSource = filterSource === "All" || l.source === filterSource;
+      const matchesCallCenter = filterCallCenter === "All" || l.callCenterId === filterCallCenter;
       const minPremium = filterMinPremium.trim() ? Number(filterMinPremium) : null;
       const maxPremium = filterMaxPremium.trim() ? Number(filterMaxPremium) : null;
       const validMin = minPremium == null || Number.isNaN(minPremium) ? true : l.premium >= minPremium;
       const validMax = maxPremium == null || Number.isNaN(maxPremium) ? true : l.premium <= maxPremium;
-      return matchesSearch && matchesStage && matchesType && matchesAgent && matchesSource && validMin && validMax;
+      return matchesSearch && matchesStage && matchesType && matchesAgent && matchesCallCenter && validMin && validMax;
     });
     
     return result;
-  }, [leads, search, filterStageId, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
+  }, [leads, search, filterStageId, filterType, filterAgent, filterCallCenter, filterMinPremium, filterMaxPremium]);
 
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   const paginatedLeads = filteredLeads.slice((page - 1) * itemsPerPage, page * itemsPerPage);
@@ -358,11 +374,11 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     if (filterStageId !== "All") n++;
     if (filterType !== "All") n++;
     if (filterAgent !== "All") n++;
-    if (filterSource !== "All") n++;
+    if (filterCallCenter !== "All") n++;
     if (filterMinPremium.trim()) n++;
     if (filterMaxPremium.trim()) n++;
     return n;
-  }, [filterStageId, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
+  }, [filterStageId, filterType, filterAgent, filterCallCenter, filterMinPremium, filterMaxPremium]);
 
   const hasActiveFilters = activeFilterCount > 0;
 
@@ -371,7 +387,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
     setFilterStageId("All");
     setFilterType("All");
     setFilterAgent("All");
-    setFilterSource("All");
+    setFilterCallCenter("All");
     setFilterMinPremium("");
     setFilterMaxPremium("");
     setPage(1);
@@ -388,6 +404,68 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       .maybeSingle();
     return st?.id ?? null;
   }, [supabase]);
+
+  const handleExportLeads = useCallback(async () => {
+    if (filteredLeads.length === 0) return;
+
+    const leadIds = filteredLeads.map(l => l.rowUuid);
+    console.log("Export function called. Lead IDs:", leadIds.slice(0, 3));
+
+    const { data: notesData, error: notesError } = await supabase
+      .from("lead_notes")
+      .select("lead_id, body, created_at")
+      .in("lead_id", leadIds)
+      .order("created_at", { ascending: false });
+
+    console.log("Notes response:", { dataLength: notesData?.length, error: notesError });
+
+    if (notesError) {
+      console.error("Notes query error:", notesError);
+      alert("Error fetching notes: " + notesError.message);
+    }
+
+    const notesByLead = new Map<string, string[]>();
+    if (notesData) {
+      for (const note of notesData) {
+        const leadId = String(note.lead_id);
+        if (!notesByLead.has(leadId)) {
+          notesByLead.set(leadId, []);
+        }
+        if (notesByLead.get(leadId)!.length < 3) {
+          notesByLead.get(leadId)!.push(String(note.body || ""));
+        }
+      }
+    }
+    console.log("Notes by lead map:", notesByLead);
+
+    const rows = filteredLeads.map(lead => {
+      const notes = notesByLead.get(lead.rowUuid) || [];
+      console.log(`Lead ${lead.rowUuid.slice(0,8)}: got notes:`, notes.length);
+      return [
+        lead.name,
+        lead.phone,
+        lead.stage,
+        notes[0] || "",
+        notes[1] || "",
+        notes[2] || "",
+      ];
+    });
+
+    const csvContent = [
+      ["Name", "Phone Number", "Stage Name", "Note 1", "Note 2", "Note 3"],
+      ...rows,
+    ].map(row => row.map(cell => `"${(cell || "").replace(/"/g, '""')}"`).join(",")).join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `leads-export-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [filteredLeads, supabase]);
 
   const handleKanbanDrop = useCallback(
     async (targetStageId: number) => {
@@ -419,7 +497,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
   useEffect(() => {
     setPage(1);
-  }, [search, filterStageId, filterType, filterAgent, filterSource, filterMinPremium, filterMaxPremium]);
+  }, [search, filterStageId, filterType, filterAgent, filterCallCenter, filterMinPremium, filterMaxPremium]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) setPage(totalPages);
@@ -478,6 +556,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         daysInStage: 0,
         stage: stageName,
         stageId,
+        callCenterId: row.call_center_id != null ? String(row.call_center_id) : null,
         createdAt: row.created_at ? String(row.created_at) : undefined,
         updatedAt: row.updated_at ? String(row.updated_at) : undefined,
       };
@@ -796,6 +875,25 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((row) => ({ id: row.id, name: row.name }));
       if (!cancelled) setLicensedOwnerOptions(options);
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const { data, error } = await supabase
+        .from("call_centers")
+        .select("id, name")
+        .order("name");
+      if (cancelled || error || !data) return;
+      const options = (data as Array<{ id: string; name: string | null }>)
+        .map((row) => ({ id: row.id, name: row.name?.trim() || "Unknown" }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      if (!cancelled) setCallCenterOptions(options);
     };
     void run();
     return () => {
@@ -1266,6 +1364,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         daysInStage: 0,
         stage: newLead.stage as Stage,
         stageId: null,
+        callCenterId: null,
       };
       setLeads(prev => [mappedLead, ...prev]);
       setShowAddLead(false);
@@ -1376,7 +1475,14 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
             gap: 16,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <StyledSelect
+              value={pipeline}
+              onValueChange={setPipeline}
+              options={pipelines.map(p => ({ value: p, label: p }))}
+              placeholder="Pipeline"
+              maxWidth={180}
+            />
             <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
               <Search
                 size={16}
@@ -1385,10 +1491,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, phone, SSN, lead id..."
+                placeholder="Search..."
                 style={{
                   height: 38,
-                  minWidth: 320,
+                  width: 240,
                   paddingLeft: 38,
                   paddingRight: 14,
                   border: `1px solid ${T.border}`,
@@ -1410,12 +1516,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                 }}
               />
             </div>
-            <StyledSelect
-              value={pipeline}
-              onValueChange={setPipeline}
-              options={pipelines.map(p => ({ value: p, label: p }))}
-              placeholder="Select pipeline..."
-            />
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1468,6 +1568,37 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                </button>
             </div>
+
+            {isSystemAdmin && (
+              <button
+                onClick={handleExportLeads}
+                style={{
+                  height: 38,
+                  padding: "0 18px",
+                  borderRadius: 10,
+                  border: "1px solid #233217",
+                  background: "#fff",
+                  color: "#233217",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: T.font,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  transition: "all 0.15s ease-in-out",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#DCEBDC";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#fff";
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export
+              </button>
+            )}
 
             {canEditLeadPipeline && (
               <button
@@ -1560,12 +1691,12 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                   />
                 </div>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Source</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#233217", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>Call Center</div>
                   <StyledSelect
-                    value={filterSource}
-                    onValueChange={setFilterSource}
-                    options={sourceFilterOptions}
-                    placeholder="All Sources"
+                    value={filterCallCenter}
+                    onValueChange={setFilterCallCenter}
+                    options={callCenterFilterOptions}
+                    placeholder="All Call Centers"
                   />
                 </div>
               </div>
@@ -1662,10 +1793,10 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                         </button>
                       </div>
                     )}
-                    {filterSource !== "All" && (
+                    {filterCallCenter !== "All" && (
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
-                        Source: {filterSource}
-                        <button onClick={() => setFilterSource("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
+                        Call Center: {callCenterFilterOptions.find(cc => cc.value === filterCallCenter)?.label ?? filterCallCenter}
+                        <button onClick={() => setFilterCallCenter("All")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
                         </button>
                       </div>
@@ -2012,6 +2143,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
                           }}
                           options={pipelines.map(p => ({ value: p, label: p }))}
                           placeholder="Select pipeline..."
+                          maxWidth={200}
                         />
                       </div>
                       <div>
