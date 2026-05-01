@@ -2,7 +2,11 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RoleKey } from "@/lib/auth/roles";
-import { runTransferScreeningForPhone, snapshotToPersistedPayload } from "@/lib/transferScreening";
+import {
+  parsePersistedTransferScreening,
+  runTransferScreeningForPhone,
+  snapshotToPersistedPayload,
+} from "@/lib/transferScreening";
 
 export type QueueRole =
   | "manager"
@@ -136,28 +140,69 @@ async function logQueueEvent(
   });
 }
 
+/** Avoid duplicate transfer-check API runs for the same queue row (insert + snapshot backfill). */
+const transferScreeningPersistInflight = new Set<string>();
+
+async function persistTransferScreeningForQueueItemRow(
+  supabase: SupabaseClient,
+  queueItemId: string,
+  phoneNumber: string | null | undefined,
+): Promise<void> {
+  try {
+    const snapshot = await runTransferScreeningForPhone(supabase, phoneNumber);
+    const payload = snapshotToPersistedPayload(snapshot);
+    const { error } = await supabase
+      .from("lead_queue_items")
+      .update({
+        transfer_screening_json: payload,
+        transfer_screening_at: new Date().toISOString(),
+      })
+      .eq("id", queueItemId);
+    if (error) console.warn("[lead_queue_items] transfer screening persist failed:", error.message);
+  } catch (e) {
+    console.warn("[lead_queue_items] transfer screening failed:", e);
+  }
+}
+
 /** Fire-and-forget: does not block enqueue; failures are logged only. */
 function schedulePersistTransferScreeningForQueueItem(
   supabase: SupabaseClient,
   queueItemId: string,
   phoneNumber: string | null | undefined,
 ) {
-  void (async () => {
-    try {
-      const snapshot = await runTransferScreeningForPhone(supabase, phoneNumber);
-      const payload = snapshotToPersistedPayload(snapshot);
-      const { error } = await supabase
-        .from("lead_queue_items")
-        .update({
-          transfer_screening_json: payload,
-          transfer_screening_at: new Date().toISOString(),
-        })
-        .eq("id", queueItemId);
-      if (error) console.warn("[lead_queue_items] transfer screening persist failed:", error.message);
-    } catch (e) {
-      console.warn("[lead_queue_items] transfer screening failed:", e);
-    }
-  })();
+  if (transferScreeningPersistInflight.has(queueItemId)) return;
+  transferScreeningPersistInflight.add(queueItemId);
+  void persistTransferScreeningForQueueItemRow(supabase, queueItemId, phoneNumber).finally(() => {
+    transferScreeningPersistInflight.delete(queueItemId);
+  });
+}
+
+const QUEUE_SCREENING_BACKFILL_STAGGER_MS = 400;
+
+/**
+ * For queue rows already in the database before auto-screening (or failed persists), run the same
+ * transfer-check + DNC screening as new inserts. Staggered to reduce API bursts. Safe to call on every snapshot.
+ */
+export function requestTransferScreeningBackfillForQueueRows(
+  supabase: SupabaseClient,
+  rows: LeadQueueItem[],
+): void {
+  if (typeof window === "undefined") return;
+  const pending = rows.filter(
+    (r) =>
+      r.status === "active" &&
+      !parsePersistedTransferScreening(r.transfer_screening_json) &&
+      !transferScreeningPersistInflight.has(r.id),
+  );
+  pending.forEach((row, index) => {
+    if (transferScreeningPersistInflight.has(row.id)) return;
+    transferScreeningPersistInflight.add(row.id);
+    window.setTimeout(() => {
+      void persistTransferScreeningForQueueItemRow(supabase, row.id, row.phone_number).finally(() => {
+        transferScreeningPersistInflight.delete(row.id);
+      });
+    }, index * QUEUE_SCREENING_BACKFILL_STAGGER_MS);
+  });
 }
 
 export type FetchQueueSnapshotOptions = {

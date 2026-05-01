@@ -20,6 +20,7 @@ import {
   fetchQueueSnapshot,
   managerAssignQueueItem,
   markQueueReady,
+  requestTransferScreeningBackfillForQueueRows,
   resolveQueueRole,
   sendQueueTransfer,
   type LeadQueueItem,
@@ -191,6 +192,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         ]);
         setRows(queueRows);
         setAssignees(agents);
+        requestTransferScreeningBackfillForQueueRows(supabase, queueRows);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load queue");
       } finally {
