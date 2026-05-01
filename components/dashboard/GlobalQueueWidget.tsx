@@ -48,15 +48,34 @@ const WIDGET_CONTROL_HEIGHT = 42;
 
 type QueueSectionKey = "assignedToMe" | "unclaimed" | "baActive" | "laActive";
 
-/** Muted tints aligned with `T` (sage / mint) — avoids loud yellow–purple contrast */
+/**
+ * Section headers: darker Insurvas greens (deepest → lighter) so each band reads clearly.
+ * Text is always light for contrast on these fills.
+ */
 const QUEUE_SECTION_PILLS: Record<
   QueueSectionKey,
   { background: string; color: string; border?: string }
 > = {
-  assignedToMe: { background: T.asideChrome, color: "#f4f7f2", border: `1px solid ${T.blueHover}` },
-  unclaimed: { background: "#f4f6f0", color: T.textMid, border: `1px solid ${T.border}` },
-  baActive: { background: T.blueLight, color: T.textMid, border: `1px solid ${T.border}` },
-  laActive: { background: T.blueFaint, color: T.textDark, border: `1px solid ${T.borderLight}` },
+  assignedToMe: {
+    background: T.asideChrome,
+    color: "#f4f7f2",
+    border: `1px solid ${T.blueHover}`,
+  },
+  unclaimed: {
+    background: T.blueHover,
+    color: "#f6faf3",
+    border: `1px solid ${T.asideChrome}`,
+  },
+  baActive: {
+    background: T.blue,
+    color: "#f7faf5",
+    border: `1px solid ${T.blueHover}`,
+  },
+  laActive: {
+    background: T.textMuted,
+    color: "#f4f7f2",
+    border: `1px solid ${T.blueHover}`,
+  },
 };
 
 /** Collapse accidental duplicated client labels (e.g. same string pasted twice). */
@@ -699,10 +718,8 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
   const renderCollapsibleSection = (sectionKey: QueueSectionKey, title: string, items: LeadQueueItem[]) => {
     const isOpen = sectionOpen[sectionKey];
     const pill = QUEUE_SECTION_PILLS[sectionKey];
-    const countChipBg =
-      sectionKey === "assignedToMe" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.07)";
-    const chevronColor =
-      sectionKey === "assignedToMe" ? "rgba(244,247,242,0.92)" : pill.color;
+    const countChipBg = "rgba(255,255,255,0.26)";
+    const chevronColor = "rgba(244,247,242,0.95)";
 
     return (
       <div
@@ -720,15 +737,15 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
           <span
             className={cn(
               "flex min-h-[42px] w-full min-w-0 items-center gap-3 rounded-xl px-3.5 py-2.5 transition-[filter,box-shadow] duration-150 ease-in-out",
-              "hover:brightness-[0.98] active:brightness-[0.96]",
+              "hover:brightness-110 active:brightness-[0.97]",
             )}
             style={{
               background: pill.background,
               color: pill.color,
               border: pill.border,
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 800,
-              letterSpacing: "-0.01em",
+              letterSpacing: "-0.015em",
               boxSizing: "border-box",
             }}
           >
@@ -737,7 +754,7 @@ export default function GlobalQueueWidget({ currentRole, currentUserId }: Props)
                 "h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out",
                 isOpen ? "rotate-180" : "rotate-0",
               )}
-              style={{ color: chevronColor, opacity: sectionKey === "assignedToMe" ? 1 : 0.85 }}
+              style={{ color: chevronColor }}
               aria-hidden
             />
             <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
