@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RoleKey } from "@/lib/auth/roles";
+import { snapshotToPersistedPayload, type TransferScreeningSnapshot } from "@/lib/transferScreening";
 
 export type QueueRole =
   | "manager"
@@ -31,6 +32,9 @@ export type LeadQueueItem = {
   la_ready_at: string | null;
   queued_at: string;
   updated_at: string;
+  transfer_screening_json?: unknown | null;
+  /** Enriched in `fetchQueueSnapshot` from `call_results` (not a table column). */
+  call_result_message?: string | null;
 };
 
 export type QueueOutcome = "completed" | "dropped_callback";
@@ -85,10 +89,74 @@ function filterSnapshotRowsForRole(rows: LeadQueueItem[], queueRole: QueueRole):
 }
 
 const QUEUE_SNAPSHOT_SELECT =
-  "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at";
+  "id, lead_id, submission_id, client_name, phone_number, call_center_name, state, carrier, action_required, queue_type, status, assigned_ba_id, assigned_la_id, eta_minutes, ba_verification_percent, la_ready_at, queued_at, updated_at, transfer_screening_json";
 
 /** Supabase `in()` payloads stay small to avoid oversized URLs. */
 const LEAD_ID_CHUNK = 120;
+const SUBMISSION_ID_CHUNK = 100;
+
+function formatCallResultSnippet(row: Record<string, unknown>): string | null {
+  const status =
+    String(row.status ?? "").trim() || String(row.call_status ?? "").trim() || "";
+  const reason = String(row.call_reason ?? "").trim();
+  const note =
+    String(row.manual_note ?? "").trim() ||
+    String(row.generated_note ?? "").trim() ||
+    String(row.notes ?? "").trim();
+  const parts = [status, reason, note].filter(Boolean);
+  const s = parts.join(" — ");
+  return s || null;
+}
+
+async function applyCallResultMessages(
+  supabase: SupabaseClient,
+  rows: LeadQueueItem[],
+): Promise<LeadQueueItem[]> {
+  const submissionIds = Array.from(
+    new Set(rows.map((r) => String(r.submission_id ?? "").trim()).filter(Boolean)),
+  );
+  if (submissionIds.length === 0) return rows;
+
+  const bySubmission = new Map<string, string>();
+  for (let i = 0; i < submissionIds.length; i += SUBMISSION_ID_CHUNK) {
+    const chunk = submissionIds.slice(i, i + SUBMISSION_ID_CHUNK);
+    const { data, error } = await supabase
+      .from("call_results")
+      .select("submission_id, notes, call_status, call_reason, manual_note, generated_note, status")
+      .in("submission_id", chunk);
+    if (error) throw new Error(error.message);
+    for (const raw of data ?? []) {
+      const rec = raw as Record<string, unknown>;
+      const sub = String(rec.submission_id ?? "").trim();
+      if (!sub || bySubmission.has(sub)) continue;
+      const msg = formatCallResultSnippet(rec);
+      if (msg) bySubmission.set(sub, msg);
+    }
+  }
+
+  return rows.map((r) => {
+    const sub = String(r.submission_id ?? "").trim();
+    const call_result_message = sub ? bySubmission.get(sub) ?? null : null;
+    if (!call_result_message) return r;
+    return { ...r, call_result_message };
+  });
+}
+
+export async function persistQueueTransferScreening(
+  supabase: SupabaseClient,
+  queueItemId: string,
+  snapshot: TransferScreeningSnapshot,
+) {
+  const payload = snapshotToPersistedPayload(snapshot);
+  const { error } = await supabase
+    .from("lead_queue_items")
+    .update({
+      transfer_screening_json: payload,
+      transfer_screening_at: new Date().toISOString(),
+    })
+    .eq("id", queueItemId);
+  if (error) throw new Error(error.message);
+}
 
 async function fetchQueueRowsForLeadIdChunks(
   supabase: SupabaseClient,
@@ -185,6 +253,9 @@ export async function fetchQueueSnapshot(
     });
   };
 
+  const enrichSnapshotRows = async (rows: LeadQueueItem[]) =>
+    applyCallResultMessages(supabase, await applyVerificationProgress(rows));
+
   if (queueRole === "call_center_agent") {
     if (!currentUserId) return [];
     const { data: myLeads, error: leadsErr } = await supabase
@@ -195,7 +266,7 @@ export async function fetchQueueSnapshot(
     const leadIds = (myLeads ?? []).map((r) => String((r as { id: string }).id ?? "").trim()).filter(Boolean);
     if (leadIds.length === 0) return [];
     const scoped = await fetchQueueRowsForLeadIdChunks(supabase, leadIds, allowed);
-    return applyVerificationProgress(filterSnapshotRowsForRole(scoped, queueRole));
+    return enrichSnapshotRows(filterSnapshotRowsForRole(scoped, queueRole));
   }
 
   if (queueRole === "call_center_admin") {
@@ -210,7 +281,7 @@ export async function fetchQueueSnapshot(
       .order("queued_at", { ascending: true })
       .limit(500);
     if (adminErr) throw new Error(adminErr.message);
-    return applyVerificationProgress(
+    return enrichSnapshotRows(
       filterSnapshotRowsForRole((adminRows ?? []) as LeadQueueItem[], queueRole),
     );
   }
@@ -226,7 +297,7 @@ export async function fetchQueueSnapshot(
   if (baseError) throw new Error(baseError.message);
 
   if (!currentUserId || queueRole === "manager") {
-    return applyVerificationProgress(
+    return enrichSnapshotRows(
       filterSnapshotRowsForRole((baseRows ?? []) as LeadQueueItem[], queueRole),
     );
   }
@@ -252,7 +323,7 @@ export async function fetchQueueSnapshot(
   const mergedRows = Array.from(merged.values()).sort(
     (a, b) => new Date(a.queued_at).getTime() - new Date(b.queued_at).getTime(),
   );
-  return applyVerificationProgress(filterSnapshotRowsForRole(mergedRows, queueRole));
+  return enrichSnapshotRows(filterSnapshotRowsForRole(mergedRows, queueRole));
 }
 
 export type QueueAssignee = {

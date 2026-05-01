@@ -20,11 +20,13 @@ import {
   fetchQueueSnapshot,
   managerAssignQueueItem,
   markQueueReady,
+  persistQueueTransferScreening,
   resolveQueueRole,
   sendQueueTransfer,
   type LeadQueueItem,
   type QueueAssignee,
 } from "@/lib/queue/queueClient";
+import { queueCardDisplayMessages, transferCheckToneColor } from "@/lib/queue/queueCardMessages";
 import {
   IDLE_TRANSFER_SCREENING,
   runTransferScreeningForPhone,
@@ -294,15 +296,16 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         assignedLaId: draft.laId || null,
         etaMinutes: draft.eta ? Number(draft.eta) : null,
       });
-      await loadSnapshot(true);
-      setNotice("Updated");
-      window.setTimeout(() => setNotice(null), 1400);
       setTransferCheckModalClient(row.client_name ?? "");
       setTransferCheckModalSnapshot(IDLE_TRANSFER_SCREENING);
       setTransferCheckModalLoading(true);
       setTransferCheckModalOpen(true);
       const snap = await runTransferScreeningForPhone(supabase, row.phone_number);
+      await persistQueueTransferScreening(supabase, row.id, snap);
       setTransferCheckModalSnapshot(snap);
+      await loadSnapshot(true);
+      setNotice("Updated");
+      window.setTimeout(() => setNotice(null), 1400);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Action failed");
       setTransferCheckModalOpen(false);
@@ -379,6 +382,8 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
         licensedAgents: assignees.filter((a) => a.queueRole === "la"),
       });
     };
+
+    const { transferCheck, callResult } = queueCardDisplayMessages(row);
 
     return (
       <div
@@ -465,6 +470,70 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
               >
                 LA: {assignedLaName}
               </span>
+            )}
+          </div>
+        )}
+
+        {(transferCheck || callResult) && (
+          <div
+            style={{
+              display: "grid",
+              gap: 8,
+              paddingTop: 10,
+              borderTop: `1px solid ${T.border}`,
+            }}
+          >
+            {transferCheck && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 900,
+                    color: T.textMuted,
+                    letterSpacing: "0.07em",
+                    marginBottom: 4,
+                  }}
+                >
+                  TRANSFER CHECK · {transferCheck.shortLabel}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: transferCheckToneColor(transferCheck.tone),
+                    lineHeight: 1.45,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {transferCheck.message}
+                </div>
+              </div>
+            )}
+            {callResult && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 900,
+                    color: T.textMuted,
+                    letterSpacing: "0.07em",
+                    marginBottom: 4,
+                  }}
+                >
+                  CALL RESULT
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: T.textDark,
+                    lineHeight: 1.45,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {callResult}
+                </div>
+              </div>
             )}
           </div>
         )}
