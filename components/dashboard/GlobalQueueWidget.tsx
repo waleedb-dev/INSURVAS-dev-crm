@@ -389,6 +389,9 @@ export default function GlobalQueueWidget() {
     };
 
     const clientLabel = displayQueueClientName(row.client_name);
+    const screeningPersisted = parsePersistedTransferScreening(row.transfer_screening_json);
+    const screeningMeta = screeningPersisted ? transferScreeningBadgeMeta(screeningPersisted) : null;
+    const screeningChrome = screeningMeta ? transferScreeningBadgeChrome(screeningMeta.tone) : null;
 
     return (
       <div
@@ -465,30 +468,6 @@ export default function GlobalQueueWidget() {
                 ASSIGNED
               </span>
             )}
-            {(() => {
-              const persisted = parsePersistedTransferScreening(row.transfer_screening_json);
-              if (!persisted) return null;
-              const { shortLabel, message, tone } = transferScreeningBadgeMeta(persisted);
-              const chrome = transferScreeningBadgeChrome(tone);
-              return (
-                <span
-                  title={message}
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 900,
-                    color: chrome.color,
-                    background: chrome.background,
-                    border: chrome.border,
-                    borderRadius: 999,
-                    padding: "4px 9px",
-                    flexShrink: 0,
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {shortLabel}
-                </span>
-              );
-            })()}
           </div>
           <div
             style={{
@@ -502,6 +481,79 @@ export default function GlobalQueueWidget() {
             {elapsedLabel(row.queued_at)}
           </div>
         </div>
+        {screeningMeta && screeningChrome && (
+          <details
+            className={cn(
+              "overflow-hidden rounded-xl border",
+              "[& summary::-webkit-details-marker]:hidden",
+              "shadow-[0_1px_2px_rgba(59,82,41,0.06)] transition-[box-shadow,border-color] duration-200",
+              "open:border-[#b8c9a8] open:shadow-[0_6px_20px_-4px_rgba(59,82,41,0.12)]",
+            )}
+            style={{
+              borderColor: T.borderLight,
+              fontFamily: T.font,
+            }}
+          >
+            <summary
+              aria-label={`${screeningMeta.shortLabel} screening — click to show or hide message`}
+              title="Click to show or hide the screening message"
+              className={cn(
+                "flex w-full cursor-pointer list-none items-center px-3 py-3 outline-none",
+                "min-h-[48px] rounded-xl transition-[background] duration-200",
+                "hover:bg-[#e8f0e3]/85 active:brightness-[0.98]",
+                "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2",
+              )}
+              style={{
+                background: `linear-gradient(100deg, ${T.blueFaint} 0%, ${T.cardBg} 70%)`,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 900,
+                  color: screeningChrome.color,
+                  background: screeningChrome.background,
+                  border: screeningChrome.border,
+                  borderRadius: 999,
+                  padding: "5px 12px",
+                  flexShrink: 0,
+                  letterSpacing: "0.03em",
+                }}
+              >
+                {screeningMeta.shortLabel}
+              </span>
+            </summary>
+            <div
+              className="px-3 pb-3 pt-1"
+              style={{
+                background: `linear-gradient(180deg, ${T.cardBg} 0%, ${T.pageBg} 100%)`,
+              }}
+            >
+              <div
+                style={{
+                  borderRadius: T.radiusMd,
+                  padding: "14px 16px",
+                  background: T.cardBg,
+                  border: `1px solid ${T.borderLight}`,
+                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.85), 0 2px 8px rgba(59,82,41,0.04), inset 3px 0 0 0 ${screeningChrome.color}`,
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: T.textDark,
+                    lineHeight: 1.6,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {screeningMeta.message}
+                </p>
+              </div>
+            </div>
+          </details>
+        )}
         {(assignedBaName || assignedLaName) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {assignedBaName && (

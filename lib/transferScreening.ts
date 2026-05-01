@@ -114,6 +114,48 @@ export function parsePersistedTransferScreening(raw: unknown): PersistedTransfer
 
 export type TransferScreeningBadgeTone = "critical" | "warning" | "error" | "success" | "muted";
 
+/** User-facing copy when CRM duplicate resolution allows transfer (replaces verbose Stage / lead-count API text). */
+export const TRANSFER_CHECK_DUPLICATE_ADDABLE_USER_MESSAGE =
+  "Lead already exists in Transfer API. You can submit this transfer.";
+
+/** Strip internal `Stage: …` and duplicate-scope suffixes from transfer-check copy for display. */
+export function scrubVerboseTransferApiWording(msg: string): string {
+  let s = String(msg ?? "").trim();
+  if (!s) return "";
+  s = s.replace(/\s*\(\d+\s+lead\(s\)\s+in\s+scope\s+for\s+this\s+duplicate\s+check\.?\)\s*/gi, " ");
+  s = s.replace(/\s*Stage:\s*[^.]+\.\s*/gi, " ");
+  s = s.replace(/\s*\(GHL:[^)]*\)\s*/gi, " ");
+  s = s.replace(/\s*\(\d+\s+lead\(s\)\s+in\s+CRM\s+share\s+this\s+SSN\.?\)\s*/gi, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+function isDuplicateResolutionApiNoise(msg: string): boolean {
+  const m = String(msg ?? "").trim();
+  if (!m) return false;
+  if (/\bStage:\s/i.test(m)) return true;
+  if (/\(\d+\s+lead\(s\)\s+in\s+scope/i.test(m)) return true;
+  if (/in\s+scope\s+for\s+this\s+duplicate/i.test(m)) return true;
+  if (/\(\d+\s+lead\(s\)\s+in\s+CRM\s+share\s+this\s+SSN/i.test(m)) return true;
+  if (/^A lead already exists for this phone/i.test(m)) return true;
+  return false;
+}
+
+function formatSuccessQueueMessage(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === TRANSFER_CHECK_CLEAR_USER_MESSAGE) {
+    return TRANSFER_CHECK_CLEAR_USER_MESSAGE;
+  }
+  if (isDuplicateResolutionApiNoise(trimmed)) {
+    return TRANSFER_CHECK_DUPLICATE_ADDABLE_USER_MESSAGE;
+  }
+  const scrubbed = scrubVerboseTransferApiWording(trimmed);
+  if (isDuplicateResolutionApiNoise(scrubbed) || scrubbed === "") {
+    return TRANSFER_CHECK_DUPLICATE_ADDABLE_USER_MESSAGE;
+  }
+  return scrubbed;
+}
+
 export function transferScreeningBadgeMeta(p: PersistedTransferScreeningV1): {
   shortLabel: string;
   message: string;
@@ -122,7 +164,7 @@ export function transferScreeningBadgeMeta(p: PersistedTransferScreeningV1): {
   if (p.transferCheckError) {
     return {
       shortLabel: "Check failed",
-      message: p.transferCheckError,
+      message: scrubVerboseTransferApiWording(p.transferCheckError) || p.transferCheckError,
       tone: "error",
     };
   }
@@ -134,42 +176,51 @@ export function transferScreeningBadgeMeta(p: PersistedTransferScreeningV1): {
     };
   }
   if (p.tcpaBlocked) {
+    const msg =
+      p.transferCheckMessage.trim() ||
+      "This number is flagged as a TCPA litigator. No contact or transfers.";
+    const scrubbed = scrubVerboseTransferApiWording(msg);
     return {
       shortLabel: "TCPA",
-      message:
-        p.transferCheckMessage.trim() ||
-        "This number is flagged as a TCPA litigator. No contact or transfers.",
+      message: scrubbed || msg,
       tone: "critical",
     };
   }
   if (p.phoneInvalidBlocked) {
+    const msg = p.transferCheckMessage.trim() || "This phone number appears to be invalid.";
+    const scrubbed = scrubVerboseTransferApiWording(msg);
     return {
       shortLabel: "Invalid phone",
-      message: p.transferCheckMessage.trim() || "This phone number appears to be invalid.",
+      message: scrubbed || msg,
       tone: "critical",
     };
   }
   if (p.dncListBlocked) {
+    const msg =
+      p.transferCheckMessage.trim() ||
+      "Do-not-call list match — follow your centre's compliance rules.";
+    const scrubbed = scrubVerboseTransferApiWording(msg);
     return {
       shortLabel: "DNC",
-      message:
-        p.transferCheckMessage.trim() ||
-        "Do-not-call list match — follow your centre's compliance rules.",
+      message: scrubbed || msg,
       tone: "warning",
     };
   }
   if (p.agencyDqBlocked) {
+    const msg =
+      p.transferCheckMessage.trim() ||
+      "Not permitted based on CRM stage / agency rules.";
+    const scrubbed = scrubVerboseTransferApiWording(msg);
     return {
       shortLabel: "CRM DQ",
-      message:
-        p.transferCheckMessage.trim() ||
-        "Not permitted based on CRM stage / agency rules.",
+      message: scrubbed || msg,
       tone: "critical",
     };
   }
+  const successRaw = p.transferCheckMessage.trim() || TRANSFER_CHECK_CLEAR_USER_MESSAGE;
   return {
     shortLabel: "Clear",
-    message: p.transferCheckMessage.trim() || TRANSFER_CHECK_CLEAR_USER_MESSAGE,
+    message: formatSuccessQueueMessage(successRaw),
     tone: "success",
   };
 }
