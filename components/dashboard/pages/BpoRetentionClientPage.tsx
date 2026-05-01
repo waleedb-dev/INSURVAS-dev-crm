@@ -329,6 +329,7 @@ export default function BpoRetentionClientPage({ leadRowId }: { leadRowId: strin
                   hideToolbarActions
                   includeLeadVendorField
                   bodyMaxHeight="calc(100vh - 320px)"
+                  leadRowId={lead.rowId}
                   leadName={lead.name}
                   submissionId={lead.submissionId}
                   callCenterId={lead.callCenterId}

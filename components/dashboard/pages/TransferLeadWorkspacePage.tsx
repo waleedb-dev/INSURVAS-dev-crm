@@ -813,6 +813,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             sessionId={sessionId}
             showProgressSummary={false}
             onProgressChange={setVerificationProgress}
+            leadRowId={lead.rowId}
             submissionId={lead.submissionId}
             leadName={lead.leadName}
             callCenterId={lead.callCenterId}

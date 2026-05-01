@@ -307,6 +307,12 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
     const showReady =
       (queueRole === "ba" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active")) ||
       (queueRole === "la" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active"));
+    const readyLabel =
+      row.queue_type === "unclaimed_transfer"
+        ? "Claim"
+        : queueRole === "la"
+          ? "LA ready"
+          : "Mark ready";
 
     const carrierForEligibility = String(row.carrier ?? "").trim();
     const stateForEligibility = normaliseUsState(row.state);
@@ -671,7 +677,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
                   cursor: isSaving ? "not-allowed" : "pointer",
                 }}
               >
-                Mark ready
+                {readyLabel}
               </button>
             )}
             {showSendTransfer && (

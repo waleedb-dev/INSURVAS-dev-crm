@@ -313,7 +313,12 @@ export default function GlobalQueueWidget() {
     const showReady =
       (queueRole === "ba" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active")) ||
       (queueRole === "la" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active"));
-    const readyLabel = row.queue_type === "unclaimed_transfer" ? "Claim" : "Mark ready";
+    const readyLabel =
+      row.queue_type === "unclaimed_transfer"
+        ? "Claim"
+        : queueRole === "la"
+          ? "LA ready"
+          : "Mark ready";
     const hasAnyAssignment = Boolean(row.assigned_ba_id || row.assigned_la_id);
     const assignedBaName = row.assigned_ba_id
       ? assigneeNameById.get(row.assigned_ba_id) ?? "Assigned BA"
