@@ -838,6 +838,29 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               } catch (err) {
                 console.error("[workspace] Failed to send call_dropped notification:", err);
               }
+              if (!subId?.trim()) return;
+              try {
+                const sid = subId.trim();
+                await invokeOptionalFunction("update-daily-deal-flow-entry", {
+                  submission_id: sid,
+                  insured_name: custName || null,
+                  client_phone_number: lead?.phone || null,
+                  lead_vendor: lead?.source || null,
+                  call_center_id: ccId ?? null,
+                  call_source: "Verification Session",
+                  status: "Incomplete Transfer",
+                  call_result: "Not Submitted",
+                  application_submitted: null,
+                  sent_to_underwriting: null,
+                  notes: "Call dropped during verification",
+                  from_callback: false,
+                  is_retention_call: false,
+                  is_callback: sid.startsWith("CB") || sid.startsWith("CBB"),
+                  skip_verification_session_completion: true,
+                });
+              } catch (err) {
+                console.error("[workspace] Failed to sync daily deal flow for call dropped:", err);
+              }
             }}
             onTransferToLicensedAgent={() => {
               if (!canViewTransferClaimReclaimVisit) {

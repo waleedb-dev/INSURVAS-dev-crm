@@ -125,6 +125,8 @@ serve(async (req) => {
       generated_note = null,
       manual_note = null,
       quick_disposition_tag = null,
+      /** When true, do not mark verification sessions completed (e.g. verification panel "Call Dropped" while session may continue). */
+      skip_verification_session_completion = false,
     } = body;
 
     if (!submission_id) throw new Error("Missing required field: submission_id");
@@ -273,14 +275,16 @@ serve(async (req) => {
       savedRecord = data;
     }
 
-    try {
-      await supabase
-        .from("verification_sessions")
-        .update({ status: "completed" })
-        .eq("submission_id", submission_id)
-        .in("status", ["pending", "in_progress", "ready_for_transfer", "transferred"]);
-    } catch (sessionError) {
-      console.error("Verification session update failed:", sessionError);
+    if (!skip_verification_session_completion) {
+      try {
+        await supabase
+          .from("verification_sessions")
+          .update({ status: "completed" })
+          .eq("submission_id", submission_id)
+          .in("status", ["pending", "in_progress", "ready_for_transfer", "transferred"]);
+      } catch (sessionError) {
+        console.error("Verification session update failed:", sessionError);
+      }
     }
 
     if (application_submitted === true) {
