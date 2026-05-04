@@ -131,6 +131,15 @@ function normalize(val: string | null | undefined): string {
   return (val ?? "").trim().replace(/\s+/g, " ");
 }
 
+/** Scoreboard “Retention Stats” mode uses this name (`call_centers` / `daily_deal_flow.lead_vendor`). */
+const RETENTION_BPO_CENTER_NAME = "Retention BPO";
+
+/** Matches server-side Retention BPO filter: same centre id or `lead_vendor` name. */
+function isRetentionBpoRow(row: DailyDealFlowRow, retentionCenterId: string | null): boolean {
+  if (retentionCenterId && row.call_center_id === retentionCenterId) return true;
+  return normalize(row.lead_vendor) === normalize(RETENTION_BPO_CENTER_NAME);
+}
+
 function getHourFromRow(row: DailyDealFlowRow): number | null {
   const ts = row.created_at;
   if (!ts) return null;
@@ -727,9 +736,25 @@ export default function BpoScoreBoardPage() {
 
       console.log("[BpoScoreBoard] Fetching data from:", fromStr, "to:", toStr);
 
+      const { data: retentionCenterRow } = await supabase
+        .from("call_centers")
+        .select("id")
+        .eq("name", RETENTION_BPO_CENTER_NAME)
+        .maybeSingle();
+      const retentionCenterId = retentionCenterRow?.id ?? null;
+
       let query = supabase.from("daily_deal_flow").select("*");
       query = query.gte("date", fromStr);
       query = query.lte("date", toStr);
+      if (retentionStats) {
+        if (retentionCenterId) {
+          query = query.or(
+            `call_center_id.eq.${retentionCenterId},lead_vendor.eq.${RETENTION_BPO_CENTER_NAME}`,
+          );
+        } else {
+          query = query.eq("lead_vendor", RETENTION_BPO_CENTER_NAME);
+        }
+      }
 
       console.log("[BpoScoreBoard] Query built - date range:", fromStr, "to", toStr);
 
@@ -739,8 +764,12 @@ export default function BpoScoreBoardPage() {
         console.error("[BpoScoreBoard] fetch error:", error);
         setRows([]);
       } else {
-        console.log("[BpoScoreBoard] Raw rows from DB:", data?.length);
-        setRows((data || []) as DailyDealFlowRow[]);
+        const raw = (data || []) as DailyDealFlowRow[];
+        const filtered = retentionStats
+          ? raw
+          : raw.filter((r) => !isRetentionBpoRow(r, retentionCenterId));
+        console.log("[BpoScoreBoard] Raw rows from DB:", raw.length, "after retention exclusion:", filtered.length);
+        setRows(filtered);
       }
 
       // Fetch previous period for trends
@@ -753,6 +782,15 @@ export default function BpoScoreBoardPage() {
       let prevQuery = supabase.from("daily_deal_flow").select("*");
       prevQuery = prevQuery.gte("date", prevFromStr);
       prevQuery = prevQuery.lte("date", prevToStr);
+      if (retentionStats) {
+        if (retentionCenterId) {
+          prevQuery = prevQuery.or(
+            `call_center_id.eq.${retentionCenterId},lead_vendor.eq.${RETENTION_BPO_CENTER_NAME}`,
+          );
+        } else {
+          prevQuery = prevQuery.eq("lead_vendor", RETENTION_BPO_CENTER_NAME);
+        }
+      }
 
       const { data: prevData, error: prevError, count: prevCount } = await prevQuery;
       console.log("[BpoScoreBoard] Prev query result - count:", prevCount, "rows:", prevData?.length, "error:", prevError);
@@ -760,13 +798,17 @@ export default function BpoScoreBoardPage() {
         console.error("[BpoScoreBoard] prev fetch error:", prevError);
         setPrevRows([]);
       } else {
-        console.log("[BpoScoreBoard] Prev rows from DB:", prevData?.length);
-        setPrevRows((prevData || []) as DailyDealFlowRow[]);
+        const rawPrev = (prevData || []) as DailyDealFlowRow[];
+        const filteredPrev = retentionStats
+          ? rawPrev
+          : rawPrev.filter((r) => !isRetentionBpoRow(r, retentionCenterId));
+        console.log("[BpoScoreBoard] Prev rows from DB:", rawPrev.length, "after retention exclusion:", filteredPrev.length);
+        setPrevRows(filteredPrev);
       }
 
       setLoading(false);
     },
-    [supabase],
+    [supabase, retentionStats],
   );
 
   useEffect(() => {
