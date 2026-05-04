@@ -64,27 +64,27 @@ type QueueSectionKey = "assignedToMe" | "unclaimed" | "baActive" | "laActive";
  */
 const QUEUE_SECTION_PILLS: Record<
   QueueSectionKey,
-  { background: string; color: string; border?: string }
+  { background?: string; color: string; border?: string; gradientFrom?: string; gradientTo?: string }
 > = {
   assignedToMe: {
-    background: T.asideChrome,
-    color: "#f4f7f2",
-    border: `1px solid ${T.blueHover}`,
+    gradientFrom: "#4e6e3a",
+    gradientTo: "#3b5229",
+    color: "#ffffff",
   },
   unclaimed: {
-    background: T.blueHover,
-    color: "#f6faf3",
-    border: `1px solid ${T.asideChrome}`,
+    gradientFrom: "#fde68a",
+    gradientTo: "#f59e0b",
+    color: "#92400e",
   },
   baActive: {
-    background: T.blue,
-    color: "#f7faf5",
-    border: `1px solid ${T.blueHover}`,
+    gradientFrom: "#bfdbfe",
+    gradientTo: "#3b82f6",
+    color: "#1e40af",
   },
   laActive: {
-    background: T.textMuted,
-    color: "#f4f7f2",
-    border: `1px solid ${T.blueHover}`,
+    gradientFrom: "#a7f3d0",
+    gradientTo: "#10b981",
+    color: "#065f46",
   },
 };
 
@@ -130,6 +130,8 @@ export default function GlobalQueueWidget() {
     baActive: true,
     laActive: true,
   });
+
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
   const [eligibleCache, setEligibleCache] = useState<
     Record<
@@ -316,10 +318,10 @@ export default function GlobalQueueWidget() {
       (queueRole === "la" && (row.queue_type === "unclaimed_transfer" || row.queue_type === "ba_active"));
     const readyLabel =
       row.queue_type === "unclaimed_transfer"
-        ? "Claim"
+        ? "CLAIM"
         : queueRole === "la"
-          ? "LA ready"
-          : "Mark ready";
+          ? "LA READY"
+          : "MARK READY";
     const hasAnyAssignment = Boolean(row.assigned_ba_id || row.assigned_la_id);
     const assignedBaName = row.assigned_ba_id
       ? assigneeNameById.get(row.assigned_ba_id) ?? "Assigned BA"
@@ -383,398 +385,372 @@ export default function GlobalQueueWidget() {
     const screeningPersisted = parsePersistedTransferScreening(row.transfer_screening_json);
     const screeningMeta = screeningPersisted ? transferScreeningBadgeMeta(screeningPersisted) : null;
     const screeningChrome = screeningMeta ? transferScreeningBadgeChrome(screeningMeta.tone) : null;
+    const isCardExpanded = expandedCards.has(row.id);
 
     return (
       <div
         key={row.id}
         style={{
-          border: `1px solid ${hasAnyAssignment ? T.memberSky : T.border}`,
-          borderRadius: T.radiusMd,
-          background: hasAnyAssignment ? T.rowBg : T.cardBg,
-          padding: "11px 12px 10px",
-          display: "grid",
-          gap: 7,
-          boxShadow: T.shadowSm,
+          border: `1px solid ${T.border}`,
+          borderRadius: 12,
+          background: "#ffffff",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+          transition: "all 0.15s ease-in-out",
+          overflow: "hidden",
+          margin: "0 2px",
         }}
+        className="hover:shadow-sm hover:border-[#86b97b]"
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 8,
-              minWidth: 0,
-              flex: 1,
-            }}
-            title={`${clientLabel} — ${row.call_center_name || "Unknown centre"} · ${row.state || "N/A"} · ${row.carrier || "N/A"}`}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                flexWrap: "wrap",
-                gap: "6px 10px",
-                minWidth: 0,
-                rowGap: 4,
-              }}
-            >
+        <div
+          style={{
+            padding: "10px 14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            boxSizing: "border-box",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  backgroundColor: hasAnyAssignment ? "#22c55e" : "#f59e0b",
+                  flexShrink: 0,
+                }}
+              />
               <span
                 style={{
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: 800,
                   color: T.textDark,
-                  letterSpacing: "-0.02em",
-                  flexShrink: 0,
+                  letterSpacing: "-0.01em",
                 }}
               >
                 {clientLabel}
               </span>
+              {hasAnyAssignment && (
+                <span
+                  style={{
+                    fontSize: 8,
+                    fontWeight: 800,
+                    color: "#166534",
+                    background: "#dcfce7",
+                    borderRadius: 999,
+                    padding: "2px 6px",
+                    flexShrink: 0,
+                    letterSpacing: "0.03em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  ASSIGNED
+                </span>
+              )}
               <span
                 style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: T.textMuted,
-                  lineHeight: 1.45,
-                  wordBreak: "break-word",
-                }}
-              >
-                {(row.call_center_name || "Unknown centre")} · {row.state || "N/A"} · {row.carrier || "N/A"}
-              </span>
-            </div>
-            {hasAnyAssignment && (
-              <span
-                style={{
-                  fontSize: 9,
-                  fontWeight: 900,
-                  color: T.blueHover,
-                  background: T.blueLight,
-                  border: `1px solid ${T.border}`,
+                  fontSize: 8,
+                  fontWeight: 700,
+                  color: "#647864",
+                  background: "#e8efdf",
                   borderRadius: 999,
-                  padding: "4px 9px",
+                  padding: "2px 6px",
                   flexShrink: 0,
-                  letterSpacing: "0.06em",
                 }}
               >
-                ASSIGNED
+                {elapsedLabel(row.queued_at)}
               </span>
-            )}
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: T.textMuted,
-              flexShrink: 0,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {elapsedLabel(row.queued_at)}
-          </div>
-        </div>
-        {screeningMeta && screeningChrome && (
-          <div
-            className="min-w-0 rounded-md py-1.5 pl-2.5 pr-2.5"
-            style={{
-              fontFamily: T.font,
-              border: screeningChrome.border,
-              borderLeft: `3px solid ${screeningChrome.color}`,
-              background: screeningChrome.background,
-            }}
-            role="status"
-          >
-            <p
+              {row.ba_verification_percent != null && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 4 }}>
+                  <div style={{ height: 4, width: 40, background: "#e8efdf", borderRadius: 2, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${row.ba_verification_percent}%`,
+                        background: Number(row.ba_verification_percent) >= 80 ? "#22c55e" : Number(row.ba_verification_percent) >= 50 ? "#f59e0b" : "#ef4444",
+                        borderRadius: 2,
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: T.textMuted }}>{Number(row.ba_verification_percent).toFixed(0)}%</span>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setExpandedCards(prev => {
+                  const next = new Set(prev);
+                  if (next.has(row.id)) {
+                    next.delete(row.id);
+                  } else {
+                    next.add(row.id);
+                  }
+                  return next;
+                });
+              }}
               style={{
-                margin: 0,
-                fontSize: 13,
-                fontWeight: 600,
-                color: T.textDark,
-                lineHeight: 1.5,
-                wordBreak: "break-word",
+                background: "none",
+                border: "none",
+                padding: 2,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                color: T.textMuted,
+                transition: "transform 0.15s ease-in-out",
+                transform: isCardExpanded ? "rotate(180deg)" : "rotate(0deg)",
               }}
             >
-              {screeningMeta.message}
-            </p>
+              <ChevronDown size={14} />
+            </button>
           </div>
-        )}
-        {(assignedBaName || assignedLaName || row.eta_minutes != null) && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{
+              background: "#fef3c7",
+              padding: "3px 8px",
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: 10,
+              color: "#92400e",
+              border: "1px solid #fcd34d"
+            }}>{row.carrier || "N/A"}</span>
+            <span style={{
+              background: "#fef3c7",
+              padding: "3px 8px",
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: 10,
+              color: "#92400e",
+              border: "1px solid #fcd34d"
+            }}>{row.state || "N/A"}</span>
+            <span style={{
+              background: "#fef3c7",
+              padding: "3px 8px",
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: 10,
+              color: "#92400e",
+              border: "1px solid #fcd34d"
+            }}>{row.call_center_name || "Unknown"}</span>
             {assignedBaName && (
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: T.textMid,
-                  background: T.blueLight,
-                  border: `1px solid ${T.borderLight}`,
-                  borderRadius: 999,
-                  padding: "3px 9px",
-                }}
-              >
+              <span style={{
+                background: "#dbeafe",
+                padding: "3px 8px",
+                borderRadius: 6,
+                fontWeight: 700,
+                fontSize: 10,
+                color: "#1e40af",
+                border: "1px solid #93c5fd"
+              }}>
                 BA: {assignedBaName}
               </span>
             )}
             {assignedLaName && (
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: T.textMid,
-                  background: T.pageBg,
-                  border: `1px solid ${T.borderLight}`,
-                  borderRadius: 999,
-                  padding: "3px 9px",
-                }}
-              >
+              <span style={{
+                background: "#ccfbf1",
+                padding: "3px 8px",
+                borderRadius: 6,
+                fontWeight: 700,
+                fontSize: 10,
+                color: "#115e59",
+                border: "1px solid #5eead4"
+              }}>
                 LA: {assignedLaName}
               </span>
             )}
             {row.eta_minutes != null && (
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: "#0f172a",
-                  background: "#fef9c3",
-                  border: "1px solid #fde047",
-                  borderRadius: 999,
-                  padding: "3px 9px",
-                  fontVariantNumeric: "tabular-nums",
-                }}
-                title="Manager ETA (minutes)"
-              >
+              <span style={{
+                background: "#ffedd5",
+                padding: "3px 8px",
+                borderRadius: 6,
+                fontWeight: 700,
+                fontSize: 10,
+                color: "#c2410c",
+                border: "1px solid #fb923c"
+              }}>
                 ETA {row.eta_minutes}m
               </span>
             )}
           </div>
-        )}
+        </div>
 
-        {queueRole === "manager" && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 84px minmax(min-content, auto)",
-              gap: 8,
-              alignItems: "stretch",
-              marginTop: 0,
-              paddingTop: 8,
-              borderTop: `1px solid ${T.borderLight}`,
-            }}
-          >
-            <div style={{ minWidth: 0, width: "100%", display: "flex", alignItems: "stretch" }}>
-              <TransferStyledSelect
-                value={draft.baId ? draft.baId : "__unassigned__"}
-                onValueChange={(val) =>
-                  setDrafts((prev) => ({
-                    ...prev,
-                    [row.id]: { ...draft, baId: val === "__unassigned__" ? "" : val },
-                  }))
-                }
-                options={baAssigneeOptions}
-                placeholder="Assign BA"
-              />
-            </div>
-            <div style={{ minWidth: 0, width: "100%", display: "flex", alignItems: "stretch" }}>
-              <Select
-                value={draft.laId ? draft.laId : undefined}
-                onValueChange={(val) => {
-                  const next = val ?? "";
-                  setDrafts((prev) => ({
-                    ...prev,
-                    [row.id]: { ...draft, laId: next === "__unassigned__" ? "" : next },
-                  }));
+        {isCardExpanded && (
+          <div style={{ padding: "0 12px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
+            {screeningMeta && screeningChrome && (
+              <div
+                style={{
+                  fontFamily: T.font,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: `1px solid ${T.border}`,
+                  background: "#fafafa",
                 }}
-                onOpenChange={(opened) => {
-                  if (!opened) return;
-                  void ensureEligibleLoaded();
+                role="status"
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: T.textMid,
+                    lineHeight: 1.5,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {screeningMeta.message}
+                </p>
+              </div>
+            )}
+
+            {queueRole === "manager" && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 60px auto",
+                  gap: 6,
+                  alignItems: "stretch",
+                  paddingTop: 6,
+                  borderTop: `1px solid ${T.borderLight}`,
                 }}
               >
-                <SelectTrigger
+                <div style={{ minWidth: 0, width: "100%", display: "flex", alignItems: "stretch" }}>
+                  <TransferStyledSelect
+                    value={draft.baId ? draft.baId : "__unassigned__"}
+                    onValueChange={(val) =>
+                      setDrafts((prev) => ({
+                        ...prev,
+                        [row.id]: { ...draft, baId: val === "__unassigned__" ? "" : val },
+                      }))
+                    }
+                    options={baAssigneeOptions}
+                    placeholder="BA"
+                    compact
+                  />
+                </div>
+                <div style={{ minWidth: 0, width: "100%", display: "flex", alignItems: "stretch" }}>
+                  <Select
+                    value={draft.laId ? draft.laId : undefined}
+                    onValueChange={(val) => {
+                      const next = val ?? "";
+                      setDrafts((prev) => ({
+                        ...prev,
+                        [row.id]: { ...draft, laId: next === "__unassigned__" ? "" : next },
+                      }));
+                    }}
+                    onOpenChange={(opened) => {
+                      if (!opened) return;
+                      void ensureEligibleLoaded();
+                    }}
+                  >
+                    <SelectTrigger
+                      style={{
+                        width: "100%",
+                        height: 32,
+                        borderRadius: 8,
+                        border: `1px solid ${T.borderLight}`,
+                        backgroundColor: "#fff",
+                        color: draft.laId ? T.textDark : T.textMuted,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        paddingLeft: 10,
+                        paddingRight: 8,
+                        transition: "all 0.15s ease-in-out",
+                        opacity: !eligibilityKey ? 0.7 : 1,
+                        boxSizing: "border-box",
+                      }}
+                      className="hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-1 focus:ring-[#638b4b]/20"
+                      title={!eligibilityKey ? "Needs carrier, state and centre" : undefined}
+                    >
+                      <SelectValue placeholder="LA">{laSelectDisplayLabel ?? undefined}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent
+                      style={{
+                        borderRadius: 10,
+                        border: `1px solid ${T.border}`,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                        backgroundColor: "#fff",
+                        padding: 4,
+                        maxHeight: 200,
+                        zIndex: 99999,
+                      }}
+                    >
+                      {eligibleState?.loading && (
+                        <div style={{ padding: "6px 8px", fontSize: 11, fontWeight: 600, color: T.textMuted }}>
+                          Loading...
+                        </div>
+                      )}
+                      {eligibleState?.error && (
+                        <div style={{ padding: "6px 8px", fontSize: 11, fontWeight: 600, color: "#b91c1c" }}>
+                          {eligibleState.error}
+                        </div>
+                      )}
+                      {laOptionsForRow.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                          style={{
+                            borderRadius: 6,
+                            padding: "6px 10px",
+                            fontSize: 12,
+                            fontWeight: 400,
+                            color: T.textDark,
+                            cursor: "pointer",
+                          }}
+                          className="hover:bg-[#f2f8ee] focus:bg-[#f2f8ee]"
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <input
+                  type="number"
+                  placeholder="ETA"
+                  min={0}
+                  value={draft.eta}
+                  onChange={(e) => setDrafts((prev) => ({ ...prev, [row.id]: { ...draft, eta: e.target.value } }))}
                   style={{
                     width: "100%",
-                    height: WIDGET_CONTROL_HEIGHT,
-                    minHeight: WIDGET_CONTROL_HEIGHT,
-                    borderRadius: 11,
-                    border: `1px solid ${T.borderLight}`,
-                    backgroundColor: T.pageBg,
-                    color: draft.laId ? T.textDark : T.textMuted,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    paddingLeft: 14,
-                    paddingRight: 12,
-                    transition: "all 0.15s ease-in-out",
-                    opacity: !eligibilityKey ? 0.7 : 1,
+                    height: 32,
                     boxSizing: "border-box",
-                    boxShadow: `${T.shadowSm}, inset 0 1px 0 rgba(255,255,255,0.65)`,
-                  }}
-                  className="transition-all duration-150 ease-in-out hover:border-[#c8d4bb] hover:shadow-md focus:border-[#94c278] focus:ring-2 focus:ring-[#94c278]/25 data-[state=open]:border-[#94c278] data-[state=open]:shadow-md"
-                  title={!eligibilityKey ? "Needs carrier, state, and centre to load eligible agents" : undefined}
-                >
-                  <SelectValue placeholder="Assign LA">{laSelectDisplayLabel ?? undefined}</SelectValue>
-                </SelectTrigger>
-                <SelectContent
-                  style={{
-                    borderRadius: 12,
                     border: `1px solid ${T.borderLight}`,
-                    boxShadow: T.shadowMd,
-                    backgroundColor: T.cardBg,
-                    padding: 6,
-                    maxHeight: 300,
-                    zIndex: 99999,
+                    borderRadius: 8,
+                    padding: "0 8px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: T.textDark,
+                    background: "#fff",
+                    outline: "none",
+                    fontFamily: T.font,
                   }}
+                  className="hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-1 focus:ring-[#638b4b]/20"
+                />
+                <button
+                  type="button"
+                  disabled={isSaving || !currentUserId}
+                  onClick={() => void runManagerAssign(row, draft)}
+                  style={{
+                    border: "none",
+                    borderRadius: 8,
+                    background: "#233217",
+                    color: "#fff",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    height: 32,
+                    padding: "0 10px",
+                    cursor: isSaving ? "not-allowed" : "pointer",
+                    opacity: isSaving ? 0.65 : 1,
+                    flexShrink: 0,
+                    boxSizing: "border-box",
+                    fontFamily: T.font,
+                  }}
+                  className="hover:bg-[#3b5229] active:scale-[0.98]"
                 >
-                  {eligibleState?.loading && (
-                    <div style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, color: T.textMuted }}>
-                      Loading eligible agents…
-                    </div>
-                  )}
-                  {eligibleState?.error && (
-                    <div style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#b91c1c" }}>
-                      {eligibleState.error}
-                    </div>
-                  )}
-                  {eligibleState?.unmatchedEligible && eligibleState.unmatchedEligible.length > 0 && (
-                    <div style={{ padding: "8px 10px", fontSize: 11, fontWeight: 600, color: T.textMuted, lineHeight: 1.4 }}>
-                      No unique CRM user for eligible name(s) (duplicate first names need tie-break — see team):{" "}
-                      {eligibleState.unmatchedEligible.join(", ")}
-                    </div>
-                  )}
-                  {laOptionsForRow.map((option) => (
-                    <SelectItem
-                      key={option.value}
-                      value={option.value}
-                      style={{
-                        borderRadius: 8,
-                        padding: "10px 14px",
-                        fontSize: 14,
-                        fontWeight: 400,
-                        color: T.textDark,
-                        cursor: "pointer",
-                        transition: "all 0.1s ease-in-out",
-                      }}
-                      className="hover:bg-[#ddecd4] hover:text-[#3b5229] focus:bg-[#ddecd4] focus:text-[#3b5229] data-[state=checked]:bg-[#638b4b] data-[state=checked]:text-white data-[state=checked]:font-semibold"
-                    >
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <input
-              type="number"
-              placeholder="ETA"
-              min={0}
-              value={draft.eta}
-              onChange={(e) => setDrafts((prev) => ({ ...prev, [row.id]: { ...draft, eta: e.target.value } }))}
-              style={{
-                width: "100%",
-                height: WIDGET_CONTROL_HEIGHT,
-                minHeight: WIDGET_CONTROL_HEIGHT,
-                boxSizing: "border-box",
-                border: `1px solid ${T.borderLight}`,
-                borderRadius: 11,
-                padding: "0 12px",
-                fontSize: 14,
-                fontWeight: 600,
-                color: T.textDark,
-                background: T.pageBg,
-                outline: "none",
-                fontFamily: T.font,
-                boxShadow: `${T.shadowSm}, inset 0 1px 0 rgba(255,255,255,0.65)`,
-              }}
-              className="transition-all duration-150 ease-in-out hover:border-[#c8d4bb] hover:shadow-md focus:border-[#94c278] focus:ring-2 focus:ring-[#94c278]/25"
-            />
-            <button
-              type="button"
-              disabled={isSaving || !currentUserId}
-              onClick={() => void runManagerAssign(row, draft)}
-              style={{
-                border: "none",
-                borderRadius: 10,
-                background: T.blue,
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 800,
-                height: WIDGET_CONTROL_HEIGHT,
-                minHeight: WIDGET_CONTROL_HEIGHT,
-                padding: "0 18px",
-                cursor: isSaving ? "not-allowed" : "pointer",
-                opacity: isSaving ? 0.65 : 1,
-                boxShadow: T.shadowSm,
-                flexShrink: 0,
-                boxSizing: "border-box",
-                fontFamily: T.font,
-              }}
-              className="transition-all duration-150 ease-in-out hover:brightness-95 active:scale-[0.98]"
-            >
-              Save
-            </button>
-          </div>
-        )}
-
-        {(showReady || showSendTransfer) && (
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-              paddingTop: 0,
-            }}
-          >
-            {showReady && (
-              <button
-                type="button"
-                disabled={isSaving || !currentUserId}
-                onClick={() =>
-                  runAction(row.id, async () => {
-                    await markQueueReady(supabase, row, String(currentUserId), queueRole as "ba" | "la");
-                    await notifyLaReadyForTransferIfNeeded(supabase, {
-                      queueItemBefore: row,
-                      actorUserId: String(currentUserId),
-                      actorRole: queueRole as "ba" | "la",
-                    });
-                  })
-                }
-                style={{
-                  border: "none",
-                  borderRadius: 10,
-                  background: T.blue,
-                  color: "#fff",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  padding: "11px 16px",
-                  cursor: isSaving ? "not-allowed" : "pointer",
-                  opacity: isSaving ? 0.65 : 1,
-                  boxShadow: T.shadowSm,
-                  fontFamily: T.font,
-                }}
-                className="transition-all duration-150 ease-in-out hover:brightness-95 active:scale-[0.98]"
-              >
-                {readyLabel}
-              </button>
-            )}
-            {showSendTransfer && (
-              <button
-                type="button"
-                disabled={isSaving || !currentUserId}
-                onClick={() => runAction(row.id, () => sendQueueTransfer(supabase, row, String(currentUserId)))}
-                style={{
-                  border: `1.5px solid ${T.border}`,
-                  borderRadius: 10,
-                  background: T.cardBg,
-                  color: T.textDark,
-                  fontSize: 12,
-                  fontWeight: 800,
-                  padding: "11px 16px",
-                  cursor: isSaving ? "not-allowed" : "pointer",
-                  opacity: isSaving ? 0.65 : 1,
-                  boxShadow: T.shadowSm,
-                  fontFamily: T.font,
-                }}
-                className="transition-all duration-150 ease-in-out hover:bg-[#f2f8ee] active:scale-[0.98]"
-              >
-                Send transfer
-              </button>
+                  Save
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -808,7 +784,9 @@ export default function GlobalQueueWidget() {
           )}
           style={{
             fontFamily: T.font,
-            background: pill.background,
+            background: pill.gradientFrom && pill.gradientTo
+              ? `linear-gradient(135deg, ${pill.gradientFrom} 0%, ${pill.gradientTo} 100%)`
+              : pill.background,
             color: pill.color,
             border: "none",
             borderBottom: isOpen ? `1px solid rgba(0, 0, 0, 0.1)` : "none",
@@ -816,9 +794,9 @@ export default function GlobalQueueWidget() {
             cursor: "pointer",
             fontSize: 13,
             fontWeight: 800,
-            letterSpacing: "-0.015em",
+            letterSpacing: "0.02em",
+            textTransform: "uppercase",
             boxSizing: "border-box",
-            /* Inline padding so it wins over `globals.css` universal `* { padding: 0 }` */
             paddingTop: 11,
             paddingBottom: 11,
             paddingLeft: 22,
@@ -832,8 +810,12 @@ export default function GlobalQueueWidget() {
           <span
             className="flex shrink-0 items-center justify-center tabular-nums"
             style={{
-              background: T.asideChrome,
-              color: "#ffffff",
+              background: pill.gradientFrom && pill.gradientTo
+                ? "rgba(255,255,255,0.9)"
+                : T.asideChrome,
+              color: pill.gradientFrom && pill.gradientTo
+                ? pill.gradientTo
+                : "#ffffff",
               borderRadius: 9999,
               minWidth: 28,
               minHeight: 28,
@@ -841,8 +823,7 @@ export default function GlobalQueueWidget() {
               fontSize: 11,
               fontWeight: 900,
               lineHeight: 1,
-              border: `1px solid ${T.memberTeal}`,
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.18)",
+              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15)",
             }}
           >
             {items.length}
@@ -949,8 +930,8 @@ export default function GlobalQueueWidget() {
             }}
           >
             <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 900, color: T.textDark, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-                Transfer queue
+              <div style={{ fontSize: 15, fontWeight: 900, color: T.textDark, letterSpacing: "0.02em", lineHeight: 1.2, textTransform: "uppercase" }}>
+                Transfer Queue
               </div>
               <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, lineHeight: 1.3 }}>
                 {lastUpdatedAt ? `Last sync ${new Date(lastUpdatedAt).toLocaleTimeString()}` : "Not synced yet"}
@@ -1013,7 +994,7 @@ export default function GlobalQueueWidget() {
               overflowY: "auto",
               WebkitOverflowScrolling: "touch",
               overscrollBehaviorY: "contain",
-              padding: "10px 14px 12px",
+              padding: "10px 10px 12px",
               background: T.cardBg,
             }}
           >
