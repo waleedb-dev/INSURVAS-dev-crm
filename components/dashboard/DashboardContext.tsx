@@ -7,6 +7,9 @@ import type { PermissionKey } from "@/lib/auth/permissions";
 
 export type DashboardContextValue = {
   currentRole: RoleKey;
+  currentUserId: string | null;
+  /** Call centre scope for `users.call_center_id` (call centre agent / admin). */
+  userCallCenterId: string | null;
   permissionKeys: Set<PermissionKey>;
   visiblePages: DashPage[];
   userDisplayName: string;

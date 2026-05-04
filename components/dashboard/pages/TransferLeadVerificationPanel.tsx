@@ -18,6 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { X } from "lucide-react";
+import { useDashboardContext } from "@/components/dashboard/DashboardContext";
+import { resolveQueueRole } from "@/lib/queue/queueClient";
 
 // StyledSelect component matching LeadEditForm design
 function StyledSelect({
@@ -455,6 +458,8 @@ type Props = {
   callCenterId?: string | null;
   /** Called after call_dropped field is saved. Use to trigger center-transfer-notification. */
   onCallDropped?: (payload: { submissionId: string | null; leadName: string; callCenterId?: string | null }) => void;
+  /** When set, buffer agents (BA) see a live notice if an LA marks ready on this lead's BA-active queue row. */
+  leadRowId?: string | null;
 };
 
 const VERIFICATION_FIELD_SEQUENCE = [
@@ -611,8 +616,12 @@ export default function TransferLeadVerificationPanel({
   submissionId,
   callCenterId,
   onCallDropped,
+  leadRowId,
 }: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const { currentUserId, currentRole } = useDashboardContext();
+  const queueRole = useMemo(() => resolveQueueRole(currentRole), [currentRole]);
+  const isBaViewer = queueRole === "ba";
   const [items, setItems] = useState<VerificationItemRow[]>([]);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [savingIds, setSavingIds] = useState<Record<string, boolean>>({});
@@ -654,7 +663,14 @@ export default function TransferLeadVerificationPanel({
   const [underwritingMedicationTags, setUnderwritingMedicationTags] = useState<string[]>([]);
   const [underwritingHealthInput, setUnderwritingHealthInput] = useState("");
   const [underwritingMedicationInput, setUnderwritingMedicationInput] = useState("");
-  
+
+  const [laReadyBanner, setLaReadyBanner] = useState<{
+    queueItemId: string;
+    laReadyAt: string;
+    laName: string;
+  } | null>(null);
+  const [laReadyBannerDismissedKey, setLaReadyBannerDismissedKey] = useState<string | null>(null);
+
   // All sections start expanded; each can be toggled independently.
   const [expandedSections, setExpandedSections] = useState<Set<SectionName>>(
     () => new Set(ALL_SECTION_NAMES),
@@ -1074,6 +1090,93 @@ export default function TransferLeadVerificationPanel({
     void runTransferPhoneCheck(phoneItem, raw, { auto: true });
   }, [sessionId, items, draftValues, runTransferPhoneCheck]);
 
+  const refreshLaReadyBanner = useCallback(async () => {
+    if (!leadRowId?.trim() || !currentUserId || !isBaViewer) {
+      setLaReadyBanner(null);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("lead_queue_items")
+      .select(
+        "id, queue_type, status, la_ready_at, la_ready_by, assigned_ba_id, current_owner_user_id, updated_at",
+      )
+      .eq("lead_id", leadRowId.trim())
+      .eq("status", "active")
+      .eq("queue_type", "ba_active")
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (error) {
+      console.warn("[TransferLeadVerificationPanel] LA ready queue fetch:", error.message);
+      return;
+    }
+    const row = data?.[0] as
+      | {
+          id: string;
+          queue_type: string;
+          status: string;
+          la_ready_at: string | null;
+          la_ready_by: string | null;
+          assigned_ba_id: string | null;
+          current_owner_user_id: string | null;
+        }
+      | undefined;
+    if (!row?.la_ready_at || row.queue_type !== "ba_active") {
+      setLaReadyBanner(null);
+      return;
+    }
+    const isOurCall =
+      (row.assigned_ba_id && row.assigned_ba_id === currentUserId) ||
+      (row.current_owner_user_id && row.current_owner_user_id === currentUserId);
+    if (!isOurCall) {
+      setLaReadyBanner(null);
+      return;
+    }
+    let laName = "A licensed agent";
+    if (row.la_ready_by) {
+      const { data: u } = await supabase.from("users").select("full_name").eq("id", row.la_ready_by).maybeSingle();
+      const n = (u?.full_name as string | undefined)?.trim();
+      if (n) laName = n;
+    }
+    setLaReadyBanner({
+      queueItemId: row.id,
+      laReadyAt: row.la_ready_at,
+      laName,
+    });
+  }, [leadRowId, currentUserId, isBaViewer, supabase]);
+
+  useEffect(() => {
+    void refreshLaReadyBanner();
+  }, [refreshLaReadyBanner]);
+
+  useEffect(() => {
+    if (!leadRowId?.trim() || !isBaViewer) return;
+    const lid = leadRowId.trim();
+    const channel = supabase
+      .channel(`la-ready-queue:${lid}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "lead_queue_items",
+          filter: `lead_id=eq.${lid}`,
+        },
+        () => {
+          void refreshLaReadyBanner();
+        },
+      )
+      .subscribe();
+    const poll = window.setInterval(() => void refreshLaReadyBanner(), 25000);
+    return () => {
+      window.clearInterval(poll);
+      void supabase.removeChannel(channel);
+    };
+  }, [leadRowId, isBaViewer, supabase, refreshLaReadyBanner]);
+
+  useEffect(() => {
+    if (!laReadyBanner) setLaReadyBannerDismissedKey(null);
+  }, [laReadyBanner]);
+
   // Hide "not started" banner once any field has been verified OR any value has been entered
   const anyFieldHasValue = orderedItems.some(
     (item) => (draftValues[item.id] ?? "").trim().length > 0
@@ -1301,6 +1404,81 @@ export default function TransferLeadVerificationPanel({
           </div>
         )}
       </div>
+      {laReadyBanner &&
+        isBaViewer &&
+        `${laReadyBanner.queueItemId}:${laReadyBanner.laReadyAt}` !== laReadyBannerDismissedKey && (
+          <div
+            role="status"
+            style={{
+              marginBottom: 14,
+              padding: "12px 14px",
+              borderRadius: 12,
+              border: `1px solid #86efac`,
+              background: "linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)",
+              borderLeft: `4px solid ${T.blue}`,
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+              gap: 12,
+              justifyContent: "space-between",
+            }}
+          >
+            <div style={{ minWidth: 0, flex: "1 1 220px" }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.textDark, marginBottom: 6 }}>
+                Licensed agent ready for this call
+              </div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: T.textMid, lineHeight: 1.5 }}>
+                <strong style={{ color: T.textDark }}>{laReadyBanner.laName}</strong> tapped <strong>LA ready</strong> on
+                the transfer queue for this lead and is waiting to take the call. When verification is in order, use{" "}
+                <strong>Send transfer</strong> in the queue or <strong>Transfer</strong> in the toolbar above.
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {onTransferToLicensedAgent && (
+                <button
+                  type="button"
+                  onClick={() => onTransferToLicensedAgent()}
+                  style={{
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "8px 14px",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    fontFamily: T.font,
+                    cursor: "pointer",
+                    backgroundColor: T.asideChrome,
+                    color: "#f4f7f2",
+                  }}
+                  className="transition-all duration-150 hover:brightness-110"
+                >
+                  Transfer
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label="Dismiss notice"
+                onClick={() =>
+                  setLaReadyBannerDismissedKey(`${laReadyBanner.queueItemId}:${laReadyBanner.laReadyAt}`)
+                }
+                style={{
+                  width: 36,
+                  height: 36,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  background: "#fff",
+                  color: T.textMuted,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                className="transition-colors hover:border-[#638b4b] hover:text-[#3b5229]"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+          </div>
+        )}
       {showProgressSummary && (
         <div style={{ marginTop: 14, marginBottom: 18 }}>
           {/* Field-style label row */}

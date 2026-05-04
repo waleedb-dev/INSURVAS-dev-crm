@@ -65,10 +65,12 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState<RoleKey | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [permissionKeys, setPermissionKeys] = useState<Set<PermissionKey>>(new Set());
   const [userDisplayName, setUserDisplayName] = useState("User");
   const [userEmail, setUserEmail] = useState("");
   const [userInitials, setUserInitials] = useState("U");
+  const [userCallCenterId, setUserCallCenterId] = useState<string | null>(null);
   const [callCenterBranding, setCallCenterBranding] = useState<{
     name: string;
     logoUrl: string | null;
@@ -94,6 +96,7 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
         router.replace("/");
         return;
       }
+      setCurrentUserId(session.user.id);
 
       const resolvedRole = await getCurrentUserPrimaryRole(supabase, session.user.id);
 
@@ -117,7 +120,8 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
         .maybeSingle();
 
       let centerMeta: { name: string; logoUrl: string | null } | null = null;
-      const ccId = profile?.call_center_id;
+      const ccId = profile?.call_center_id ?? null;
+      setUserCallCenterId(ccId);
       if (ccId) {
         const { data: ccRow } = await supabase
           .from("call_centers")
@@ -213,6 +217,8 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
     <DashboardProvider
       value={{
         currentRole,
+        currentUserId,
+        userCallCenterId,
         permissionKeys,
         visiblePages,
         userDisplayName,

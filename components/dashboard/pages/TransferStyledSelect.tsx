@@ -20,6 +20,7 @@ export function TransferStyledSelect({
   placeholder = "Select...",
   disabled = false,
   error = false,
+  compact = false,
 }: {
   value: string;
   onValueChange: (value: string) => void;
@@ -27,25 +28,36 @@ export function TransferStyledSelect({
   placeholder?: string;
   disabled?: boolean;
   error?: boolean;
+  compact?: boolean;
 }) {
+  const height = compact ? 32 : 42;
+  const fontSize = compact ? 12 : 14;
+  const borderRadius = compact ? 8 : 11;
+  const paddingLeft = compact ? 10 : 14;
+
   return (
     <Select value={value} onValueChange={(val) => onValueChange(val || "")} disabled={disabled}>
       <SelectTrigger
         style={{
           width: "100%",
-          height: 42,
-          borderRadius: 10,
-          border: `1.5px solid ${error ? "#dc2626" : T.border}`,
-          backgroundColor: disabled ? T.pageBg : "#fff",
+          height,
+          borderRadius,
+          border: error ? "1.5px solid #dc2626" : `1px solid ${T.borderLight}`,
+          backgroundColor: disabled ? T.blueFaint : "#fff",
           color: value ? T.textDark : T.textMuted,
-          fontSize: 14,
+          fontSize,
           fontWeight: 600,
-          paddingLeft: 14,
+          paddingLeft,
           paddingRight: 12,
           transition: "all 0.15s ease-in-out",
-          boxShadow: error ? "0 0 0 3px rgba(220, 38, 38, 0.1)" : "none",
+          boxShadow: error
+            ? "0 0 0 3px rgba(220, 38, 38, 0.1)"
+            : compact ? "none" : `${T.shadowSm}, inset 0 1px 0 rgba(255,255,255,0.65)`,
         }}
-        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+        className={compact
+          ? "hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-1 focus:ring-[#638b4b]/20"
+          : "transition-all duration-150 ease-in-out hover:border-[#c8d4bb] hover:shadow-md focus:border-[#94c278] focus:ring-2 focus:ring-[#94c278]/25 data-[state=open]:border-[#94c278] data-[state=open]:shadow-md"
+        }
       >
         <SelectValue placeholder={placeholder}>
           {value ? options.find((o) => o.value === value)?.label || value : placeholder}
@@ -53,12 +65,12 @@ export function TransferStyledSelect({
       </SelectTrigger>
       <SelectContent
         style={{
-          borderRadius: 12,
+          borderRadius: compact ? 10 : 12,
           border: `1px solid ${T.border}`,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
           backgroundColor: "#fff",
-          padding: 6,
-          maxHeight: 300,
+          padding: compact ? 4 : 6,
+          maxHeight: compact ? 200 : 300,
           zIndex: 99999,
         }}
       >
@@ -67,15 +79,18 @@ export function TransferStyledSelect({
             key={option.value}
             value={option.value}
             style={{
-              borderRadius: 8,
-              padding: "10px 14px",
-              fontSize: 14,
+              borderRadius: compact ? 6 : 8,
+              padding: compact ? "6px 10px" : "10px 14px",
+              fontSize,
               fontWeight: 400,
               color: T.textDark,
               cursor: "pointer",
               transition: "all 0.1s ease-in-out",
             }}
-            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+            className={compact
+              ? "hover:bg-[#f2f8ee] focus:bg-[#f2f8ee]"
+              : "hover:bg-[#ddecd4] hover:text-[#3b5229] focus:bg-[#ddecd4] focus:text-[#3b5229] data-[state=checked]:bg-[#638b4b] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+            }
           >
             {option.label}
           </SelectItem>

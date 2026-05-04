@@ -20,6 +20,7 @@ import {
 } from "./transferLeadParity";
 import { runDncLookup } from "@/lib/dncLookupApi";
 import { runTransferCheck, TRANSFER_CHECK_CLEAR_USER_MESSAGE } from "@/lib/transferCheckApi";
+import { applyQueueOutcomeFromCallFix, markQueueClaimed } from "@/lib/queue/queueClient";
 
 type TransferCheckApiResponse = {
   data?: Record<string, unknown>;
@@ -395,6 +396,17 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
       // Standard claim workflow
       const found = await findOrCreateVerificationSession(supabase, lead, selection);
       await applyClaimSelectionToSession(supabase, found.sessionId, found.submissionId, selection);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        await markQueueClaimed(supabase, {
+          leadRowId: lead.rowId,
+          submissionId: lead.submissionId,
+          actorUserId: session.user.id,
+          actorRole: selection.workflowType === "licensed" ? "la" : "ba",
+        });
+      }
 
       // Fetch center info inline to ensure it's available
       let currentCenterInfo = { name: null as string | null, slackChannel: null as string | null };
@@ -801,6 +813,7 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
             sessionId={sessionId}
             showProgressSummary={false}
             onProgressChange={setVerificationProgress}
+            leadRowId={lead.rowId}
             submissionId={lead.submissionId}
             leadName={lead.leadName}
             callCenterId={lead.callCenterId}
@@ -845,6 +858,18 @@ export default function TransferLeadWorkspacePage({ leadRowId }: Props) {
               leadVendor={lead.source}
               callCenterId={lead.callCenterId}
               sessionUserId={sessionUserId}
+              onQueueOutcome={async (outcome) => {
+                const {
+                  data: { session },
+                } = await supabase.auth.getSession();
+                if (!session?.user?.id) return;
+                await applyQueueOutcomeFromCallFix(supabase, {
+                  leadRowId: lead.rowId,
+                  submissionId: lead.submissionId,
+                  actorUserId: session.user.id,
+                  outcome,
+                });
+              }}
             />
             <TransferLeadSsnPolicyCards leadRowId={lead.rowId} supabase={supabase} />
           </div>

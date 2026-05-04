@@ -73,6 +73,7 @@ type Props = {
   callCenterId?: string | null;
   /** When set, empty "Agent who took the call" / "Licensed Agent Account" picklists default like TransferLeadClaimModal. */
   sessionUserId?: string | null;
+  onQueueOutcome?: (outcome: "completed" | "dropped_callback") => Promise<void> | void;
 };
 
 const mapStatusToSheetValue = (userSelectedStatus: string) => {
@@ -122,6 +123,7 @@ export default function TransferLeadCallFixForm({
   leadVendor,
   callCenterId = null,
   sessionUserId = null,
+  onQueueOutcome,
 }: Props) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
@@ -873,6 +875,11 @@ export default function TransferLeadCallFixForm({
           },
           callCenterId: callCenterId,
         });
+
+      if (onQueueOutcome) {
+        const outcome = finalStatus === INCOMPLETE_TRANSFER_STAGE ? "dropped_callback" : "completed";
+        await onQueueOutcome(outcome);
+      }
 
       setToast({
         message: verifiedSyncWarning
