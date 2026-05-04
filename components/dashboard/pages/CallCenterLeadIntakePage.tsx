@@ -1322,42 +1322,20 @@ export default function CallCenterLeadIntakePage({
       currentRole === "sales_agent_licensed" ||
       currentRole === "sales_agent_unlicensed";
 
-    let query;
-    // For BA/LA roles, queue assignment is the source of truth.
-    if (currentRole === "sales_agent_licensed" || currentRole === "sales_agent_unlicensed") {
-      const assigneeKey = currentRole === "sales_agent_licensed" ? "assigned_la_id" : "assigned_ba_id";
-      const { data: assignedQueueRows } = await supabase
-        .from("lead_queue_items")
-        .select("lead_id")
-        .eq("status", "active")
-        .or(`${assigneeKey}.eq.${session.user.id},current_owner_user_id.eq.${session.user.id}`)
-        .not("lead_id", "is", null);
-      const assignedLeadIds = Array.from(
-        new Set(
-          (assignedQueueRows ?? [])
-            .map((r) => (r.lead_id ? String(r.lead_id) : ""))
-            .filter(Boolean),
-        ),
-      );
-      query =
-        assignedLeadIds.length > 0
-          ? baseQuery.in("id", assignedLeadIds).eq("is_draft", false)
+    const scopedQuery = canViewAll
+      ? baseQuery
+      : canViewCallCenter && userProfile?.call_center_id
+        ? baseQuery.eq("call_center_id", userProfile.call_center_id)
+        : canViewOwn
+          ? baseQuery.eq("submitted_by", session.user.id)
           : baseQuery.eq("id", "00000000-0000-0000-0000-000000000000");
-    } else {
-      const scopedQuery = canViewAll
-        ? baseQuery
-        : canViewCallCenter && userProfile?.call_center_id
-          ? baseQuery.eq("call_center_id", userProfile.call_center_id)
-          : canViewOwn
-            ? baseQuery.eq("submitted_by", session.user.id)
-            : baseQuery.eq("id", "00000000-0000-0000-0000-000000000000");
-      query = hideDraftsForSalesRole ? scopedQuery.eq("is_draft", false) : scopedQuery;
-    }
+    const query = hideDraftsForSalesRole ? scopedQuery.eq("is_draft", false) : scopedQuery;
 
     const { data, error } = await query;
 
     if (error) {
       setToast({ message: error.message || "Failed to load leads", type: "error" });
+      setIsLoading(false);
       return;
     }
 
@@ -1423,23 +1401,32 @@ export default function CallCenterLeadIntakePage({
     const leadIds = (data || [])
       .map((lead: Record<string, unknown>) => (typeof lead.id === "string" ? lead.id : String(lead.id ?? "")))
       .filter(Boolean);
+    /** PostgREST URL length limits: avoid 400 on huge `.in()` lists. */
+    const LEAD_QUEUE_IN_CHUNK = 120;
     if (leadIds.length > 0) {
-      const { data: queueRows } = await supabase
-        .from("lead_queue_items")
-        .select("lead_id, queue_type, status, assigned_ba_id, assigned_la_id, current_owner_user_id, updated_at")
-        .in("lead_id", leadIds)
-        .eq("status", "active")
-        .order("updated_at", { ascending: false });
-      for (const row of queueRows ?? []) {
-        const key = String(row.lead_id ?? "");
-        if (!key || queueByLeadId.has(key)) continue;
-        queueByLeadId.set(key, {
-          queue_type: row.queue_type,
-          status: row.status,
-          assigned_ba_id: row.assigned_ba_id,
-          assigned_la_id: row.assigned_la_id,
-          current_owner_user_id: row.current_owner_user_id,
-        });
+      for (let i = 0; i < leadIds.length; i += LEAD_QUEUE_IN_CHUNK) {
+        const chunk = leadIds.slice(i, i + LEAD_QUEUE_IN_CHUNK);
+        const { data: queueRows, error: queueRowsError } = await supabase
+          .from("lead_queue_items")
+          .select("lead_id, queue_type, status, assigned_ba_id, assigned_la_id, current_owner_user_id, updated_at")
+          .in("lead_id", chunk)
+          .eq("status", "active")
+          .order("updated_at", { ascending: false });
+        if (queueRowsError) {
+          console.warn("[CallCenterLeadIntake] lead_queue_items chunk failed:", queueRowsError.message);
+          continue;
+        }
+        for (const row of queueRows ?? []) {
+          const key = String(row.lead_id ?? "");
+          if (!key || queueByLeadId.has(key)) continue;
+          queueByLeadId.set(key, {
+            queue_type: row.queue_type,
+            status: row.status,
+            assigned_ba_id: row.assigned_ba_id,
+            assigned_la_id: row.assigned_la_id,
+            current_owner_user_id: row.current_owner_user_id,
+          });
+        }
       }
     }
 
@@ -1490,18 +1477,8 @@ export default function CallCenterLeadIntakePage({
       if (lead.hasVerificationSession) return true;
       return lead.stage === "Transfer API";
     });
-    const queueScoped =
-      currentRole === "sales_agent_licensed"
-        ? filteredByBusinessRules.filter(
-            (lead) => lead.queueAssignedLaId === session.user.id || lead.queueCurrentOwnerId === session.user.id,
-          )
-        : currentRole === "sales_agent_unlicensed"
-          ? filteredByBusinessRules.filter(
-              (lead) => lead.queueAssignedBaId === session.user.id || lead.queueCurrentOwnerId === session.user.id,
-            )
-          : filteredByBusinessRules;
 
-    setLeads(queueScoped);
+    setLeads(filteredByBusinessRules);
     setIsLoading(false);
   };
 
