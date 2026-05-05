@@ -2,9 +2,27 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/**
+ * Browsers send `Access-Control-Request-Headers` on OPTIONS with every header the client will use.
+ * If we omit any of them, preflight fails and DevTools shows a generic "CORS error" (often masking 4xx/5xx).
+ */
+function corsHeadersForPreflight(req: Request): HeadersInit {
+  const requested = req.headers.get("access-control-request-headers");
+  const allowHeaders =
+    requested ??
+    "authorization, x-client-info, apikey, content-type, accept, prefer, accept-profile, content-profile";
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": allowHeaders,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, accept, prefer, accept-profile, content-profile, baggage, sentry-trace",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -269,7 +287,7 @@ const lookupBlacklistAlliance = async (phone: string): Promise<ProviderResult> =
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeadersForPreflight(req) });
   }
 
   if (req.method !== "POST") {

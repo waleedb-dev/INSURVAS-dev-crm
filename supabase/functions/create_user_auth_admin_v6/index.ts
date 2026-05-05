@@ -230,6 +230,26 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Best-effort audit record (do not fail user creation if this insert fails).
+    const { data: callerProfile } = await adminClient
+      .from("users")
+      .select("email")
+      .eq("id", callerId)
+      .maybeSingle();
+
+    await adminClient.from("user_creation_audit").insert({
+      user_id: userId,
+      email: body.email,
+      temp_password: tempPassword,
+      role_key: roleKey,
+      role_id: body.role_id,
+      full_name: body.full_name,
+      created_by: callerId,
+      created_by_email: callerProfile?.email || null,
+      welcome_email_to: body.welcome_email_to || null,
+      unlicensed_sales_subtype: unlicensedSubtype,
+    });
+
     const emailResult = await sendWelcomeEmailViaMailtrap({
       toEmail: body.welcome_email_to || body.email,
       fullName: body.full_name,
