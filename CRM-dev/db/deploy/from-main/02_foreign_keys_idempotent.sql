@@ -1,0 +1,711 @@
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agencies_imo_id_fkey') then
+    alter table public.agencies add constraint agencies_imo_id_fkey FOREIGN KEY (imo_id) REFERENCES imos(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agent_carrier_states_agent_id_fkey') then
+    alter table public.agent_carrier_states add constraint agent_carrier_states_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agent_carrier_states_state_code_fkey') then
+    alter table public.agent_carrier_states add constraint agent_carrier_states_state_code_fkey FOREIGN KEY (state_code) REFERENCES states(code) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agent_carrier_states_carrier_id_fkey') then
+    alter table public.agent_carrier_states add constraint agent_carrier_states_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agent_carriers_agent_id_fkey') then
+    alter table public.agent_carriers add constraint agent_carriers_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agent_carriers_carrier_id_fkey') then
+    alter table public.agent_carriers add constraint agent_carriers_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agent_states_state_code_fkey') then
+    alter table public.agent_states add constraint agent_states_state_code_fkey FOREIGN KEY (state_code) REFERENCES states(code) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agent_states_agent_id_fkey') then
+    alter table public.agent_states add constraint agent_states_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agents_agency_id_fkey') then
+    alter table public.agents add constraint agents_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agents_user_id_fkey') then
+    alter table public.agents add constraint agents_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'agents_upline_id_fkey') then
+    alter table public.agents add constraint agents_upline_id_fkey FOREIGN KEY (upline_id) REFERENCES agents(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'app_fix_banking_updates_lead_id_fkey') then
+    alter table public.app_fix_banking_updates add constraint app_fix_banking_updates_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'app_fix_banking_updates_task_id_fkey') then
+    alter table public.app_fix_banking_updates add constraint app_fix_banking_updates_task_id_fkey FOREIGN KEY (task_id) REFERENCES app_fix_tasks(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'app_fix_carrier_requirements_lead_id_fkey') then
+    alter table public.app_fix_carrier_requirements add constraint app_fix_carrier_requirements_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'app_fix_carrier_requirements_task_id_fkey') then
+    alter table public.app_fix_carrier_requirements add constraint app_fix_carrier_requirements_task_id_fkey FOREIGN KEY (task_id) REFERENCES app_fix_tasks(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'app_fix_tasks_lead_id_fkey') then
+    alter table public.app_fix_tasks add constraint app_fix_tasks_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'app_fix_tasks_assigned_to_fkey') then
+    alter table public.app_fix_tasks add constraint app_fix_tasks_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'call_results_lead_id_fkey') then
+    alter table public.call_results add constraint call_results_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'call_results_user_id_fkey') then
+    alter table public.call_results add constraint call_results_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'call_update_logs_agent_id_fkey') then
+    alter table public.call_update_logs add constraint call_update_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'call_update_logs_lead_id_fkey') then
+    alter table public.call_update_logs add constraint call_update_logs_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'callback_requests_completed_by_fkey') then
+    alter table public.callback_requests add constraint callback_requests_completed_by_fkey FOREIGN KEY (completed_by) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'callback_requests_requested_by_fkey') then
+    alter table public.callback_requests add constraint callback_requests_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'carrier_info_carrier_id_fkey') then
+    alter table public.carrier_info add constraint carrier_info_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'carrier_products_product_id_fkey') then
+    alter table public.carrier_products add constraint carrier_products_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'carrier_products_carrier_id_fkey') then
+    alter table public.carrier_products add constraint carrier_products_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'center_thresholds_created_by_fkey') then
+    alter table public.center_thresholds add constraint center_thresholds_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'center_thresholds_updated_by_fkey') then
+    alter table public.center_thresholds add constraint center_thresholds_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'commissions_policy_number_fkey') then
+    alter table public.commissions add constraint commissions_policy_number_fkey FOREIGN KEY (policy_number) REFERENCES policies(policy_number) ON UPDATE CASCADE ON DELETE RESTRICT;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'daily_deal_flow_retention_agent_id_fkey') then
+    alter table public.daily_deal_flow add constraint daily_deal_flow_retention_agent_id_fkey FOREIGN KEY (retention_agent_id) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'daily_deal_flow_call_center_id_fkey') then
+    alter table public.daily_deal_flow add constraint daily_deal_flow_call_center_id_fkey FOREIGN KEY (call_center_id) REFERENCES call_centers(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'departments_publisher_manager_user_id_fkey') then
+    alter table public.departments add constraint departments_publisher_manager_user_id_fkey FOREIGN KEY (publisher_manager_user_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'disposition_events_created_by_fkey') then
+    alter table public.disposition_events add constraint disposition_events_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'disposition_events_lead_id_fkey') then
+    alter table public.disposition_events add constraint disposition_events_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'disposition_flow_nodes_flow_id_fkey') then
+    alter table public.disposition_flow_nodes add constraint disposition_flow_nodes_flow_id_fkey FOREIGN KEY (flow_id) REFERENCES disposition_flows(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'disposition_flow_options_node_id_fkey') then
+    alter table public.disposition_flow_options add constraint disposition_flow_options_node_id_fkey FOREIGN KEY (node_id) REFERENCES disposition_flow_nodes(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_notes_created_by_fkey') then
+    alter table public.lead_notes add constraint lead_notes_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_notes_lead_id_fkey') then
+    alter table public.lead_notes add constraint lead_notes_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_comments_author_user_id_fkey') then
+    alter table public.lead_queue_comments add constraint lead_queue_comments_author_user_id_fkey FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_comments_queue_item_id_fkey') then
+    alter table public.lead_queue_comments add constraint lead_queue_comments_queue_item_id_fkey FOREIGN KEY (queue_item_id) REFERENCES lead_queue_items(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_events_queue_item_id_fkey') then
+    alter table public.lead_queue_events add constraint lead_queue_events_queue_item_id_fkey FOREIGN KEY (queue_item_id) REFERENCES lead_queue_items(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_events_actor_user_id_fkey') then
+    alter table public.lead_queue_events add constraint lead_queue_events_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_ddf_id_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_ddf_id_fkey FOREIGN KEY (ddf_id) REFERENCES daily_deal_flow(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_current_owner_user_id_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_current_owner_user_id_fkey FOREIGN KEY (current_owner_user_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_call_center_id_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_call_center_id_fkey FOREIGN KEY (call_center_id) REFERENCES call_centers(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_ba_ready_by_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_ba_ready_by_fkey FOREIGN KEY (ba_ready_by) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_assigned_la_id_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_assigned_la_id_fkey FOREIGN KEY (assigned_la_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_assigned_ba_id_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_assigned_ba_id_fkey FOREIGN KEY (assigned_ba_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_lead_id_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_verification_session_id_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_verification_session_id_fkey FOREIGN KEY (verification_session_id) REFERENCES verification_sessions(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_manager_assigned_by_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_manager_assigned_by_fkey FOREIGN KEY (manager_assigned_by) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_last_attempt_agent_id_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_last_attempt_agent_id_fkey FOREIGN KEY (last_attempt_agent_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'lead_queue_items_la_ready_by_fkey') then
+    alter table public.lead_queue_items add constraint lead_queue_items_la_ready_by_fkey FOREIGN KEY (la_ready_by) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'leads_pipeline_id_fkey') then
+    alter table public.leads add constraint leads_pipeline_id_fkey FOREIGN KEY (pipeline_id) REFERENCES pipelines(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'leads_call_center_id_fkey') then
+    alter table public.leads add constraint leads_call_center_id_fkey FOREIGN KEY (call_center_id) REFERENCES call_centers(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'leads_stage_id_fkey') then
+    alter table public.leads add constraint leads_stage_id_fkey FOREIGN KEY (stage_id) REFERENCES pipeline_stages(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'leads_submitted_by_fkey') then
+    alter table public.leads add constraint leads_submitted_by_fkey FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'pipeline_stages_pipeline_id_fkey') then
+    alter table public.pipeline_stages add constraint pipeline_stages_pipeline_id_fkey FOREIGN KEY (pipeline_id) REFERENCES pipelines(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'policies_lead_id_fkey') then
+    alter table public.policies add constraint policies_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'role_permissions_permission_id_fkey') then
+    alter table public.role_permissions add constraint role_permissions_permission_id_fkey FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'role_permissions_role_id_fkey') then
+    alter table public.role_permissions add constraint role_permissions_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'stage_disposition_map_stage_id_fkey') then
+    alter table public.stage_disposition_map add constraint stage_disposition_map_stage_id_fkey FOREIGN KEY (stage_id) REFERENCES pipeline_stages(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'ticket_comments_ticket_id_fkey') then
+    alter table public.ticket_comments add constraint ticket_comments_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'ticket_comments_user_id_fkey') then
+    alter table public.ticket_comments add constraint ticket_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'ticket_followers_user_id_fkey') then
+    alter table public.ticket_followers add constraint ticket_followers_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'ticket_followers_ticket_id_fkey') then
+    alter table public.ticket_followers add constraint ticket_followers_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'ticket_routing_rules_assignee_user_id_fkey') then
+    alter table public.ticket_routing_rules add constraint ticket_routing_rules_assignee_user_id_fkey FOREIGN KEY (assignee_user_id) REFERENCES users(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tickets_publisher_id_fkey') then
+    alter table public.tickets add constraint tickets_publisher_id_fkey FOREIGN KEY (publisher_id) REFERENCES users(id) ON DELETE RESTRICT;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tickets_lead_id_fkey') then
+    alter table public.tickets add constraint tickets_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE RESTRICT;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tickets_assignee_id_fkey') then
+    alter table public.tickets add constraint tickets_assignee_id_fkey FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tickets_call_center_id_fkey') then
+    alter table public.tickets add constraint tickets_call_center_id_fkey FOREIGN KEY (call_center_id) REFERENCES call_centers(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'upline_carrier_states_state_code_fkey') then
+    alter table public.upline_carrier_states add constraint upline_carrier_states_state_code_fkey FOREIGN KEY (state_code) REFERENCES states(code) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'upline_carrier_states_carrier_id_fkey') then
+    alter table public.upline_carrier_states add constraint upline_carrier_states_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'user_creation_audit_user_id_fkey') then
+    alter table public.user_creation_audit add constraint user_creation_audit_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'user_creation_audit_created_by_fkey') then
+    alter table public.user_creation_audit add constraint user_creation_audit_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'user_creation_audit_role_id_fkey') then
+    alter table public.user_creation_audit add constraint user_creation_audit_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'user_permissions_permission_id_fkey') then
+    alter table public.user_permissions add constraint user_permissions_permission_id_fkey FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'user_permissions_user_id_fkey') then
+    alter table public.user_permissions add constraint user_permissions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'users_role_id_fkey') then
+    alter table public.users add constraint users_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'users_manager_user_id_fkey') then
+    alter table public.users add constraint users_manager_user_id_fkey FOREIGN KEY (manager_user_id) REFERENCES users(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'users_id_fkey') then
+    alter table public.users add constraint users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'users_department_id_fkey') then
+    alter table public.users add constraint users_department_id_fkey FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'users_call_center_id_fkey') then
+    alter table public.users add constraint users_call_center_id_fkey FOREIGN KEY (call_center_id) REFERENCES call_centers(id) ON DELETE SET NULL;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'verification_items_session_id_fkey') then
+    alter table public.verification_items add constraint verification_items_session_id_fkey FOREIGN KEY (session_id) REFERENCES verification_sessions(id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'verification_items_verified_by_fkey') then
+    alter table public.verification_items add constraint verification_items_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'verification_sessions_submission_id_fkey') then
+    alter table public.verification_sessions add constraint verification_sessions_submission_id_fkey FOREIGN KEY (submission_id) REFERENCES leads(submission_id) ON DELETE CASCADE;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'verification_sessions_retention_agent_id_fkey') then
+    alter table public.verification_sessions add constraint verification_sessions_retention_agent_id_fkey FOREIGN KEY (retention_agent_id) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'verification_sessions_licensed_agent_id_fkey') then
+    alter table public.verification_sessions add constraint verification_sessions_licensed_agent_id_fkey FOREIGN KEY (licensed_agent_id) REFERENCES auth.users(id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'verification_sessions_buffer_agent_id_fkey') then
+    alter table public.verification_sessions add constraint verification_sessions_buffer_agent_id_fkey FOREIGN KEY (buffer_agent_id) REFERENCES auth.users(id);
+  end if;
+end
+$$;
