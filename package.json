@@ -6,7 +6,9 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "edge-secrets:dry-run": "node scripts/sync-dev-edge-secrets.mjs --dry-run",
+    "edge-secrets:push": "node scripts/sync-dev-edge-secrets.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

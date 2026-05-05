@@ -125,9 +125,9 @@ CREATE POLICY tickets_insert_publishers ON public.tickets AS PERMISSIVE FOR INSE
   WHERE ((u.id = auth.uid()) AND (r.key = 'system_admin'::text)))) OR (EXISTS ( SELECT 1
    FROM (users u
      JOIN roles r ON ((r.id = u.role_id)))
-  WHERE ((u.id = auth.uid()) AND (r.key = 'call_center_admin'::text) AND (u.call_center_id IS NOT NULL) AND (((tickets.lead_id IS NOT NULL) AND (EXISTS ( SELECT 1
+ WHERE ((u.id = auth.uid()) AND (r.key = 'call_center_admin'::text) AND (u.call_center_id IS NOT NULL) AND (((lead_id IS NOT NULL) AND (EXISTS ( SELECT 1
            FROM leads l
-          WHERE ((l.id = tickets.lead_id) AND (l.call_center_id = u.call_center_id))))) OR ((tickets.lead_id IS NULL) AND (u.call_center_id IS NOT NULL) AND (u.call_center_id = u.call_center_id))))))))));
+          WHERE ((l.id = lead_id) AND (l.call_center_id = u.call_center_id))))) OR ((lead_id IS NULL) AND (u.call_center_id IS NOT NULL) AND (u.call_center_id = u.call_center_id))))))))));
 CREATE POLICY tickets_select_participants ON public.tickets AS PERMISSIVE FOR SELECT TO authenticated USING (ticket_user_has_access(id, auth.uid()));
 CREATE POLICY tickets_update_admin ON public.tickets AS PERMISSIVE FOR UPDATE TO authenticated USING (has_role('system_admin'::text)) WITH CHECK (true);
 CREATE POLICY tickets_update_assignee ON public.tickets AS PERMISSIVE FOR UPDATE TO authenticated USING ((assignee_id = auth.uid())) WITH CHECK (true);

@@ -132,6 +132,10 @@ as $$
   select u.call_center_id from public.users u where u.id = p_user_id;
 $$;
 
+grant select, insert, update on table public.users to authenticated;
+grant select on table public.roles to authenticated;
+grant select, update on table public.call_centers to authenticated;
+
 grant execute on function public.get_user_call_center_id(uuid) to authenticated;
 
 -- 7) RLS and policies
