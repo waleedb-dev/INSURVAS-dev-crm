@@ -33,6 +33,7 @@ import {
   BarChart3,
   MonitorUp,
   Link2,
+  UserPlus,
 } from "lucide-react";
 import { callCenterNameInitials, displayCallCenterName } from "@/lib/callCenterBranding";
 import GlobalQueueWidget from "@/components/dashboard/GlobalQueueWidget";
@@ -52,7 +53,7 @@ export type DashPage =
   | "ghl-data-import"
   | "live-monitoring"
   | "users-access" | "pipeline-management"
-  | "carrier-management" | "bpo-centres"
+  | "carrier-management" | "bpo-centres" | "bpo-centre-onboarding"
   | "commissions" | "policies" | "carrier-updates"
   | "imo-management" | "upline-carrier-states" | "imo-settings"
   | "product-guide"
@@ -146,6 +147,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "users-access", label: "Users & Access", icon: <Users size={22} strokeWidth={1.8} /> },
   { id: "pipeline-management", label: "Pipelines", icon: <Layers size={22} strokeWidth={1.8} /> },
   { id: "bpo-centres", label: "BPO Centres", icon: <Headphones size={22} strokeWidth={1.8} /> },
+  { id: "bpo-centre-onboarding", label: "BPO Centre Leads", icon: <UserPlus size={22} strokeWidth={1.8} /> },
   { id: "product-guide", label: "Product Guide", icon: <BookOpen size={22} strokeWidth={1.8} /> },
   {
     id: "imo-settings",
@@ -186,6 +188,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "pipeline-management": "Pipelines",
   "carrier-management": "Carriers",
   "bpo-centres": "BPO Centres",
+  "bpo-centre-onboarding": "BPO Centre Leads",
   commissions: "Commissions",
   policies: "Policies",
   "carrier-updates": "Carrier Updates",

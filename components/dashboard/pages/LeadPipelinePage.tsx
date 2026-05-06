@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { T } from "@/lib/theme";
 import { Avatar, EmptyState } from "@/components/ui";
-import { Card } from "@/components/ui/card";
 import { Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getCurrentUserPrimaryRole } from "@/lib/auth/user-role";
@@ -18,6 +17,7 @@ import {
 import LeadViewComponent from "./LeadViewComponent";
 import CreateLeadModal from "./CreateLeadModal";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
+import { PipelineStatGrid, type PipelineStat } from "@/components/dashboard/pages/pipeline/PipelineChrome";
 
 type Stage = string;
 
@@ -47,6 +47,21 @@ interface Lead {
 }
 
 type LeadRow = Record<string, unknown>;
+type LeadCreationInput = {
+  name: string;
+  phone: string;
+  premium: number;
+  type: string;
+  source: string;
+  pipeline: string;
+  stage: string;
+};
+type RangeQuery = {
+  range: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: unknown[] | null; error: { message?: string } | null }>;
+};
 
 type LeadNoteRow = {
   id: string;
@@ -211,48 +226,6 @@ function LoadingSpinner({ size = 40, label = "Loading..." }: { size?: number; la
         }
       `}</style>
     </div>
-  );
-}
-
-function StatSkeleton() {
-  return (
-    <Card
-      style={{
-        borderRadius: 16,
-        border: `1px solid ${T.border}`,
-        borderBottom: "4px solid #DCEBDC",
-        background: T.cardBg,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
-        padding: "20px 24px",
-        minHeight: 100,
-        display: "flex",
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 16,
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
-        <div style={{ width: 80, height: 10, borderRadius: 4, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
-        <div style={{ width: 60, height: 26, borderRadius: 6, background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite" }} />
-      </div>
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 12,
-          background: "linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%)",
-          backgroundSize: "200% 100%",
-          animation: "shimmer 1.5s infinite",
-        }}
-      />
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
-    </Card>
   );
 }
 
@@ -564,7 +537,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
 
     const PAGE_SIZE = 1000;
     const fetchAllRows = async (
-      makeBaseQuery: () => any,
+      makeBaseQuery: () => RangeQuery,
     ): Promise<{ data: Record<string, unknown>[] | null; error: { message?: string } | null }> => {
       const all: Record<string, unknown>[] = [];
       for (let offset = 0; ; offset += PAGE_SIZE) {
@@ -585,7 +558,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         return;
       }
       const { data, error } = await fetchAllRows(() => {
-        let q: any = supabase
+        let q = supabase
           .from("leads")
           .select(selectCols)
           .eq("pipeline_id", transferPipelineId)
@@ -622,7 +595,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
       return;
     }
     const { data, error } = await fetchAllRows(() => {
-      let q: any = supabase
+      let q = supabase
         .from("leads")
         .select(selectCols)
         .eq("pipeline_id", selectedPipelineId)
@@ -1065,7 +1038,6 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   };
 
   const [showAddLead, setShowAddLead] = useState(false);
-  const sourceOptions = Array.from(new Set(leads.map((lead) => lead.source).filter(Boolean)));
 
   const renderKanbanBoard = () => (
     <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
@@ -1349,7 +1321,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   );
 
   if (showAddLead) {
-    return <LeadViewComponent isCreation onBack={() => setShowAddLead(false)} onSubmit={(newLead: any) => {
+    return <LeadViewComponent isCreation onBack={() => setShowAddLead(false)} onSubmit={(newLead: LeadCreationInput) => {
       const mappedLead: Lead = {
         id: `P-0${leads.length + 1}`,
         rowUuid: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `temp-${Date.now()}`,
@@ -1362,7 +1334,7 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
         agent: "SS",
         agentColor: "#638b4b",
         daysInStage: 0,
-        stage: newLead.stage as Stage,
+        stage: newLead.stage,
         stageId: null,
         callCenterId: null,
       };
@@ -1374,89 +1346,28 @@ export default function LeadPipelinePage({ canUpdateActions = true }: { canUpdat
   const totalPremium = filteredLeads.reduce((s, l) => s + l.premium, 0);
   const avgPremium = filteredLeads.length ? totalPremium / filteredLeads.length : 0;
   const uniqueAgents = new Set(filteredLeads.map((l) => l.agent)).size;
+  const pipelineStats: PipelineStat[] = [
+    { label: "Total Opportunities", value: filteredLeads.length.toString(), color: "#233217", icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      ) },
+    { label: "Total Value", value: `$${totalPremium.toLocaleString()}`, color: "#233217", icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      ) },
+    { label: "Average Value", value: `$${Math.round(avgPremium).toLocaleString()}`, color: "#233217", icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      ) },
+    { label: "Active Owners", value: uniqueAgents.toString(), color: "#233217", icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      ) },
+  ];
 
   const stageOptions = [{ value: "All", label: "All Stages" }, ...stages.map(s => ({ value: String(s.id), label: s.name }))];
   const typeOptions = [{ value: "All", label: "All Types" }, ...Object.keys(TYPE_COLORS).map(t => ({ value: t, label: t }))];
   const agentOptions = [{ value: "All", label: "All Owners" }, ...Array.from(new Set(leads.map((l) => l.agent))).map(a => ({ value: a, label: a }))];
-  const sourceFilterOptions = [{ value: "All", label: "All Sources" }, ...sourceOptions.map(s => ({ value: s, label: s }))];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, minWidth: 0, paddingBottom: 24, position: "relative" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 20, marginBottom: 24 }}>
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
-        ) : (
-          [
-            { label: "Total Opportunities", value: filteredLeads.length.toString(), color: "#233217", icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-              ) },
-            { label: "Total Value", value: `$${totalPremium.toLocaleString()}`, color: "#233217", icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              ) },
-            { label: "Average Value", value: `$${Math.round(avgPremium).toLocaleString()}`, color: "#233217", icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-              ) },
-            { label: "Active Owners", value: uniqueAgents.toString(), color: "#233217", icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              ) },
-          ].map(({ label, value, color, icon }, i) => (
-              <Card
-                key={label}
-                onMouseEnter={() => setHoveredStatIdx(i)}
-                onMouseLeave={() => setHoveredStatIdx(null)}
-                style={{
-                  borderRadius: 16,
-                  border: `1px solid ${T.border}`,
-                  borderBottom: `4px solid ${color}`,
-                  background: `linear-gradient(135deg, color-mix(in srgb, ${color} 20%, ${T.cardBg}) 0%, ${T.cardBg} 80%)`,
-                  boxShadow:
-                    hoveredStatIdx === i
-                      ? "0 14px 40px rgba(28, 32, 26, 0.08), 0 4px 14px rgba(28, 32, 26, 0.05)"
-                      : "0 4px 12px rgba(0,0,0,0.03)",
-                  transform: hoveredStatIdx === i ? "translateY(-3px)" : "translateY(0)",
-                  transition:
-                    "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
-                  padding: "20px 24px",
-                  minHeight: 100,
-                  display: "flex",
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 16,
-                  cursor: "default",
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#233217", letterSpacing: "0.45px", textTransform: "uppercase", lineHeight: 1.25 }}>{label}</span>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: color, lineHeight: 1.05, wordBreak: "break-all" }}>
-                    {value}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    color,
-                    backgroundColor:
-                      hoveredStatIdx === i
-                        ? `color-mix(in srgb, ${color} 24%, transparent)`
-                        : `color-mix(in srgb, ${color} 15%, transparent)`,
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    transition:
-                      "background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
-                    transform: hoveredStatIdx === i ? "scale(1.04)" : "scale(1)",
-                  }}
-                >
-                  {icon}
-                </div>
-              </Card>
-          ))
-        )}
-      </div>
+      <PipelineStatGrid loading={loading} stats={pipelineStats} hoveredIndex={hoveredStatIdx} onHoverIndexChange={setHoveredStatIdx} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 14 }}>
         <div

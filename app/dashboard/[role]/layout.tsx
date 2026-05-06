@@ -33,6 +33,7 @@ const ALL_PAGES: DashPage[] = [
   "pipeline-management",
   "carrier-management",
   "bpo-centres",
+  "bpo-centre-onboarding",
   "commissions",
   "policies",
   "carrier-updates",
@@ -171,6 +172,8 @@ export default function RoleDashboardLayout({ children }: { children: React.Reac
   const activePage: DashPage = useMemo(() => {
     // Lead detail routes should highlight Lead Pipeline.
     if (pathname?.includes("/leads/")) return "lead-pipeline";
+    // BPO centre lead detail routes should highlight BPO Centre Leads.
+    if (pathname?.includes("/bpo-centre-leads/")) return "bpo-centre-onboarding";
     if (pathname?.includes("/bpo-kill-list/")) {
       const qp = searchParams.get("page");
       if (qp === "bpo-kill-list-retention") return "bpo-kill-list-retention";

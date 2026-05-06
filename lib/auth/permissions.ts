@@ -24,6 +24,7 @@ export const PERMISSION_KEYS = [
   "page.colombian_score_board.access",
   "page.colombian_center_performance.access",
   "page.colombian_thresholds.access",
+  "page.bpo_onboarding.access",
   "page.imo_management.access",
   "page.upline_carrier_states.access",
 ] as const;
@@ -142,7 +143,8 @@ export function canAccessPage(
     | "center-thresholds"
     | "colombian-score-board"
     | "colombian-center-performance"
-    | "colombian-thresholds",
+    | "colombian-thresholds"
+    | "bpo-centre-onboarding",
   role: RoleKey | null,
   permissionKeys: Set<PermissionKey>,
 ): boolean {
@@ -195,6 +197,10 @@ export function canAccessPage(
   }
 
   if (page === "carrier-management" || page === "bpo-centres" || page === "carrier-updates") {
+    return role === "system_admin";
+  }
+
+  if (page === "bpo-centre-onboarding") {
     return role === "system_admin";
   }
 
