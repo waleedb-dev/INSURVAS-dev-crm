@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-image.pngimport { Loader2, RefreshCw, Search, ChevronDown } from "lucide-react";
+import { Loader2, RefreshCw, Search, ChevronDown } from "lucide-react";
 import { T } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
