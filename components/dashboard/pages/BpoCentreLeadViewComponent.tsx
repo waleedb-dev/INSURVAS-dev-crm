@@ -26,6 +26,77 @@ import { LeadCard } from "@/components/dashboard/pages/LeadCard";
 
 const BRAND_GREEN = "#233217";
 
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select...",
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          minWidth: 140,
+          height: 38,
+          flexShrink: 0,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value ? T.textDark : T.textMuted,
+          fontSize: 13,
+          fontWeight: 500,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value ? options.find((o) => o.value === value)?.label || value : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 type CenterLeadStage =
   | "pre_onboarding"
   | "ready_for_onboarding_meeting"
@@ -1164,6 +1235,18 @@ export default function BpoCentreLeadViewComponent({
                     <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: T.textMuted, fontFamily: T.font }}>
                       Add team member
                     </p>
+                    {(() => {
+                      const memberKindOptions = [
+                        { value: "team_member", label: "Team member" },
+                        { value: "center_admin", label: "Centre administrator" },
+                      ];
+                      const positionOptions = [
+                        { value: "owner", label: "Owner" },
+                        { value: "manager", label: "Manager" },
+                        { value: "closer", label: "Closer" },
+                        { value: "custom", label: "Custom" },
+                      ];
+                      return (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
                       <input
                         placeholder="Full name"
@@ -1190,32 +1273,18 @@ export default function BpoCentreLeadViewComponent({
                         onFocus={fieldFocus}
                         onBlur={fieldBlur}
                       />
-                      <Select
+                      <StyledSelect
                         value={addMemberForm.member_kind}
                         onValueChange={(v) => setAddMemberForm((f) => ({ ...f, member_kind: v as "center_admin" | "team_member" }))}
-                      >
-                        <SelectTrigger className="!h-auto w-full" style={{ minHeight: 38, borderRadius: 8, border: `1px solid ${T.border}`, fontWeight: 700, fontSize: 13, paddingLeft: 12, paddingRight: 10, backgroundColor: "#fff", fontFamily: T.font }}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="team_member">Team member</SelectItem>
-                          <SelectItem value="center_admin">Centre administrator</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select
+                        options={memberKindOptions}
+                        placeholder="Team member"
+                      />
+                      <StyledSelect
                         value={addMemberForm.position_key}
                         onValueChange={(v) => setAddMemberForm((f) => ({ ...f, position_key: v as typeof addMemberForm.position_key }))}
-                      >
-                        <SelectTrigger className="!h-auto w-full" style={{ minHeight: 38, borderRadius: 8, border: `1px solid ${T.border}`, fontWeight: 700, fontSize: 13, paddingLeft: 12, paddingRight: 10, backgroundColor: "#fff", fontFamily: T.font }}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="owner">Owner</SelectItem>
-                          <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="closer">Closer</SelectItem>
-                          <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        options={positionOptions}
+                        placeholder="Closer"
+                      />
                       {addMemberForm.position_key === "custom" && (
                         <input
                           placeholder="Custom role label"
@@ -1227,6 +1296,8 @@ export default function BpoCentreLeadViewComponent({
                         />
                       )}
                     </div>
+                      );
+                    })()}
                     <button
                       type="button"
                       disabled={saving}

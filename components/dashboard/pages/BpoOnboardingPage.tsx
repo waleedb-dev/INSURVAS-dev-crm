@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/shadcn/table";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Loader2, Plus, Search, ShieldAlert, X } from "lucide-react";
+import { Loader2, Plus, Search, ShieldAlert } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -26,6 +26,77 @@ import { PipelineKanban, type PipelineKanbanColumn } from "@/components/dashboar
 import { useParams, useRouter } from "next/navigation";
 
 const BRAND_GREEN = "#233217";
+
+function StyledSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select...",
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        style={{
+          width: "100%",
+          minWidth: 140,
+          height: 38,
+          flexShrink: 0,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: value && value !== "all" ? T.textDark : T.textMuted,
+          fontSize: 13,
+          fontWeight: 500,
+          paddingLeft: 14,
+          paddingRight: 12,
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          zIndex: 1,
+        }}
+        className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+      >
+        <SelectValue placeholder={placeholder}>
+          {value && value !== "all" ? options.find((o) => o.value === value)?.label || value : placeholder}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+          zIndex: 50,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 type CenterLeadStage =
   | "pre_onboarding"
@@ -88,7 +159,6 @@ export default function BpoOnboardingPage() {
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [filterPanelExpanded, setFilterPanelExpanded] = useState(false);
   const [hoveredStatIdx, setHoveredStatIdx] = useState<number | null>(null);
-  const [stageFilter, setStageFilter] = useState<CenterLeadStage | "all">("all");
   const [intakeFilter, setIntakeFilter] = useState<"all" | "submitted" | "pending">("all");
   const [sourceFilter, setSourceFilter] = useState("");
 
@@ -175,11 +245,22 @@ export default function BpoOnboardingPage() {
       ).sort((a, b) => a.localeCompare(b)),
     [rows],
   );
+  const intakeOptions = useMemo(
+    () => [
+      { value: "all", label: "All intake" },
+      { value: "submitted", label: "Submitted" },
+      { value: "pending", label: "Pending" },
+    ],
+    [],
+  );
+  const sourceFilterOptions = useMemo(
+    () => [{ value: "all", label: "All sources" }, ...sourceOptions.map((s) => ({ value: s, label: s }))],
+    [sourceOptions],
+  );
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const filteredRows = useMemo(
     () =>
       rows.filter((row) => {
-        if (stageFilter !== "all" && row.stage !== stageFilter) return false;
         if (intakeFilter === "submitted" && !row.form_submitted_at) return false;
         if (intakeFilter === "pending" && row.form_submitted_at) return false;
         if (sourceFilter && row.opportunity_source !== sourceFilter) return false;
@@ -199,18 +280,20 @@ export default function BpoOnboardingPage() {
         }
         return true;
       }),
-    [intakeFilter, normalizedSearchQuery, rows, sourceFilter, stageFilter],
+    [intakeFilter, normalizedSearchQuery, rows, sourceFilter],
   );
   const activeFilterCount =
-    (stageFilter !== "all" ? 1 : 0) +
     (intakeFilter !== "all" ? 1 : 0) +
     (sourceFilter ? 1 : 0) +
     (normalizedSearchQuery ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
   const resetFilters = () => {
-    setStageFilter("all");
     setIntakeFilter("all");
     setSourceFilter("");
+  };
+  const clearAllFilters = () => {
+    resetFilters();
+    setSearchQuery("");
   };
   const stageTotals = useMemo(() => {
     const totals = new Map<CenterLeadStage, number>();
@@ -355,27 +438,6 @@ export default function BpoOnboardingPage() {
       <PipelineToolbar
         left={
           <>
-            <div
-              style={{
-                height: 38,
-                width: 206,
-                border: `1px solid ${T.border}`,
-                borderRadius: 10,
-                background: T.cardBg,
-                color: T.textDark,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0 14px",
-                fontSize: 14,
-                fontWeight: 500,
-                fontFamily: T.font,
-                boxShadow: "inset 0 0 0 1px rgba(35, 50, 23, 0.08)",
-              }}
-            >
-              BPO Centre Leads
-              <span style={{ color: T.textMuted }}>⌄</span>
-            </div>
             <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
               <Search size={16} style={{ position: "absolute", left: 12, pointerEvents: "none", zIndex: 1, color: T.textMuted }} />
               <input
@@ -468,67 +530,97 @@ export default function BpoOnboardingPage() {
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div className="grid gap-4 md:grid-cols-4">
+            {/* Match Lead Pipeline filter panel layout */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, alignItems: "end" }}>
               <div>
-                <label className="mb-2 block text-xs font-extrabold uppercase tracking-wide" style={{ color: BRAND_GREEN }}>Stage</label>
-                <Select value={stageFilter} onValueChange={(value) => setStageFilter(value as CenterLeadStage | "all")}>
-                  <SelectTrigger className="h-10 rounded-lg border text-sm font-semibold" style={{ borderColor: T.border, color: T.textDark }}>
-                    <SelectValue placeholder="All stages" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All stages</SelectItem>
-                    {STAGE_OPTIONS.map((stage) => (
-                      <SelectItem key={stage.key} value={stage.key}>{stage.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-extrabold uppercase tracking-wide" style={{ color: BRAND_GREEN }}>Intake</label>
-                <Select value={intakeFilter} onValueChange={(value) => setIntakeFilter(value as "all" | "submitted" | "pending")}>
-                  <SelectTrigger className="h-10 rounded-lg border text-sm font-semibold" style={{ borderColor: T.border, color: T.textDark }}>
-                    <SelectValue placeholder="All intake" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All intake</SelectItem>
-                    <SelectItem value="submitted">Submitted</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-extrabold uppercase tracking-wide" style={{ color: BRAND_GREEN }}>Source</label>
-                <Select value={sourceFilter || "all"} onValueChange={(value) => setSourceFilter(value && value !== "all" ? value : "")}>
-                  <SelectTrigger className="h-10 rounded-lg border text-sm font-semibold" style={{ borderColor: T.border, color: T.textDark }}>
-                    <SelectValue placeholder="All sources" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sources</SelectItem>
-                    {sourceOptions.map((source) => (
-                      <SelectItem key={source} value={source}>{source}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <div className="text-xs font-extrabold uppercase tracking-wide" style={{ color: BRAND_GREEN }}>Showing</div>
-                  <div className="mt-2 text-sm font-extrabold" style={{ color: T.textDark }}>
-                    {filteredRows.length} of {rows.length} centre leads
-                  </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: BRAND_GREEN, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                  Intake
                 </div>
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  disabled={!hasActiveFilters}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-bold disabled:opacity-50"
-                  style={{ borderColor: T.border, color: BRAND_GREEN, background: "#fff" }}
-                >
-                  <X size={15} />
-                  Reset
-                </button>
+                <StyledSelect
+                  value={intakeFilter}
+                  onValueChange={(val) => setIntakeFilter(val as "all" | "submitted" | "pending")}
+                  options={intakeOptions}
+                  placeholder="All intake"
+                />
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: BRAND_GREEN, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                  Source
+                </div>
+                <StyledSelect
+                  value={sourceFilter || "all"}
+                  onValueChange={(val) => setSourceFilter(val && val !== "all" ? val : "")}
+                  options={sourceFilterOptions}
+                  placeholder="All sources"
+                />
               </div>
             </div>
+
+            {hasActiveFilters && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {normalizedSearchQuery && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Search: {searchQuery.trim()}
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }}
+                        aria-label="Clear search"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  {intakeFilter !== "all" && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Intake: {intakeFilter}
+                      <button type="button" onClick={() => setIntakeFilter("all")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }} aria-label="Clear intake filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  {sourceFilter && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#DCEBDC", border: "1px solid #233217", fontSize: 12, fontWeight: 600, color: "#233217" }}>
+                      Source: {sourceFilter}
+                      <button type="button" onClick={() => setSourceFilter("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#233217" }} aria-label="Clear source filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: BRAND_GREEN,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: "4px 0",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.textDecoration = "underline";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.textDecoration = "none";
+                  }}
+                >
+                  Clear filters
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </PipelineToolbar>

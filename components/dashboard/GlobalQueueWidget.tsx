@@ -603,6 +603,90 @@ export default function GlobalQueueWidget() {
               </div>
             )}
 
+            {(queueRole === "ba" || queueRole === "la") && (showReady || showSendTransfer) && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                  paddingTop: 6,
+                  borderTop: `1px solid ${T.borderLight}`,
+                }}
+              >
+                {showReady && (
+                  <button
+                    type="button"
+                    disabled={isSaving || !currentUserId}
+                    onClick={() =>
+                      void runAction(row.id, async () => {
+                        if (!currentUserId) return;
+                        const before = row;
+                        await markQueueReady(supabase, row, String(currentUserId), queueRole);
+                        await notifyLaReadyForTransferIfNeeded(supabase, {
+                          queueItemBefore: before,
+                          actorUserId: String(currentUserId),
+                          actorRole: queueRole,
+                        });
+                      })
+                    }
+                    style={{
+                      border: "none",
+                      borderRadius: 10,
+                      background: row.queue_type === "unclaimed_transfer" ? "#f59e0b" : "#233217",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 900,
+                      height: 34,
+                      padding: "0 14px",
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      opacity: isSaving ? 0.65 : 1,
+                      flexShrink: 0,
+                      boxSizing: "border-box",
+                      fontFamily: T.font,
+                      letterSpacing: "0.04em",
+                    }}
+                    className="transition-all duration-150 ease-in-out hover:brightness-110 active:scale-[0.98]"
+                  >
+                    {readyLabel}
+                  </button>
+                )}
+
+                {showSendTransfer && (
+                  <button
+                    type="button"
+                    disabled={isSaving || !currentUserId || !row.assigned_la_id}
+                    onClick={() =>
+                      void runAction(row.id, async () => {
+                        if (!currentUserId) return;
+                        await sendQueueTransfer(supabase, row, String(currentUserId));
+                      })
+                    }
+                    style={{
+                      border: "none",
+                      borderRadius: 10,
+                      background: "#2563eb",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 900,
+                      height: 34,
+                      padding: "0 14px",
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      opacity: isSaving ? 0.65 : 1,
+                      flexShrink: 0,
+                      boxSizing: "border-box",
+                      fontFamily: T.font,
+                      letterSpacing: "0.04em",
+                    }}
+                    className="transition-all duration-150 ease-in-out hover:brightness-110 active:scale-[0.98]"
+                    title={!row.assigned_la_id ? "Assign an LA first" : undefined}
+                  >
+                    SEND TRANSFER
+                  </button>
+                )}
+              </div>
+            )}
+
             {queueRole === "manager" && (
               <div
                 style={{
@@ -759,7 +843,8 @@ export default function GlobalQueueWidget() {
   };
 
   const renderCollapsibleSection = (sectionKey: QueueSectionKey, title: string, items: LeadQueueItem[]) => {
-    const isOpen = sectionOpen[sectionKey];
+    const lockedOpen = sectionKey === "assignedToMe";
+    const isOpen = lockedOpen ? true : sectionOpen[sectionKey];
     const pill = QUEUE_SECTION_PILLS[sectionKey];
 
     return (
@@ -774,68 +859,119 @@ export default function GlobalQueueWidget() {
             : "0 6px 20px -8px rgba(59, 82, 41, 0.16), 0 2px 8px rgba(0, 0, 0, 0.05)",
         }}
       >
-        <button
-          type="button"
-          className={cn(
-            "flex w-full min-h-[44px] min-w-0 items-center gap-3 text-left outline-none sm:gap-3",
-            "transition-[filter,transform] duration-200 ease-out",
-            "hover:brightness-[1.08] active:brightness-[0.93] active:scale-[0.997]",
-            "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-          )}
-          style={{
-            fontFamily: T.font,
-            background: pill.gradientFrom && pill.gradientTo
-              ? `linear-gradient(135deg, ${pill.gradientFrom} 0%, ${pill.gradientTo} 100%)`
-              : pill.background,
-            color: pill.color,
-            border: "none",
-            borderBottom: isOpen ? `1px solid rgba(0, 0, 0, 0.1)` : "none",
-            margin: 0,
-            cursor: "pointer",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.02em",
-            textTransform: "uppercase",
-            boxSizing: "border-box",
-            paddingTop: 11,
-            paddingBottom: 11,
-            paddingLeft: 22,
-            paddingRight: 18,
-          }}
-          aria-expanded={isOpen}
-          id={`queue-section-${sectionKey}-trigger`}
-          onClick={() => setSectionOpen((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
-        >
-          <span className="min-w-0 flex-1 truncate">{title}</span>
-          <span
-            className="flex shrink-0 items-center justify-center tabular-nums"
+        {lockedOpen ? (
+          <div
+            className="flex w-full min-h-[44px] min-w-0 items-center gap-3 text-left sm:gap-3"
             style={{
+              fontFamily: T.font,
               background: pill.gradientFrom && pill.gradientTo
-                ? "rgba(255,255,255,0.9)"
-                : T.asideChrome,
-              color: pill.gradientFrom && pill.gradientTo
-                ? pill.gradientTo
-                : "#ffffff",
-              borderRadius: 9999,
-              minWidth: 28,
-              minHeight: 28,
-              padding: "4px 11px",
-              fontSize: 11,
-              fontWeight: 900,
-              lineHeight: 1,
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15)",
+                ? `linear-gradient(135deg, ${pill.gradientFrom} 0%, ${pill.gradientTo} 100%)`
+                : pill.background,
+              color: pill.color,
+              border: "none",
+              borderBottom: `1px solid rgba(0, 0, 0, 0.1)`,
+              margin: 0,
+              cursor: "default",
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+              boxSizing: "border-box",
+              paddingTop: 11,
+              paddingBottom: 11,
+              paddingLeft: 22,
+              paddingRight: 18,
+              userSelect: "none",
             }}
+            id={`queue-section-${sectionKey}-trigger`}
           >
-            {items.length}
-          </span>
-          <ChevronDown
+            <span className="min-w-0 flex-1 truncate">{title}</span>
+            <span
+              className="flex shrink-0 items-center justify-center tabular-nums"
+              style={{
+                background: pill.gradientFrom && pill.gradientTo
+                  ? "rgba(255,255,255,0.9)"
+                  : T.asideChrome,
+                color: pill.gradientFrom && pill.gradientTo
+                  ? pill.gradientTo
+                  : "#ffffff",
+                borderRadius: 9999,
+                minWidth: 28,
+                minHeight: 28,
+                padding: "4px 11px",
+                fontSize: 11,
+                fontWeight: 900,
+                lineHeight: 1,
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15)",
+              }}
+            >
+              {items.length}
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
             className={cn(
-              "h-5 w-5 shrink-0 text-white transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              isOpen ? "rotate-180" : "rotate-0",
+              "flex w-full min-h-[44px] min-w-0 items-center gap-3 text-left outline-none sm:gap-3",
+              "transition-[filter,transform] duration-200 ease-out",
+              "hover:brightness-[1.08] active:brightness-[0.93] active:scale-[0.997]",
+              "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
             )}
-            aria-hidden
-          />
-        </button>
+            style={{
+              fontFamily: T.font,
+              background: pill.gradientFrom && pill.gradientTo
+                ? `linear-gradient(135deg, ${pill.gradientFrom} 0%, ${pill.gradientTo} 100%)`
+                : pill.background,
+              color: pill.color,
+              border: "none",
+              borderBottom: isOpen ? `1px solid rgba(0, 0, 0, 0.1)` : "none",
+              margin: 0,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+              boxSizing: "border-box",
+              paddingTop: 11,
+              paddingBottom: 11,
+              paddingLeft: 22,
+              paddingRight: 18,
+            }}
+            aria-expanded={isOpen}
+            id={`queue-section-${sectionKey}-trigger`}
+            onClick={() => setSectionOpen((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
+          >
+            <span className="min-w-0 flex-1 truncate">{title}</span>
+            <span
+              className="flex shrink-0 items-center justify-center tabular-nums"
+              style={{
+                background: pill.gradientFrom && pill.gradientTo
+                  ? "rgba(255,255,255,0.9)"
+                  : T.asideChrome,
+                color: pill.gradientFrom && pill.gradientTo
+                  ? pill.gradientTo
+                  : "#ffffff",
+                borderRadius: 9999,
+                minWidth: 28,
+                minHeight: 28,
+                padding: "4px 11px",
+                fontSize: 11,
+                fontWeight: 900,
+                lineHeight: 1,
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15)",
+              }}
+            >
+              {items.length}
+            </span>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 shrink-0 text-white transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                isOpen ? "rotate-180" : "rotate-0",
+              )}
+              aria-hidden
+            />
+          </button>
+        )}
         {isOpen && (
           <div
             className="px-3 pb-3 pt-2.5 sm:px-4 sm:pb-3.5"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, RefreshCw, Search, ChevronDown } from "lucide-react";
+image.pngimport { Loader2, RefreshCw, Search, ChevronDown } from "lucide-react";
 import { T } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
@@ -563,6 +563,90 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
                 >
                   {screeningMeta.message}
                 </p>
+              </div>
+            )}
+
+            {(queueRole === "ba" || queueRole === "la") && (showReady || showSendTransfer) && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                  paddingTop: 6,
+                  borderTop: `1px solid ${T.borderLight}`,
+                }}
+              >
+                {showReady && (
+                  <button
+                    type="button"
+                    disabled={isSaving || !currentUserId}
+                    onClick={() =>
+                      void runAction(row.id, async () => {
+                        if (!currentUserId) return;
+                        const before = row;
+                        await markQueueReady(supabase, row, String(currentUserId), queueRole);
+                        await notifyLaReadyForTransferIfNeeded(supabase, {
+                          queueItemBefore: before,
+                          actorUserId: String(currentUserId),
+                          actorRole: queueRole,
+                        });
+                      })
+                    }
+                    style={{
+                      border: "none",
+                      borderRadius: 10,
+                      background: row.queue_type === "unclaimed_transfer" ? "#f59e0b" : "#233217",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 900,
+                      height: 34,
+                      padding: "0 14px",
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      opacity: isSaving ? 0.65 : 1,
+                      flexShrink: 0,
+                      boxSizing: "border-box",
+                      fontFamily: T.font,
+                      letterSpacing: "0.04em",
+                    }}
+                    className="transition-all duration-150 ease-in-out hover:brightness-110 active:scale-[0.98]"
+                  >
+                    {readyLabel}
+                  </button>
+                )}
+
+                {showSendTransfer && (
+                  <button
+                    type="button"
+                    disabled={isSaving || !currentUserId || !row.assigned_la_id}
+                    onClick={() =>
+                      void runAction(row.id, async () => {
+                        if (!currentUserId) return;
+                        await sendQueueTransfer(supabase, row, String(currentUserId));
+                      })
+                    }
+                    style={{
+                      border: "none",
+                      borderRadius: 10,
+                      background: "#2563eb",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 900,
+                      height: 34,
+                      padding: "0 14px",
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      opacity: isSaving ? 0.65 : 1,
+                      flexShrink: 0,
+                      boxSizing: "border-box",
+                      fontFamily: T.font,
+                      letterSpacing: "0.04em",
+                    }}
+                    className="transition-all duration-150 ease-in-out hover:brightness-110 active:scale-[0.98]"
+                    title={!row.assigned_la_id ? "Assign an LA first" : undefined}
+                  >
+                    SEND TRANSFER
+                  </button>
+                )}
               </div>
             )}
 
