@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, ChevronDown, Loader2, RefreshCw, X } from "lucide-react";
+import { BellRing, ChevronDown, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -38,6 +38,39 @@ type DraftAssign = {
   laId: string;
   eta: string;
 };
+
+function normalise(s: string | null | undefined): string {
+  return String(s ?? "").trim().toLowerCase();
+}
+
+function matchesSearch(row: LeadQueueItem, q: string): boolean {
+  const query = normalise(q);
+  if (!query) return true;
+  const hay = [
+    row.client_name,
+    row.submission_id,
+    row.call_center_name,
+    row.state,
+    row.carrier,
+    row.action_required,
+    row.queue_type,
+  ]
+    .map((x) => normalise(String(x ?? "")))
+    .join(" | ");
+  return hay.includes(query);
+}
+
+function isQueuedToday(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
 
 /** Match `TransferStyledSelect` trigger height for one aligned manager row */
 const WIDGET_CONTROL_HEIGHT = 42;
@@ -123,6 +156,8 @@ export default function GlobalQueueWidget() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftAssign>>({});
   const [notice, setNotice] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [todayOnly, setTodayOnly] = useState(true);
 
   const [sectionOpen, setSectionOpen] = useState<Record<QueueSectionKey, boolean>>({
     assignedToMe: true,
@@ -247,21 +282,31 @@ export default function GlobalQueueWidget() {
     [eligibleCache],
   );
 
+  const viewRows = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (!matchesSearch(r, searchTerm)) return false;
+        if (todayOnly && !isQueuedToday(r.queued_at)) return false;
+        return true;
+      }),
+    [rows, searchTerm, todayOnly],
+  );
+
   const grouped = useMemo(
     () => ({
-      unclaimed: rows.filter((r) => r.queue_type === "unclaimed_transfer"),
-      baActive: rows.filter((r) => r.queue_type === "ba_active"),
-      laActive: rows.filter((r) => r.queue_type === "la_active"),
+      unclaimed: viewRows.filter((r) => r.queue_type === "unclaimed_transfer"),
+      baActive: viewRows.filter((r) => r.queue_type === "ba_active"),
+      laActive: viewRows.filter((r) => r.queue_type === "la_active"),
     }),
-    [rows],
+    [viewRows],
   );
   const assignedToMe = useMemo(() => {
     if (!currentUserId || (queueRole !== "ba" && queueRole !== "la")) return [] as LeadQueueItem[];
-    return rows.filter((r) => {
+    return viewRows.filter((r) => {
       if (r.queue_type !== "unclaimed_transfer") return false;
       return queueRole === "la" ? r.assigned_la_id === currentUserId : r.assigned_ba_id === currentUserId;
     });
-  }, [rows, currentUserId, queueRole]);
+  }, [viewRows, currentUserId, queueRole]);
   /** Avoid listing the same unclaimed row in both "Assigned to you" and "Unclaimed transfers". */
   const unclaimedForDisplay = useMemo(() => {
     if (queueRole !== "la" && queueRole !== "ba") return grouped.unclaimed;
@@ -1165,6 +1210,103 @@ export default function GlobalQueueWidget() {
                   {notice}
                 </div>
               )}
+
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "2px 2px 6px",
+                }}
+              >
+                <div style={{ position: "relative", flex: "1 1 220px", minWidth: 180 }}>
+                  <Search size={14} style={{ position: "absolute", left: 12, top: 14, pointerEvents: "none", color: T.textMuted }} />
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search…"
+                    style={{
+                      height: WIDGET_CONTROL_HEIGHT,
+                      width: "100%",
+                      boxSizing: "border-box",
+                      paddingLeft: 34,
+                      paddingRight: 10,
+                      border: `1.5px solid ${T.border}`,
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 650,
+                      color: T.textDark,
+                      background: "#fff",
+                      outline: "none",
+                      fontFamily: T.font,
+                      transition: "all 0.15s ease-in-out",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    }}
+                    className="hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-2 focus:ring-[#638b4b]/20"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setTodayOnly((v) => !v)}
+                  style={{
+                    height: WIDGET_CONTROL_HEIGHT,
+                    padding: "0 12px",
+                    borderRadius: 10,
+                    border: `1.5px solid ${todayOnly ? "#638b4b" : T.border}`,
+                    background: todayOnly ? "#DCEBDC" : "#fff",
+                    color: T.textDark,
+                    fontSize: 11,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    flexShrink: 0,
+                    fontFamily: T.font,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  className="hover:border-[#638b4b] hover:shadow-sm active:scale-[0.98]"
+                  title={todayOnly ? "Showing today only (click to show all)" : "Showing all dates (click for today only)"}
+                >
+                  Today
+                </button>
+
+                {(todayOnly || searchTerm.trim()) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setTodayOnly(false);
+                    }}
+                    style={{
+                      height: WIDGET_CONTROL_HEIGHT,
+                      padding: "0 12px",
+                      borderRadius: 10,
+                      border: `1.5px solid ${T.border}`,
+                      background: "#fff",
+                      color: T.textMuted,
+                      fontSize: 11,
+                      fontWeight: 900,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      flexShrink: 0,
+                      fontFamily: T.font,
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                    className="hover:border-[#638b4b] hover:text-[#3b5229] active:scale-[0.98]"
+                    title="Reset filters"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
 
               {loading && rows.length === 0 ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 700, color: T.textMuted }}>

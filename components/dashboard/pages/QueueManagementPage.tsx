@@ -79,6 +79,18 @@ function matchesSearch(row: LeadQueueItem, q: string): boolean {
   return hay.includes(query);
 }
 
+function isQueuedToday(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
 export default function QueueManagementPage({ variant = "default" }: Props) {
   const { currentRole, currentUserId, userCallCenterId } = useDashboardContext();
   const queueRole = useMemo(() => resolveQueueRole(currentRole), [currentRole]);
@@ -97,6 +109,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
   const [drafts, setDrafts] = useState<Record<string, DraftAssign>>({});
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [todayOnly, setTodayOnly] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
   const [eligibleCache, setEligibleCache] = useState<
@@ -233,8 +246,13 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
   }, [assignees]);
 
   const filteredRows = useMemo(
-    () => rows.filter((r) => matchesSearch(r, searchTerm)),
-    [rows, searchTerm],
+    () =>
+      rows.filter((r) => {
+        if (!matchesSearch(r, searchTerm)) return false;
+        if (todayOnly && !isQueuedToday(r.queued_at)) return false;
+        return true;
+      }),
+    [rows, searchTerm, todayOnly],
   );
 
   const grouped = useMemo(() => {
@@ -249,6 +267,7 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
       return [
         { key: "unclaimed_transfer", title: "Unclaimed transfers", items: filteredRows.filter((r) => r.queue_type === "unclaimed_transfer") },
         { key: "ba_active", title: "BA active calls", items: filteredRows.filter((r) => r.queue_type === "ba_active") },
+        { key: "la_active", title: "LA active calls", items: filteredRows.filter((r) => r.queue_type === "la_active") },
       ];
     }
     if (queueRole === "ba") {
@@ -879,6 +898,72 @@ export default function QueueManagementPage({ variant = "default" }: Props) {
               className="hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-2 focus:ring-[#638b4b]/20"
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => setTodayOnly((v) => !v)}
+            style={{
+              height: QUEUE_CONTROL_HEIGHT,
+              minHeight: QUEUE_CONTROL_HEIGHT,
+              padding: "0 12px",
+              borderRadius: 10,
+              border: `1.5px solid ${todayOnly ? "#638b4b" : T.border}`,
+              background: todayOnly ? "#DCEBDC" : "#fff",
+              color: T.textDark,
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+              flexShrink: 0,
+              boxSizing: "border-box",
+              transition: "all 0.15s ease-in-out",
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+              fontFamily: T.font,
+            }}
+            className="hover:border-[#638b4b] hover:shadow-sm active:scale-[0.98]"
+            title={todayOnly ? "Showing today only (click to show all)" : "Showing all dates (click to show today only)"}
+          >
+            Today only
+          </button>
+
+          {(todayOnly || searchTerm.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                setTodayOnly(false);
+              }}
+              style={{
+                height: QUEUE_CONTROL_HEIGHT,
+                minHeight: QUEUE_CONTROL_HEIGHT,
+                padding: "0 12px",
+                borderRadius: 10,
+                border: `1.5px solid ${T.border}`,
+                background: "#fff",
+                color: T.textMuted,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                flexShrink: 0,
+                boxSizing: "border-box",
+                transition: "all 0.15s ease-in-out",
+                letterSpacing: "0.02em",
+                textTransform: "uppercase",
+                fontFamily: T.font,
+              }}
+              className="hover:border-[#638b4b] hover:text-[#3b5229] active:scale-[0.98]"
+              title="Reset filters"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
 
         <button
