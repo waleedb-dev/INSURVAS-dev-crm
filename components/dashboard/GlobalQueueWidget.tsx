@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, ChevronDown, Loader2, RefreshCw, X } from "lucide-react";
+import { BellRing, ChevronDown, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -38,6 +38,39 @@ type DraftAssign = {
   laId: string;
   eta: string;
 };
+
+function normalise(s: string | null | undefined): string {
+  return String(s ?? "").trim().toLowerCase();
+}
+
+function matchesSearch(row: LeadQueueItem, q: string): boolean {
+  const query = normalise(q);
+  if (!query) return true;
+  const hay = [
+    row.client_name,
+    row.submission_id,
+    row.call_center_name,
+    row.state,
+    row.carrier,
+    row.action_required,
+    row.queue_type,
+  ]
+    .map((x) => normalise(String(x ?? "")))
+    .join(" | ");
+  return hay.includes(query);
+}
+
+function isQueuedToday(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
 
 /** Match `TransferStyledSelect` trigger height for one aligned manager row */
 const WIDGET_CONTROL_HEIGHT = 42;
@@ -123,6 +156,8 @@ export default function GlobalQueueWidget() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftAssign>>({});
   const [notice, setNotice] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [todayOnly, setTodayOnly] = useState(true);
 
   const [sectionOpen, setSectionOpen] = useState<Record<QueueSectionKey, boolean>>({
     assignedToMe: true,
@@ -247,21 +282,31 @@ export default function GlobalQueueWidget() {
     [eligibleCache],
   );
 
+  const viewRows = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (!matchesSearch(r, searchTerm)) return false;
+        if (todayOnly && !isQueuedToday(r.queued_at)) return false;
+        return true;
+      }),
+    [rows, searchTerm, todayOnly],
+  );
+
   const grouped = useMemo(
     () => ({
-      unclaimed: rows.filter((r) => r.queue_type === "unclaimed_transfer"),
-      baActive: rows.filter((r) => r.queue_type === "ba_active"),
-      laActive: rows.filter((r) => r.queue_type === "la_active"),
+      unclaimed: viewRows.filter((r) => r.queue_type === "unclaimed_transfer"),
+      baActive: viewRows.filter((r) => r.queue_type === "ba_active"),
+      laActive: viewRows.filter((r) => r.queue_type === "la_active"),
     }),
-    [rows],
+    [viewRows],
   );
   const assignedToMe = useMemo(() => {
     if (!currentUserId || (queueRole !== "ba" && queueRole !== "la")) return [] as LeadQueueItem[];
-    return rows.filter((r) => {
+    return viewRows.filter((r) => {
       if (r.queue_type !== "unclaimed_transfer") return false;
       return queueRole === "la" ? r.assigned_la_id === currentUserId : r.assigned_ba_id === currentUserId;
     });
-  }, [rows, currentUserId, queueRole]);
+  }, [viewRows, currentUserId, queueRole]);
   /** Avoid listing the same unclaimed row in both "Assigned to you" and "Unclaimed transfers". */
   const unclaimedForDisplay = useMemo(() => {
     if (queueRole !== "la" && queueRole !== "ba") return grouped.unclaimed;
@@ -603,6 +648,90 @@ export default function GlobalQueueWidget() {
               </div>
             )}
 
+            {(queueRole === "ba" || queueRole === "la") && (showReady || showSendTransfer) && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                  paddingTop: 6,
+                  borderTop: `1px solid ${T.borderLight}`,
+                }}
+              >
+                {showReady && (
+                  <button
+                    type="button"
+                    disabled={isSaving || !currentUserId}
+                    onClick={() =>
+                      void runAction(row.id, async () => {
+                        if (!currentUserId) return;
+                        const before = row;
+                        await markQueueReady(supabase, row, String(currentUserId), queueRole);
+                        await notifyLaReadyForTransferIfNeeded(supabase, {
+                          queueItemBefore: before,
+                          actorUserId: String(currentUserId),
+                          actorRole: queueRole,
+                        });
+                      })
+                    }
+                    style={{
+                      border: "none",
+                      borderRadius: 10,
+                      background: row.queue_type === "unclaimed_transfer" ? "#f59e0b" : "#233217",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 900,
+                      height: 34,
+                      padding: "0 14px",
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      opacity: isSaving ? 0.65 : 1,
+                      flexShrink: 0,
+                      boxSizing: "border-box",
+                      fontFamily: T.font,
+                      letterSpacing: "0.04em",
+                    }}
+                    className="transition-all duration-150 ease-in-out hover:brightness-110 active:scale-[0.98]"
+                  >
+                    {readyLabel}
+                  </button>
+                )}
+
+                {showSendTransfer && (
+                  <button
+                    type="button"
+                    disabled={isSaving || !currentUserId || !row.assigned_la_id}
+                    onClick={() =>
+                      void runAction(row.id, async () => {
+                        if (!currentUserId) return;
+                        await sendQueueTransfer(supabase, row, String(currentUserId));
+                      })
+                    }
+                    style={{
+                      border: "none",
+                      borderRadius: 10,
+                      background: "#2563eb",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 900,
+                      height: 34,
+                      padding: "0 14px",
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      opacity: isSaving ? 0.65 : 1,
+                      flexShrink: 0,
+                      boxSizing: "border-box",
+                      fontFamily: T.font,
+                      letterSpacing: "0.04em",
+                    }}
+                    className="transition-all duration-150 ease-in-out hover:brightness-110 active:scale-[0.98]"
+                    title={!row.assigned_la_id ? "Assign an LA first" : undefined}
+                  >
+                    SEND TRANSFER
+                  </button>
+                )}
+              </div>
+            )}
+
             {queueRole === "manager" && (
               <div
                 style={{
@@ -759,7 +888,8 @@ export default function GlobalQueueWidget() {
   };
 
   const renderCollapsibleSection = (sectionKey: QueueSectionKey, title: string, items: LeadQueueItem[]) => {
-    const isOpen = sectionOpen[sectionKey];
+    const lockedOpen = sectionKey === "assignedToMe";
+    const isOpen = lockedOpen ? true : sectionOpen[sectionKey];
     const pill = QUEUE_SECTION_PILLS[sectionKey];
 
     return (
@@ -774,68 +904,119 @@ export default function GlobalQueueWidget() {
             : "0 6px 20px -8px rgba(59, 82, 41, 0.16), 0 2px 8px rgba(0, 0, 0, 0.05)",
         }}
       >
-        <button
-          type="button"
-          className={cn(
-            "flex w-full min-h-[44px] min-w-0 items-center gap-3 text-left outline-none sm:gap-3",
-            "transition-[filter,transform] duration-200 ease-out",
-            "hover:brightness-[1.08] active:brightness-[0.93] active:scale-[0.997]",
-            "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-          )}
-          style={{
-            fontFamily: T.font,
-            background: pill.gradientFrom && pill.gradientTo
-              ? `linear-gradient(135deg, ${pill.gradientFrom} 0%, ${pill.gradientTo} 100%)`
-              : pill.background,
-            color: pill.color,
-            border: "none",
-            borderBottom: isOpen ? `1px solid rgba(0, 0, 0, 0.1)` : "none",
-            margin: 0,
-            cursor: "pointer",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.02em",
-            textTransform: "uppercase",
-            boxSizing: "border-box",
-            paddingTop: 11,
-            paddingBottom: 11,
-            paddingLeft: 22,
-            paddingRight: 18,
-          }}
-          aria-expanded={isOpen}
-          id={`queue-section-${sectionKey}-trigger`}
-          onClick={() => setSectionOpen((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
-        >
-          <span className="min-w-0 flex-1 truncate">{title}</span>
-          <span
-            className="flex shrink-0 items-center justify-center tabular-nums"
+        {lockedOpen ? (
+          <div
+            className="flex w-full min-h-[44px] min-w-0 items-center gap-3 text-left sm:gap-3"
             style={{
+              fontFamily: T.font,
               background: pill.gradientFrom && pill.gradientTo
-                ? "rgba(255,255,255,0.9)"
-                : T.asideChrome,
-              color: pill.gradientFrom && pill.gradientTo
-                ? pill.gradientTo
-                : "#ffffff",
-              borderRadius: 9999,
-              minWidth: 28,
-              minHeight: 28,
-              padding: "4px 11px",
-              fontSize: 11,
-              fontWeight: 900,
-              lineHeight: 1,
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15)",
+                ? `linear-gradient(135deg, ${pill.gradientFrom} 0%, ${pill.gradientTo} 100%)`
+                : pill.background,
+              color: pill.color,
+              border: "none",
+              borderBottom: `1px solid rgba(0, 0, 0, 0.1)`,
+              margin: 0,
+              cursor: "default",
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+              boxSizing: "border-box",
+              paddingTop: 11,
+              paddingBottom: 11,
+              paddingLeft: 22,
+              paddingRight: 18,
+              userSelect: "none",
             }}
+            id={`queue-section-${sectionKey}-trigger`}
           >
-            {items.length}
-          </span>
-          <ChevronDown
+            <span className="min-w-0 flex-1 truncate">{title}</span>
+            <span
+              className="flex shrink-0 items-center justify-center tabular-nums"
+              style={{
+                background: pill.gradientFrom && pill.gradientTo
+                  ? "rgba(255,255,255,0.9)"
+                  : T.asideChrome,
+                color: pill.gradientFrom && pill.gradientTo
+                  ? pill.gradientTo
+                  : "#ffffff",
+                borderRadius: 9999,
+                minWidth: 28,
+                minHeight: 28,
+                padding: "4px 11px",
+                fontSize: 11,
+                fontWeight: 900,
+                lineHeight: 1,
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15)",
+              }}
+            >
+              {items.length}
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
             className={cn(
-              "h-5 w-5 shrink-0 text-white transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              isOpen ? "rotate-180" : "rotate-0",
+              "flex w-full min-h-[44px] min-w-0 items-center gap-3 text-left outline-none sm:gap-3",
+              "transition-[filter,transform] duration-200 ease-out",
+              "hover:brightness-[1.08] active:brightness-[0.93] active:scale-[0.997]",
+              "focus-visible:ring-2 focus-visible:ring-[#94c278]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
             )}
-            aria-hidden
-          />
-        </button>
+            style={{
+              fontFamily: T.font,
+              background: pill.gradientFrom && pill.gradientTo
+                ? `linear-gradient(135deg, ${pill.gradientFrom} 0%, ${pill.gradientTo} 100%)`
+                : pill.background,
+              color: pill.color,
+              border: "none",
+              borderBottom: isOpen ? `1px solid rgba(0, 0, 0, 0.1)` : "none",
+              margin: 0,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+              boxSizing: "border-box",
+              paddingTop: 11,
+              paddingBottom: 11,
+              paddingLeft: 22,
+              paddingRight: 18,
+            }}
+            aria-expanded={isOpen}
+            id={`queue-section-${sectionKey}-trigger`}
+            onClick={() => setSectionOpen((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
+          >
+            <span className="min-w-0 flex-1 truncate">{title}</span>
+            <span
+              className="flex shrink-0 items-center justify-center tabular-nums"
+              style={{
+                background: pill.gradientFrom && pill.gradientTo
+                  ? "rgba(255,255,255,0.9)"
+                  : T.asideChrome,
+                color: pill.gradientFrom && pill.gradientTo
+                  ? pill.gradientTo
+                  : "#ffffff",
+                borderRadius: 9999,
+                minWidth: 28,
+                minHeight: 28,
+                padding: "4px 11px",
+                fontSize: 11,
+                fontWeight: 900,
+                lineHeight: 1,
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15)",
+              }}
+            >
+              {items.length}
+            </span>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 shrink-0 text-white transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                isOpen ? "rotate-180" : "rotate-0",
+              )}
+              aria-hidden
+            />
+          </button>
+        )}
         {isOpen && (
           <div
             className="px-3 pb-3 pt-2.5 sm:px-4 sm:pb-3.5"
@@ -1029,6 +1210,103 @@ export default function GlobalQueueWidget() {
                   {notice}
                 </div>
               )}
+
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "2px 2px 6px",
+                }}
+              >
+                <div style={{ position: "relative", flex: "1 1 220px", minWidth: 180 }}>
+                  <Search size={14} style={{ position: "absolute", left: 12, top: 14, pointerEvents: "none", color: T.textMuted }} />
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search…"
+                    style={{
+                      height: WIDGET_CONTROL_HEIGHT,
+                      width: "100%",
+                      boxSizing: "border-box",
+                      paddingLeft: 34,
+                      paddingRight: 10,
+                      border: `1.5px solid ${T.border}`,
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 650,
+                      color: T.textDark,
+                      background: "#fff",
+                      outline: "none",
+                      fontFamily: T.font,
+                      transition: "all 0.15s ease-in-out",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    }}
+                    className="hover:border-[#638b4b] focus:border-[#638b4b] focus:ring-2 focus:ring-[#638b4b]/20"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setTodayOnly((v) => !v)}
+                  style={{
+                    height: WIDGET_CONTROL_HEIGHT,
+                    padding: "0 12px",
+                    borderRadius: 10,
+                    border: `1.5px solid ${todayOnly ? "#638b4b" : T.border}`,
+                    background: todayOnly ? "#DCEBDC" : "#fff",
+                    color: T.textDark,
+                    fontSize: 11,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    flexShrink: 0,
+                    fontFamily: T.font,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    transition: "all 0.15s ease-in-out",
+                  }}
+                  className="hover:border-[#638b4b] hover:shadow-sm active:scale-[0.98]"
+                  title={todayOnly ? "Showing today only (click to show all)" : "Showing all dates (click for today only)"}
+                >
+                  Today
+                </button>
+
+                {(todayOnly || searchTerm.trim()) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setTodayOnly(false);
+                    }}
+                    style={{
+                      height: WIDGET_CONTROL_HEIGHT,
+                      padding: "0 12px",
+                      borderRadius: 10,
+                      border: `1.5px solid ${T.border}`,
+                      background: "#fff",
+                      color: T.textMuted,
+                      fontSize: 11,
+                      fontWeight: 900,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      flexShrink: 0,
+                      fontFamily: T.font,
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                      transition: "all 0.15s ease-in-out",
+                    }}
+                    className="hover:border-[#638b4b] hover:text-[#3b5229] active:scale-[0.98]"
+                    title="Reset filters"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
 
               {loading && rows.length === 0 ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 700, color: T.textMuted }}>

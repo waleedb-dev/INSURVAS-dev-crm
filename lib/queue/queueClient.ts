@@ -74,7 +74,7 @@ function allowedQueueTypes(queueRole: QueueRole): QueueType[] {
   if (queueRole === "call_center_agent" || queueRole === "call_center_admin") {
     return ["unclaimed_transfer", "ba_active", "la_active"];
   }
-  if (queueRole === "la") return ["unclaimed_transfer", "ba_active"];
+  if (queueRole === "la") return ["unclaimed_transfer", "ba_active", "la_active"];
   if (queueRole === "ba") return ["unclaimed_transfer", "ba_active"];
   return [];
 }
@@ -85,7 +85,12 @@ function filterSnapshotRowsForRole(rows: LeadQueueItem[], queueRole: QueueRole):
     return rows;
   }
   if (queueRole === "la") {
-    return rows.filter((r) => r.queue_type === "unclaimed_transfer" || r.queue_type === "ba_active");
+    return rows.filter(
+      (r) =>
+        r.queue_type === "unclaimed_transfer" ||
+        r.queue_type === "ba_active" ||
+        r.queue_type === "la_active",
+    );
   }
   if (queueRole === "ba") {
     return rows.filter((r) => r.queue_type === "unclaimed_transfer" || r.queue_type === "ba_active");

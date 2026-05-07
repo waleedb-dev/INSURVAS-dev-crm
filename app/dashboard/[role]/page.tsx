@@ -13,6 +13,7 @@ import UsersAccessPage from "@/components/dashboard/pages/UsersAccessPage";
 import PipelineSettingsPage from "@/components/dashboard/pages/PipelineSettingsPage";
 import CarrierManagementPage from "@/components/dashboard/pages/CarrierManagementPage";
 import BpoCentersPage from "@/components/dashboard/pages/BpoCentersPage";
+import BpoOnboardingPage from "@/components/dashboard/pages/BpoOnboardingPage";
 import CommissionsPage from "@/components/dashboard/pages/CommissionsPage";
 import PoliciesPage from "@/components/dashboard/pages/PoliciesPage";
 import IMOManagementPage from "@/components/dashboard/pages/IMOManagementPage";
@@ -102,6 +103,7 @@ export default function RoleDashboardPage() {
       {activePage === "pipeline-management" && <PipelineSettingsPage />}
       {activePage === "carrier-management" && <CarrierManagementPage />}
       {activePage === "bpo-centres" && <BpoCentersPage />}
+      {activePage === "bpo-centre-onboarding" && <BpoOnboardingPage />}
       {activePage === "commissions" && <CommissionsPage />}
       {activePage === "policies" && <PoliciesPage />}
       {activePage === "imo-management" && <IMOManagementPage />}
