@@ -161,7 +161,8 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
 
   const shellStyle: CSSProperties = {
     width: "100%",
-    margin: 0,
+    maxWidth: 1200,
+    margin: "0 auto",
   };
 
   const cardStyle: CSSProperties = {
@@ -240,146 +241,148 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
   return (
     <div style={pageStyle}>
       <div style={shellStyle}>
-      <div style={cardStyle}>
-        {/* Header */}
-        <div style={headerStyle}>
-          <h1 style={{ margin: 0, fontSize: "clamp(1.25rem, 2.2vw, 1.75rem)", fontWeight: 800, color: T.textDark, lineHeight: 1.2 }}>
-            BPO Centre Lead Intake
-          </h1>
-          <p style={{ margin: "8px 0 0", fontSize: "clamp(12px, 1.4vw, 14px)", fontWeight: 600, color: T.textMuted, lineHeight: 1.5, maxWidth: "72ch" }}>
-            One person must be the <strong style={{ color: T.textDark }}>centre administrator</strong>. Add the whole team with name, email, and role.
-          </p>
-        </div>
-
-        <div style={bodyStyle}>
-          {/* Error banner */}
-          {error && (
-            <div style={{
-              marginBottom: 20,
-              padding: "12px 16px",
-              borderRadius: T.radiusSm,
-              border: `1.5px solid ${T.danger}`,
-              backgroundColor: "rgba(59,82,41,0.04)",
-              fontSize: 13,
-              fontWeight: 700,
-              color: T.danger,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 8v4M12 16h.01" />
-              </svg>
-              {error}
-            </div>
-          )}
-
-          {/* Centre name */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={labelStyle}>Centre name</label>
-            <input
-              value={centerName}
-              onChange={(e) => setCenterName(e.target.value)}
-              placeholder="e.g. Apex Transfers LLC"
-              style={fieldStyle}
-              onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-            />
+        <div style={cardStyle}>
+          {/* Header */}
+          <div style={headerStyle}>
+            <h1 style={{ margin: 0, fontSize: "clamp(1.25rem, 2.2vw, 1.75rem)", fontWeight: 800, color: T.textDark, lineHeight: 1.2 }}>
+              BPO Centre Lead Intake
+            </h1>
+            <p style={{ margin: "8px 0 0", fontSize: "clamp(12px, 1.4vw, 14px)", fontWeight: 600, color: T.textMuted, lineHeight: 1.5, maxWidth: "72ch" }}>
+              One person must be the <strong style={{ color: T.textDark }}>centre administrator</strong>. Add the whole team with name, email, and role.
+            </p>
           </div>
 
-          {/* Team section */}
-          <div style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusLg, overflow: "hidden" }}>
-            <div style={{
-              padding: "clamp(12px, 2vw, 18px) clamp(16px, 2.5vw, 28px)",
-              borderBottom: `1px solid ${T.borderLight}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-              backgroundColor: "#DCEBDC",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#233217" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.textDark }}>Team</h2>
+          <div style={bodyStyle}>
+            {/* Error banner */}
+            {error && (
+              <div style={{
+                marginBottom: 20,
+                padding: "12px 16px",
+                borderRadius: T.radiusSm,
+                border: `1.5px solid ${T.danger}`,
+                backgroundColor: "rgba(59,82,41,0.04)",
+                fontSize: 13,
+                fontWeight: 700,
+                color: T.danger,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4M12 16h.01" />
+                </svg>
+                {error}
               </div>
-              <button
-                type="button"
-                onClick={() => setLines((ls) => [...ls, emptyLine(false)])}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 14px",
-                  borderRadius: 8,
-                  border: "none",
-                  backgroundColor: "#233217",
-                  color: "#fff",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
-                Add person
-              </button>
+            )}
+
+            {/* Centre name */}
+            <div style={{ marginBottom: 24 }}>
+              <label style={labelStyle}>Centre name</label>
+              <input
+                value={centerName}
+                onChange={(e) => setCenterName(e.target.value)}
+                placeholder="e.g. Apex Transfers LLC"
+                style={fieldStyle}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+              />
             </div>
 
-            <div style={teamGridStyle}>
-              {lines.map((line, idx) => (
-                <div
-                  key={idx}
+            {/* Team section */}
+            <div style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusLg, overflow: "hidden" }}>
+              <div style={{
+                padding: "clamp(12px, 2vw, 18px) clamp(16px, 2.5vw, 28px)",
+                borderBottom: `1px solid ${T.borderLight}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+                backgroundColor: "#DCEBDC",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#233217" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                  <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.textDark }}>Team</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLines((ls) => [...ls, emptyLine(false)])}
                   style={{
-                    padding: "clamp(14px, 2vw, 22px)",
-                    borderRadius: T.radiusMd,
-                    border: `1.5px solid ${line.is_center_admin ? "#3b5229" : T.border}`,
-                    backgroundColor: line.is_center_admin ? "rgba(220,235,220,0.3)" : "#fff",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    border: "none",
+                    backgroundColor: "#233217",
+                    color: "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
                     transition: "all 0.15s",
                   }}
                 >
-                  {/* Admin radio */}
-                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 16 }}>
-                    <input
-                      type="radio"
-                      name="centre_admin"
-                      checked={line.is_center_admin}
-                      onChange={() => setAdminLine(idx)}
-                      style={{ width: 18, height: 18, accentColor: "#3b5229", cursor: "pointer" }}
-                    />
-                    <span style={{ fontSize: 14, fontWeight: 700, color: line.is_center_admin ? "#233217" : T.textMid }}>
-                      Centre administrator
-                    </span>
-                    {line.is_center_admin && (
-                      <span style={{ fontSize: 11, fontWeight: 800, color: "#fff", backgroundColor: "#3b5229", padding: "2px 8px", borderRadius: 6 }}>Admin</span>
-                    )}
-                  </label>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
+                  Add person
+                </button>
+              </div>
 
-                  {/* Name + Email */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "clamp(12px, 2vw, 18px)" }}>
-                    <div>
-                      <label style={labelStyle}>Full name</label>
+              <div style={teamGridStyle}>
+                {lines.map((line, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: "clamp(14px, 2vw, 22px)",
+                      borderRadius: T.radiusMd,
+                      border: `1.5px solid ${line.is_center_admin ? "#3b5229" : T.border}`,
+                      backgroundColor: line.is_center_admin ? "rgba(220,235,220,0.3)" : "#fff",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {/* Admin radio */}
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 16 }}>
                       <input
-                        value={line.full_name}
-                        onChange={(e) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, full_name: e.target.value } : l)))}
-                        style={fieldStyle}
-                        onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
-                        onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+                        type="radio"
+                        name="centre_admin"
+                        checked={line.is_center_admin}
+                        onChange={() => setAdminLine(idx)}
+                        style={{ width: 18, height: 18, accentColor: "#3b5229", cursor: "pointer" }}
                       />
+                      <span style={{ fontSize: 14, fontWeight: 700, color: line.is_center_admin ? "#233217" : T.textMid }}>
+                        Centre administrator
+                      </span>
+                      {line.is_center_admin && (
+                        <span style={{ fontSize: 11, fontWeight: 800, color: "#fff", backgroundColor: "#3b5229", padding: "2px 8px", borderRadius: 6 }}>Admin</span>
+                      )}
+                    </label>
+
+                    {/* Name + Email */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "clamp(12px, 2vw, 18px)" }}>
+                      <div>
+                        <label style={labelStyle}>Full name</label>
+                        <input
+                          value={line.full_name}
+                          onChange={(e) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, full_name: e.target.value } : l)))}
+                          style={fieldStyle}
+                          onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
+                          onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Email</label>
+                        <input
+                          type="text"
+                          inputMode="email"
+                          autoComplete="email"
+                          value={line.email}
+                          onChange={(e) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, email: e.target.value } : l)))}
+                          style={fieldStyle}
+                          onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
+                          onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label style={labelStyle}>Email</label>
-                      <input
-                        type="email"
-                        value={line.email}
-                        onChange={(e) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, email: e.target.value } : l)))}
-                        style={fieldStyle}
-                        onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
-                        onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-                      />
-                    </div>
-                  </div>
 
                   {/* Phone */}
                   <div style={{ marginTop: 16 }}>
