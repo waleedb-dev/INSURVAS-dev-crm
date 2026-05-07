@@ -1367,11 +1367,28 @@ export default function BpoCentreLeadViewComponent({
           <LeadCard icon="👥" title="Centre admin & team" subtitle="Onboarding team roster" collapsible={false}>
             <ShadcnTable>
               <TableHeader>
-                <TableRow style={{ background: T.blueFaint }}>
-                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Role</TableHead>
-                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Name</TableHead>
-                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Email</TableHead>
-                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Position</TableHead>
+                <TableRow style={{ backgroundColor: BRAND_GREEN, borderBottom: "none" }} className="hover:bg-transparent">
+                  {[
+                    { label: "Role", align: "left" as const },
+                    { label: "Name", align: "left" as const },
+                    { label: "Email", align: "left" as const },
+                    { label: "Position", align: "left" as const },
+                  ].map(({ label, align }) => (
+                    <TableHead
+                      key={label}
+                      style={{
+                        color: "#ffffff",
+                        fontWeight: 700,
+                        fontSize: 12,
+                        letterSpacing: "0.3px",
+                        padding: "14px 16px",
+                        whiteSpace: "nowrap",
+                        textAlign: align,
+                      }}
+                    >
+                      {label}
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1384,7 +1401,7 @@ export default function BpoCentreLeadViewComponent({
                 ) : (
                   team.map((m) => (
                     <TableRow key={m.id}>
-                      <TableCell>
+                      <TableCell style={{ padding: "12px 16px" }}>
                         <span
                           className="rounded-md px-2 py-0.5 text-[11px] font-extrabold uppercase"
                           style={{
@@ -1395,9 +1412,9 @@ export default function BpoCentreLeadViewComponent({
                           {m.member_kind === "center_admin" ? "Admin" : "Member"}
                         </span>
                       </TableCell>
-                      <TableCell style={{ fontWeight: 800 }}>{m.full_name}</TableCell>
-                      <TableCell style={{ fontSize: 13 }}>{m.email}</TableCell>
-                      <TableCell style={{ fontSize: 13 }}>
+                      <TableCell style={{ padding: "12px 16px", fontWeight: 800 }}>{m.full_name}</TableCell>
+                      <TableCell style={{ padding: "12px 16px", fontSize: 13 }}>{m.email}</TableCell>
+                      <TableCell style={{ padding: "12px 16px", fontSize: 13 }}>
                         {m.position_key === "custom" ? m.custom_position_label : m.position_key}
                       </TableCell>
                     </TableRow>
@@ -1409,7 +1426,7 @@ export default function BpoCentreLeadViewComponent({
             {!isDqed && (
               <div style={{ marginTop: 16, borderRadius: 12, border: `1px solid ${T.border}`, padding: "12px 14px", backgroundColor: T.blueFaint }}>
                 <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 900, color: T.textMuted }}>Add team member</p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" style={{ alignItems: "end" }}>
                   <input placeholder="Full name" value={addMemberForm.full_name} onChange={(e) => setAddMemberForm((f) => ({ ...f, full_name: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
                   <input placeholder="Email" type="text" inputMode="email" autoComplete="email" value={addMemberForm.email} onChange={(e) => setAddMemberForm((f) => ({ ...f, email: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
                   <input placeholder="Phone (optional)" value={addMemberForm.phone} onChange={(e) => setAddMemberForm((f) => ({ ...f, phone: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
@@ -1426,7 +1443,15 @@ export default function BpoCentreLeadViewComponent({
                     placeholder="Position"
                   />
                   {addMemberForm.position_key === "custom" && (
-                    <input placeholder="Custom role label" value={addMemberForm.custom_position_label} onChange={(e) => setAddMemberForm((f) => ({ ...f, custom_position_label: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500, gridColumn: "1 / -1" }} onFocus={fieldFocus} onBlur={fieldBlur} />
+                    <input
+                      placeholder="Custom role label"
+                      value={addMemberForm.custom_position_label}
+                      onChange={(e) => setAddMemberForm((f) => ({ ...f, custom_position_label: e.target.value }))}
+                      style={{ ...fieldStyle, fontWeight: 500 }}
+                      className="lg:col-span-5"
+                      onFocus={fieldFocus}
+                      onBlur={fieldBlur}
+                    />
                   )}
                 </div>
                 <button

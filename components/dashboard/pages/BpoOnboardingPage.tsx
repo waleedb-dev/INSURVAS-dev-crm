@@ -664,11 +664,28 @@ export default function BpoOnboardingPage() {
         <Card className="overflow-hidden rounded-2xl border transition-all duration-150" style={{ borderColor: T.border, background: T.cardBg }}>
           <ShadcnTable>
             <TableHeader>
-              <TableRow style={{ background: T.blueFaint, borderColor: T.border }}>
-                <TableHead style={{ color: BRAND_GREEN, fontWeight: 800 }}>Centre</TableHead>
-                <TableHead style={{ color: BRAND_GREEN, fontWeight: 800 }}>Stage</TableHead>
-                <TableHead style={{ color: BRAND_GREEN, fontWeight: 800 }}>Last call</TableHead>
-                <TableHead style={{ color: BRAND_GREEN, fontWeight: 800 }}>Intake</TableHead>
+              <TableRow style={{ backgroundColor: BRAND_GREEN, borderBottom: "none" }} className="hover:bg-transparent">
+                {[
+                  { label: "Centre", align: "left" as const },
+                  { label: "Stage", align: "left" as const },
+                  { label: "Last call", align: "left" as const },
+                  { label: "Intake", align: "left" as const },
+                ].map(({ label, align }) => (
+                  <TableHead
+                    key={label}
+                    style={{
+                      color: "#ffffff",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      letterSpacing: "0.3px",
+                      padding: "16px 20px",
+                      whiteSpace: "nowrap",
+                      textAlign: align,
+                    }}
+                  >
+                    {label}
+                  </TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -690,16 +707,16 @@ export default function BpoOnboardingPage() {
                     style={{ borderColor: T.border, cursor: "pointer" }}
                     className="transition-colors duration-150 hover:bg-[#f4faf4]"
                   >
-                    <TableCell style={{ fontWeight: 800, color: T.textDark }}>{r.centre_display_name || "—"}</TableCell>
-                    <TableCell style={{ fontWeight: 600, color: T.textMid }}>{STAGE_LABEL[r.stage] ?? r.stage}</TableCell>
-                    <TableCell style={{ fontSize: 12, color: T.textMuted }}>
+                    <TableCell style={{ padding: "14px 20px", fontWeight: 800, color: T.textDark }}>{r.centre_display_name || "—"}</TableCell>
+                    <TableCell style={{ padding: "14px 20px", fontWeight: 600, color: T.textMid }}>{STAGE_LABEL[r.stage] ?? r.stage}</TableCell>
+                    <TableCell style={{ padding: "14px 20px", fontSize: 12, color: T.textMuted }}>
                       {r.last_call_result
                         ? `${formatCallResultLabel(r.last_call_result)}${
                             r.last_call_result_at ? ` · ${new Date(r.last_call_result_at).toLocaleString()}` : ""
                           }`
                         : "—"}
                     </TableCell>
-                    <TableCell style={{ fontSize: 12, color: T.textMuted }}>
+                    <TableCell style={{ padding: "14px 20px", fontSize: 12, color: T.textMuted }}>
                       {r.form_submitted_at ? new Date(r.form_submitted_at).toLocaleString() : "Pending"}
                     </TableCell>
                   </TableRow>
