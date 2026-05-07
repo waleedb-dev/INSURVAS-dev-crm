@@ -338,6 +338,7 @@ export default function BpoCentreLeadViewComponent({
   const [saving, setSaving] = useState(false);
   const [credForm, setCredForm] = useState({ slack: "", crm: "", did: "", other: "" });
   const [callNotes, setCallNotes] = useState("");
+  const [callDisposition, setCallDisposition] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
   const [resLeadForm, setResLeadForm] = useState({ title: "", url: "", description: "" });
   const [resGlobalForm, setResGlobalForm] = useState({ title: "", url: "", description: "" });
@@ -529,6 +530,57 @@ export default function BpoCentreLeadViewComponent({
     [callNotes, canEdit, centerLeadId, currentUserId, loadDetail, supabase],
   );
 
+  const logCallUpdate = useCallback(async () => {
+    if (!centerLeadId || !draft) return;
+    if (!canEdit) {
+      setToast({ message: "You do not have permission to edit this centre lead.", type: "error" });
+      return;
+    }
+    if (!callDisposition.trim() && !callNotes.trim()) {
+      setToast({ message: "Add a disposition or notes.", type: "error" });
+      return;
+    }
+    setSaving(true);
+
+    const updateNotes = [
+      callDisposition.trim() ? `Disposition: ${callDisposition.trim()}` : null,
+      callNotes.trim() ? `Notes: ${callNotes.trim()}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const { error: e1 } = await supabase.from("bpo_center_lead_call_results").insert({
+      center_lead_id: centerLeadId,
+      result_code: "call_update",
+      notes: updateNotes || null,
+      recorded_by: currentUserId,
+    });
+    if (e1) {
+      setSaving(false);
+      setToast({ message: e1.message, type: "error" });
+      return;
+    }
+
+    if (callDisposition.trim()) {
+      const { error: e2 } = await supabase
+        .from("bpo_center_leads")
+        .update({ last_disposition_text: callDisposition.trim(), updated_by: currentUserId })
+        .eq("id", centerLeadId);
+      if (e2) {
+        setSaving(false);
+        setToast({ message: e2.message, type: "error" });
+        return;
+      }
+      setDraft((d) => (d ? { ...d, last_disposition_text: callDisposition.trim() } : d));
+    }
+
+    setSaving(false);
+    setCallDisposition("");
+    setCallNotes("");
+    setToast({ message: "Call update logged.", type: "success" });
+    await loadDetail();
+  }, [callDisposition, callNotes, canEdit, centerLeadId, currentUserId, draft, loadDetail, supabase]);
+
   const addNote = useCallback(async () => {
     if (!centerLeadId || !noteDraft.trim()) return;
     if (!canEdit) {
@@ -550,6 +602,26 @@ export default function BpoCentreLeadViewComponent({
     setToast({ message: "Note added.", type: "success" });
     await loadDetail();
   }, [canEdit, centerLeadId, currentUserId, loadDetail, noteDraft, supabase]);
+
+  const activityFeed = useMemo(() => {
+    const calls =
+      callResults?.map((c) => ({
+        id: `call:${c.id}`,
+        kind: "call" as const,
+        at: new Date(c.recorded_at).getTime(),
+        code: c.result_code,
+        body: c.notes ?? "",
+      })) ?? [];
+    const noteItems =
+      notes?.map((n) => ({
+        id: `note:${n.id}`,
+        kind: "note" as const,
+        at: new Date(n.created_at).getTime(),
+        code: "note",
+        body: n.body ?? "",
+      })) ?? [];
+    return [...calls, ...noteItems].sort((a, b) => b.at - a.at);
+  }, [callResults, notes]);
 
   const addResource = useCallback(
     async (scope: "universal" | "lead", form: { title: string; url: string; description: string }) => {
@@ -1261,20 +1333,56 @@ export default function BpoCentreLeadViewComponent({
             }}
           >
             <div style={{ fontSize: 12, fontWeight: 800, color: BRAND_GREEN, marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-              Call Activity
+              Call update
             </div>
 
-            {/* Quick call buttons */}
+            <div style={{ marginBottom: 10 }}>
+              <label style={labelStyle}>Disposition</label>
+              <input
+                value={callDisposition}
+                disabled={isDisabled}
+                onChange={(e) => setCallDisposition(e.target.value)}
+                placeholder="What happened on the call?"
+                style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                onFocus={fieldFocus}
+                onBlur={fieldBlur}
+              />
+            </div>
+
+            <label style={labelStyle}>Notes</label>
             <textarea
               value={callNotes}
               disabled={isDisabled}
               onChange={(e) => setCallNotes(e.target.value)}
-              placeholder="Optional call notes..."
+              placeholder="Optional notes..."
               rows={3}
               style={{ ...fieldStyle, marginBottom: 10, resize: "vertical", minHeight: 70, opacity: isDisabled ? 0.65 : 1 }}
               onFocus={fieldFocus}
               onBlur={fieldBlur}
             />
+            <button
+              type="button"
+              disabled={isDisabled || saving}
+              onClick={() => void logCallUpdate()}
+              style={{
+                width: "100%",
+                height: 36,
+                borderRadius: 8,
+                border: "none",
+                background: BRAND_GREEN,
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 900,
+                cursor: isDisabled || saving ? "not-allowed" : "pointer",
+                opacity: isDisabled || saving ? 0.6 : 1,
+                fontFamily: T.font,
+                letterSpacing: "0.02em",
+                marginBottom: 12,
+              }}
+            >
+              Log call update
+            </button>
+
             <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
               <button
                 type="button"
@@ -1320,43 +1428,62 @@ export default function BpoCentreLeadViewComponent({
               </button>
             </div>
 
-            {/* Call history */}
-            <div style={{ maxHeight: 400, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
-              {callResults.length === 0 ? (
+            {/* Activity feed */}
+            <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+              {activityFeed.length === 0 ? (
                 <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600, textAlign: "center", padding: 16 }}>
-                  No calls logged yet.
+                  No activity logged yet.
                 </div>
               ) : (
-                callResults.map((c) => (
-                  <div
-                    key={c.id}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 8,
-                      border: `1px solid ${T.borderLight}`,
-                      background: "#fafafa",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: c.notes ? 4 : 0 }}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          color: c.result_code === "call_completed" ? "#166534" : "#92400e",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        {formatCallResultLabel(c.result_code)}
-                      </span>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted }}>
-                        {new Date(c.recorded_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                      </span>
+                activityFeed.map((item) => {
+                  const isCall = item.kind === "call";
+                  const title = isCall ? formatCallResultLabel(item.code) : "Note";
+                  const chipBg = isCall ? "#dcfce7" : "#eef2ff";
+                  const chipBorder = isCall ? "#86efac" : "#c7d2fe";
+                  const chipText = isCall ? "#166534" : "#3730a3";
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        border: `1px solid ${T.borderLight}`,
+                        background: "#fafafa",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: item.body ? 6 : 0 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 900,
+                              textTransform: "uppercase",
+                              padding: "3px 8px",
+                              borderRadius: 999,
+                              background: chipBg,
+                              border: `1px solid ${chipBorder}`,
+                              color: chipText,
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            {isCall ? "Call" : "Note"}
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: T.textDark, textTransform: "uppercase" }}>
+                            {title}
+                          </span>
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted }}>
+                          {new Date(item.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      {item.body && (
+                        <div style={{ fontSize: 11, color: T.textMid, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>
+                          {item.body}
+                        </div>
+                      )}
                     </div>
-                    {c.notes && (
-                      <div style={{ fontSize: 11, color: T.textMid, lineHeight: 1.4 }}>{c.notes}</div>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
