@@ -14,6 +14,10 @@ export type PipelineKanbanColumn = {
   cards: ReactNode;
 };
 
+function formatCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "Opportunity" : "Opportunities"}`;
+}
+
 export function PipelineKanban({
   columns,
   emptyTitle = "No opportunities found",
@@ -85,6 +89,21 @@ export function PipelineKanban({
           gap: 12px;
           background-color: #fafcf8;
         }
+        .pipeline-kanban-empty-stage {
+          flex: 1;
+          min-height: 260px;
+          border: 1px dashed ${T.border};
+          border-radius: 10px;
+          background: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+          text-align: center;
+          color: ${T.textMuted};
+          font-size: 12px;
+          font-weight: 700;
+        }
         .pipeline-kanban-column-body::-webkit-scrollbar { width: 6px; }
         .pipeline-kanban-column-body::-webkit-scrollbar-track { background: transparent; }
         .pipeline-kanban-column-body::-webkit-scrollbar-thumb { background-color: #b8c9a8; border-radius: 6px; }
@@ -145,8 +164,7 @@ export function PipelineKanban({
                         fontSize: 13,
                         fontWeight: 800,
                         color: column.color,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
+                        letterSpacing: 0.3,
                         whiteSpace: "nowrap",
                       }}
                     >
@@ -187,11 +205,17 @@ export function PipelineKanban({
                         </button>
                       </div>
                       <div style={{ marginTop: 4, display: "flex", gap: 12, fontSize: 12 }}>
-                        <span style={{ color: T.textMuted, fontWeight: 600 }}>{column.count} Opportunities</span>
+                        <span style={{ color: T.textMuted, fontWeight: 600 }}>{formatCountLabel(column.count)}</span>
                         <span style={{ color: T.textDark, fontWeight: 800 }}>{column.value}</span>
                       </div>
                     </div>
-                    <div className="pipeline-kanban-column-body">{column.cards}</div>
+                    <div className="pipeline-kanban-column-body">
+                      {column.count === 0 ? (
+                        <div className="pipeline-kanban-empty-stage">No opportunities in this stage yet.</div>
+                      ) : (
+                        column.cards
+                      )}
+                    </div>
                   </>
                 )}
               </section>

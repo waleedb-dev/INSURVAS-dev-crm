@@ -109,12 +109,12 @@ type CenterLeadStage =
   | "offboarded";
 
 const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
-  { key: "pre_onboarding", label: "Pre-onboarding" },
-  { key: "ready_for_onboarding_meeting", label: "Ready for onboarding meeting" },
-  { key: "onboarding_completed", label: "Onboarding completed" },
-  { key: "actively_selling", label: "Actively selling" },
+  { key: "pre_onboarding", label: "Pre-Onboarding" },
+  { key: "ready_for_onboarding_meeting", label: "Ready for Onboarding Meeting" },
+  { key: "onboarding_completed", label: "Onboarding Completed" },
+  { key: "actively_selling", label: "Actively Selling" },
   { key: "needs_attention", label: "Needs attention" },
-  { key: "on_pause", label: "On pause" },
+  { key: "on_pause", label: "On Pause" },
   { key: "dqed", label: "DQED" },
   { key: "offboarded", label: "Offboarded" },
 ];
@@ -147,6 +147,7 @@ interface CenterLeadRow {
   last_call_result_at: string | null;
   form_submitted_at: string | null;
   created_at: string;
+  tags?: string[] | null;
 }
 
 export default function BpoOnboardingPage() {
@@ -380,6 +381,33 @@ export default function BpoOnboardingPage() {
           <div style={{ fontSize: 13, fontWeight: 800, color: T.textDark, lineHeight: 1.4 }}>
             {row.centre_display_name || "Untitled centre"}
           </div>
+          {(row.tags && row.tags.length > 0) && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {row.tags.slice(0, 6).map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: "3px 8px",
+                    borderRadius: 999,
+                    background: "#eef2ff",
+                    border: "1px solid #c7d2fe",
+                    color: "#3730a3",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+              {row.tags.length > 6 && (
+                <span style={{ fontSize: 10, fontWeight: 800, color: T.textMuted, alignSelf: "center" }}>
+                  +{row.tags.length - 6}
+                </span>
+              )}
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 14, marginBottom: 14 }}>
             <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
               <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Source:</span>

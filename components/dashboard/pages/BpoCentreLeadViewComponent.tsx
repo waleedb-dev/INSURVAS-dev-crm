@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { LeadCard } from "@/components/dashboard/pages/LeadCard";
+import UserEditorComponent from "@/components/dashboard/pages/UserEditorComponent";
 
 const BRAND_GREEN = "#233217";
 
@@ -337,6 +338,9 @@ export default function BpoCentreLeadViewComponent({
 
   const [saving, setSaving] = useState(false);
   const [credForm, setCredForm] = useState({ slack: "", crm: "", did: "", other: "" });
+  const [provisioned, setProvisioned] = useState<{ adminEmail?: string; adminName?: string; closerEmail?: string; closerName?: string }>({});
+  const [showAdminProvision, setShowAdminProvision] = useState(false);
+  const [showCloserProvision, setShowCloserProvision] = useState(false);
   const [callNotes, setCallNotes] = useState("");
   const [callDisposition, setCallDisposition] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
@@ -622,6 +626,39 @@ export default function BpoCentreLeadViewComponent({
       })) ?? [];
     return [...calls, ...noteItems].sort((a, b) => b.at - a.at);
   }, [callResults, notes]);
+
+  const intakeAdmin = useMemo(() => team.find((m) => m.member_kind === "center_admin") ?? null, [team]);
+  const intakeCloser = useMemo(() => team.find((m) => m.position_key === "closer") ?? null, [team]);
+
+  const credentialsEmail = useMemo(() => {
+    const centreName = draft?.centre_display_name?.trim() || "your centre";
+    const adminName = provisioned.adminName || intakeAdmin?.full_name || "Centre admin";
+    const adminEmail = provisioned.adminEmail || intakeAdmin?.email || "";
+    const closerName = provisioned.closerName || intakeCloser?.full_name || "Closer";
+    const closerEmail = provisioned.closerEmail || intakeCloser?.email || "";
+
+    const lines: string[] = [];
+    lines.push(`Hello ${adminName},`);
+    lines.push("");
+    lines.push(`Here are the access details for ${centreName}:`);
+    lines.push("");
+    if (adminEmail) lines.push(`Centre admin login: ${adminEmail}`);
+    if (closerEmail) lines.push(`Closer login: ${closerEmail} (${closerName})`);
+    if (credForm.slack.trim()) lines.push(`Slack: ${credForm.slack.trim()}`);
+    if (credForm.crm.trim()) lines.push(`CRM access: ${credForm.crm.trim()}`);
+    if (credForm.did.trim()) lines.push(`DID: ${credForm.did.trim()}`);
+    if (credForm.other.trim()) lines.push(`Notes: ${credForm.other.trim()}`);
+    lines.push("");
+    lines.push(`To set your password, use “Forgot password” on the Insurvas sign-in screen with your login email.`);
+    lines.push("");
+    lines.push("Thanks,");
+    lines.push("Insurvas");
+
+    return {
+      subject: `Insurvas access details – ${centreName}`,
+      body: lines.join("\n"),
+    };
+  }, [credForm.crm, credForm.did, credForm.other, credForm.slack, draft?.centre_display_name, intakeAdmin?.email, intakeAdmin?.full_name, intakeCloser?.email, intakeCloser?.full_name, provisioned.adminEmail, provisioned.adminName, provisioned.closerEmail, provisioned.closerName]);
 
   const addResource = useCallback(
     async (scope: "universal" | "lead", form: { title: string; url: string; description: string }) => {
@@ -1652,6 +1689,144 @@ export default function BpoCentreLeadViewComponent({
       ) : activeTab === "Credentials" ? (
         /* ═══════════════ CREDENTIALS TAB ═══════════════ */
         <div style={{ maxWidth: 1200 }}>
+          {!isDqed && (
+            <div style={{ marginBottom: 16 }}>
+              <LeadCard icon="👤" title="Provision users" subtitle="Create centre admin + closer accounts and send credentials" collapsible={false}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ fontSize: 12, fontWeight: 900, color: BRAND_GREEN, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                        Suggested from intake
+                      </div>
+                      <div style={{ fontSize: 12, color: T.textMid, fontWeight: 600 }}>
+                        Admin: {intakeAdmin ? `${intakeAdmin.full_name} (${intakeAdmin.email})` : "Not set"} · Closer: {intakeCloser ? `${intakeCloser.full_name} (${intakeCloser.email})` : "Not set"}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminProvision((v) => !v)}
+                        style={{
+                          height: 34,
+                          padding: "0 12px",
+                          borderRadius: 10,
+                          border: `1px solid ${T.border}`,
+                          background: "#fff",
+                          color: BRAND_GREEN,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {showAdminProvision ? "Hide admin form" : "Create centre admin"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowCloserProvision((v) => !v)}
+                        style={{
+                          height: 34,
+                          padding: "0 12px",
+                          borderRadius: 10,
+                          border: `1px solid ${T.border}`,
+                          background: "#fff",
+                          color: BRAND_GREEN,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {showCloserProvision ? "Hide closer form" : "Create closer"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {showAdminProvision && (
+                    <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+                      <UserEditorComponent
+                        onClose={() => setShowAdminProvision(false)}
+                        onSubmit={(data) => {
+                          const fullName = `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim();
+                          setProvisioned((p) => ({ ...p, adminEmail: data.email, adminName: fullName || p.adminName }));
+                          setToast({ message: "Centre admin created.", type: "success" });
+                        }}
+                        presetRoleKey="call_center_admin"
+                        allowedRoleKeys={["call_center_admin"]}
+                        lockRole
+                        prefill={{
+                          fullName: intakeAdmin?.full_name ?? "",
+                          email: intakeAdmin?.email ?? "",
+                          phone: intakeAdmin?.phone ?? "",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {showCloserProvision && (
+                    <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+                      <UserEditorComponent
+                        onClose={() => setShowCloserProvision(false)}
+                        onSubmit={(data) => {
+                          const fullName = `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim();
+                          setProvisioned((p) => ({ ...p, closerEmail: data.email, closerName: fullName || p.closerName }));
+                          setToast({ message: "Closer created.", type: "success" });
+                        }}
+                        presetRoleKey="call_center_agent"
+                        allowedRoleKeys={["call_center_agent"]}
+                        lockRole
+                        prefill={{
+                          fullName: intakeCloser?.full_name ?? "",
+                          email: intakeCloser?.email ?? "",
+                          phone: intakeCloser?.phone ?? "",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", paddingTop: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(`Subject: ${credentialsEmail.subject}\n\n${credentialsEmail.body}`);
+                        setToast({ message: "Credentials email copied.", type: "success" });
+                      }}
+                      style={{
+                        height: 34,
+                        padding: "0 12px",
+                        borderRadius: 10,
+                        border: "none",
+                        background: BRAND_GREEN,
+                        color: "#fff",
+                        fontSize: 12,
+                        fontWeight: 900,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Copy credentials email
+                    </button>
+                    <a
+                      href={`mailto:${encodeURIComponent(provisioned.adminEmail || intakeAdmin?.email || "")}?subject=${encodeURIComponent(credentialsEmail.subject)}&body=${encodeURIComponent(credentialsEmail.body)}`}
+                      style={{
+                        height: 34,
+                        padding: "0 12px",
+                        borderRadius: 10,
+                        border: `1px solid ${T.border}`,
+                        background: "#fff",
+                        color: BRAND_GREEN,
+                        fontSize: 12,
+                        fontWeight: 900,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Open email draft
+                    </a>
+                  </div>
+                </div>
+              </LeadCard>
+            </div>
+          )}
+
           <LeadCard icon="🔐" title="Credentials log" subtitle="Track access and DID provisioning" collapsible={false}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8, marginBottom: 8 }}>
               <input placeholder="Slack" value={credForm.slack} disabled={isDisabled} onChange={(e) => setCredForm((f) => ({ ...f, slack: e.target.value }))} style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
