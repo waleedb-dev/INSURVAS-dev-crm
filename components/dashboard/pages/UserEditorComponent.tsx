@@ -33,6 +33,11 @@ interface UserEditorProps {
     phone?: string;
     unlicensedSalesSubtype?: string | null;
   };
+  prefill?: {
+    fullName?: string;
+    email?: string;
+    phone?: string;
+  };
   onClose: () => void;
   onSubmit: (data: any) => void;
   presetRoleKey?: BpoStaffRoleKey;
@@ -120,6 +125,7 @@ function StyledSelect({
 
 export default function UserEditorComponent({
   user,
+  prefill,
   onClose,
   onSubmit,
   presetRoleKey,
@@ -132,17 +138,19 @@ export default function UserEditorComponent({
   const [activeTab, setActiveTab] = useState<TabType>("User Info");
   
   const [firstName, setFirstName] = useState(() => {
-    if (!user?.name) return "";
-    const parts = user.name.split(" ");
+    const source = user?.name ?? prefill?.fullName ?? "";
+    if (!source) return "";
+    const parts = source.split(" ");
     return parts[0] || "";
   });
   const [lastName, setLastName] = useState(() => {
-    if (!user?.name) return "";
-    const parts = user.name.split(" ");
+    const source = user?.name ?? prefill?.fullName ?? "";
+    if (!source) return "";
+    const parts = source.split(" ");
     return parts.slice(1).join(" ") || "";
   });
-  const [email, setEmail] = useState(user?.email ?? "");
-  const [phone, setPhone] = useState(user?.phone ?? "");
+  const [email, setEmail] = useState(user?.email ?? prefill?.email ?? "");
+  const [phone, setPhone] = useState(user?.phone ?? prefill?.phone ?? "");
   
   const [roles, setRoles] = useState<Role[]>([]);
   const [centers, setCenters] = useState<BpoCenter[]>([]);

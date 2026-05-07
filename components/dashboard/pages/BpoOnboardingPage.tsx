@@ -109,12 +109,12 @@ type CenterLeadStage =
   | "offboarded";
 
 const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
-  { key: "pre_onboarding", label: "Pre-onboarding" },
-  { key: "ready_for_onboarding_meeting", label: "Ready for onboarding meeting" },
-  { key: "onboarding_completed", label: "Onboarding completed" },
-  { key: "actively_selling", label: "Actively selling" },
+  { key: "pre_onboarding", label: "Pre-Onboarding" },
+  { key: "ready_for_onboarding_meeting", label: "Ready for Onboarding Meeting" },
+  { key: "onboarding_completed", label: "Onboarding Completed" },
+  { key: "actively_selling", label: "Actively Selling" },
   { key: "needs_attention", label: "Needs attention" },
-  { key: "on_pause", label: "On pause" },
+  { key: "on_pause", label: "On Pause" },
   { key: "dqed", label: "DQED" },
   { key: "offboarded", label: "Offboarded" },
 ];
@@ -147,6 +147,7 @@ interface CenterLeadRow {
   last_call_result_at: string | null;
   form_submitted_at: string | null;
   created_at: string;
+  tags?: string[] | null;
 }
 
 export default function BpoOnboardingPage() {
@@ -380,6 +381,33 @@ export default function BpoOnboardingPage() {
           <div style={{ fontSize: 13, fontWeight: 800, color: T.textDark, lineHeight: 1.4 }}>
             {row.centre_display_name || "Untitled centre"}
           </div>
+          {(row.tags && row.tags.length > 0) && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {row.tags.slice(0, 6).map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: "3px 8px",
+                    borderRadius: 999,
+                    background: "#eef2ff",
+                    border: "1px solid #c7d2fe",
+                    color: "#3730a3",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+              {row.tags.length > 6 && (
+                <span style={{ fontSize: 10, fontWeight: 800, color: T.textMuted, alignSelf: "center" }}>
+                  +{row.tags.length - 6}
+                </span>
+              )}
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 14, marginBottom: 14 }}>
             <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
               <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Source:</span>
@@ -664,11 +692,28 @@ export default function BpoOnboardingPage() {
         <Card className="overflow-hidden rounded-2xl border transition-all duration-150" style={{ borderColor: T.border, background: T.cardBg }}>
           <ShadcnTable>
             <TableHeader>
-              <TableRow style={{ background: T.blueFaint, borderColor: T.border }}>
-                <TableHead style={{ color: BRAND_GREEN, fontWeight: 800 }}>Centre</TableHead>
-                <TableHead style={{ color: BRAND_GREEN, fontWeight: 800 }}>Stage</TableHead>
-                <TableHead style={{ color: BRAND_GREEN, fontWeight: 800 }}>Last call</TableHead>
-                <TableHead style={{ color: BRAND_GREEN, fontWeight: 800 }}>Intake</TableHead>
+              <TableRow style={{ backgroundColor: BRAND_GREEN, borderBottom: "none" }} className="hover:bg-transparent">
+                {[
+                  { label: "Centre", align: "left" as const },
+                  { label: "Stage", align: "left" as const },
+                  { label: "Last call", align: "left" as const },
+                  { label: "Intake", align: "left" as const },
+                ].map(({ label, align }) => (
+                  <TableHead
+                    key={label}
+                    style={{
+                      color: "#ffffff",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      letterSpacing: "0.3px",
+                      padding: "16px 20px",
+                      whiteSpace: "nowrap",
+                      textAlign: align,
+                    }}
+                  >
+                    {label}
+                  </TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -690,16 +735,16 @@ export default function BpoOnboardingPage() {
                     style={{ borderColor: T.border, cursor: "pointer" }}
                     className="transition-colors duration-150 hover:bg-[#f4faf4]"
                   >
-                    <TableCell style={{ fontWeight: 800, color: T.textDark }}>{r.centre_display_name || "—"}</TableCell>
-                    <TableCell style={{ fontWeight: 600, color: T.textMid }}>{STAGE_LABEL[r.stage] ?? r.stage}</TableCell>
-                    <TableCell style={{ fontSize: 12, color: T.textMuted }}>
+                    <TableCell style={{ padding: "14px 20px", fontWeight: 800, color: T.textDark }}>{r.centre_display_name || "—"}</TableCell>
+                    <TableCell style={{ padding: "14px 20px", fontWeight: 600, color: T.textMid }}>{STAGE_LABEL[r.stage] ?? r.stage}</TableCell>
+                    <TableCell style={{ padding: "14px 20px", fontSize: 12, color: T.textMuted }}>
                       {r.last_call_result
                         ? `${formatCallResultLabel(r.last_call_result)}${
                             r.last_call_result_at ? ` · ${new Date(r.last_call_result_at).toLocaleString()}` : ""
                           }`
                         : "—"}
                     </TableCell>
-                    <TableCell style={{ fontSize: 12, color: T.textMuted }}>
+                    <TableCell style={{ padding: "14px 20px", fontSize: 12, color: T.textMuted }}>
                       {r.form_submitted_at ? new Date(r.form_submitted_at).toLocaleString() : "Pending"}
                     </TableCell>
                   </TableRow>

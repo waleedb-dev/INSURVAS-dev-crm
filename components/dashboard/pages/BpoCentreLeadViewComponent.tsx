@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { LeadCard } from "@/components/dashboard/pages/LeadCard";
+import UserEditorComponent from "@/components/dashboard/pages/UserEditorComponent";
 
 const BRAND_GREEN = "#233217";
 
@@ -143,6 +144,10 @@ function getExpectedDqedCode(): string {
 function formatCallResultLabel(key: string | null): string {
   if (!key) return "";
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value.trim());
 }
 
 const fieldStyle: CSSProperties = {
@@ -333,7 +338,11 @@ export default function BpoCentreLeadViewComponent({
 
   const [saving, setSaving] = useState(false);
   const [credForm, setCredForm] = useState({ slack: "", crm: "", did: "", other: "" });
+  const [provisioned, setProvisioned] = useState<{ adminEmail?: string; adminName?: string; closerEmail?: string; closerName?: string }>({});
+  const [showAdminProvision, setShowAdminProvision] = useState(false);
+  const [showCloserProvision, setShowCloserProvision] = useState(false);
   const [callNotes, setCallNotes] = useState("");
+  const [callDisposition, setCallDisposition] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
   const [resLeadForm, setResLeadForm] = useState({ title: "", url: "", description: "" });
   const [resGlobalForm, setResGlobalForm] = useState({ title: "", url: "", description: "" });
@@ -525,6 +534,57 @@ export default function BpoCentreLeadViewComponent({
     [callNotes, canEdit, centerLeadId, currentUserId, loadDetail, supabase],
   );
 
+  const logCallUpdate = useCallback(async () => {
+    if (!centerLeadId || !draft) return;
+    if (!canEdit) {
+      setToast({ message: "You do not have permission to edit this centre lead.", type: "error" });
+      return;
+    }
+    if (!callDisposition.trim() && !callNotes.trim()) {
+      setToast({ message: "Add a disposition or notes.", type: "error" });
+      return;
+    }
+    setSaving(true);
+
+    const updateNotes = [
+      callDisposition.trim() ? `Disposition: ${callDisposition.trim()}` : null,
+      callNotes.trim() ? `Notes: ${callNotes.trim()}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const { error: e1 } = await supabase.from("bpo_center_lead_call_results").insert({
+      center_lead_id: centerLeadId,
+      result_code: "call_update",
+      notes: updateNotes || null,
+      recorded_by: currentUserId,
+    });
+    if (e1) {
+      setSaving(false);
+      setToast({ message: e1.message, type: "error" });
+      return;
+    }
+
+    if (callDisposition.trim()) {
+      const { error: e2 } = await supabase
+        .from("bpo_center_leads")
+        .update({ last_disposition_text: callDisposition.trim(), updated_by: currentUserId })
+        .eq("id", centerLeadId);
+      if (e2) {
+        setSaving(false);
+        setToast({ message: e2.message, type: "error" });
+        return;
+      }
+      setDraft((d) => (d ? { ...d, last_disposition_text: callDisposition.trim() } : d));
+    }
+
+    setSaving(false);
+    setCallDisposition("");
+    setCallNotes("");
+    setToast({ message: "Call update logged.", type: "success" });
+    await loadDetail();
+  }, [callDisposition, callNotes, canEdit, centerLeadId, currentUserId, draft, loadDetail, supabase]);
+
   const addNote = useCallback(async () => {
     if (!centerLeadId || !noteDraft.trim()) return;
     if (!canEdit) {
@@ -546,6 +606,59 @@ export default function BpoCentreLeadViewComponent({
     setToast({ message: "Note added.", type: "success" });
     await loadDetail();
   }, [canEdit, centerLeadId, currentUserId, loadDetail, noteDraft, supabase]);
+
+  const activityFeed = useMemo(() => {
+    const calls =
+      callResults?.map((c) => ({
+        id: `call:${c.id}`,
+        kind: "call" as const,
+        at: new Date(c.recorded_at).getTime(),
+        code: c.result_code,
+        body: c.notes ?? "",
+      })) ?? [];
+    const noteItems =
+      notes?.map((n) => ({
+        id: `note:${n.id}`,
+        kind: "note" as const,
+        at: new Date(n.created_at).getTime(),
+        code: "note",
+        body: n.body ?? "",
+      })) ?? [];
+    return [...calls, ...noteItems].sort((a, b) => b.at - a.at);
+  }, [callResults, notes]);
+
+  const intakeAdmin = useMemo(() => team.find((m) => m.member_kind === "center_admin") ?? null, [team]);
+  const intakeCloser = useMemo(() => team.find((m) => m.position_key === "closer") ?? null, [team]);
+
+  const credentialsEmail = useMemo(() => {
+    const centreName = draft?.centre_display_name?.trim() || "your centre";
+    const adminName = provisioned.adminName || intakeAdmin?.full_name || "Centre admin";
+    const adminEmail = provisioned.adminEmail || intakeAdmin?.email || "";
+    const closerName = provisioned.closerName || intakeCloser?.full_name || "Closer";
+    const closerEmail = provisioned.closerEmail || intakeCloser?.email || "";
+
+    const lines: string[] = [];
+    lines.push(`Hello ${adminName},`);
+    lines.push("");
+    lines.push(`Here are the access details for ${centreName}:`);
+    lines.push("");
+    if (adminEmail) lines.push(`Centre admin login: ${adminEmail}`);
+    if (closerEmail) lines.push(`Closer login: ${closerEmail} (${closerName})`);
+    if (credForm.slack.trim()) lines.push(`Slack: ${credForm.slack.trim()}`);
+    if (credForm.crm.trim()) lines.push(`CRM access: ${credForm.crm.trim()}`);
+    if (credForm.did.trim()) lines.push(`DID: ${credForm.did.trim()}`);
+    if (credForm.other.trim()) lines.push(`Notes: ${credForm.other.trim()}`);
+    lines.push("");
+    lines.push(`To set your password, use “Forgot password” on the Insurvas sign-in screen with your login email.`);
+    lines.push("");
+    lines.push("Thanks,");
+    lines.push("Insurvas");
+
+    return {
+      subject: `Insurvas access details – ${centreName}`,
+      body: lines.join("\n"),
+    };
+  }, [credForm.crm, credForm.did, credForm.other, credForm.slack, draft?.centre_display_name, intakeAdmin?.email, intakeAdmin?.full_name, intakeCloser?.email, intakeCloser?.full_name, provisioned.adminEmail, provisioned.adminName, provisioned.closerEmail, provisioned.closerName]);
 
   const addResource = useCallback(
     async (scope: "universal" | "lead", form: { title: string; url: string; description: string }) => {
@@ -615,6 +728,10 @@ export default function BpoCentreLeadViewComponent({
     }
     if (!addMemberForm.full_name.trim() || !addMemberForm.email.trim()) {
       setToast({ message: "Name and email are required.", type: "error" });
+      return;
+    }
+    if (!isValidEmail(addMemberForm.email)) {
+      setToast({ message: "Email is not valid.", type: "error" });
       return;
     }
     if (addMemberForm.position_key === "custom" && !addMemberForm.custom_position_label.trim()) {
@@ -1253,20 +1370,56 @@ export default function BpoCentreLeadViewComponent({
             }}
           >
             <div style={{ fontSize: 12, fontWeight: 800, color: BRAND_GREEN, marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-              Call Activity
+              Call update
             </div>
 
-            {/* Quick call buttons */}
+            <div style={{ marginBottom: 10 }}>
+              <label style={labelStyle}>Disposition</label>
+              <input
+                value={callDisposition}
+                disabled={isDisabled}
+                onChange={(e) => setCallDisposition(e.target.value)}
+                placeholder="What happened on the call?"
+                style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                onFocus={fieldFocus}
+                onBlur={fieldBlur}
+              />
+            </div>
+
+            <label style={labelStyle}>Notes</label>
             <textarea
               value={callNotes}
               disabled={isDisabled}
               onChange={(e) => setCallNotes(e.target.value)}
-              placeholder="Optional call notes..."
+              placeholder="Optional notes..."
               rows={3}
               style={{ ...fieldStyle, marginBottom: 10, resize: "vertical", minHeight: 70, opacity: isDisabled ? 0.65 : 1 }}
               onFocus={fieldFocus}
               onBlur={fieldBlur}
             />
+            <button
+              type="button"
+              disabled={isDisabled || saving}
+              onClick={() => void logCallUpdate()}
+              style={{
+                width: "100%",
+                height: 36,
+                borderRadius: 8,
+                border: "none",
+                background: BRAND_GREEN,
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 900,
+                cursor: isDisabled || saving ? "not-allowed" : "pointer",
+                opacity: isDisabled || saving ? 0.6 : 1,
+                fontFamily: T.font,
+                letterSpacing: "0.02em",
+                marginBottom: 12,
+              }}
+            >
+              Log call update
+            </button>
+
             <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
               <button
                 type="button"
@@ -1312,43 +1465,62 @@ export default function BpoCentreLeadViewComponent({
               </button>
             </div>
 
-            {/* Call history */}
-            <div style={{ maxHeight: 400, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
-              {callResults.length === 0 ? (
+            {/* Activity feed */}
+            <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+              {activityFeed.length === 0 ? (
                 <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600, textAlign: "center", padding: 16 }}>
-                  No calls logged yet.
+                  No activity logged yet.
                 </div>
               ) : (
-                callResults.map((c) => (
-                  <div
-                    key={c.id}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 8,
-                      border: `1px solid ${T.borderLight}`,
-                      background: "#fafafa",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: c.notes ? 4 : 0 }}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          color: c.result_code === "call_completed" ? "#166534" : "#92400e",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        {formatCallResultLabel(c.result_code)}
-                      </span>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted }}>
-                        {new Date(c.recorded_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                      </span>
+                activityFeed.map((item) => {
+                  const isCall = item.kind === "call";
+                  const title = isCall ? formatCallResultLabel(item.code) : "Note";
+                  const chipBg = isCall ? "#dcfce7" : "#eef2ff";
+                  const chipBorder = isCall ? "#86efac" : "#c7d2fe";
+                  const chipText = isCall ? "#166534" : "#3730a3";
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        border: `1px solid ${T.borderLight}`,
+                        background: "#fafafa",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: item.body ? 6 : 0 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 900,
+                              textTransform: "uppercase",
+                              padding: "3px 8px",
+                              borderRadius: 999,
+                              background: chipBg,
+                              border: `1px solid ${chipBorder}`,
+                              color: chipText,
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            {isCall ? "Call" : "Note"}
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: T.textDark, textTransform: "uppercase" }}>
+                            {title}
+                          </span>
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted }}>
+                          {new Date(item.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      {item.body && (
+                        <div style={{ fontSize: 11, color: T.textMid, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>
+                          {item.body}
+                        </div>
+                      )}
                     </div>
-                    {c.notes && (
-                      <div style={{ fontSize: 11, color: T.textMid, lineHeight: 1.4 }}>{c.notes}</div>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -1359,11 +1531,28 @@ export default function BpoCentreLeadViewComponent({
           <LeadCard icon="👥" title="Centre admin & team" subtitle="Onboarding team roster" collapsible={false}>
             <ShadcnTable>
               <TableHeader>
-                <TableRow style={{ background: T.blueFaint }}>
-                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Role</TableHead>
-                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Name</TableHead>
-                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Email</TableHead>
-                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Position</TableHead>
+                <TableRow style={{ backgroundColor: BRAND_GREEN, borderBottom: "none" }} className="hover:bg-transparent">
+                  {[
+                    { label: "Role", align: "left" as const },
+                    { label: "Name", align: "left" as const },
+                    { label: "Email", align: "left" as const },
+                    { label: "Position", align: "left" as const },
+                  ].map(({ label, align }) => (
+                    <TableHead
+                      key={label}
+                      style={{
+                        color: "#ffffff",
+                        fontWeight: 700,
+                        fontSize: 12,
+                        letterSpacing: "0.3px",
+                        padding: "14px 16px",
+                        whiteSpace: "nowrap",
+                        textAlign: align,
+                      }}
+                    >
+                      {label}
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1376,7 +1565,7 @@ export default function BpoCentreLeadViewComponent({
                 ) : (
                   team.map((m) => (
                     <TableRow key={m.id}>
-                      <TableCell>
+                      <TableCell style={{ padding: "12px 16px" }}>
                         <span
                           className="rounded-md px-2 py-0.5 text-[11px] font-extrabold uppercase"
                           style={{
@@ -1387,9 +1576,9 @@ export default function BpoCentreLeadViewComponent({
                           {m.member_kind === "center_admin" ? "Admin" : "Member"}
                         </span>
                       </TableCell>
-                      <TableCell style={{ fontWeight: 800 }}>{m.full_name}</TableCell>
-                      <TableCell style={{ fontSize: 13 }}>{m.email}</TableCell>
-                      <TableCell style={{ fontSize: 13 }}>
+                      <TableCell style={{ padding: "12px 16px", fontWeight: 800 }}>{m.full_name}</TableCell>
+                      <TableCell style={{ padding: "12px 16px", fontSize: 13 }}>{m.email}</TableCell>
+                      <TableCell style={{ padding: "12px 16px", fontSize: 13 }}>
                         {m.position_key === "custom" ? m.custom_position_label : m.position_key}
                       </TableCell>
                     </TableRow>
@@ -1401,9 +1590,9 @@ export default function BpoCentreLeadViewComponent({
             {!isDqed && (
               <div style={{ marginTop: 16, borderRadius: 12, border: `1px solid ${T.border}`, padding: "12px 14px", backgroundColor: T.blueFaint }}>
                 <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 900, color: T.textMuted }}>Add team member</p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" style={{ alignItems: "end" }}>
                   <input placeholder="Full name" value={addMemberForm.full_name} onChange={(e) => setAddMemberForm((f) => ({ ...f, full_name: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                  <input placeholder="Email" type="email" value={addMemberForm.email} onChange={(e) => setAddMemberForm((f) => ({ ...f, email: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+                  <input placeholder="Email" type="text" inputMode="email" autoComplete="email" value={addMemberForm.email} onChange={(e) => setAddMemberForm((f) => ({ ...f, email: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
                   <input placeholder="Phone (optional)" value={addMemberForm.phone} onChange={(e) => setAddMemberForm((f) => ({ ...f, phone: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
                   <StyledSelect
                     value={addMemberForm.member_kind}
@@ -1418,7 +1607,15 @@ export default function BpoCentreLeadViewComponent({
                     placeholder="Position"
                   />
                   {addMemberForm.position_key === "custom" && (
-                    <input placeholder="Custom role label" value={addMemberForm.custom_position_label} onChange={(e) => setAddMemberForm((f) => ({ ...f, custom_position_label: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500, gridColumn: "1 / -1" }} onFocus={fieldFocus} onBlur={fieldBlur} />
+                    <input
+                      placeholder="Custom role label"
+                      value={addMemberForm.custom_position_label}
+                      onChange={(e) => setAddMemberForm((f) => ({ ...f, custom_position_label: e.target.value }))}
+                      style={{ ...fieldStyle, fontWeight: 500 }}
+                      className="lg:col-span-5"
+                      onFocus={fieldFocus}
+                      onBlur={fieldBlur}
+                    />
                   )}
                 </div>
                 <button
@@ -1492,6 +1689,144 @@ export default function BpoCentreLeadViewComponent({
       ) : activeTab === "Credentials" ? (
         /* ═══════════════ CREDENTIALS TAB ═══════════════ */
         <div style={{ maxWidth: 1200 }}>
+          {!isDqed && (
+            <div style={{ marginBottom: 16 }}>
+              <LeadCard icon="👤" title="Provision users" subtitle="Create centre admin + closer accounts and send credentials" collapsible={false}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ fontSize: 12, fontWeight: 900, color: BRAND_GREEN, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                        Suggested from intake
+                      </div>
+                      <div style={{ fontSize: 12, color: T.textMid, fontWeight: 600 }}>
+                        Admin: {intakeAdmin ? `${intakeAdmin.full_name} (${intakeAdmin.email})` : "Not set"} · Closer: {intakeCloser ? `${intakeCloser.full_name} (${intakeCloser.email})` : "Not set"}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminProvision((v) => !v)}
+                        style={{
+                          height: 34,
+                          padding: "0 12px",
+                          borderRadius: 10,
+                          border: `1px solid ${T.border}`,
+                          background: "#fff",
+                          color: BRAND_GREEN,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {showAdminProvision ? "Hide admin form" : "Create centre admin"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowCloserProvision((v) => !v)}
+                        style={{
+                          height: 34,
+                          padding: "0 12px",
+                          borderRadius: 10,
+                          border: `1px solid ${T.border}`,
+                          background: "#fff",
+                          color: BRAND_GREEN,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {showCloserProvision ? "Hide closer form" : "Create closer"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {showAdminProvision && (
+                    <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+                      <UserEditorComponent
+                        onClose={() => setShowAdminProvision(false)}
+                        onSubmit={(data) => {
+                          const fullName = `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim();
+                          setProvisioned((p) => ({ ...p, adminEmail: data.email, adminName: fullName || p.adminName }));
+                          setToast({ message: "Centre admin created.", type: "success" });
+                        }}
+                        presetRoleKey="call_center_admin"
+                        allowedRoleKeys={["call_center_admin"]}
+                        lockRole
+                        prefill={{
+                          fullName: intakeAdmin?.full_name ?? "",
+                          email: intakeAdmin?.email ?? "",
+                          phone: intakeAdmin?.phone ?? "",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {showCloserProvision && (
+                    <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+                      <UserEditorComponent
+                        onClose={() => setShowCloserProvision(false)}
+                        onSubmit={(data) => {
+                          const fullName = `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim();
+                          setProvisioned((p) => ({ ...p, closerEmail: data.email, closerName: fullName || p.closerName }));
+                          setToast({ message: "Closer created.", type: "success" });
+                        }}
+                        presetRoleKey="call_center_agent"
+                        allowedRoleKeys={["call_center_agent"]}
+                        lockRole
+                        prefill={{
+                          fullName: intakeCloser?.full_name ?? "",
+                          email: intakeCloser?.email ?? "",
+                          phone: intakeCloser?.phone ?? "",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", paddingTop: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(`Subject: ${credentialsEmail.subject}\n\n${credentialsEmail.body}`);
+                        setToast({ message: "Credentials email copied.", type: "success" });
+                      }}
+                      style={{
+                        height: 34,
+                        padding: "0 12px",
+                        borderRadius: 10,
+                        border: "none",
+                        background: BRAND_GREEN,
+                        color: "#fff",
+                        fontSize: 12,
+                        fontWeight: 900,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Copy credentials email
+                    </button>
+                    <a
+                      href={`mailto:${encodeURIComponent(provisioned.adminEmail || intakeAdmin?.email || "")}?subject=${encodeURIComponent(credentialsEmail.subject)}&body=${encodeURIComponent(credentialsEmail.body)}`}
+                      style={{
+                        height: 34,
+                        padding: "0 12px",
+                        borderRadius: 10,
+                        border: `1px solid ${T.border}`,
+                        background: "#fff",
+                        color: BRAND_GREEN,
+                        fontSize: 12,
+                        fontWeight: 900,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Open email draft
+                    </a>
+                  </div>
+                </div>
+              </LeadCard>
+            </div>
+          )}
+
           <LeadCard icon="🔐" title="Credentials log" subtitle="Track access and DID provisioning" collapsible={false}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8, marginBottom: 8 }}>
               <input placeholder="Slack" value={credForm.slack} disabled={isDisabled} onChange={(e) => setCredForm((f) => ({ ...f, slack: e.target.value }))} style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
