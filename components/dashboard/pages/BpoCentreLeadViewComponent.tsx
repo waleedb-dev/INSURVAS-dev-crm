@@ -13,7 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/shadcn/table";
-import { ClipboardCopy, Loader2, ShieldAlert, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, ClipboardCopy, Loader2, ShieldAlert, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -104,9 +105,10 @@ type CenterLeadStage =
   | "actively_selling"
   | "needs_attention"
   | "on_pause"
-  | "dqed";
+  | "dqed"
+  | "offboarded";
 
-type DetailTab = "Opportunity Details" | "Team" | "Call activity" | "Resources" | "Notes";
+type DetailTab = "Overview" | "Team" | "Resources" | "Credentials";
 
 const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
   { key: "pre_onboarding", label: "Pre-onboarding" },
@@ -116,9 +118,21 @@ const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
   { key: "needs_attention", label: "Needs attention" },
   { key: "on_pause", label: "On pause" },
   { key: "dqed", label: "DQED" },
+  { key: "offboarded", label: "Offboarded" },
 ];
 
 const STAGE_LABEL: Record<string, string> = Object.fromEntries(STAGE_OPTIONS.map((o) => [o.key, o.label]));
+
+const STAGE_COLOR: Record<string, string> = {
+  pre_onboarding: "#638b4b",
+  ready_for_onboarding_meeting: "#2563eb",
+  onboarding_completed: "#7c3aed",
+  actively_selling: "#0f766e",
+  needs_attention: "#d97706",
+  on_pause: "#64748b",
+  dqed: "#991b1b",
+  offboarded: "#374151",
+};
 
 function getExpectedDqedCode(): string {
   return (
@@ -128,7 +142,7 @@ function getExpectedDqedCode(): string {
 
 function formatCallResultLabel(key: string | null): string {
   if (!key) return "";
-  return key.replace(/_/g, " ");
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const fieldStyle: CSSProperties = {
@@ -147,11 +161,13 @@ const fieldStyle: CSSProperties = {
 };
 
 const labelStyle: CSSProperties = {
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 700,
   color: T.textMuted,
-  marginBottom: 5,
+  marginBottom: 4,
   display: "block",
+  textTransform: "uppercase",
+  letterSpacing: "0.3px",
 };
 
 function fieldFocus(e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
@@ -174,6 +190,7 @@ interface CenterLeadRow {
   opportunity_source: string | null;
   expected_start_date: string | null;
   committed_daily_sales: number | null;
+  committed_daily_transfers: number | null;
   closer_count: number | null;
   buyer_details: string | null;
   daily_sales_generation_notes: string | null;
@@ -259,14 +276,14 @@ function TabNavigation({
             type="button"
             onClick={() => onTabChange(tab)}
             style={{
-              height: 34,
-              padding: "0 14px",
-              borderRadius: 10,
+              height: 32,
+              padding: "0 12px",
+              borderRadius: 8,
               border: "none",
               background: isActive ? BRAND_GREEN : "transparent",
               color: isActive ? "#fff" : T.textMuted,
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: 12,
+              fontWeight: 700,
               fontFamily: T.font,
               cursor: "pointer",
               boxShadow: isActive ? "0 2px 8px rgba(35, 50, 23, 0.2)" : "none",
@@ -288,15 +305,18 @@ export default function BpoCentreLeadViewComponent({
   centerLeadId,
   canEdit,
   onBack,
+  allLeadIds,
 }: {
   centerLeadId?: string;
   canEdit: boolean;
   onBack: () => void;
+  allLeadIds?: string[];
 }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const router = useRouter();
   const { currentUserId, currentRole } = useDashboardContext();
 
-  const [activeTab, setActiveTab] = useState<DetailTab>("Opportunity Details");
+  const [activeTab, setActiveTab] = useState<DetailTab>("Overview");
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -329,6 +349,11 @@ export default function BpoCentreLeadViewComponent({
     custom_position_label: "",
     member_kind: "team_member" as "center_admin" | "team_member",
   });
+
+  // Next/prev navigation
+  const currentIdx = allLeadIds?.indexOf(centerLeadId ?? "") ?? -1;
+  const prevLeadId = currentIdx > 0 ? allLeadIds?.[currentIdx - 1] : null;
+  const nextLeadId = allLeadIds && currentIdx < allLeadIds.length - 1 ? allLeadIds[currentIdx + 1] : null;
 
   const loadDetail = useCallback(async () => {
     if (!centerLeadId) {
@@ -393,7 +418,6 @@ export default function BpoCentreLeadViewComponent({
   }, [centerLeadId, supabase]);
 
   useEffect(() => {
-    // Defer the state updates to avoid synchronous setState-in-effect lint.
     const t = window.setTimeout(() => {
       void loadDetail();
     }, 0);
@@ -409,6 +433,9 @@ export default function BpoCentreLeadViewComponent({
     if (!inviteToken || typeof window === "undefined") return "";
     return `${window.location.origin}/onboarding/${inviteToken}`;
   }, [inviteToken]);
+
+  const isDqed = draft?.stage === "dqed" || draft?.stage === "offboarded";
+  const isDisabled = !canEdit || isDqed;
 
   const saveCentreLead = useCallback(async () => {
     if (!centerLeadId || !draft) return;
@@ -428,6 +455,7 @@ export default function BpoCentreLeadViewComponent({
         opportunity_source: draft.opportunity_source?.trim() || null,
         expected_start_date: draft.expected_start_date || null,
         committed_daily_sales: draft.committed_daily_sales,
+        committed_daily_transfers: draft.committed_daily_transfers,
         closer_count: draft.closer_count,
         buyer_details: draft.buyer_details?.trim() || null,
         daily_sales_generation_notes: draft.daily_sales_generation_notes?.trim() || null,
@@ -710,143 +738,142 @@ export default function BpoCentreLeadViewComponent({
         </div>
       )}
 
-      {/* Match Lead details header chrome (Back icon + tabs + actions) */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, gap: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+      {/* Header bar: Back + Nav + Tabs + Actions */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <button
             type="button"
             onClick={onBack}
             style={{
               background: "#fff",
               border: `1.5px solid ${T.border}`,
-              borderRadius: "12px",
-              width: 42,
-              height: 42,
+              borderRadius: 10,
+              width: 36,
+              height: 36,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
               color: T.textMid,
-              transition: "all 0.2s",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+              transition: "all 0.15s",
               flexShrink: 0,
             }}
             aria-label="Back"
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
+            <ChevronLeft size={18} />
           </button>
+
+          {/* Prev/Next navigation */}
+          {allLeadIds && allLeadIds.length > 1 && (
+            <div style={{ display: "flex", gap: 4 }}>
+              <button
+                type="button"
+                disabled={!prevLeadId}
+                onClick={() => {
+                  if (!prevLeadId || !centerLeadId) return;
+                  const path = window.location.pathname.replace(centerLeadId, prevLeadId);
+                  router.push(path);
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  cursor: prevLeadId ? "pointer" : "not-allowed",
+                  opacity: prevLeadId ? 1 : 0.4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: T.textMid,
+                }}
+                aria-label="Previous centre"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                type="button"
+                disabled={!nextLeadId}
+                onClick={() => {
+                  if (!nextLeadId || !centerLeadId) return;
+                  const path = window.location.pathname.replace(centerLeadId, nextLeadId);
+                  router.push(path);
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  cursor: nextLeadId ? "pointer" : "not-allowed",
+                  opacity: nextLeadId ? 1 : 0.4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: T.textMid,
+                }}
+                aria-label="Next centre"
+              >
+                <ChevronRight size={14} />
+              </button>
+              <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, alignSelf: "center", marginLeft: 4 }}>
+                {currentIdx + 1}/{allLeadIds.length}
+              </span>
+            </div>
+          )}
+
           <TabNavigation
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            tabs={["Opportunity Details", "Team", "Call activity", "Resources", "Notes"]}
+            tabs={["Overview", "Team", "Resources", "Credentials"]}
           />
         </div>
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button
             type="button"
-            disabled={!canEdit || saving || draft?.stage === "dqed"}
+            disabled={isDisabled || saving}
             onClick={() => void saveCentreLead()}
             style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: T.radiusMd,
-              background: T.cardBg,
-              color: "#233217",
-              fontSize: 13,
-              fontWeight: 700,
-              padding: "10px 20px",
-              cursor: !canEdit || saving || draft?.stage === "dqed" ? "not-allowed" : "pointer",
-              opacity: !canEdit || saving || draft?.stage === "dqed" ? 0.55 : 1,
+              height: 34,
+              padding: "0 16px",
+              borderRadius: 8,
+              border: "none",
+              background: BRAND_GREEN,
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: isDisabled || saving ? "not-allowed" : "pointer",
+              opacity: isDisabled || saving ? 0.55 : 1,
               transition: "all 0.15s ease-in-out",
             }}
-            onMouseEnter={(e) => {
-              if (!canEdit || saving || draft?.stage === "dqed") return;
-              e.currentTarget.style.backgroundColor = "#233217";
-              e.currentTarget.style.color = "#fff";
-              e.currentTarget.style.borderColor = "#233217";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = T.cardBg;
-              e.currentTarget.style.color = "#233217";
-              e.currentTarget.style.borderColor = T.border;
-            }}
           >
-            Save
+            {saving ? "Saving..." : "Save"}
           </button>
 
           <button
             type="button"
             onClick={() => {
-              void navigator.clipboard.writeText(publicOpenIntakeUrl);
-              setToast({ message: "Public intake link copied.", type: "success" });
+              void navigator.clipboard.writeText(leadInviteUrl || publicOpenIntakeUrl);
+              setToast({ message: "Intake link copied.", type: "success" });
             }}
-            disabled={!publicOpenIntakeUrl}
             style={{
+              height: 34,
+              padding: "0 12px",
+              borderRadius: 8,
               border: `1px solid ${T.border}`,
-              borderRadius: T.radiusMd,
               background: "#fff",
-              color: "#233217",
-              fontSize: 13,
+              color: BRAND_GREEN,
+              fontSize: 12,
               fontWeight: 700,
-              padding: "10px 20px",
-              cursor: publicOpenIntakeUrl ? "pointer" : "not-allowed",
-              opacity: publicOpenIntakeUrl ? 1 : 0.55,
-              transition: "all 0.15s ease-in-out",
+              cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
-              gap: 8,
+              gap: 6,
             }}
           >
-            <ClipboardCopy size={16} />
-            Copy public intake link
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard.writeText(leadInviteUrl);
-              setToast({ message: "This-lead invite link copied.", type: "success" });
-            }}
-            disabled={!leadInviteUrl}
-            style={{
-              border: `1px solid ${leadInviteUrl ? "#233217" : T.border}`,
-              borderRadius: T.radiusMd,
-              background: leadInviteUrl ? "#233217" : T.cardBg,
-              color: leadInviteUrl ? "#fff" : "#233217",
-              fontSize: 13,
-              fontWeight: 700,
-              padding: "10px 24px",
-              cursor: leadInviteUrl ? "pointer" : "not-allowed",
-              opacity: leadInviteUrl ? 1 : 0.65,
-              transition: "all 0.15s ease-in-out",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-            onMouseEnter={(e) => {
-              if (!leadInviteUrl) return;
-              e.currentTarget.style.backgroundColor = "#1a260f";
-              e.currentTarget.style.borderColor = "#1a260f";
-            }}
-            onMouseLeave={(e) => {
-              if (!leadInviteUrl) return;
-              e.currentTarget.style.backgroundColor = "#233217";
-              e.currentTarget.style.borderColor = "#233217";
-            }}
-          >
-            <ClipboardCopy size={16} />
-            Copy this-lead link
+            <ClipboardCopy size={13} />
+            Copy link
           </button>
         </div>
       </div>
@@ -859,639 +886,643 @@ export default function BpoCentreLeadViewComponent({
         <div style={{ padding: 22, color: "#991b1b", fontWeight: 700 }}>{errorMessage}</div>
       ) : !draft ? (
         <div style={{ padding: 22, color: T.textMuted, fontWeight: 700 }}>Centre lead not found.</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {activeTab === "Opportunity Details" && (
-            <div style={{ maxWidth: 1200, display: "flex", flexDirection: "column", gap: 16 }}>
-              <LeadCard
-                icon="🏢"
-                title="Opportunity Details"
-                subtitle="Centre profile and intake notes"
-                collapsible={false}
-              >
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 20, marginBottom: 6 }}>
-                  <div>
-                    <label style={labelStyle}>Centre display name</label>
-                    <input
-                      value={draft.centre_display_name}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) => setDraft({ ...draft, centre_display_name: e.target.value })}
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Stage</label>
-                    <Select
-                      value={draft.stage}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onValueChange={(v) => v && setDraft({ ...draft, stage: v as CenterLeadStage })}
-                    >
-                      <SelectTrigger
-                        className="!h-auto w-full"
-                        style={{
-                          minHeight: 38,
-                          borderRadius: 8,
-                          border: `1px solid ${T.border}`,
-                          fontWeight: 700,
-                          fontSize: 13,
-                          paddingLeft: 12,
-                          paddingRight: 10,
-                          backgroundColor: !canEdit || draft.stage === "dqed" ? T.pageBg : "#fff",
-                          opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1,
-                          fontFamily: T.font,
-                        }}
-                      >
-                        <SelectValue>{STAGE_LABEL[draft.stage]}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STAGE_OPTIONS.map((o) => (
-                          <SelectItem key={o.key} value={o.key}>
-                            {o.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Opportunity value</label>
-                    <input
-                      type="number"
-                      value={draft.opportunity_value ?? ""}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          opportunity_value: e.target.value === "" ? null : Number(e.target.value),
-                        })
-                      }
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Opportunity source</label>
-                    <input
-                      value={draft.opportunity_source ?? ""}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) => setDraft({ ...draft, opportunity_source: e.target.value })}
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Lead vendor label</label>
-                    <input
-                      value={draft.lead_vendor_label ?? ""}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) => setDraft({ ...draft, lead_vendor_label: e.target.value })}
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Linked CRM centre (label)</label>
-                    <input
-                      value={draft.linked_crm_centre_label ?? ""}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) => setDraft({ ...draft, linked_crm_centre_label: e.target.value })}
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Expected start</label>
-                    <input
-                      type="date"
-                      value={draft.expected_start_date ?? ""}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) => setDraft({ ...draft, expected_start_date: e.target.value || null })}
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Committed daily sales</label>
-                    <input
-                      type="number"
-                      value={draft.committed_daily_sales ?? ""}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          committed_daily_sales: e.target.value === "" ? null : Number(e.target.value),
-                        })
-                      }
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Closer count</label>
-                    <input
-                      type="number"
-                      value={draft.closer_count ?? ""}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) =>
-                        setDraft({ ...draft, closer_count: e.target.value === "" ? null : Number(e.target.value) })
-                      }
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                </div>
+      ) : activeTab === "Overview" ? (
+        /* ═══════════════════════════════════════════════════════════════════
+           3-PANEL LAYOUT: Profile (top-left), Notes (bottom-left), Call (right)
+           ═══════════════════════════════════════════════════════════════════ */
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18, alignItems: "start" }}>
+          {/* LEFT COLUMN */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Section 1: Profile Details */}
+            <div
+              style={{
+                background: "#fff",
+                border: `1px solid ${T.border}`,
+                borderRadius: 14,
+                padding: "20px 22px",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+              }}
+            >
+              {/* Stage badge + name */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    color: "#fff",
+                    background: STAGE_COLOR[draft.stage] ?? BRAND_GREEN,
+                  }}
+                >
+                  {STAGE_LABEL[draft.stage] ?? draft.stage}
+                </span>
+                {draft.last_call_result && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                      background: draft.last_call_result === "call_completed" ? "#dcfce7" : "#fef3c7",
+                      color: draft.last_call_result === "call_completed" ? "#166534" : "#92400e",
+                      border: `1px solid ${draft.last_call_result === "call_completed" ? "#86efac" : "#fcd34d"}`,
+                    }}
+                  >
+                    {formatCallResultLabel(draft.last_call_result)}
+                    {draft.last_call_result_at && (
+                      <> &mdash; {new Date(draft.last_call_result_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>
+                    )}
+                  </span>
+                )}
+              </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20, marginTop: 18 }}>
-                  {[
-                    ["buyer_details", "Buyer details"],
-                    ["daily_sales_generation_notes", "Daily sales generation notes"],
-                    ["trending_metrics_notes", "Trending metrics notes"],
-                    ["owner_manager_contact_notes", "Owner manager contact notes"],
-                    ["last_disposition_text", "Last disposition text"],
-                  ].map(([field, label]) => (
-                    <div key={field} style={field === "last_disposition_text" ? { gridColumn: "1 / -1" } : undefined}>
-                      <label style={labelStyle}>{label}</label>
-                      <textarea
-                        value={(draft as unknown as Record<string, string>)[field] ?? ""}
-                        disabled={!canEdit || draft.stage === "dqed"}
-                        onChange={(e) => setDraft({ ...draft, [field]: e.target.value } as CenterLeadRow)}
-                        rows={field === "last_disposition_text" ? 3 : 4}
-                        style={{
-                          ...fieldStyle,
-                          minHeight: field === "last_disposition_text" ? 80 : 90,
-                          resize: "vertical",
-                          fontWeight: 500,
-                          opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1,
-                        }}
-                        onFocus={fieldFocus}
-                        onBlur={fieldBlur}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </LeadCard>
-
-              <LeadCard icon="🔐" title="Credentials log" subtitle="Track access and DID provisioning" defaultExpanded={true}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 10 }}>
-                    <input
-                      placeholder="Slack"
-                      value={credForm.slack}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) => setCredForm((f) => ({ ...f, slack: e.target.value }))}
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1, fontWeight: 500 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                    <input
-                      placeholder="CRM access"
-                      value={credForm.crm}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) => setCredForm((f) => ({ ...f, crm: e.target.value }))}
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1, fontWeight: 500 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                    <input
-                      placeholder="DID"
-                      value={credForm.did}
-                      disabled={!canEdit || draft.stage === "dqed"}
-                      onChange={(e) => setCredForm((f) => ({ ...f, did: e.target.value }))}
-                      style={{ ...fieldStyle, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1, fontWeight: 500 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                  <textarea
-                    placeholder="Other notes"
-                    value={credForm.other}
-                    disabled={!canEdit || draft.stage === "dqed"}
-                    onChange={(e) => setCredForm((f) => ({ ...f, other: e.target.value }))}
-                    rows={2}
-                    style={{ ...fieldStyle, marginBottom: 12, fontWeight: 500, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1, resize: "vertical" }}
+              {/* Key fields grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Centre name</label>
+                  <input
+                    value={draft.centre_display_name}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, centre_display_name: e.target.value })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
                     onFocus={fieldFocus}
                     onBlur={fieldBlur}
                   />
-                  <button
-                    type="button"
-                    disabled={!canEdit || saving || draft.stage === "dqed"}
-                    onClick={() => void logCredential()}
-                    style={{
-                      height: 34,
-                      padding: "0 14px",
-                      borderRadius: 10,
-                      border: "none",
-                      background: T.blueHover,
-                      color: "#fff",
-                      fontSize: 12,
-                      fontWeight: 900,
-                      fontFamily: T.font,
-                      cursor: !canEdit || saving || draft.stage === "dqed" ? "not-allowed" : "pointer",
-                      opacity: !canEdit || saving || draft.stage === "dqed" ? 0.6 : 1,
-                    }}
+                </div>
+                <div>
+                  <label style={labelStyle}>Stage</label>
+                  <Select
+                    value={draft.stage}
+                    disabled={isDisabled}
+                    onValueChange={(v) => v && setDraft({ ...draft, stage: v as CenterLeadStage })}
                   >
-                    Log credential entry
-                  </button>
-                  {credentials.length > 0 && (
-                    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-                      {credentials.map((c) => (
-                        <div
-                          key={c.id}
-                          style={{
-                            borderRadius: 12,
-                            border: `1px solid ${T.border}`,
-                            backgroundColor: "#fff",
-                            padding: "10px 12px",
-                            fontSize: 12,
-                            color: T.textDark,
-                            fontFamily: T.font,
-                          }}
-                        >
-                          <div style={{ fontWeight: 900 }}>{new Date(c.logged_at).toLocaleString()}</div>
-                          {c.slack_account_details && <div>Slack: {c.slack_account_details}</div>}
-                          {c.crm_access_details && <div>CRM: {c.crm_access_details}</div>}
-                          {c.did_number && <div>DID: {c.did_number}</div>}
-                          {c.other_notes && <div>{c.other_notes}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-              </LeadCard>
-
-              <div style={{ marginTop: 2 }}>
-                <LeadCard icon="⚠️" title="Danger zone" subtitle="Offboarding audit action" defaultExpanded={false}>
-                  <div style={{ borderRadius: 14, border: "1.5px solid #fecaca", backgroundColor: "#fef2f2", padding: 16 }}>
-                    <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "#7f1d1d", lineHeight: 1.6 }}>
-                      Marking a centre lead as DQED logs an offboarding record on separate audit tables.
-                    </p>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-                      <input
-                        placeholder="Confirmation phrase (8+ characters)"
-                        value={dqedPhrase}
-                        disabled={!canEdit || saving || draft.stage === "dqed"}
-                        onChange={(e) => setDqedPhrase(e.target.value)}
-                        style={{ ...fieldStyle, fontWeight: 600, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                        onFocus={fieldFocus}
-                        onBlur={fieldBlur}
-                      />
-                      <input
-                        placeholder="Activation code"
-                        value={dqedCode}
-                        disabled={!canEdit || saving || draft.stage === "dqed"}
-                        onChange={(e) => setDqedCode(e.target.value)}
-                        style={{ ...fieldStyle, fontWeight: 600, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1 }}
-                        onFocus={fieldFocus}
-                        onBlur={fieldBlur}
-                      />
-                    </div>
-                    <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-                      <button
-                        type="button"
-                        disabled={!canEdit || saving || draft.stage === "dqed"}
-                        onClick={() => void applyDqed()}
-                        style={{
-                          border: "1px solid #b91c1c",
-                          borderRadius: T.radiusMd,
-                          background: "#b91c1c",
-                          color: "#fff",
-                          fontSize: 13,
-                          fontWeight: 800,
-                          padding: "10px 18px",
-                          cursor: !canEdit || saving || draft.stage === "dqed" ? "not-allowed" : "pointer",
-                          opacity: !canEdit || saving || draft.stage === "dqed" ? 0.65 : 1,
-                          transition: "all 0.15s ease-in-out",
-                        }}
-                      >
-                        Confirm DQED
-                      </button>
-                    </div>
-                  </div>
-                </LeadCard>
-              </div>
-              </div>
-            )}
-
-            {activeTab === "Team" && (
-              <div style={{ maxWidth: 1200 }}>
-                <LeadCard icon="👥" title="Centre admin & team" subtitle="Onboarding team roster" collapsible={false}>
-                <ShadcnTable>
-                  <TableHeader>
-                    <TableRow style={{ background: T.blueFaint }}>
-                      <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Role</TableHead>
-                      <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Name</TableHead>
-                      <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Email</TableHead>
-                      <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Position</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {team.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} style={{ color: T.textMuted }}>
-                          No team yet — send the intake link or add members below.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      team.map((m) => (
-                        <TableRow key={m.id}>
-                          <TableCell>
-                            <span
-                              className="rounded-md px-2 py-0.5 text-[11px] font-extrabold uppercase"
-                              style={{
-                                background: m.member_kind === "center_admin" ? "#dcfce7" : T.blueFaint,
-                                color: m.member_kind === "center_admin" ? "#166534" : T.textMid,
-                              }}
-                            >
-                              {m.member_kind === "center_admin" ? "Admin" : "Member"}
-                            </span>
-                          </TableCell>
-                          <TableCell style={{ fontWeight: 800 }}>{m.full_name}</TableCell>
-                          <TableCell style={{ fontSize: 13 }}>{m.email}</TableCell>
-                          <TableCell style={{ fontSize: 13 }}>
-                            {m.position_key === "custom" ? m.custom_position_label : m.position_key}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </ShadcnTable>
-
-                {draft.stage !== "dqed" && (
-                  <div
-                    style={{
-                      marginTop: 18,
-                      borderRadius: 14,
-                      border: `1px solid ${T.border}`,
-                      padding: "14px 16px",
-                      backgroundColor: T.blueFaint,
-                    }}
-                  >
-                    <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: T.textMuted, fontFamily: T.font }}>
-                      Add team member
-                    </p>
-                    {(() => {
-                      const memberKindOptions = [
-                        { value: "team_member", label: "Team member" },
-                        { value: "center_admin", label: "Centre administrator" },
-                      ];
-                      const positionOptions = [
-                        { value: "owner", label: "Owner" },
-                        { value: "manager", label: "Manager" },
-                        { value: "closer", label: "Closer" },
-                        { value: "custom", label: "Custom" },
-                      ];
-                      return (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
-                      <input
-                        placeholder="Full name"
-                        value={addMemberForm.full_name}
-                        onChange={(e) => setAddMemberForm((f) => ({ ...f, full_name: e.target.value }))}
-                        style={{ ...fieldStyle, fontWeight: 500 }}
-                        onFocus={fieldFocus}
-                        onBlur={fieldBlur}
-                      />
-                      <input
-                        placeholder="Email"
-                        type="email"
-                        value={addMemberForm.email}
-                        onChange={(e) => setAddMemberForm((f) => ({ ...f, email: e.target.value }))}
-                        style={{ ...fieldStyle, fontWeight: 500 }}
-                        onFocus={fieldFocus}
-                        onBlur={fieldBlur}
-                      />
-                      <input
-                        placeholder="Phone (optional)"
-                        value={addMemberForm.phone}
-                        onChange={(e) => setAddMemberForm((f) => ({ ...f, phone: e.target.value }))}
-                        style={{ ...fieldStyle, fontWeight: 500 }}
-                        onFocus={fieldFocus}
-                        onBlur={fieldBlur}
-                      />
-                      <StyledSelect
-                        value={addMemberForm.member_kind}
-                        onValueChange={(v) => setAddMemberForm((f) => ({ ...f, member_kind: v as "center_admin" | "team_member" }))}
-                        options={memberKindOptions}
-                        placeholder="Team member"
-                      />
-                      <StyledSelect
-                        value={addMemberForm.position_key}
-                        onValueChange={(v) => setAddMemberForm((f) => ({ ...f, position_key: v as typeof addMemberForm.position_key }))}
-                        options={positionOptions}
-                        placeholder="Closer"
-                      />
-                      {addMemberForm.position_key === "custom" && (
-                        <input
-                          placeholder="Custom role label"
-                          value={addMemberForm.custom_position_label}
-                          onChange={(e) => setAddMemberForm((f) => ({ ...f, custom_position_label: e.target.value }))}
-                          style={{ ...fieldStyle, fontWeight: 500, gridColumn: "1 / -1" }}
-                          onFocus={fieldFocus}
-                          onBlur={fieldBlur}
-                        />
-                      )}
-                    </div>
-                      );
-                    })()}
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => void addTeamMember()}
+                    <SelectTrigger
+                      className="!h-auto w-full"
                       style={{
-                        marginTop: 10,
-                        height: 34,
-                        padding: "0 14px",
-                        borderRadius: 10,
-                        border: "none",
-                        background: BRAND_GREEN,
-                        color: "#fff",
-                        fontSize: 12,
-                        fontWeight: 900,
+                        minHeight: 36,
+                        borderRadius: 8,
+                        border: `1px solid ${T.border}`,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        paddingLeft: 12,
+                        paddingRight: 10,
+                        backgroundColor: isDisabled ? T.pageBg : "#fff",
+                        opacity: isDisabled ? 0.65 : 1,
                         fontFamily: T.font,
-                        cursor: saving ? "not-allowed" : "pointer",
-                        opacity: saving ? 0.6 : 1,
                       }}
                     >
-                      Add to team
-                    </button>
-                  </div>
-                )}
-                </LeadCard>
+                      <SelectValue>{STAGE_LABEL[draft.stage]}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STAGE_OPTIONS.map((o) => (
+                        <SelectItem key={o.key} value={o.key}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Closers</label>
+                  <input
+                    type="number"
+                    value={draft.closer_count ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, closer_count: e.target.value === "" ? null : Number(e.target.value) })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Daily sales target</label>
+                  <input
+                    type="number"
+                    value={draft.committed_daily_sales ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, committed_daily_sales: e.target.value === "" ? null : Number(e.target.value) })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Daily transfers target</label>
+                  <input
+                    type="number"
+                    value={draft.committed_daily_transfers ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, committed_daily_transfers: e.target.value === "" ? null : Number(e.target.value) })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Expected start</label>
+                  <input
+                    type="date"
+                    value={draft.expected_start_date ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, expected_start_date: e.target.value || null })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Opportunity value</label>
+                  <input
+                    type="number"
+                    value={draft.opportunity_value ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, opportunity_value: e.target.value === "" ? null : Number(e.target.value) })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Source</label>
+                  <input
+                    value={draft.opportunity_source ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, opportunity_source: e.target.value })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Lead vendor</label>
+                  <input
+                    value={draft.lead_vendor_label ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, lead_vendor_label: e.target.value })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Linked CRM centre</label>
+                  <input
+                    value={draft.linked_crm_centre_label ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, linked_crm_centre_label: e.target.value })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
               </div>
-            )}
 
-            {activeTab === "Call activity" && (
-              <div style={{ maxWidth: 1200 }}>
-                <LeadCard icon="📞" title="Call updates" subtitle="Log call outcomes and notes" collapsible={false}>
-                <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: T.textMuted, fontFamily: T.font }}>
-                  Latest summary on the lead row is updated automatically from each entry below.
-                </p>
+              {/* Owner/team quick summary */}
+              {team.length > 0 && (
+                <div style={{ marginTop: 16, padding: "10px 12px", background: "#f8faf6", borderRadius: 8, border: `1px solid ${T.borderLight}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", marginBottom: 6 }}>Team ({team.length})</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {team.slice(0, 6).map((m) => (
+                      <span
+                        key={m.id}
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: "3px 8px",
+                          borderRadius: 6,
+                          background: m.member_kind === "center_admin" ? "#dcfce7" : "#f1f5f9",
+                          color: m.member_kind === "center_admin" ? "#166534" : T.textMid,
+                          border: `1px solid ${m.member_kind === "center_admin" ? "#86efac" : T.border}`,
+                        }}
+                      >
+                        {m.full_name} ({m.position_key === "custom" ? m.custom_position_label : m.position_key})
+                      </span>
+                    ))}
+                    {team.length > 6 && (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, alignSelf: "center" }}>+{team.length - 6} more</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Section 2: Last Disposition / Notes (Bottom Left) */}
+            <div
+              style={{
+                background: "#fff",
+                border: `1px solid ${T.border}`,
+                borderRadius: 14,
+                padding: "18px 22px",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 800, color: BRAND_GREEN, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                Notes & Disposition
+              </div>
+
+              {/* Last disposition */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Last disposition</label>
                 <textarea
-                  value={callNotes}
-                  disabled={!canEdit || draft.stage === "dqed"}
-                  onChange={(e) => setCallNotes(e.target.value)}
-                  placeholder="Optional notes"
-                  rows={3}
-                  style={{ ...fieldStyle, marginBottom: 10, fontWeight: 500, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1, resize: "vertical" }}
+                  value={draft.last_disposition_text ?? ""}
+                  disabled={isDisabled}
+                  onChange={(e) => setDraft({ ...draft, last_disposition_text: e.target.value })}
+                  rows={2}
+                  style={{ ...fieldStyle, resize: "vertical", minHeight: 56, opacity: isDisabled ? 0.65 : 1 }}
                   onFocus={fieldFocus}
                   onBlur={fieldBlur}
                 />
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-                  <button
-                    type="button"
-                    disabled={!canEdit || saving || draft.stage === "dqed"}
-                    onClick={() => void addCallResult("call_completed")}
-                    style={{ height: 34, padding: "0 14px", borderRadius: 10, border: "none", background: "#166534", color: "#fff", fontSize: 12, fontWeight: 900, fontFamily: T.font, cursor: !canEdit || saving || draft.stage === "dqed" ? "not-allowed" : "pointer", opacity: !canEdit || saving || draft.stage === "dqed" ? 0.6 : 1 }}
-                  >
-                    Call completed
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canEdit || saving || draft.stage === "dqed"}
-                    onClick={() => void addCallResult("no_pickup")}
-                    style={{ height: 34, padding: "0 14px", borderRadius: 10, border: "none", background: "#6b7280", color: "#fff", fontSize: 12, fontWeight: 900, fontFamily: T.font, cursor: !canEdit || saving || draft.stage === "dqed" ? "not-allowed" : "pointer", opacity: !canEdit || saving || draft.stage === "dqed" ? 0.6 : 1 }}
-                  >
-                    No pickup
-                  </button>
-                </div>
-                <ShadcnTable>
-                  <TableHeader>
-                    <TableRow style={{ background: T.blueFaint }}>
-                      <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>When</TableHead>
-                      <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Result</TableHead>
-                      <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {callResults.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={3} style={{ color: T.textMuted }}>
-                          No calls logged.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      callResults.map((c) => (
-                        <TableRow key={c.id}>
-                          <TableCell style={{ fontSize: 12 }}>{new Date(c.recorded_at).toLocaleString()}</TableCell>
-                          <TableCell style={{ fontWeight: 800 }}>{formatCallResultLabel(c.result_code)}</TableCell>
-                          <TableCell style={{ fontSize: 13 }}>{c.notes ?? "—"}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </ShadcnTable>
-                </LeadCard>
               </div>
-            )}
 
-            {activeTab === "Resources" && (
-              <div style={{ maxWidth: 1200, display: "flex", flexDirection: "column", gap: 16 }}>
-                <LeadCard icon="📚" title="Universal library" subtitle="Resources available to all centre leads" defaultExpanded={true}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
-                  <input placeholder="Title" value={resGlobalForm.title} onChange={(e) => setResGlobalForm((f) => ({ ...f, title: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                  <input placeholder="URL" value={resGlobalForm.url} onChange={(e) => setResGlobalForm((f) => ({ ...f, url: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                  <textarea placeholder="Description" value={resGlobalForm.description} onChange={(e) => setResGlobalForm((f) => ({ ...f, description: e.target.value }))} rows={2} style={{ ...fieldStyle, fontWeight: 500, resize: "vertical", gridColumn: "1 / -1" }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                </div>
-                <button
-                  type="button"
-                  disabled={!canEdit || saving}
-                  onClick={() => void addResource("universal", resGlobalForm)}
-                  style={{ height: 34, padding: "0 14px", borderRadius: 10, border: "none", background: T.blueHover, color: "#fff", fontSize: 12, fontWeight: 900, fontFamily: T.font, cursor: !canEdit || saving ? "not-allowed" : "pointer", opacity: !canEdit || saving ? 0.6 : 1, marginBottom: 16 }}
-                >
-                  Add universal resource
-                </button>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 24 }}>
-                  {resourcesUniversal.map((r) => (
-                    <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderRadius: 12, border: `1px solid ${T.border}`, padding: "10px 12px", fontSize: 13, fontFamily: T.font }}>
-                      <span style={{ fontWeight: 800, color: T.textDark }}>{r.title}</span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {r.external_url && (
-                          <a href={r.external_url} style={{ fontWeight: 800, color: BRAND_GREEN, textDecoration: "underline", fontSize: 12 }} target="_blank" rel="noreferrer">
-                            Open
-                          </a>
-                        )}
-                        <button type="button" onClick={() => void deleteUniversalResource(r.id)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#b91c1c", padding: 2 }}>
-                          <Trash2 size={14} />
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                </LeadCard>
-
-                <LeadCard icon="🔗" title="This centre lead" subtitle="Lead-specific resources" defaultExpanded={true}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10, marginBottom: 12 }}>
-                  <input placeholder="Title" value={resLeadForm.title} onChange={(e) => setResLeadForm((f) => ({ ...f, title: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                  <input placeholder="URL" value={resLeadForm.url} onChange={(e) => setResLeadForm((f) => ({ ...f, url: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                  <textarea placeholder="Description" value={resLeadForm.description} onChange={(e) => setResLeadForm((f) => ({ ...f, description: e.target.value }))} rows={2} style={{ ...fieldStyle, fontWeight: 500, resize: "vertical", gridColumn: "1 / -1" }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                </div>
-                <button
-                  type="button"
-                  disabled={!canEdit || saving || draft.stage === "dqed"}
-                  onClick={() => void addResource("lead", resLeadForm)}
-                  style={{ height: 34, padding: "0 14px", borderRadius: 10, border: "none", background: BRAND_GREEN, color: "#fff", fontSize: 12, fontWeight: 900, fontFamily: T.font, cursor: !canEdit || saving || draft.stage === "dqed" ? "not-allowed" : "pointer", opacity: !canEdit || saving || draft.stage === "dqed" ? 0.6 : 1 }}
-                >
-                  Add resource to this lead
-                </button>
-                {resourcesLead.length > 0 && (
-                  <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-                    {resourcesLead.map((r) => (
-                      <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 12, border: `1px solid ${T.border}`, padding: "10px 12px", fontSize: 13, fontFamily: T.font }}>
-                        <span style={{ fontWeight: 800, color: T.textDark }}>{r.title}</span>
-                        {r.external_url && (
-                          <a href={r.external_url} style={{ fontWeight: 800, color: BRAND_GREEN, textDecoration: "underline", fontSize: 12 }} target="_blank" rel="noreferrer">
-                            Open
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                </LeadCard>
-              </div>
-            )}
-
-            {activeTab === "Notes" && (
-              <div style={{ maxWidth: 1200 }}>
-                <LeadCard icon="📝" title="Notes" subtitle="Internal notes for this centre lead" collapsible={false}>
+              {/* Add new note */}
+              <div style={{ marginBottom: 12 }}>
                 <textarea
                   value={noteDraft}
-                  disabled={!canEdit || draft.stage === "dqed"}
+                  disabled={isDisabled}
                   onChange={(e) => setNoteDraft(e.target.value)}
-                  rows={4}
-                  placeholder="Add a note…"
-                  style={{ ...fieldStyle, marginBottom: 10, fontWeight: 500, opacity: !canEdit || draft.stage === "dqed" ? 0.65 : 1, resize: "vertical", minHeight: 100 }}
+                  rows={2}
+                  placeholder="Add a note..."
+                  style={{ ...fieldStyle, resize: "vertical", minHeight: 56, opacity: isDisabled ? 0.65 : 1 }}
                   onFocus={fieldFocus}
                   onBlur={fieldBlur}
                 />
                 <button
                   type="button"
-                  disabled={!canEdit || saving || draft.stage === "dqed"}
+                  disabled={isDisabled || saving || !noteDraft.trim()}
                   onClick={() => void addNote()}
-                  style={{ height: 34, padding: "0 14px", borderRadius: 10, border: "none", background: BRAND_GREEN, color: "#fff", fontSize: 12, fontWeight: 900, fontFamily: T.font, cursor: !canEdit || saving || draft.stage === "dqed" ? "not-allowed" : "pointer", opacity: !canEdit || saving || draft.stage === "dqed" ? 0.6 : 1 }}
+                  style={{
+                    marginTop: 8,
+                    height: 30,
+                    padding: "0 12px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: BRAND_GREEN,
+                    color: "#fff",
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: isDisabled || saving ? "not-allowed" : "pointer",
+                    opacity: isDisabled || saving || !noteDraft.trim() ? 0.5 : 1,
+                  }}
                 >
                   Save note
                 </button>
-                <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
-                  {notes.map((n) => (
-                    <div key={n.id} style={{ borderRadius: 12, border: `1px solid ${T.border}`, padding: "12px 14px", fontSize: 13, backgroundColor: T.blueFaint, fontFamily: T.font }}>
-                      <div style={{ marginBottom: 6, fontSize: 11, fontWeight: 900, color: T.textMuted }}>
-                        {new Date(n.created_at).toLocaleString()}
+              </div>
+
+              {/* Note history */}
+              <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+                {notes.length === 0 ? (
+                  <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>No notes yet.</div>
+                ) : (
+                  notes.map((n) => (
+                    <div key={n.id} style={{ padding: "10px 12px", borderRadius: 8, background: "#f8faf6", border: `1px solid ${T.borderLight}` }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: T.textMuted, marginBottom: 4 }}>
+                        {new Date(n.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                       </div>
-                      <div style={{ whiteSpace: "pre-wrap", color: T.textDark, lineHeight: 1.5 }}>{n.body}</div>
+                      <div style={{ fontSize: 12, color: T.textDark, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{n.body}</div>
                     </div>
-                  ))}
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Danger zone (collapsible) */}
+            {!isDqed && (
+              <LeadCard icon="⚠️" title="Danger zone" subtitle="Offboarding audit action" defaultExpanded={false}>
+                <div style={{ borderRadius: 12, border: "1.5px solid #fecaca", backgroundColor: "#fef2f2", padding: 14 }}>
+                  <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#7f1d1d", lineHeight: 1.5 }}>
+                    Marking a centre lead as DQED logs an offboarding record.
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <input
+                      placeholder="Confirmation phrase (8+ chars)"
+                      value={dqedPhrase}
+                      disabled={!canEdit || saving}
+                      onChange={(e) => setDqedPhrase(e.target.value)}
+                      style={{ ...fieldStyle, fontSize: 12 }}
+                      onFocus={fieldFocus}
+                      onBlur={fieldBlur}
+                    />
+                    <input
+                      placeholder="Activation code"
+                      value={dqedCode}
+                      disabled={!canEdit || saving}
+                      onChange={(e) => setDqedCode(e.target.value)}
+                      style={{ ...fieldStyle, fontSize: 12 }}
+                      onFocus={fieldFocus}
+                      onBlur={fieldBlur}
+                    />
+                  </div>
+                  <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      type="button"
+                      disabled={!canEdit || saving}
+                      onClick={() => void applyDqed()}
+                      style={{
+                        border: "none",
+                        borderRadius: 8,
+                        background: "#b91c1c",
+                        color: "#fff",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        padding: "8px 14px",
+                        cursor: !canEdit || saving ? "not-allowed" : "pointer",
+                        opacity: !canEdit || saving ? 0.65 : 1,
+                      }}
+                    >
+                      Confirm DQED
+                    </button>
+                  </div>
                 </div>
-                </LeadCard>
+              </LeadCard>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN: Call Result Update Panel */}
+          <div
+            style={{
+              background: "#fff",
+              border: `1px solid ${T.border}`,
+              borderRadius: 14,
+              padding: "18px 20px",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+              position: "sticky",
+              top: 20,
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 800, color: BRAND_GREEN, marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+              Call Activity
+            </div>
+
+            {/* Quick call buttons */}
+            <textarea
+              value={callNotes}
+              disabled={isDisabled}
+              onChange={(e) => setCallNotes(e.target.value)}
+              placeholder="Optional call notes..."
+              rows={3}
+              style={{ ...fieldStyle, marginBottom: 10, resize: "vertical", minHeight: 70, opacity: isDisabled ? 0.65 : 1 }}
+              onFocus={fieldFocus}
+              onBlur={fieldBlur}
+            />
+            <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+              <button
+                type="button"
+                disabled={isDisabled || saving}
+                onClick={() => void addCallResult("call_completed")}
+                style={{
+                  flex: 1,
+                  height: 36,
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#166534",
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 900,
+                  cursor: isDisabled || saving ? "not-allowed" : "pointer",
+                  opacity: isDisabled || saving ? 0.6 : 1,
+                  fontFamily: T.font,
+                  letterSpacing: "0.02em",
+                }}
+              >
+                Call Completed
+              </button>
+              <button
+                type="button"
+                disabled={isDisabled || saving}
+                onClick={() => void addCallResult("no_pickup")}
+                style={{
+                  flex: 1,
+                  height: 36,
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#6b7280",
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 900,
+                  cursor: isDisabled || saving ? "not-allowed" : "pointer",
+                  opacity: isDisabled || saving ? 0.6 : 1,
+                  fontFamily: T.font,
+                  letterSpacing: "0.02em",
+                }}
+              >
+                No Pickup
+              </button>
+            </div>
+
+            {/* Call history */}
+            <div style={{ maxHeight: 400, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+              {callResults.length === 0 ? (
+                <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600, textAlign: "center", padding: 16 }}>
+                  No calls logged yet.
+                </div>
+              ) : (
+                callResults.map((c) => (
+                  <div
+                    key={c.id}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      border: `1px solid ${T.borderLight}`,
+                      background: "#fafafa",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: c.notes ? 4 : 0 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          color: c.result_code === "call_completed" ? "#166534" : "#92400e",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {formatCallResultLabel(c.result_code)}
+                      </span>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted }}>
+                        {new Date(c.recorded_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    {c.notes && (
+                      <div style={{ fontSize: 11, color: T.textMid, lineHeight: 1.4 }}>{c.notes}</div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : activeTab === "Team" ? (
+        /* ═══════════════ TEAM TAB ═══════════════ */
+        <div style={{ maxWidth: 1200 }}>
+          <LeadCard icon="👥" title="Centre admin & team" subtitle="Onboarding team roster" collapsible={false}>
+            <ShadcnTable>
+              <TableHeader>
+                <TableRow style={{ background: T.blueFaint }}>
+                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Role</TableHead>
+                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Name</TableHead>
+                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Email</TableHead>
+                  <TableHead style={{ fontWeight: 900, color: BRAND_GREEN }}>Position</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {team.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} style={{ color: T.textMuted }}>
+                      No team yet — send the intake link or add members below.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  team.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell>
+                        <span
+                          className="rounded-md px-2 py-0.5 text-[11px] font-extrabold uppercase"
+                          style={{
+                            background: m.member_kind === "center_admin" ? "#dcfce7" : T.blueFaint,
+                            color: m.member_kind === "center_admin" ? "#166534" : T.textMid,
+                          }}
+                        >
+                          {m.member_kind === "center_admin" ? "Admin" : "Member"}
+                        </span>
+                      </TableCell>
+                      <TableCell style={{ fontWeight: 800 }}>{m.full_name}</TableCell>
+                      <TableCell style={{ fontSize: 13 }}>{m.email}</TableCell>
+                      <TableCell style={{ fontSize: 13 }}>
+                        {m.position_key === "custom" ? m.custom_position_label : m.position_key}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </ShadcnTable>
+
+            {!isDqed && (
+              <div style={{ marginTop: 16, borderRadius: 12, border: `1px solid ${T.border}`, padding: "12px 14px", backgroundColor: T.blueFaint }}>
+                <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 900, color: T.textMuted }}>Add team member</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+                  <input placeholder="Full name" value={addMemberForm.full_name} onChange={(e) => setAddMemberForm((f) => ({ ...f, full_name: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+                  <input placeholder="Email" type="email" value={addMemberForm.email} onChange={(e) => setAddMemberForm((f) => ({ ...f, email: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+                  <input placeholder="Phone (optional)" value={addMemberForm.phone} onChange={(e) => setAddMemberForm((f) => ({ ...f, phone: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+                  <StyledSelect
+                    value={addMemberForm.member_kind}
+                    onValueChange={(v) => setAddMemberForm((f) => ({ ...f, member_kind: v as "center_admin" | "team_member" }))}
+                    options={[{ value: "team_member", label: "Team member" }, { value: "center_admin", label: "Centre admin" }]}
+                    placeholder="Kind"
+                  />
+                  <StyledSelect
+                    value={addMemberForm.position_key}
+                    onValueChange={(v) => setAddMemberForm((f) => ({ ...f, position_key: v as typeof addMemberForm.position_key }))}
+                    options={[{ value: "owner", label: "Owner" }, { value: "manager", label: "Manager" }, { value: "closer", label: "Closer" }, { value: "custom", label: "Custom" }]}
+                    placeholder="Position"
+                  />
+                  {addMemberForm.position_key === "custom" && (
+                    <input placeholder="Custom role label" value={addMemberForm.custom_position_label} onChange={(e) => setAddMemberForm((f) => ({ ...f, custom_position_label: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500, gridColumn: "1 / -1" }} onFocus={fieldFocus} onBlur={fieldBlur} />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void addTeamMember()}
+                  style={{ marginTop: 8, height: 32, padding: "0 14px", borderRadius: 8, border: "none", background: BRAND_GREEN, color: "#fff", fontSize: 11, fontWeight: 900, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+                >
+                  Add to team
+                </button>
               </div>
             )}
+          </LeadCard>
         </div>
-      )}
+      ) : activeTab === "Resources" ? (
+        /* ═══════════════ RESOURCES TAB ═══════════════ */
+        <div style={{ maxWidth: 1200, display: "flex", flexDirection: "column", gap: 16 }}>
+          <LeadCard icon="📚" title="Universal library" subtitle="Resources available to all centres" defaultExpanded={true}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8, marginBottom: 10 }}>
+              <input placeholder="Title" value={resGlobalForm.title} onChange={(e) => setResGlobalForm((f) => ({ ...f, title: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+              <input placeholder="URL" value={resGlobalForm.url} onChange={(e) => setResGlobalForm((f) => ({ ...f, url: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+              <textarea placeholder="Description" value={resGlobalForm.description} onChange={(e) => setResGlobalForm((f) => ({ ...f, description: e.target.value }))} rows={2} style={{ ...fieldStyle, fontWeight: 500, resize: "vertical", gridColumn: "1 / -1" }} onFocus={fieldFocus} onBlur={fieldBlur} />
+            </div>
+            <button
+              type="button"
+              disabled={!canEdit || saving}
+              onClick={() => void addResource("universal", resGlobalForm)}
+              style={{ height: 32, padding: "0 12px", borderRadius: 8, border: "none", background: T.blueHover, color: "#fff", fontSize: 11, fontWeight: 900, cursor: !canEdit || saving ? "not-allowed" : "pointer", opacity: !canEdit || saving ? 0.6 : 1, marginBottom: 12 }}
+            >
+              Add universal resource
+            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {resourcesUniversal.map((r) => (
+                <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderRadius: 10, border: `1px solid ${T.border}`, padding: "8px 12px", fontSize: 12 }}>
+                  <span style={{ fontWeight: 800, color: T.textDark }}>{r.title}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {r.external_url && <a href={r.external_url} style={{ fontWeight: 800, color: BRAND_GREEN, textDecoration: "underline", fontSize: 11 }} target="_blank" rel="noreferrer">Open</a>}
+                    <button type="button" onClick={() => void deleteUniversalResource(r.id)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#b91c1c", padding: 2 }}><Trash2 size={13} /></button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </LeadCard>
+
+          <LeadCard icon="🔗" title="This centre" subtitle="Lead-specific resources" defaultExpanded={true}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8, marginBottom: 10 }}>
+              <input placeholder="Title" value={resLeadForm.title} onChange={(e) => setResLeadForm((f) => ({ ...f, title: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+              <input placeholder="URL" value={resLeadForm.url} onChange={(e) => setResLeadForm((f) => ({ ...f, url: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+              <textarea placeholder="Description" value={resLeadForm.description} onChange={(e) => setResLeadForm((f) => ({ ...f, description: e.target.value }))} rows={2} style={{ ...fieldStyle, fontWeight: 500, resize: "vertical", gridColumn: "1 / -1" }} onFocus={fieldFocus} onBlur={fieldBlur} />
+            </div>
+            <button
+              type="button"
+              disabled={isDisabled || saving}
+              onClick={() => void addResource("lead", resLeadForm)}
+              style={{ height: 32, padding: "0 12px", borderRadius: 8, border: "none", background: BRAND_GREEN, color: "#fff", fontSize: 11, fontWeight: 900, cursor: isDisabled || saving ? "not-allowed" : "pointer", opacity: isDisabled || saving ? 0.6 : 1 }}
+            >
+              Add resource
+            </button>
+            {resourcesLead.length > 0 && (
+              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                {resourcesLead.map((r) => (
+                  <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 10, border: `1px solid ${T.border}`, padding: "8px 12px", fontSize: 12 }}>
+                    <span style={{ fontWeight: 800, color: T.textDark }}>{r.title}</span>
+                    {r.external_url && <a href={r.external_url} style={{ fontWeight: 800, color: BRAND_GREEN, textDecoration: "underline", fontSize: 11 }} target="_blank" rel="noreferrer">Open</a>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </LeadCard>
+        </div>
+      ) : activeTab === "Credentials" ? (
+        /* ═══════════════ CREDENTIALS TAB ═══════════════ */
+        <div style={{ maxWidth: 1200 }}>
+          <LeadCard icon="🔐" title="Credentials log" subtitle="Track access and DID provisioning" collapsible={false}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8, marginBottom: 8 }}>
+              <input placeholder="Slack" value={credForm.slack} disabled={isDisabled} onChange={(e) => setCredForm((f) => ({ ...f, slack: e.target.value }))} style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+              <input placeholder="CRM access" value={credForm.crm} disabled={isDisabled} onChange={(e) => setCredForm((f) => ({ ...f, crm: e.target.value }))} style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+              <input placeholder="DID" value={credForm.did} disabled={isDisabled} onChange={(e) => setCredForm((f) => ({ ...f, did: e.target.value }))} style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
+            </div>
+            <textarea placeholder="Other notes" value={credForm.other} disabled={isDisabled} onChange={(e) => setCredForm((f) => ({ ...f, other: e.target.value }))} rows={2} style={{ ...fieldStyle, marginBottom: 10, fontWeight: 500, opacity: isDisabled ? 0.65 : 1, resize: "vertical" }} onFocus={fieldFocus} onBlur={fieldBlur} />
+            <button
+              type="button"
+              disabled={isDisabled || saving}
+              onClick={() => void logCredential()}
+              style={{ height: 32, padding: "0 12px", borderRadius: 8, border: "none", background: T.blueHover, color: "#fff", fontSize: 11, fontWeight: 900, cursor: isDisabled || saving ? "not-allowed" : "pointer", opacity: isDisabled || saving ? 0.6 : 1 }}
+            >
+              Log credential entry
+            </button>
+            {credentials.length > 0 && (
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                {credentials.map((c) => (
+                  <div key={c.id} style={{ borderRadius: 10, border: `1px solid ${T.border}`, backgroundColor: "#fafafa", padding: "10px 12px", fontSize: 12, color: T.textDark }}>
+                    <div style={{ fontWeight: 900, marginBottom: 4 }}>{new Date(c.logged_at).toLocaleString()}</div>
+                    {c.slack_account_details && <div>Slack: {c.slack_account_details}</div>}
+                    {c.crm_access_details && <div>CRM: {c.crm_access_details}</div>}
+                    {c.did_number && <div>DID: {c.did_number}</div>}
+                    {c.other_notes && <div style={{ marginTop: 4, color: T.textMid }}>{c.other_notes}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </LeadCard>
+        </div>
+      ) : null}
 
       {!canEdit && (
         <div style={{ marginTop: 12, fontSize: 12, color: T.textMuted, fontWeight: 700 }}>
@@ -1501,4 +1532,3 @@ export default function BpoCentreLeadViewComponent({
     </div>
   );
 }
-

@@ -131,10 +131,23 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
       : await supabase.rpc("bpo_center_lead_public_open_submit", { p_centre_display_name: centerName.trim(), p_team: team });
     setSaving(false);
     if (rpcError) { setError(rpcError.message); return; }
-    const payload = data as { ok?: boolean; error?: string };
+    const payload = data as { ok?: boolean; error?: string; center_lead_id?: string };
     if (!payload?.ok) { setError(SUBMIT_ERROR_MAP[payload?.error ?? ""] ?? "Could not save. Check all fields."); return; }
     setSuccess(true);
     if (isInvite) await load();
+
+    const adminLine = team.find((t) => t.is_center_admin);
+    try {
+      await supabase.functions.invoke("bpo-onboarding-notification", {
+        body: {
+          action: "form_submitted",
+          center_lead_id: payload.center_lead_id ?? null,
+          centre_name: centerName.trim(),
+          team_count: team.length,
+          admin_email: adminLine?.email ?? null,
+        },
+      });
+    } catch { /* non-blocking */ }
   }, [centerName, inviteToken, isInvite, lines, load, supabase]);
 
   const pageStyle: CSSProperties = {

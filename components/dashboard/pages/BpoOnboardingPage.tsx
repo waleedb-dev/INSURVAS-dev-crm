@@ -105,7 +105,8 @@ type CenterLeadStage =
   | "actively_selling"
   | "needs_attention"
   | "on_pause"
-  | "dqed";
+  | "dqed"
+  | "offboarded";
 
 const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
   { key: "pre_onboarding", label: "Pre-onboarding" },
@@ -115,13 +116,14 @@ const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
   { key: "needs_attention", label: "Needs attention" },
   { key: "on_pause", label: "On pause" },
   { key: "dqed", label: "DQED" },
+  { key: "offboarded", label: "Offboarded" },
 ];
 
 const STAGE_LABEL: Record<string, string> = Object.fromEntries(STAGE_OPTIONS.map((o) => [o.key, o.label]));
 
 function formatCallResultLabel(key: string | null): string {
   if (!key) return "";
-  return key.replace(/_/g, " ");
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 interface CenterLeadRow {
@@ -134,6 +136,7 @@ interface CenterLeadRow {
   opportunity_source: string | null;
   expected_start_date: string | null;
   committed_daily_sales: number | null;
+  committed_daily_transfers: number | null;
   closer_count: number | null;
   buyer_details: string | null;
   daily_sales_generation_notes: string | null;
@@ -301,8 +304,8 @@ export default function BpoOnboardingPage() {
     for (const row of filteredRows) totals.set(row.stage, (totals.get(row.stage) ?? 0) + 1);
     return totals;
   }, [filteredRows]);
-  const stageColors = ["#638b4b", "#2563eb", "#7c3aed", "#0f766e", "#d97706", "#64748b", "#991b1b"];
-  const stageBackgrounds = ["#f2f8ee", "#eef2ff", "#f5f3ff", "#f0fdfa", "#fffbeb", "#f8fafc", "#fef2f2"];
+  const stageColors = ["#638b4b", "#2563eb", "#7c3aed", "#0f766e", "#d97706", "#64748b", "#991b1b", "#374151"];
+  const stageBackgrounds = ["#f2f8ee", "#eef2ff", "#f5f3ff", "#f0fdfa", "#fffbeb", "#f8fafc", "#fef2f2", "#f9fafb"];
   const totalOpportunityValue = filteredRows.reduce((sum, row) => sum + (row.opportunity_value ?? 0), 0);
   const averageOpportunityValue = filteredRows.length ? totalOpportunityValue / filteredRows.length : 0;
   const activeSources = new Set(filteredRows.map((row) => row.opportunity_source).filter(Boolean)).size;
@@ -391,6 +394,30 @@ export default function BpoOnboardingPage() {
               <span style={{ color: T.textDark, fontWeight: 600 }}>{row.form_submitted_at ? "Submitted" : "Pending"}</span>
             </div>
           </div>
+          {/* Call result tag */}
+          {row.last_call_result && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "4px 8px",
+                borderRadius: 6,
+                fontSize: 10,
+                fontWeight: 700,
+                background: row.last_call_result === "call_completed" ? "#dcfce7" : "#fef3c7",
+                color: row.last_call_result === "call_completed" ? "#166534" : "#92400e",
+                border: `1px solid ${row.last_call_result === "call_completed" ? "#86efac" : "#fcd34d"}`,
+              }}
+            >
+              {formatCallResultLabel(row.last_call_result)}
+              {row.last_call_result_at && (
+                <span style={{ fontWeight: 600 }}>
+                  &mdash; {new Date(row.last_call_result_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                </span>
+              )}
+            </div>
+          )}
         </button>
       )),
     };
