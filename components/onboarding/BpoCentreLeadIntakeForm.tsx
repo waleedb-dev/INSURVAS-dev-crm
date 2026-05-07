@@ -31,11 +31,17 @@ const SUBMIT_ERROR_MAP: Record<string, string> = {
   centre_name_required: "Centre name is required.",
   team_required: "Add at least one teammate with email.",
   team_name_email_required: "Each teammate needs a name and email.",
+  team_invalid_email: "One or more emails are not valid.",
   team_invalid_position: "Invalid position selected.",
   team_custom_label_required: "Custom roles need a label.",
   team_exactly_one_admin: "Exactly one person must be marked as centre administrator.",
   not_found_or_closed: "This lead is no longer accepting intake.",
 };
+
+function isValidEmail(value: string): boolean {
+  // Intentionally pragmatic: blocks obvious mistakes without being over-strict.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value.trim());
+}
 
 const fieldStyle: CSSProperties = {
   width: "100%",
@@ -120,12 +126,30 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
     if (isInvite && !inviteToken) return;
     setSaving(true);
     setError(null);
-    const team = lines.filter((l) => l.full_name.trim() && l.email.trim()).map((l) => ({
-      full_name: l.full_name.trim(), email: l.email.trim(), phone: l.phone.trim() || null,
+    const team = lines
+      .filter((l) => l.full_name.trim() && l.email.trim())
+      .map((l) => ({
+        full_name: l.full_name.trim(),
+        email: l.email.trim(),
+        phone: l.phone.trim() || null,
       position_key: l.position_key,
       custom_position_label: l.position_key === "custom" ? l.custom_position_label.trim() : "",
       is_center_admin: l.is_center_admin,
-    }));
+      }));
+
+    if (team.length === 0) {
+      setSaving(false);
+      setError("Add at least one teammate with email.");
+      return;
+    }
+
+    const invalidEmail = team.find((t) => !isValidEmail(t.email));
+    if (invalidEmail) {
+      setSaving(false);
+      setError(`Invalid email: ${invalidEmail.email}`);
+      return;
+    }
+
     const { data, error: rpcError } = isInvite
       ? await supabase.rpc("bpo_center_lead_public_submit", { p_token: inviteToken, p_centre_display_name: centerName.trim(), p_team: team })
       : await supabase.rpc("bpo_center_lead_public_open_submit", { p_centre_display_name: centerName.trim(), p_team: team });

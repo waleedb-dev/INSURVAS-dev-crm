@@ -145,6 +145,10 @@ function formatCallResultLabel(key: string | null): string {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value.trim());
+}
+
 const fieldStyle: CSSProperties = {
   width: "100%",
   padding: "9px 12px",
@@ -615,6 +619,10 @@ export default function BpoCentreLeadViewComponent({
     }
     if (!addMemberForm.full_name.trim() || !addMemberForm.email.trim()) {
       setToast({ message: "Name and email are required.", type: "error" });
+      return;
+    }
+    if (!isValidEmail(addMemberForm.email)) {
+      setToast({ message: "Email is not valid.", type: "error" });
       return;
     }
     if (addMemberForm.position_key === "custom" && !addMemberForm.custom_position_label.trim()) {
