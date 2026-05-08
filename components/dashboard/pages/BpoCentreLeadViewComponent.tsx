@@ -16,6 +16,7 @@ import {
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { LeadCard, InfoField, InfoGrid, formatDate } from "@/components/dashboard/pages/LeadCard";
 import BpoCentreLeadOnboardingForm from "@/components/dashboard/pages/BpoCentreLeadOnboardingForm";
+import { bpoRegionForCountry } from "@/lib/bpoRegionCountry";
 import { Toast } from "@/components/ui";
 
 const BRAND_GREEN = "#233217";
@@ -163,10 +164,10 @@ function fieldBlur(e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
 interface CenterLeadRow {
   id: string;
   centre_display_name: string;
+  country: string | null;
   stage: CenterLeadStage;
   linked_crm_centre_label: string | null;
   lead_vendor_label: string | null;
-  opportunity_value: number | null;
   opportunity_source: string | null;
   expected_start_date: string | null;
   committed_daily_sales: number | null;
@@ -473,10 +474,10 @@ export default function BpoCentreLeadViewComponent({
       .from("bpo_center_leads")
       .update({
         centre_display_name: draft.centre_display_name,
+        country: draft.country?.trim() || null,
         stage: draft.stage,
         linked_crm_centre_label: draft.linked_crm_centre_label?.trim() || null,
         lead_vendor_label: draft.lead_vendor_label?.trim() || null,
-        opportunity_value: draft.opportunity_value,
         opportunity_source: draft.opportunity_source?.trim() || null,
         expected_start_date: draft.expected_start_date || null,
         committed_daily_sales: draft.committed_daily_sales,
@@ -879,6 +880,9 @@ export default function BpoCentreLeadViewComponent({
                 <InfoField label="Stage" value={STAGE_LABEL[draft.stage] ?? draft.stage} />
                 <InfoField label="Closers" value={draft.closer_count ?? "—"} />
               </InfoGrid>
+              <InfoGrid columns={1} bordered={false}>
+                <InfoField label="Country" value={draft.country?.trim() || "—"} />
+              </InfoGrid>
               <InfoGrid columns={3} bordered={false}>
                 <InfoField label="Daily sales target" value={draft.committed_daily_sales ?? "—"} />
                 <InfoField label="Daily transfers target" value={draft.committed_daily_transfers ?? "—"} />
@@ -1259,6 +1263,7 @@ export default function BpoCentreLeadViewComponent({
                 }}
                 prefill={{
                   centreName: draft.centre_display_name,
+                  country: draft.country,
                   did: credentials[0]?.did_number ?? null,
                   slackChannel: credentials[0]?.slack_account_details ?? null,
                   email: intakeAdmin?.email ?? null,
@@ -1281,7 +1286,7 @@ export default function BpoCentreLeadViewComponent({
                       did: values.did || null,
                       slack_channel: values.slackChannel || null,
                       email: values.email || null,
-                      region: values.region || null,
+                      region: bpoRegionForCountry(values.country)?.trim() || null,
                       country: values.country || null,
                     }])
                     .select("id")
@@ -1587,6 +1592,19 @@ export default function BpoCentreLeadViewComponent({
                   marginBottom: 24,
                 }}
               >
+                <div>
+                  <label style={labelStyle}>Country</label>
+                  <input
+                    value={draft.country ?? ""}
+                    disabled={isDisabled}
+                    autoComplete="off"
+                    placeholder="e.g. United Kingdom"
+                    onChange={(e) => setDraft({ ...draft, country: e.target.value })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
                 <div>
                   <label style={labelStyle}>Centre name</label>
                   <input

@@ -156,10 +156,10 @@ function formatCallResultLabel(key: string | null): string {
 interface CenterLeadRow {
   id: string;
   centre_display_name: string;
+  country: string | null;
   stage: CenterLeadStage;
   linked_crm_centre_label: string | null;
   lead_vendor_label: string | null;
-  opportunity_value: number | null;
   opportunity_source: string | null;
   expected_start_date: string | null;
   committed_daily_sales: number | null;
@@ -336,6 +336,7 @@ export default function BpoOnboardingPage() {
         if (normalizedSearchQuery) {
           const haystack = [
             row.centre_display_name,
+            row.country,
             row.linked_crm_centre_label,
             row.lead_vendor_label,
             row.opportunity_source,
@@ -370,8 +371,8 @@ export default function BpoOnboardingPage() {
     for (const row of filteredRows) totals.set(row.stage, (totals.get(row.stage) ?? 0) + 1);
     return totals;
   }, [filteredRows]);
-  const totalOpportunityValue = filteredRows.reduce((sum, row) => sum + (row.opportunity_value ?? 0), 0);
-  const averageOpportunityValue = filteredRows.length ? totalOpportunityValue / filteredRows.length : 0;
+  const intakeSubmittedCount = filteredRows.filter((row) => Boolean(row.form_submitted_at)).length;
+  const intakePendingCount = filteredRows.filter((row) => !row.form_submitted_at).length;
   const activeSources = new Set(filteredRows.map((row) => row.opportunity_source).filter(Boolean)).size;
   const pipelineStats: PipelineStat[] = [
     {
@@ -380,14 +381,14 @@ export default function BpoOnboardingPage() {
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>,
     },
     {
-      label: "Total Value",
-      value: totalOpportunityValue.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }),
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+      label: "Intake submitted",
+      value: intakeSubmittedCount.toString(),
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
     },
     {
-      label: "Average Value",
-      value: averageOpportunityValue.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }),
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+      label: "Intake pending",
+      value: intakePendingCount.toString(),
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
     },
     {
       label: "Active Sources",
@@ -407,9 +408,6 @@ export default function BpoOnboardingPage() {
           title: stage.label,
           info: STAGE_INFO[stage.key],
           count: stageTotals.get(stage.key) ?? 0,
-          value: stageRows
-            .reduce((sum, row) => sum + (row.opportunity_value ?? 0), 0)
-            .toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }),
           color,
           bg,
           cards: stageRows.map((row) => (
@@ -500,12 +498,8 @@ export default function BpoOnboardingPage() {
               <span style={{ color: T.textDark, fontWeight: 600 }}>{row.opportunity_source || "Not set"}</span>
             </div>
             <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
-              <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Opportunity Value:</span>
-              <span style={{ color: T.textDark, fontWeight: 600 }}>{(row.opportunity_value ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}</span>
-            </div>
-            <div style={{ display: "flex", fontSize: 12, gap: 8 }}>
-              <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Intake:</span>
-              <span style={{ color: T.textDark, fontWeight: 600 }}>{row.form_submitted_at ? "Submitted" : "Pending"}</span>
+              <span style={{ color: T.textMuted, fontWeight: 500, width: 110 }}>Country:</span>
+              <span style={{ color: T.textDark, fontWeight: 600 }}>{row.country?.trim() || "Not set"}</span>
             </div>
           </div>
           {/* Call result tag */}
@@ -785,7 +779,7 @@ export default function BpoOnboardingPage() {
                   { label: "Centre", align: "left" as const },
                   { label: "Stage", align: "left" as const },
                   { label: "Last call", align: "left" as const },
-                  { label: "Intake", align: "left" as const },
+                  { label: "Country", align: "left" as const },
                 ].map(({ label, align }) => (
                   <TableHead
                     key={label}
@@ -833,7 +827,7 @@ export default function BpoOnboardingPage() {
                         : "—"}
                     </TableCell>
                     <TableCell style={{ padding: "14px 20px", fontSize: 12, color: T.textMuted }}>
-                      {r.form_submitted_at ? new Date(r.form_submitted_at).toLocaleString() : "Pending"}
+                      {r.country?.trim() || "—"}
                     </TableCell>
                   </TableRow>
                 ))

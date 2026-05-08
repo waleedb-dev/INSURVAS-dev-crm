@@ -10,7 +10,8 @@ export type PipelineKanbanColumn = {
   /** Hover text shown next to the column title (same pattern as Lead Pipeline). */
   info?: string;
   count: number;
-  value: string;
+  /** Optional summary next to counts (e.g. currency totals); omit for boards without aggregates. */
+  value?: string;
   color: string;
   bg: string;
   cards: ReactNode;
@@ -272,7 +273,9 @@ export function PipelineKanban({
                       </div>
                       <div style={{ marginTop: 4, display: "flex", gap: 12, fontSize: 12 }}>
                         <span style={{ color: T.textMuted, fontWeight: 600 }}>{formatCountLabel(column.count)}</span>
-                        <span style={{ color: T.textDark, fontWeight: 800 }}>{column.value}</span>
+                        {column.value?.trim() ? (
+                          <span style={{ color: T.textDark, fontWeight: 800 }}>{column.value}</span>
+                        ) : null}
                       </div>
                     </div>
                     <div

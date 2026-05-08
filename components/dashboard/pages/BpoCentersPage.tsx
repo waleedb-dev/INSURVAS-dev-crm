@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BPO_REGIONS, countriesForBpoRegion } from "@/lib/bpoRegionCountry";
 
 interface UserLink {
   id: string;
@@ -43,30 +44,6 @@ interface CenterRow {
 interface CenterDetail extends CenterRow {
   agents: UserLink[];
 }
-
-const REGIONS = [
-  "North America",
-  "South America",
-  "Central America",
-  "Caribbean",
-  "Europe",
-  "Middle East",
-  "Africa",
-  "Asia",
-  "Oceania",
-] as const;
-
-const COUNTRIES_BY_REGION: Record<string, string[]> = {
-  "North America": ["United States", "Canada", "Mexico"],
-  "South America": ["Brazil", "Argentina", "Colombia", "Peru", "Chile", "Venezuela", "Ecuador", "Bolivia", "Paraguay", "Uruguay", "Guyana", "Suriname", "French Guiana"],
-  "Central America": ["Guatemala", "Belize", "Honduras", "El Salvador", "Nicaragua", "Costa Rica", "Panama"],
-  "Caribbean": ["Dominican Republic", "Cuba", "Jamaica", "Puerto Rico", "Trinidad and Tobago", "Bahamas", "Barbados", "Haiti"],
-  "Europe": ["United Kingdom", "Spain", "Germany", "France", "Italy", "Portugal", "Poland", "Romania", "Netherlands", "Belgium", "Sweden", "Austria", "Switzerland", "Greece", "Czech Republic", "Hungary", "Denmark", "Finland", "Norway", "Ireland", "Slovakia", "Bulgaria", "Croatia", "Serbia", "Slovenia", "Lithuania", "Latvia", "Estonia", "Luxembourg", "Malta", "Cyprus"],
-  "Middle East": ["Saudi Arabia", "United Arab Emirates", "Israel", "Turkey", "Egypt", "Qatar", "Kuwait", "Bahrain", "Oman", "Jordan", "Lebanon", "Iraq", "Iran"],
-  "Africa": ["Nigeria", "South Africa", "Kenya", "Ghana", "Egypt", "Morocco", "Tanzania", "Uganda", "Ethiopia", "Algeria", "Cameroon", "Senegal", "Ivory Coast", "Tunisia", "Libya", "Sudan", "Angola", "Mozambique", "Madagascar", "Zimbabwe"],
-  "Asia": ["India", "Pakistan", "Philippines", "Bangladesh", "Sri Lanka", "Nepal", "Indonesia", "Thailand", "Vietnam", "Malaysia", "Singapore", "China", "Hong Kong", "Taiwan", "Japan", "South Korea", "Myanmar", "Cambodia", "Laos", "Mongolia"],
-  "Oceania": ["Australia", "New Zealand", "Fiji", "Papua New Guinea", "Samoa", "Tonga", "Vanuatu", "Solomon Islands"],
-};
 
 interface CenterThreshold {
   id: string;
@@ -1190,7 +1167,7 @@ export default function BpoCentersPage() {
                           }}
                         >
                           <option value="">Select Region...</option>
-                          {REGIONS.map(r => (
+                          {BPO_REGIONS.map(r => (
                             <option key={r} value={r}>{r}</option>
                           ))}
                         </select>
@@ -1214,9 +1191,10 @@ export default function BpoCentersPage() {
                           }}
                         >
                           <option value="">Select Country...</option>
-                          {selectedCenter.region && COUNTRIES_BY_REGION[selectedCenter.region]?.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
+                          {selectedCenter.region &&
+                            countriesForBpoRegion(selectedCenter.region).map(c => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
                         </select>
                       </div>
                     </div>
@@ -1982,7 +1960,7 @@ export default function BpoCentersPage() {
                     onValueChange={(val) => { setFilterRegion(val); setFilterCountry("All"); }}
                     options={[
                       { value: "All", label: "All Regions" },
-                      ...REGIONS.map(r => ({ value: r, label: r })),
+                      ...BPO_REGIONS.map(r => ({ value: r, label: r })),
                     ]}
                     placeholder="All Regions"
                   />
@@ -1994,7 +1972,9 @@ export default function BpoCentersPage() {
                     onValueChange={(val) => setFilterCountry(val)}
                     options={[
                       { value: "All", label: "All Countries" },
-                      ...(filterRegion !== "All" ? (COUNTRIES_BY_REGION[filterRegion] || []).map(c => ({ value: c, label: c })) : []),
+                      ...(filterRegion !== "All"
+                        ? countriesForBpoRegion(filterRegion).map(c => ({ value: c, label: c }))
+                        : []),
                     ]}
                     placeholder="All Countries"
                   />
