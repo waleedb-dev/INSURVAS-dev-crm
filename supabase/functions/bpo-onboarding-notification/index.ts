@@ -20,6 +20,24 @@ const corsHeaders = {
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
 const SLACK_CHANNEL = "#test-bpo";
 
+/**
+ * Base URL of the Insurvas dashboard. `PORTAL_BASE_URL` is the shared edge-function
+ * env var used across notification handlers (matches send-app-fix-notification etc).
+ * Fallback points at the current Insurvas dev CRM deployment.
+ */
+const PORTAL_BASE_URL = (Deno.env.get("PORTAL_BASE_URL") || "https://insurvas-dev-crm.vercel.app").replace(/\/+$/, "");
+
+/** Slack mrkdwn requires &, <, > to be escaped inside link labels. */
+function escapeSlackText(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function buildCentreLeadUrl(centerLeadId: string | null | undefined): string | null {
+  const id = (centerLeadId ?? "").trim();
+  if (!id) return null;
+  return `${PORTAL_BASE_URL}/dashboard/system_admin/bpo-centre-leads/${encodeURIComponent(id)}`;
+}
+
 function supabaseAdmin() {
   return createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
@@ -68,45 +86,68 @@ async function handleFormSubmitted(body: Record<string, unknown>) {
   const teamCount = body.team_count as number | undefined;
   const adminEmail = body.admin_email as string | undefined;
 
+  const leadUrl = buildCentreLeadUrl(centerLeadId);
+  const centreLabel = centreName?.trim() || "Unknown centre";
+  const centreLine = leadUrl
+    ? `*Centre:* <${leadUrl}|${escapeSlackText(centreLabel)}>`
+    : `*Centre:* ${centreLabel}`;
+
+  const blocks: Record<string, unknown>[] = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "📋 New BPO Centre Intake Submitted",
+      },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text:
+          `${centreLine}\n` +
+          `*Team size:* ${teamCount ?? "?"} members\n` +
+          `*Admin email:* ${adminEmail || "N/A"}`,
+      },
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `Submitted at ${fmtDate(new Date().toISOString())} • Stage: Pre-onboarding`,
+        },
+      ],
+    },
+  ];
+
+  if (leadUrl) {
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Open centre lead", emoji: true },
+          url: leadUrl,
+          style: "primary",
+          action_id: "open_centre_lead",
+        },
+      ],
+    });
+  }
+
+  blocks.push({ type: "divider" });
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: "🔔 *Action needed:* Set up Slack, CRM, and DID credentials for this centre.",
+    },
+  });
+
   const slackResult = await postSlack({
     channel: SLACK_CHANNEL,
-    blocks: [
-      {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: "📋 New BPO Centre Intake Submitted",
-        },
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text:
-            `*Centre:* ${centreName || "Unknown"}\n` +
-            `*Team size:* ${teamCount ?? "?"} members\n` +
-            `*Admin email:* ${adminEmail || "N/A"}\n` +
-            `*Lead ID:* \`${centerLeadId || "N/A"}\``,
-        },
-      },
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `Submitted at ${fmtDate(new Date().toISOString())} • Stage: Pre-onboarding`,
-          },
-        ],
-      },
-      { type: "divider" },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "🔔 *Action needed:* Set up Slack, CRM, and DID credentials for this centre.",
-        },
-      },
-    ],
+    blocks,
   });
 
   return { success: true, slack: slackResult };
@@ -149,19 +190,40 @@ async function handleActivelySelling(_body: Record<string, unknown>) {
 
       promoted.push(lead.id);
 
+      const leadUrl = buildCentreLeadUrl(lead.id);
+      const centreLabel = lead.centre_display_name || "Centre";
+      const centreLink = leadUrl
+        ? `<${leadUrl}|${escapeSlackText(centreLabel)}>`
+        : escapeSlackText(centreLabel);
+
+      const blocks: Record<string, unknown>[] = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text:
+              `🎉 *${centreLink}* just made their first sale!\n` +
+              `Auto-promoted to *Actively Selling*.`,
+          },
+        },
+      ];
+      if (leadUrl) {
+        blocks.push({
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "Open centre lead", emoji: true },
+              url: leadUrl,
+              action_id: "open_centre_lead",
+            },
+          ],
+        });
+      }
+
       await postSlack({
         channel: SLACK_CHANNEL,
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text:
-                `🎉 *${lead.centre_display_name}* just made their first sale!\n` +
-                `Auto-promoted to *Actively Selling*.`,
-            },
-          },
-        ],
+        blocks,
       });
     }
   }
@@ -230,20 +292,41 @@ async function handleNeedsAttention(_body: Record<string, unknown>) {
 
       flagged.push(lead.id);
 
+      const leadUrl = buildCentreLeadUrl(lead.id);
+      const centreLabel = lead.centre_display_name || "Centre";
+      const centreLink = leadUrl
+        ? `<${leadUrl}|${escapeSlackText(centreLabel)}>`
+        : escapeSlackText(centreLabel);
+
+      const blocks: Record<string, unknown>[] = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text:
+              `⚠️ *${centreLink}* needs attention.\n` +
+              `Target: ${lead.committed_daily_sales}/day • Actual (3-day avg): ${dailyAvg.toFixed(1)}/day\n` +
+              `Auto-moved to *Needs Attention*.`,
+          },
+        },
+      ];
+      if (leadUrl) {
+        blocks.push({
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "Open centre lead", emoji: true },
+              url: leadUrl,
+              action_id: "open_centre_lead",
+            },
+          ],
+        });
+      }
+
       await postSlack({
         channel: SLACK_CHANNEL,
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text:
-                `⚠️ *${lead.centre_display_name}* needs attention.\n` +
-                `Target: ${lead.committed_daily_sales}/day • Actual (3-day avg): ${dailyAvg.toFixed(1)}/day\n` +
-                `Auto-moved to *Needs Attention*.`,
-            },
-          },
-        ],
+        blocks,
       });
     }
   }

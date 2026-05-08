@@ -4,6 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { T } from "@/lib/theme";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type TeamLine = {
   full_name: string;
@@ -21,8 +28,42 @@ const POSITION_OPTIONS: { value: TeamLine["position_key"]; label: string }[] = [
   { value: "custom", label: "Custom role" },
 ];
 
-function emptyLine(isAdmin: boolean): TeamLine {
-  return { full_name: "", email: "", phone: "", position_key: "owner", custom_position_label: "", is_center_admin: isAdmin };
+type AddMemberDraft = {
+  full_name: string;
+  email: string;
+  phone: string;
+  position_key: TeamLine["position_key"];
+  custom_position_label: string;
+};
+
+function emptyDraft(): AddMemberDraft {
+  return {
+    full_name: "",
+    email: "",
+    phone: "",
+    position_key: "owner",
+    custom_position_label: "",
+  };
+}
+
+function positionLabel(line: Pick<TeamLine, "position_key" | "custom_position_label">): string {
+  if (line.position_key === "custom") {
+    return line.custom_position_label?.trim() || "Custom role";
+  }
+  const opt = POSITION_OPTIONS.find((o) => o.value === line.position_key);
+  return opt?.label ?? line.position_key;
+}
+
+/**
+ * Centre admin = the Owner. If multiple owners are present, the first owner wins.
+ * If no owner has been added yet, the first row stands in so the data invariant
+ * (exactly one centre admin) holds for the submit payload.
+ */
+function applyAdminRule(rows: TeamLine[]): TeamLine[] {
+  if (rows.length === 0) return rows;
+  const ownerIdx = rows.findIndex((r) => r.position_key === "owner");
+  const adminIdx = ownerIdx >= 0 ? ownerIdx : 0;
+  return rows.map((r, i) => ({ ...r, is_center_admin: i === adminIdx }));
 }
 
 const SUBMIT_ERROR_MAP: Record<string, string> = {
@@ -67,12 +108,87 @@ const labelStyle: CSSProperties = {
   letterSpacing: "0.4px",
 };
 
-const selectStyle: CSSProperties = {
-  ...fieldStyle,
-  fontWeight: 600,
-  cursor: "pointer",
-  appearance: "auto" as CSSProperties["appearance"],
+/** Smaller labels for dense add-member row */
+const compactFieldLabelStyle: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 800,
+  color: T.textMuted,
+  marginBottom: 4,
+  display: "block",
+  textTransform: "uppercase",
+  letterSpacing: "0.35px",
 };
+
+/** Same shadcn Select pattern as dashboard (e.g. BpoOnboardingPage, BpoCentreLeadView). */
+function IntakeSelect({
+  value,
+  onValueChange,
+  options,
+  ariaLabel,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+      <SelectTrigger
+        aria-label={ariaLabel}
+        className="w-full min-w-0 hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
+        style={{
+          width: "100%",
+          minHeight: 40,
+          height: 40,
+          borderRadius: 10,
+          border: `1px solid ${T.border}`,
+          backgroundColor: T.cardBg,
+          color: T.textDark,
+          fontSize: 13,
+          fontWeight: 600,
+          paddingLeft: 12,
+          paddingRight: 10,
+          fontFamily: T.font,
+          transition: "all 0.15s ease-in-out",
+        }}
+      >
+        <SelectValue>
+          {options.find((o) => o.value === value)?.label ?? value}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        className="z-[100000]"
+        style={{
+          borderRadius: 12,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+          backgroundColor: T.cardBg,
+          padding: 6,
+          maxHeight: 300,
+        }}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            className="hover:bg-[#DCEBDC] hover:text-[#233217] focus:bg-[#DCEBDC] focus:text-[#233217] data-[state=checked]:bg-[#233217] data-[state=checked]:text-white data-[state=checked]:font-semibold"
+            style={{
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 400,
+              color: T.textDark,
+              cursor: "pointer",
+              transition: "all 0.1s ease-in-out",
+            }}
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 type Props = {
   mode: "open" | "invite";
@@ -85,11 +201,12 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
 
   const [loading, setLoading] = useState(isInvite);
   const [centerName, setCenterName] = useState("");
-  const [lines, setLines] = useState<TeamLine[]>([emptyLine(true), emptyLine(false)]);
+  const [lines, setLines] = useState<TeamLine[]>([]);
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [addDraft, setAddDraft] = useState<AddMemberDraft>(() => emptyDraft());
 
   const load = useCallback(async () => {
     if (!isInvite) return;
@@ -104,21 +221,59 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
     setCenterName(p.centre_display_name ?? "");
     setSubmittedAt(p.form_submitted_at ?? null);
     if (Array.isArray(p.team) && p.team.length > 0) {
-      const anyAdmin = p.team.some((x) => x.is_center_admin);
-      setLines(p.team.map((r, idx) => ({
-        full_name: r.full_name ?? "", email: r.email ?? "", phone: r.phone ?? "",
+      const parsed: TeamLine[] = p.team.map((r) => ({
+        full_name: r.full_name ?? "",
+        email: r.email ?? "",
+        phone: r.phone ?? "",
         position_key: (r.position_key as TeamLine["position_key"]) || "owner",
         custom_position_label: r.custom_position_label ?? "",
-        is_center_admin: !!r.is_center_admin || (!anyAdmin && idx === 0),
-      })));
+        is_center_admin: false,
+      }));
+      setLines(applyAdminRule(parsed));
     }
   }, [inviteToken, isInvite, supabase]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const setAdminLine = (index: number) => {
-    setLines((ls) => ls.map((l, i) => ({ ...l, is_center_admin: i === index })));
+  const removeLine = (index: number) => {
+    setLines((ls) => applyAdminRule(ls.filter((_, i) => i !== index)));
   };
+
+  const addLineFromDraft = useCallback(() => {
+    const fullName = addDraft.full_name.trim();
+    const email = addDraft.email.trim();
+    if (!fullName || !email) {
+      setError("Name and email are required to add a team member.");
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError(`Invalid email: ${email}`);
+      return;
+    }
+    if (addDraft.position_key === "custom" && !addDraft.custom_position_label.trim()) {
+      setError("Custom roles need a label.");
+      return;
+    }
+    if (lines.some((l) => l.email.trim().toLowerCase() === email.toLowerCase())) {
+      setError("This email is already on the team.");
+      return;
+    }
+    setError(null);
+
+    setLines((ls) => applyAdminRule([
+      ...ls,
+      {
+        full_name: fullName,
+        email,
+        phone: addDraft.phone.trim(),
+        position_key: addDraft.position_key,
+        custom_position_label: addDraft.position_key === "custom" ? addDraft.custom_position_label.trim() : "",
+        is_center_admin: false,
+      },
+    ]));
+
+    setAddDraft(emptyDraft());
+  }, [addDraft, lines]);
 
   const submit = useCallback(async () => {
     const adminCount = lines.filter((l) => l.is_center_admin).length;
@@ -194,7 +349,7 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
     background: "#fff",
     border: `1.5px solid ${T.border}`,
     borderRadius: T.radiusLg,
-    boxShadow: T.shadowMd,
+    boxShadow: "0 4px 24px rgba(35, 50, 23, 0.08)",
     overflow: "hidden",
   };
 
@@ -208,13 +363,73 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
     padding: "clamp(20px, 3vw, 40px) clamp(20px, 3vw, 40px)",
   };
 
-  /** Team cards: 1 col on narrow viewports, 2+ on wide */
-  const teamGridStyle: CSSProperties = {
+  const teamBodyStyle: CSSProperties = {
     padding: "clamp(16px, 2.5vw, 28px)",
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 420px), 1fr))",
-    gap: "clamp(14px, 2vw, 22px)",
-    alignItems: "start",
+    display: "flex",
+    flexDirection: "column",
+    gap: "clamp(14px, 2vw, 20px)",
+  };
+
+  const tableShellStyle: CSSProperties = {
+    width: "100%",
+    border: `1px solid ${T.border}`,
+    borderRadius: T.radiusMd,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+  };
+
+  const tableStyle: CSSProperties = {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontSize: 13,
+    fontFamily: T.font,
+  };
+
+  const thStyle: CSSProperties = {
+    backgroundColor: "#233217",
+    color: "#fff",
+    fontWeight: 700,
+    fontSize: 11,
+    letterSpacing: "0.45px",
+    textTransform: "uppercase",
+    padding: "13px 14px",
+    textAlign: "left",
+    whiteSpace: "nowrap",
+  };
+
+  const tdStyle: CSSProperties = {
+    padding: "12px 14px",
+    color: T.textDark,
+    borderBottom: `1px solid ${T.borderLight}`,
+    verticalAlign: "middle",
+  };
+
+  const addPanelStyle: CSSProperties = {
+    borderRadius: T.radiusMd,
+    border: `1px solid ${T.borderLight}`,
+    backgroundColor: "#f6faf3",
+    padding: "clamp(14px, 1.8vw, 18px)",
+  };
+
+  const addRowStyle: CSSProperties = {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "clamp(10px, 1.5vw, 14px)",
+    alignItems: "flex-end",
+  };
+
+  const addFieldCellStyle: CSSProperties = {
+    flex: "1 1 150px",
+    minWidth: 130,
+  };
+
+  const compactInputStyle: CSSProperties = {
+    ...fieldStyle,
+    padding: "10px 12px",
+    fontSize: 13,
+    fontWeight: 500,
+    minHeight: 40,
+    borderRadius: 10,
   };
 
   /* ---------- Spinner ---------- */
@@ -245,16 +460,215 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
 
   /* ---------- Success ---------- */
   if (success || submittedAt) {
+    const submittedCentreName = centerName.trim();
+    const nextSteps: { title: string; description: string }[] = [
+      {
+        title: "We review your team",
+        description: "Your Insurvas account manager confirms the roster and centre details.",
+      },
+      {
+        title: "Credentials are provisioned",
+        description: "We create logins for the centre administrator and closers.",
+      },
+      {
+        title: "Onboarding call scheduled",
+        description: "You'll receive an email with next-step instructions and a meeting link.",
+      },
+    ];
+
     return (
       <div style={{ ...pageStyle, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ ...cardStyle, maxWidth: 480, textAlign: "center" }}>
-          <div style={headerStyle}>
-            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>Thank you</h1>
+        <div
+          style={{
+            ...cardStyle,
+            width: "100%",
+            maxWidth: 720,
+            overflow: "hidden",
+          }}
+        >
+          {/* Branded header */}
+          <div
+            style={{
+              ...headerStyle,
+              display: "grid",
+              gridTemplateColumns: "1fr auto 1fr",
+              alignItems: "center",
+              gap: 12,
+              paddingTop: "clamp(16px, 2.2vw, 26px)",
+              paddingBottom: "clamp(16px, 2.2vw, 26px)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center", minWidth: 0 }}>
+              <img
+                src="/logo-expanded.png"
+                alt="Insurvas"
+                style={{
+                  height: "clamp(30px, 3.2vw, 38px)",
+                  width: "auto",
+                  maxWidth: "min(200px, 42vw)",
+                  objectFit: "contain",
+                  objectPosition: "left center",
+                }}
+              />
+            </div>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "clamp(1.05rem, 1.6vw, 1.25rem)",
+                fontWeight: 800,
+                color: T.textDark,
+                lineHeight: 1.2,
+                textAlign: "center",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Onboarding submitted
+            </h1>
+            <div aria-hidden style={{ minWidth: 0 }} />
           </div>
-          <div style={{ ...bodyStyle, padding: "32px 24px" }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: T.textMuted, lineHeight: 1.6 }}>
-              Your centre lead details were received. Our team will follow up with credentials and next steps.
+
+          {/* Hero confirmation */}
+          <div
+            style={{
+              padding: "clamp(28px, 4vw, 44px) clamp(24px, 4vw, 48px) clamp(8px, 1.5vw, 16px)",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: "50%",
+                background: "linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%)",
+                border: "1px solid rgba(35, 50, 23, 0.12)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 20px",
+                boxShadow: "0 6px 20px rgba(35, 50, 23, 0.12)",
+              }}
+              aria-hidden
+            >
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "clamp(1.5rem, 2.4vw, 2rem)",
+                fontWeight: 800,
+                color: T.textDark,
+                lineHeight: 1.2,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Thank you{submittedCentreName ? `, ${submittedCentreName}` : ""}.
+            </h2>
+            <p
+              style={{
+                margin: "12px auto 0",
+                fontSize: 15,
+                fontWeight: 500,
+                color: T.textMuted,
+                lineHeight: 1.55,
+                maxWidth: "44ch",
+              }}
+            >
+              Your centre lead details have been received. Our team will be in touch shortly with credentials and next steps.
             </p>
+          </div>
+
+          {/* Next steps */}
+          <div
+            style={{
+              padding: "clamp(20px, 3vw, 32px) clamp(20px, 4vw, 48px) clamp(28px, 4vw, 40px)",
+            }}
+          >
+            <p
+              style={{
+                margin: "0 0 14px",
+                fontSize: 11,
+                fontWeight: 800,
+                color: T.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.4px",
+                textAlign: "center",
+              }}
+            >
+              What happens next
+            </p>
+            <ol
+              style={{
+                listStyle: "none",
+                margin: 0,
+                padding: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              {nextSteps.map((step, i) => (
+                <li
+                  key={step.title}
+                  style={{
+                    display: "flex",
+                    gap: 14,
+                    alignItems: "flex-start",
+                    padding: "14px 16px",
+                    borderRadius: T.radiusMd,
+                    border: `1px solid ${T.borderLight}`,
+                    backgroundColor: "#f6faf3",
+                  }}
+                >
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      backgroundColor: "#233217",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      letterSpacing: "0",
+                      marginTop: 1,
+                    }}
+                    aria-hidden
+                  >
+                    {i + 1}
+                  </span>
+                  <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark, lineHeight: 1.35 }}>
+                      {step.title}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: T.textMuted, lineHeight: 1.5 }}>
+                      {step.description}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: "16px clamp(20px, 4vw, 48px) 22px",
+              borderTop: `1px solid ${T.borderLight}`,
+              backgroundColor: "#fafcf8",
+              textAlign: "center",
+              fontSize: 12,
+              fontWeight: 500,
+              color: T.textMuted,
+              lineHeight: 1.5,
+            }}
+          >
+            Questions in the meantime? Reply to your Insurvas contact and we'll help you out.
           </div>
         </div>
       </div>
@@ -266,17 +680,66 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
     <div style={pageStyle}>
       <div style={shellStyle}>
         <div style={cardStyle}>
-          {/* Header */}
-          <div style={headerStyle}>
-            <h1 style={{ margin: 0, fontSize: "clamp(1.25rem, 2.2vw, 1.75rem)", fontWeight: 800, color: T.textDark, lineHeight: 1.2 }}>
+          {/* Header — brand + title balanced */}
+          <div
+            style={{
+              ...headerStyle,
+              display: "grid",
+              gridTemplateColumns: "1fr auto 1fr",
+              alignItems: "center",
+              gap: 12,
+              paddingTop: "clamp(16px, 2.2vw, 26px)",
+              paddingBottom: "clamp(16px, 2.2vw, 26px)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center", minWidth: 0 }}>
+              <img
+                src="/logo-expanded.png"
+                alt="Insurvas"
+                style={{
+                  height: "clamp(30px, 3.2vw, 38px)",
+                  width: "auto",
+                  maxWidth: "min(200px, 42vw)",
+                  objectFit: "contain",
+                  objectPosition: "left center",
+                }}
+              />
+            </div>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "clamp(1.15rem, 2vw, 1.65rem)",
+                fontWeight: 800,
+                color: T.textDark,
+                lineHeight: 1.2,
+                textAlign: "center",
+                letterSpacing: "-0.02em",
+              }}
+            >
               BPO Centre Lead Intake
             </h1>
-            <p style={{ margin: "8px 0 0", fontSize: "clamp(12px, 1.4vw, 14px)", fontWeight: 600, color: T.textMuted, lineHeight: 1.5, maxWidth: "72ch" }}>
-              One person must be the <strong style={{ color: T.textDark }}>centre administrator</strong>. Add the whole team with name, email, and role.
-            </p>
+            <div aria-hidden style={{ minWidth: 0 }} />
           </div>
 
           <div style={bodyStyle}>
+            <style>{`
+              .intake-form-table tbody tr.intake-data-row:hover td {
+                background-color: rgba(220, 235, 220, 0.4);
+              }
+              .intake-form-table tbody tr.intake-data-row td {
+                transition: background-color 0.15s ease-in-out;
+              }
+              .intake-form-table tbody tr:last-child td {
+                border-bottom: none;
+              }
+              .intake-btn-primary:not(:disabled):hover {
+                filter: brightness(1.06);
+                box-shadow: 0 4px 14px rgba(35, 50, 23, 0.18);
+              }
+              .intake-btn-primary:not(:disabled):active {
+                transform: scale(0.99);
+              }
+            `}</style>
             {/* Error banner */}
             {error && (
               <div style={{
@@ -301,215 +764,310 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
             )}
 
             {/* Centre name */}
-            <div style={{ marginBottom: 24 }}>
-              <label style={labelStyle}>Centre name</label>
+            <div style={{ marginBottom: 24, maxWidth: 520 }}>
+              <label style={compactFieldLabelStyle}>Centre name</label>
               <input
                 value={centerName}
                 onChange={(e) => setCenterName(e.target.value)}
                 placeholder="e.g. Apex Transfers LLC"
-                style={fieldStyle}
+                style={{ ...fieldStyle, padding: "10px 12px", fontSize: 13, fontWeight: 500, minHeight: 40, borderRadius: 10 }}
                 onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
                 onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
               />
             </div>
 
             {/* Team section */}
-            <div style={{ background: "#fff", border: `1.5px solid ${T.border}`, borderRadius: T.radiusLg, overflow: "hidden" }}>
-              <div style={{
-                padding: "clamp(12px, 2vw, 18px) clamp(16px, 2.5vw, 28px)",
-                borderBottom: `1px solid ${T.borderLight}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                flexWrap: "wrap",
-                backgroundColor: "#DCEBDC",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#233217" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                  <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: T.textDark }}>Team</h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setLines((ls) => [...ls, emptyLine(false)])}
+            <div
+              style={{
+                background: "#fafcf8",
+                border: `1.5px solid ${T.border}`,
+                borderRadius: T.radiusLg,
+                overflow: "hidden",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
+              }}
+            >
+              <div
+                style={{
+                  padding: "clamp(14px, 2vw, 20px) clamp(16px, 2.5vw, 28px)",
+                  borderBottom: `1px solid ${T.borderLight}`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  background: "linear-gradient(180deg, #e8f0e4 0%, #dcebdc 100%)",
+                  boxShadow: "0 1px 0 rgba(255,255,255,0.55)",
+                }}
+              >
+                <span
                   style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(35,50,23,0.12)",
                     display: "inline-flex",
                     alignItems: "center",
-                    gap: 6,
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    border: "none",
-                    backgroundColor: "#233217",
-                    color: "#fff",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    transition: "all 0.15s",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    border: "1px solid rgba(35,50,23,0.08)",
                   }}
+                  aria-hidden
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
-                  Add person
-                </button>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#233217" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                </span>
+                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: T.textDark, lineHeight: 1.25, letterSpacing: "-0.02em" }}>
+                    Centre admin &amp; team
+                  </h2>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, fontWeight: 600, color: T.textMuted, lineHeight: 1.45 }}>
+                    Onboarding team roster
+                  </p>
+                </div>
               </div>
 
-              <div style={teamGridStyle}>
-                {lines.map((line, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      padding: "clamp(14px, 2vw, 22px)",
-                      borderRadius: T.radiusMd,
-                      border: `1.5px solid ${line.is_center_admin ? "#3b5229" : T.border}`,
-                      backgroundColor: line.is_center_admin ? "rgba(220,235,220,0.3)" : "#fff",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    {/* Admin radio */}
-                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 16 }}>
-                      <input
-                        type="radio"
-                        name="centre_admin"
-                        checked={line.is_center_admin}
-                        onChange={() => setAdminLine(idx)}
-                        style={{ width: 18, height: 18, accentColor: "#3b5229", cursor: "pointer" }}
-                      />
-                      <span style={{ fontSize: 14, fontWeight: 700, color: line.is_center_admin ? "#233217" : T.textMid }}>
-                        Centre administrator
-                      </span>
-                      {line.is_center_admin && (
-                        <span style={{ fontSize: 11, fontWeight: 800, color: "#fff", backgroundColor: "#3b5229", padding: "2px 8px", borderRadius: 6 }}>Admin</span>
+              <div style={teamBodyStyle}>
+                {/* Roster table */}
+                <div style={tableShellStyle}>
+                  <table className="intake-form-table" style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>Name</th>
+                        <th style={thStyle}>Email</th>
+                        <th style={thStyle}>Position</th>
+                        <th style={{ ...thStyle, width: 1, textAlign: "right" }} aria-label="Actions" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.length === 0 ? (
+                        <tr className="intake-empty-row">
+                          <td colSpan={4} style={{ ...tdStyle, borderBottom: "none", color: T.textMuted, fontWeight: 600, textAlign: "center", padding: "clamp(22px, 4vw, 36px) 20px", lineHeight: 1.55, fontSize: 13, background: "rgba(255,255,255,0.65)" }}>
+                            <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 10, maxWidth: "36rem", margin: "0 auto" }}>
+                              <span
+                                style={{
+                                  width: 44,
+                                  height: 44,
+                                  borderRadius: "50%",
+                                  background: "rgba(220,235,220,0.65)",
+                                  border: `1px solid ${T.borderLight}`,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                                aria-hidden
+                              >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.75"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                              </span>
+                              <span>
+                                No team members yet — add the centre team below.
+                              </span>
+                            </span>
+                          </td>
+                        </tr>
+                      ) : (
+                        lines.map((line, idx) => (
+                          <tr key={idx} className="intake-data-row">
+                            <td style={{ ...tdStyle, fontWeight: 700 }}>{line.full_name}</td>
+                            <td style={tdStyle}>{line.email}</td>
+                            <td style={{ ...tdStyle, textTransform: line.position_key === "custom" ? "none" : "capitalize" }}>
+                              {positionLabel(line)}
+                            </td>
+                            <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
+                              <button
+                                type="button"
+                                onClick={() => removeLine(idx)}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(59,82,41,0.06)"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  border: "none",
+                                  background: "transparent",
+                                  cursor: "pointer",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: T.danger,
+                                  padding: "6px 8px",
+                                  borderRadius: 8,
+                                  transition: "background 0.15s ease-in-out",
+                                }}
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))
                       )}
-                    </label>
+                    </tbody>
+                  </table>
+                </div>
 
-                    {/* Name + Email */}
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "clamp(12px, 2vw, 18px)" }}>
-                      <div>
-                        <label style={labelStyle}>Full name</label>
-                        <input
-                          value={line.full_name}
-                          onChange={(e) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, full_name: e.target.value } : l)))}
-                          style={fieldStyle}
-                          onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
-                          onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-                        />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Email</label>
-                        <input
-                          type="text"
-                          inputMode="email"
-                          autoComplete="email"
-                          value={line.email}
-                          onChange={(e) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, email: e.target.value } : l)))}
-                          style={fieldStyle}
-                          onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
-                          onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-                        />
-                      </div>
+                {/* Add team member */}
+                <div style={addPanelStyle}>
+                  <p style={{ margin: "0 0 12px", fontSize: 11, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.35px" }}>
+                    Add team member
+                  </p>
+                  <div style={addRowStyle}>
+                    <div style={{ ...addFieldCellStyle, flex: "2 1 200px" }}>
+                      <label style={compactFieldLabelStyle}>Full name</label>
+                      <input
+                        placeholder="Full name"
+                        value={addDraft.full_name}
+                        onChange={(e) => setAddDraft((d) => ({ ...d, full_name: e.target.value }))}
+                        style={compactInputStyle}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+                      />
                     </div>
-
-                  {/* Phone */}
-                  <div style={{ marginTop: 16 }}>
-                    <label style={labelStyle}>Phone (optional)</label>
-                    <input
-                      value={line.phone}
-                      onChange={(e) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, phone: e.target.value } : l)))}
-                      style={fieldStyle}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
-                      onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-                    />
-                  </div>
-
-                  {/* Position */}
-                  <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: line.position_key === "custom" ? "repeat(auto-fit, minmax(160px, 1fr))" : "1fr", gap: "clamp(12px, 2vw, 18px)" }}>
-                    <div>
-                      <label style={labelStyle}>Position</label>
-                      <select
-                        value={line.position_key}
-                        onChange={(e) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, position_key: e.target.value as TeamLine["position_key"] } : l)))}
-                        style={selectStyle}
-                      >
-                        {POSITION_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
+                    <div style={{ ...addFieldCellStyle, flex: "2 1 200px" }}>
+                      <label style={compactFieldLabelStyle}>Email</label>
+                      <input
+                        placeholder="Email"
+                        type="text"
+                        inputMode="email"
+                        autoComplete="email"
+                        value={addDraft.email}
+                        onChange={(e) => setAddDraft((d) => ({ ...d, email: e.target.value }))}
+                        style={compactInputStyle}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+                      />
                     </div>
-                    {line.position_key === "custom" && (
-                      <div>
-                        <label style={labelStyle}>Custom role</label>
+                    <div style={addFieldCellStyle}>
+                      <label style={compactFieldLabelStyle}>Phone (optional)</label>
+                      <input
+                        placeholder="Phone"
+                        value={addDraft.phone}
+                        onChange={(e) => setAddDraft((d) => ({ ...d, phone: e.target.value }))}
+                        style={compactInputStyle}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                    <div style={addFieldCellStyle}>
+                      <label style={compactFieldLabelStyle}>Position</label>
+                      <IntakeSelect
+                        ariaLabel="Position"
+                        value={addDraft.position_key}
+                        onValueChange={(v) => setAddDraft((d) => ({ ...d, position_key: v as TeamLine["position_key"] }))}
+                        options={POSITION_OPTIONS}
+                      />
+                    </div>
+                    {addDraft.position_key === "custom" && (
+                      <div style={addFieldCellStyle}>
+                        <label style={compactFieldLabelStyle}>Custom role</label>
                         <input
-                          value={line.custom_position_label}
                           placeholder="Describe the role"
-                          onChange={(e) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, custom_position_label: e.target.value } : l)))}
-                          style={fieldStyle}
+                          value={addDraft.custom_position_label}
+                          onChange={(e) => setAddDraft((d) => ({ ...d, custom_position_label: e.target.value }))}
+                          style={compactInputStyle}
                           onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
                           onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
                         />
                       </div>
                     )}
-                  </div>
-
-                  {/* Remove */}
-                  {lines.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setLines((ls) => {
-                          const next = ls.filter((_, i) => i !== idx);
-                          if (!next.some((l) => l.is_center_admin) && next.length > 0) next[0] = { ...next[0], is_center_admin: true };
-                          return next;
-                        });
-                      }}
+                      className="intake-btn-primary"
+                      onClick={addLineFromDraft}
                       style={{
-                        marginTop: 14,
+                        flex: "0 0 auto",
+                        marginLeft: "auto",
                         display: "inline-flex",
                         alignItems: "center",
+                        justifyContent: "center",
                         gap: 6,
+                        height: 40,
+                        padding: "0 18px",
+                        borderRadius: 10,
                         border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        fontSize: 12,
+                        backgroundColor: "#233217",
+                        color: "#fff",
+                        fontSize: 13,
                         fontWeight: 700,
-                        color: T.danger,
-                        padding: 0,
-                        transition: "opacity 0.15s",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease-in-out",
+                        boxShadow: "0 1px 4px rgba(35, 50, 23, 0.16)",
+                        fontFamily: T.font,
                       }}
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-                      Remove
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      Add to team
                     </button>
-                  )}
+                  </div>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
 
-          {/* Submit */}
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void submit()}
+          {/* Submit action bar */}
+          <div
             style={{
-              marginTop: "clamp(20px, 3vw, 32px)",
-              width: "100%",
-              padding: "clamp(14px, 2vw, 18px) 24px",
-              border: "none",
-              borderRadius: 10,
-              backgroundColor: saving ? "#c8d4bb" : "#233217",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 800,
-              cursor: saving ? "not-allowed" : "pointer",
-              transition: "all 0.15s",
-              boxShadow: T.shadowSm,
+              marginTop: "clamp(20px, 2.5vw, 28px)",
+              paddingTop: "clamp(16px, 2vw, 20px)",
+              borderTop: `1px solid ${T.borderLight}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
             }}
           >
-            {saving ? "Submitting…" : "Submit intake"}
-          </button>
-
-          <p style={{ marginTop: 16, textAlign: "center", fontSize: 12, fontWeight: 500, color: T.textMuted }}>
-            If you need help, reply to your Insurvas contact.
-          </p>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: T.textMuted, lineHeight: 1.5 }}>
+              Need help? Reply to your Insurvas contact.
+            </p>
+            <button
+              type="button"
+              disabled={saving}
+              className="intake-btn-primary"
+              onClick={() => void submit()}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                height: 42,
+                padding: "0 22px",
+                minWidth: 180,
+                border: "none",
+                borderRadius: 10,
+                backgroundColor: saving ? "#c8d4bb" : "#233217",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: "0.01em",
+                cursor: saving ? "not-allowed" : "pointer",
+                transition: "all 0.15s ease-in-out",
+                boxShadow: saving ? "none" : "0 2px 8px rgba(35, 50, 23, 0.18)",
+                fontFamily: T.font,
+              }}
+            >
+              {saving ? (
+                <>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 14,
+                      height: 14,
+                      border: "2px solid rgba(255,255,255,0.4)",
+                      borderTopColor: "#fff",
+                      borderRadius: "50%",
+                      animation: "spin 0.7s linear infinite",
+                    }}
+                  />
+                  Submitting…
+                </>
+              ) : (
+                <>
+                  Submit intake
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M5 12h14M13 5l7 7-7 7" />
+                  </svg>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
       </div>

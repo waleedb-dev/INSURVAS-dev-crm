@@ -22,7 +22,11 @@ import {
 } from "@/components/ui/select";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { PipelineStatGrid, PipelineToolbar, type PipelineStat } from "@/components/dashboard/pages/pipeline/PipelineChrome";
-import { PipelineKanban, type PipelineKanbanColumn } from "@/components/dashboard/pages/pipeline/PipelineKanban";
+import {
+  PipelineKanban,
+  type PipelineKanbanColumn,
+  type PipelineKanbanDragDrop,
+} from "@/components/dashboard/pages/pipeline/PipelineKanban";
 import { useParams, useRouter } from "next/navigation";
 
 const BRAND_GREEN = "#233217";
@@ -121,6 +125,9 @@ const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
 
 const STAGE_LABEL: Record<string, string> = Object.fromEntries(STAGE_OPTIONS.map((o) => [o.key, o.label]));
 
+const STAGE_KANBAN_COLORS = ["#638b4b", "#2563eb", "#7c3aed", "#0f766e", "#d97706", "#64748b", "#991b1b", "#374151"];
+const STAGE_KANBAN_BACKGROUNDS = ["#f2f8ee", "#eef2ff", "#f5f3ff", "#f0fdfa", "#fffbeb", "#f8fafc", "#fef2f2", "#f9fafb"];
+
 function formatCallResultLabel(key: string | null): string {
   if (!key) return "";
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -169,6 +176,8 @@ export default function BpoOnboardingPage() {
   const [, setInviteToken] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
+  const [dragLeadId, setDragLeadId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<CenterLeadStage | null>(null);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -198,6 +207,42 @@ export default function BpoOnboardingPage() {
       router.push(`/dashboard/${role}/bpo-centre-leads/${id}`);
     },
     [routeRole, router],
+  );
+
+  const handleKanbanDrop = useCallback(
+    async (targetColumnId: string | number) => {
+      const targetStage = String(targetColumnId) as CenterLeadStage;
+      const droppedId = dragLeadId;
+      if (!droppedId) {
+        setDragOverStage(null);
+        return;
+      }
+      const prevRow = rows.find((r) => r.id === droppedId);
+      if (!prevRow || prevRow.stage === targetStage) {
+        setDragOverStage(null);
+        return;
+      }
+      setRows((p) => p.map((r) => (r.id === droppedId ? { ...r, stage: targetStage } : r)));
+      const { error } = await supabase
+        .from("bpo_center_leads")
+        .update({ stage: targetStage, updated_at: new Date().toISOString() })
+        .eq("id", droppedId);
+      if (error && prevRow) {
+        setRows((p) => p.map((r) => (r.id === droppedId ? prevRow : r)));
+        setToast({ message: error.message, type: "error" });
+      }
+    },
+    [dragLeadId, rows, supabase],
+  );
+
+  const kanbanDragDrop = useMemo<PipelineKanbanDragDrop>(
+    () => ({
+      dragOverColumnId: dragOverStage,
+      onColumnDragOver: (id) => setDragOverStage(String(id) as CenterLeadStage),
+      onColumnDragLeave: () => setDragOverStage(null),
+      onColumnDrop: (id) => void handleKanbanDrop(id),
+    }),
+    [dragOverStage, handleKanbanDrop],
   );
 
   const handleCreateInvite = useCallback(async () => {
@@ -305,8 +350,6 @@ export default function BpoOnboardingPage() {
     for (const row of filteredRows) totals.set(row.stage, (totals.get(row.stage) ?? 0) + 1);
     return totals;
   }, [filteredRows]);
-  const stageColors = ["#638b4b", "#2563eb", "#7c3aed", "#0f766e", "#d97706", "#64748b", "#991b1b", "#374151"];
-  const stageBackgrounds = ["#f2f8ee", "#eef2ff", "#f5f3ff", "#f0fdfa", "#fffbeb", "#f8fafc", "#fef2f2", "#f9fafb"];
   const totalOpportunityValue = filteredRows.reduce((sum, row) => sum + (row.opportunity_value ?? 0), 0);
   const averageOpportunityValue = filteredRows.length ? totalOpportunityValue / filteredRows.length : 0;
   const activeSources = new Set(filteredRows.map((row) => row.opportunity_source).filter(Boolean)).size;
@@ -332,23 +375,44 @@ export default function BpoOnboardingPage() {
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
     },
   ];
-  const kanbanColumns: PipelineKanbanColumn[] = STAGE_OPTIONS.map((stage, index) => {
-    const stageRows = filteredRows.filter((row) => row.stage === stage.key);
-    const color = stageColors[index % stageColors.length] ?? BRAND_GREEN;
-    const bg = stageBackgrounds[index % stageBackgrounds.length] ?? "#f2f8ee";
+  const kanbanColumns = useMemo<PipelineKanbanColumn[]>(
+    () =>
+      STAGE_OPTIONS.map((stage, index) => {
+        const stageRows = filteredRows.filter((row) => row.stage === stage.key);
+        const color = STAGE_KANBAN_COLORS[index % STAGE_KANBAN_COLORS.length] ?? BRAND_GREEN;
+        const bg = STAGE_KANBAN_BACKGROUNDS[index % STAGE_KANBAN_BACKGROUNDS.length] ?? "#f2f8ee";
 
-    return {
-      id: stage.key,
-      title: stage.label,
-      count: stageTotals.get(stage.key) ?? 0,
-      value: stageRows.reduce((sum, row) => sum + (row.opportunity_value ?? 0), 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }),
-      color,
-      bg,
-      cards: stageRows.map((row) => (
-        <button
+        return {
+          id: stage.key,
+          title: stage.label,
+          count: stageTotals.get(stage.key) ?? 0,
+          value: stageRows
+            .reduce((sum, row) => sum + (row.opportunity_value ?? 0), 0)
+            .toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }),
+          color,
+          bg,
+          cards: stageRows.map((row) => (
+        <div
           key={row.id}
-          type="button"
+          role="button"
+          tabIndex={0}
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", row.id);
+            setDragLeadId(row.id);
+          }}
+          onDragEnd={() => {
+            setDragLeadId(null);
+            setDragOverStage(null);
+          }}
           onClick={() => goToCentreLead(row.id)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              goToCentreLead(row.id);
+            }
+          }}
           style={{
             backgroundColor: "#fff",
             borderRadius: 10,
@@ -361,9 +425,10 @@ export default function BpoOnboardingPage() {
             borderLeftWidth: 4,
             borderLeftStyle: "solid",
             borderLeftColor: color,
-            cursor: "pointer",
+            cursor: "grab",
             transition: "all 0.2s ease",
             position: "relative",
+            opacity: dragLeadId === row.id ? 0.55 : 1,
           }}
           onMouseEnter={(event) => {
             event.currentTarget.style.borderColor = BRAND_GREEN;
@@ -446,10 +511,12 @@ export default function BpoOnboardingPage() {
               )}
             </div>
           )}
-        </button>
+        </div>
       )),
     };
-  });
+      }),
+    [dragLeadId, filteredRows, goToCentreLead, stageTotals],
+  );
 
   if (currentRole !== "system_admin") {
     return (
@@ -687,7 +754,7 @@ export default function BpoOnboardingPage() {
           </div>
         </Card>
       ) : viewMode === "kanban" ? (
-        <PipelineKanban columns={kanbanColumns} />
+        <PipelineKanban columns={kanbanColumns} dragDrop={kanbanDragDrop} />
       ) : (
         <Card className="overflow-hidden rounded-2xl border transition-all duration-150" style={{ borderColor: T.border, background: T.cardBg }}>
           <ShadcnTable>
