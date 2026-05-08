@@ -272,7 +272,7 @@ export default function BpoOnboardingPage() {
     const { data: lead, error: e1 } = await supabase
       .from("bpo_center_leads")
       .insert({
-        centre_display_name: "New centre lead",
+        centre_display_name: "New Center",
         stage: "pre_onboarding",
         created_by: uid,
       })
@@ -542,7 +542,7 @@ export default function BpoOnboardingPage() {
             <div>
               <h2 className="m-0 text-lg font-extrabold" style={{ color: T.textDark }}>Restricted workspace</h2>
               <p className="m-0 mt-2 text-sm font-medium" style={{ color: T.textMuted }}>
-                BPO Centre Leads are currently available to System Admin users only.
+                BPO Onboarding is currently available to System Admin users only.
               </p>
             </div>
           </div>
@@ -649,7 +649,7 @@ export default function BpoOnboardingPage() {
             }}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus size={16} />}
-            New centre lead
+            New Center
           </button>
         }
       >
@@ -803,7 +803,7 @@ export default function BpoOnboardingPage() {
                 <TableRow>
                   <TableCell colSpan={4} style={{ color: T.textMuted, padding: "28px 20px" }}>
                     {rows.length === 0 ? (
-                      <>No centre leads yet. Use <strong style={{ color: T.textMid }}>New centre lead</strong> in the toolbar.</>
+                      <>No centre leads yet. Use <strong style={{ color: T.textMid }}>New Center</strong> in the toolbar.</>
                     ) : (
                       <>No centre leads match the current filters.</>
                     )}
