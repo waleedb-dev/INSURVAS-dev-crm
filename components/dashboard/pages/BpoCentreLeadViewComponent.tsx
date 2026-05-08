@@ -1295,7 +1295,11 @@ export default function BpoCentreLeadViewComponent({
                   }
                   const { error: linkError } = await supabase
                     .from("bpo_center_leads")
-                    .update({ linked_call_center_id: data.id, updated_by: currentUserId })
+                    .update({
+                      linked_call_center_id: data.id,
+                      linked_crm_centre_label: values.centreName,
+                      updated_by: currentUserId,
+                    })
                     .eq("id", centerLeadId);
                   if (linkError) {
                     setToast({ message: `Centre created but failed to link to lead: ${linkError.message}`, type: "error" });
