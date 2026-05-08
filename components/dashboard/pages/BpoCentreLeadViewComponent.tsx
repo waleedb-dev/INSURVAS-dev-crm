@@ -1593,6 +1593,17 @@ export default function BpoCentreLeadViewComponent({
                 }}
               >
                 <div>
+                  <label style={labelStyle}>Centre name</label>
+                  <input
+                    value={draft.centre_display_name}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, centre_display_name: e.target.value })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
                   <label style={labelStyle}>Country</label>
                   <input
                     value={draft.country ?? ""}
@@ -1600,17 +1611,6 @@ export default function BpoCentreLeadViewComponent({
                     autoComplete="off"
                     placeholder="e.g. United Kingdom"
                     onChange={(e) => setDraft({ ...draft, country: e.target.value })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Centre name</label>
-                  <input
-                    value={draft.centre_display_name}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, centre_display_name: e.target.value })}
                     style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
                     onFocus={fieldFocus}
                     onBlur={fieldBlur}

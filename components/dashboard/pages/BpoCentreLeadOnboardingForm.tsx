@@ -198,24 +198,24 @@ export default function BpoCentreLeadOnboardingForm({
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
               <div>
-                <label style={labelStyle}>COUNTRY</label>
-                <input
-                  autoFocus
-                  autoComplete="off"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  placeholder="e.g. United Kingdom"
-                  style={baseInputStyle}
-                />
-              </div>
-              <div>
                 <label style={labelStyle}>CENTRE NAME *</label>
                 <input
+                  autoFocus
                   value={centreName}
                   onChange={(e) => setCentreName(e.target.value)}
                   onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                   placeholder="e.g. Islamabad North Hub"
                   style={requiredInputStyle(invalidName)}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>COUNTRY</label>
+                <input
+                  autoComplete="off"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  placeholder="e.g. United Kingdom"
+                  style={baseInputStyle}
                 />
               </div>
             </div>

@@ -794,7 +794,7 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
               </div>
             )}
 
-            {/* Country first, then centre name (same row) */}
+            {/* Centre name first, then country (same row) */}
             <div style={{ marginBottom: 24, display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
               <div
                 style={{
@@ -805,14 +805,12 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                   flexWrap: "wrap",
                 }}
               >
-                <div style={{ flex: "1 1 160px", minWidth: 0 }}>
-                  <label style={compactFieldLabelStyle}>Country *</label>
+                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                  <label style={compactFieldLabelStyle}>Centre name *</label>
                   <input
-                    aria-label="Country"
-                    autoComplete="off"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    placeholder="e.g. United Kingdom"
+                    value={centerName}
+                    onChange={(e) => setCenterName(e.target.value)}
+                    placeholder="e.g. Apex Transfers LLC"
                     style={{
                       ...fieldStyle,
                       width: "100%",
@@ -832,12 +830,14 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                     }}
                   />
                 </div>
-                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                  <label style={compactFieldLabelStyle}>Centre name *</label>
+                <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+                  <label style={compactFieldLabelStyle}>Country *</label>
                   <input
-                    value={centerName}
-                    onChange={(e) => setCenterName(e.target.value)}
-                    placeholder="e.g. Apex Transfers LLC"
+                    aria-label="Country"
+                    autoComplete="off"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    placeholder="e.g. United Kingdom"
                     style={{
                       ...fieldStyle,
                       width: "100%",
