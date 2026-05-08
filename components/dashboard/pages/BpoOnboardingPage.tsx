@@ -542,7 +542,7 @@ export default function BpoOnboardingPage() {
             <div>
               <h2 className="m-0 text-lg font-extrabold" style={{ color: T.textDark }}>Restricted workspace</h2>
               <p className="m-0 mt-2 text-sm font-medium" style={{ color: T.textMuted }}>
-                BPO Centre Leads are currently available to System Admin users only.
+                BPO Onboarding is currently available to System Admin users only.
               </p>
             </div>
           </div>

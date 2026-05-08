@@ -147,7 +147,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "users-access", label: "Users & Access", icon: <Users size={22} strokeWidth={1.8} /> },
   { id: "pipeline-management", label: "Pipelines", icon: <Layers size={22} strokeWidth={1.8} /> },
   { id: "bpo-centres", label: "BPO Centres", icon: <Headphones size={22} strokeWidth={1.8} /> },
-  { id: "bpo-centre-onboarding", label: "BPO Centre Leads", icon: <UserPlus size={22} strokeWidth={1.8} /> },
+  { id: "bpo-centre-onboarding", label: "BPO Onboarding", icon: <UserPlus size={22} strokeWidth={1.8} /> },
   { id: "product-guide", label: "Product Guide", icon: <BookOpen size={22} strokeWidth={1.8} /> },
   {
     id: "imo-settings",
@@ -188,7 +188,7 @@ const PAGE_TITLE: Record<DashPage, string> = {
   "pipeline-management": "Pipelines",
   "carrier-management": "Carriers",
   "bpo-centres": "BPO Centres",
-  "bpo-centre-onboarding": "BPO Centre Leads",
+  "bpo-centre-onboarding": "BPO Onboarding",
   commissions: "Commissions",
   policies: "Policies",
   "carrier-updates": "Carrier Updates",
