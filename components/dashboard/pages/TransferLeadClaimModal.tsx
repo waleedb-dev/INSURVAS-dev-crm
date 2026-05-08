@@ -273,7 +273,7 @@ export default function TransferLeadClaimModal({
         position: "fixed",
         inset: 0,
         backgroundColor: "rgba(0,0,0,0.5)",
-        zIndex: 3500,
+        zIndex: 5000,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

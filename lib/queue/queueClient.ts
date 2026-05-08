@@ -536,6 +536,29 @@ export async function sendQueueTransfer(
   await logQueueEvent(supabase, queueItem.id, "transfer_sent", actorUserId, "ba", null, payload);
 }
 
+/**
+ * `lead_queue_items.lead_id` is nullable; some rows only have `submission_id`.
+ * Resolve the CRM lead row UUID for claiming and verification.
+ */
+export async function resolveTransferLeadRowIdForQueueItem(
+  supabase: SupabaseClient,
+  row: Pick<LeadQueueItem, "lead_id" | "submission_id">,
+): Promise<string | null> {
+  const direct = row.lead_id?.trim();
+  if (direct) return direct;
+  const sub = row.submission_id?.trim();
+  if (!sub) return null;
+  const { data, error } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("submission_id", sub)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.id) return null;
+  return String(data.id);
+}
+
 export async function markQueueClaimed(
   supabase: SupabaseClient,
   args: {
@@ -547,6 +570,8 @@ export async function markQueueClaimed(
 ) {
   const { leadRowId, submissionId, actorUserId, actorRole } = args;
   const queueType = actorRole === "la" ? "la_active" : "ba_active";
+  const sub = typeof submissionId === "string" ? submissionId.trim() : "";
+
   let query = supabase
     .from("lead_queue_items")
     .select("id")
@@ -554,9 +579,23 @@ export async function markQueueClaimed(
     .eq("lead_id", leadRowId)
     .order("created_at", { ascending: false })
     .limit(1);
-  if (submissionId) query = query.eq("submission_id", submissionId);
-  const { data: row, error: selErr } = await query.maybeSingle();
+  if (sub) query = query.eq("submission_id", sub);
+  let { data: row, error: selErr } = await query.maybeSingle();
   if (selErr) throw new Error(selErr.message);
+
+  if (!row?.id && sub) {
+    const fb = await supabase
+      .from("lead_queue_items")
+      .select("id")
+      .eq("status", "active")
+      .eq("submission_id", sub)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (fb.error) throw new Error(fb.error.message);
+    row = fb.data;
+  }
+
   if (!row?.id) return;
 
   const payload = {
@@ -564,6 +603,7 @@ export async function markQueueClaimed(
     current_owner_user_id: actorUserId,
     current_owner_role: actorRole,
     claimed_at: new Date().toISOString(),
+    lead_id: leadRowId,
   };
   const { error } = await supabase.from("lead_queue_items").update(payload).eq("id", row.id);
   if (error) throw new Error(error.message);

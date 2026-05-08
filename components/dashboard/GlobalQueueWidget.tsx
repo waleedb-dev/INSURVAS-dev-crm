@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { BellRing, ChevronDown, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { T } from "@/lib/theme";
@@ -18,7 +19,9 @@ import {
   fetchQueueAssignees,
   fetchQueueSnapshot,
   managerAssignQueueItem,
+  markQueueClaimed,
   markQueueReady,
+  resolveTransferLeadRowIdForQueueItem,
   notifyLaReadyForTransferIfNeeded,
   requestTransferScreeningBackfillForQueueRows,
   resolveQueueRole,
@@ -26,6 +29,14 @@ import {
   type LeadQueueItem,
   type QueueAssignee,
 } from "@/lib/queue/queueClient";
+import TransferLeadClaimModal from "@/components/dashboard/pages/TransferLeadClaimModal";
+import {
+  applyClaimSelectionToSession,
+  fetchClaimAgents,
+  findOrCreateVerificationSession,
+  type ClaimLeadContext,
+  type ClaimSelections,
+} from "@/components/dashboard/pages/transferLeadParity";
 import {
   parsePersistedTransferScreening,
   transferScreeningBadgeChrome,
@@ -89,6 +100,20 @@ const QUEUE_FAB_APPROX_HEIGHT_PX = 46;
 const QUEUE_PANEL_BOTTOM_PX =
   QUEUE_FAB_BOTTOM_PX + QUEUE_FAB_APPROX_HEIGHT_PX + QUEUE_PANEL_GAP_ABOVE_FAB_PX;
 
+const DEFAULT_CLAIM_SELECTION: ClaimSelections = {
+  workflowType: "buffer",
+  bufferAgentId: null,
+  licensedAgentId: null,
+  retentionAgentId: null,
+  isRetentionCall: false,
+  retentionType: "",
+  retentionNotes: "",
+  quoteCarrier: "",
+  quoteProduct: "",
+  quoteCoverage: "",
+  quoteMonthlyPremium: "",
+};
+
 type QueueSectionKey = "assignedToMe" | "unclaimed" | "baActive" | "laActive";
 
 /**
@@ -142,9 +167,19 @@ function elapsedLabel(iso: string | null): string {
 }
 
 export default function GlobalQueueWidget() {
-  const { currentRole, currentUserId, userCallCenterId } = useDashboardContext();
+  const { currentRole, currentUserId, userCallCenterId, permissionKeys } = useDashboardContext();
+  const router = useRouter();
+  const params = useParams<{ role?: string }>();
+  const routeRole = Array.isArray(params?.role) ? params.role[0] : params?.role ?? "agent";
   const queueRole = useMemo(() => resolveQueueRole(currentRole), [currentRole]);
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const canViewTransferClaimModal = useMemo(
+    () =>
+      permissionKeys.has("action.transfer_leads.claim_reclaim_visit") &&
+      currentRole !== "call_center_admin" &&
+      currentRole !== "call_center_agent",
+    [permissionKeys, currentRole],
+  );
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -167,6 +202,17 @@ export default function GlobalQueueWidget() {
   });
 
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [claimModalLoading, setClaimModalLoading] = useState(false);
+  const [claimLeadContext, setClaimLeadContext] = useState<ClaimLeadContext | null>(null);
+  const [claimAgents, setClaimAgents] = useState<{
+    bufferAgents: { id: string; name: string; roleKey: string }[];
+    licensedAgents: { id: string; name: string; roleKey: string }[];
+    retentionAgents: { id: string; name: string; roleKey: string }[];
+  }>({ bufferAgents: [], licensedAgents: [], retentionAgents: [] });
+  const [claimSelection, setClaimSelection] = useState<ClaimSelections>(DEFAULT_CLAIM_SELECTION);
+  const [claimSessionUserId, setClaimSessionUserId] = useState<string | null>(null);
 
   const [eligibleCache, setEligibleCache] = useState<
     Record<
@@ -211,6 +257,19 @@ export default function GlobalQueueWidget() {
     }, 30000);
     return () => window.clearInterval(timer);
   }, [open, queueRole, loadSnapshot]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!cancelled) setClaimSessionUserId(session?.user?.id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   const licensedAgentsFingerprint = useMemo(
     () =>
@@ -354,6 +413,108 @@ export default function GlobalQueueWidget() {
     );
   };
 
+  const openClaimModalFromQueueRow = async (row: LeadQueueItem) => {
+    if (!canViewTransferClaimModal) {
+      setError("You do not have permission to claim from the transfer queue.");
+      return;
+    }
+    setError(null);
+    const resolvedLeadId = await resolveTransferLeadRowIdForQueueItem(supabase, row);
+    if (!resolvedLeadId) {
+      setError("This queue item is not linked to a lead (missing lead id and submission id, or no matching lead).");
+      return;
+    }
+    const { data: leadRow, error: leadErr } = await supabase
+      .from("leads")
+      .select("id, lead_unique_id, first_name, last_name, phone, lead_source, submission_id, call_center_id")
+      .eq("id", resolvedLeadId)
+      .maybeSingle();
+
+    if (leadErr || !leadRow) {
+      setError(leadErr?.message || "Could not load lead for claiming.");
+      return;
+    }
+
+    const lr = leadRow as {
+      id: string;
+      lead_unique_id: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      phone: string | null;
+      lead_source: string | null;
+      submission_id: string | null;
+      call_center_id: string | null;
+    };
+
+    const fromParts = `${lr.first_name ?? ""} ${lr.last_name ?? ""}`.trim();
+    const leadName = fromParts || displayQueueClientName(row.client_name);
+
+    const subFromQueue = row.submission_id?.trim();
+    const subFromLead =
+      typeof lr.submission_id === "string" && lr.submission_id.trim() !== "" ? lr.submission_id.trim() : null;
+
+    const context: ClaimLeadContext = {
+      rowId: lr.id,
+      leadUniqueId:
+        typeof lr.lead_unique_id === "string" && lr.lead_unique_id.trim() !== ""
+          ? lr.lead_unique_id.trim()
+          : "N/A",
+      leadName,
+      phone: (lr.phone && lr.phone.trim()) || (row.phone_number ?? "") || "",
+      source: (lr.lead_source && lr.lead_source.trim()) || "Unknown",
+      submissionId: subFromQueue || subFromLead,
+      callCenterId: row.call_center_id ?? lr.call_center_id ?? null,
+    };
+
+    const initialSelection: ClaimSelections = { ...DEFAULT_CLAIM_SELECTION };
+
+    setClaimLeadContext(context);
+    setClaimSelection(initialSelection);
+    setClaimModalOpen(true);
+    setClaimModalLoading(true);
+    try {
+      const loaded = await fetchClaimAgents(supabase);
+      setClaimAgents(loaded);
+      await findOrCreateVerificationSession(supabase, context, initialSelection);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to open claim dialog.");
+      setClaimModalOpen(false);
+      setClaimLeadContext(null);
+    } finally {
+      setClaimModalLoading(false);
+    }
+  };
+
+  const handleClaimModalSubmit = async () => {
+    if (!claimLeadContext) return;
+    setClaimModalLoading(true);
+    setError(null);
+    try {
+      const found = await findOrCreateVerificationSession(supabase, claimLeadContext, claimSelection);
+      await applyClaimSelectionToSession(supabase, found.sessionId, found.submissionId, claimSelection);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        await markQueueClaimed(supabase, {
+          leadRowId: claimLeadContext.rowId,
+          submissionId: claimLeadContext.submissionId,
+          actorUserId: session.user.id,
+          actorRole: claimSelection.workflowType === "licensed" ? "la" : "ba",
+        });
+      }
+      setClaimModalOpen(false);
+      await loadSnapshot(true);
+      setNotice("Lead claimed");
+      window.setTimeout(() => setNotice(null), 1400);
+      router.push(`/dashboard/${routeRole}/transfer-leads/${claimLeadContext.rowId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to claim lead.");
+    } finally {
+      setClaimModalLoading(false);
+    }
+  };
+
   const renderCard = (row: LeadQueueItem) => {
     const draft = drafts[row.id] ?? { baId: row.assigned_ba_id ?? "", laId: row.assigned_la_id ?? "", eta: row.eta_minutes != null ? String(row.eta_minutes) : "" };
     const isSaving = savingId === row.id;
@@ -431,6 +592,16 @@ export default function GlobalQueueWidget() {
     const screeningMeta = screeningPersisted ? transferScreeningBadgeMeta(screeningPersisted) : null;
     const screeningChrome = screeningMeta ? transferScreeningBadgeChrome(screeningMeta.tone) : null;
     const isCardExpanded = expandedCards.has(row.id);
+    const showClaimInHeader = showReady && row.queue_type === "unclaimed_transfer";
+    const showExpandedReadyOrSendRow =
+      (queueRole === "ba" || queueRole === "la") &&
+      ((!showClaimInHeader && showReady) || showSendTransfer);
+    const claimOpeningThisRow =
+      canViewTransferClaimModal &&
+      claimModalOpen &&
+      claimModalLoading &&
+      claimLeadContext?.rowId === row.lead_id?.trim();
+    const claimHeaderBusy = canViewTransferClaimModal ? Boolean(claimOpeningThisRow) : isSaving;
 
     return (
       <div
@@ -522,32 +693,76 @@ export default function GlobalQueueWidget() {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => {
-                setExpandedCards(prev => {
-                  const next = new Set(prev);
-                  if (next.has(row.id)) {
-                    next.delete(row.id);
-                  } else {
-                    next.add(row.id);
-                  }
-                  return next;
-                });
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 2,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                color: T.textMuted,
-                transition: "transform 0.15s ease-in-out",
-                transform: isCardExpanded ? "rotate(180deg)" : "rotate(0deg)",
-              }}
-            >
-              <ChevronDown size={14} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {showClaimInHeader && (
+                <button
+                  type="button"
+                  disabled={!currentUserId || claimHeaderBusy}
+                  onClick={() => {
+                    if (canViewTransferClaimModal) {
+                      void openClaimModalFromQueueRow(row);
+                      return;
+                    }
+                    void runAction(row.id, async () => {
+                      if (!currentUserId) return;
+                      const before = row;
+                      await markQueueReady(supabase, row, String(currentUserId), queueRole);
+                      await notifyLaReadyForTransferIfNeeded(supabase, {
+                        queueItemBefore: before,
+                        actorUserId: String(currentUserId),
+                        actorRole: queueRole,
+                      });
+                    });
+                  }}
+                  style={{
+                    border: "none",
+                    borderRadius: 10,
+                    background: "#f59e0b",
+                    color: "#fff",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    height: 34,
+                    padding: "0 14px",
+                    cursor: !currentUserId || claimHeaderBusy ? "not-allowed" : "pointer",
+                    opacity: !currentUserId || claimHeaderBusy ? 0.65 : 1,
+                    flexShrink: 0,
+                    boxSizing: "border-box",
+                    fontFamily: T.font,
+                    letterSpacing: "0.04em",
+                  }}
+                  className="transition-all duration-150 ease-in-out hover:brightness-110 active:scale-[0.98]"
+                >
+                  {readyLabel}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setExpandedCards((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(row.id)) {
+                      next.delete(row.id);
+                    } else {
+                      next.add(row.id);
+                    }
+                    return next;
+                  });
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 2,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  color: T.textMuted,
+                  transition: "transform 0.15s ease-in-out",
+                  transform: isCardExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
           </div>
 
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -648,7 +863,7 @@ export default function GlobalQueueWidget() {
               </div>
             )}
 
-            {(queueRole === "ba" || queueRole === "la") && (showReady || showSendTransfer) && (
+            {showExpandedReadyOrSendRow && (
               <div
                 style={{
                   display: "flex",
@@ -659,7 +874,7 @@ export default function GlobalQueueWidget() {
                   borderTop: `1px solid ${T.borderLight}`,
                 }}
               >
-                {showReady && (
+                {showReady && !showClaimInHeader && (
                   <button
                     type="button"
                     disabled={isSaving || !currentUserId}
@@ -1334,6 +1549,24 @@ export default function GlobalQueueWidget() {
           </div>
         </div>
       )}
+
+      <TransferLeadClaimModal
+        open={claimModalOpen}
+        loading={claimModalLoading}
+        leadName={claimLeadContext?.leadName ?? ""}
+        agents={claimAgents}
+        selection={claimSelection}
+        onChange={setClaimSelection}
+        onClose={() => {
+          setClaimModalOpen(false);
+          setClaimLeadContext(null);
+        }}
+        onSubmit={() => {
+          void handleClaimModalSubmit();
+        }}
+        retentionOnly={false}
+        sessionUserId={claimSessionUserId}
+      />
     </>
   );
 }
