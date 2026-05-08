@@ -5,16 +5,7 @@ import type { CSSProperties, FocusEvent } from "react";
 import { T } from "@/lib/theme";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
-import {
-  Table as ShadcnTable,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/shadcn/table";
-import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ClipboardCopy, Loader2, ShieldAlert, Trash2, X } from "lucide-react";
+import { ChevronLeft, ClipboardCopy, Loader2, Search, ShieldAlert, Trash2, X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -25,6 +16,8 @@ import {
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { LeadCard, InfoField, InfoGrid, formatDate } from "@/components/dashboard/pages/LeadCard";
 import UserEditorComponent from "@/components/dashboard/pages/UserEditorComponent";
+import BpoCentreLeadOnboardingForm from "@/components/dashboard/pages/BpoCentreLeadOnboardingForm";
+import { Toast } from "@/components/ui";
 
 const BRAND_GREEN = "#233217";
 
@@ -113,7 +106,7 @@ type CenterLeadStage =
   | "dqed"
   | "offboarded";
 
-type DetailTab = "Overview" | "Team" | "Resources" | "Credentials";
+type DetailTab = "Overview" | "Centre & Team setup" | "Resources" | "Credentials";
 
 const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
   { key: "pre_onboarding", label: "Pre-onboarding" },
@@ -128,19 +121,9 @@ const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
 
 const STAGE_LABEL: Record<string, string> = Object.fromEntries(STAGE_OPTIONS.map((o) => [o.key, o.label]));
 
-function getExpectedDqedCode(): string {
-  return (
-    (typeof process !== "undefined" && process.env.NEXT_PUBLIC_BPO_ONBOARDING_DQED_CODE) || "DQED-CONFIRM"
-  );
-}
-
 function formatCallResultLabel(key: string | null): string {
   if (!key) return "";
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value.trim());
 }
 
 const fieldStyle: CSSProperties = {
@@ -199,6 +182,7 @@ interface CenterLeadRow {
   last_call_result_at: string | null;
   form_submitted_at: string | null;
   created_at: string;
+  linked_call_center_id: string | null;
 }
 
 interface TeamMemberRow {
@@ -226,6 +210,7 @@ interface CallResultRow {
   result_code: string;
   notes: string | null;
   recorded_at: string;
+  recorded_by: string | null;
 }
 
 interface NoteRow {
@@ -233,6 +218,7 @@ interface NoteRow {
   body: string;
   created_at: string;
   updated_at: string;
+  created_by: string | null;
 }
 
 interface ResourceRow {
@@ -289,6 +275,7 @@ function TabNavigation({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
+              whiteSpace: "nowrap",
             }}
           >
             {tab}
@@ -303,7 +290,6 @@ export default function BpoCentreLeadViewComponent({
   centerLeadId,
   canEdit,
   onBack,
-  allLeadIds,
 }: {
   centerLeadId?: string;
   canEdit: boolean;
@@ -311,7 +297,6 @@ export default function BpoCentreLeadViewComponent({
   allLeadIds?: string[];
 }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const router = useRouter();
   const { currentUserId, currentRole } = useDashboardContext();
 
   const [activeTab, setActiveTab] = useState<DetailTab>("Overview");
@@ -328,35 +313,23 @@ export default function BpoCentreLeadViewComponent({
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [resourcesUniversal, setResourcesUniversal] = useState<ResourceRow[]>([]);
   const [resourcesLead, setResourcesLead] = useState<ResourceRow[]>([]);
+  const [centreUsers, setCentreUsers] = useState<{ id: string; name: string; roleKey: string | null }[]>([]);
+
+  const [authorNameByUserId, setAuthorNameByUserId] = useState<Record<string, string>>({});
+  const [activitySearchInput, setActivitySearchInput] = useState("");
+  const [activitySearchQuery, setActivitySearchQuery] = useState("");
+  const [activityPage, setActivityPage] = useState(1);
+  const ACTIVITY_PAGE_SIZE = 5;
 
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [credForm, setCredForm] = useState({ slack: "", crm: "", did: "", other: "" });
   const [provisioned, setProvisioned] = useState<{ adminEmail?: string; adminName?: string; closerEmail?: string; closerName?: string }>({});
-  const [showAdminProvision, setShowAdminProvision] = useState(false);
   const [showCloserProvision, setShowCloserProvision] = useState(false);
   const [callNotes, setCallNotes] = useState("");
   const [callDisposition, setCallDisposition] = useState<"" | "call_completed" | "no_pickup">("");
-  const [noteDraft, setNoteDraft] = useState("");
   const [resLeadForm, setResLeadForm] = useState({ title: "", url: "", description: "" });
   const [resGlobalForm, setResGlobalForm] = useState({ title: "", url: "", description: "" });
-
-  const [dqedPhrase, setDqedPhrase] = useState("");
-  const [dqedCode, setDqedCode] = useState("");
-
-  const [addMemberForm, setAddMemberForm] = useState({
-    full_name: "",
-    email: "",
-    phone: "",
-    position_key: "closer" as "owner" | "manager" | "closer" | "custom",
-    custom_position_label: "",
-    member_kind: "team_member" as "center_admin" | "team_member",
-  });
-
-  // Next/prev navigation
-  const currentIdx = allLeadIds?.indexOf(centerLeadId ?? "") ?? -1;
-  const prevLeadId = currentIdx > 0 ? allLeadIds?.[currentIdx - 1] : null;
-  const nextLeadId = allLeadIds && currentIdx < allLeadIds.length - 1 ? allLeadIds[currentIdx + 1] : null;
 
   const loadDetail = useCallback(async () => {
     if (!centerLeadId) {
@@ -409,14 +382,56 @@ export default function BpoCentreLeadViewComponent({
       setLoading(false);
       return;
     }
+    const callRows = (calls ?? []) as CallResultRow[];
+    const noteRows = (nt ?? []) as NoteRow[];
+    const authorIds = [
+      ...new Set(
+        [...callRows.map((c) => c.recorded_by), ...noteRows.map((n) => n.created_by)].filter(
+          (id): id is string => Boolean(id),
+        ),
+      ),
+    ];
+    let nameById: Record<string, string> = {};
+    if (authorIds.length) {
+      const { data: users } = await supabase.from("users").select("id, full_name, email").in("id", authorIds);
+      if (users?.length) {
+        nameById = Object.fromEntries(
+          (users as { id: string; full_name: string | null; email: string | null }[]).map((u) => [
+            u.id,
+            u.full_name?.trim() || u.email?.trim() || "User",
+          ]),
+        );
+      }
+    }
+    setAuthorNameByUserId(nameById);
     setDraft((lead ?? null) as CenterLeadRow | null);
     setInviteToken(inv?.token ? String(inv.token) : null);
     setTeam((tm ?? []) as TeamMemberRow[]);
     setCredentials((cr ?? []) as CredentialRow[]);
-    setCallResults((calls ?? []) as CallResultRow[]);
-    setNotes((nt ?? []) as NoteRow[]);
+    setCallResults(callRows);
+    setNotes(noteRows);
     setResourcesUniversal((ru ?? []) as ResourceRow[]);
     setResourcesLead((rl ?? []) as ResourceRow[]);
+
+    const linkedCentreId = (lead as CenterLeadRow | null)?.linked_call_center_id ?? null;
+    if (linkedCentreId) {
+      const [{ data: centreUserRows }, { data: roleRows }] = await Promise.all([
+        supabase.from("users").select("id, full_name, role_id").eq("call_center_id", linkedCentreId),
+        supabase.from("roles").select("id, key"),
+      ]);
+      const roleKeyById: Record<string, string> = Object.fromEntries(
+        ((roleRows ?? []) as { id: string; key: string }[]).map((r) => [r.id, r.key]),
+      );
+      setCentreUsers(
+        ((centreUserRows ?? []) as { id: string; full_name: string | null; role_id: string | null }[]).map((u) => ({
+          id: u.id,
+          name: u.full_name?.trim() || `User ${u.id.slice(0, 8)}`,
+          roleKey: u.role_id ? roleKeyById[u.role_id] ?? null : null,
+        })),
+      );
+    } else {
+      setCentreUsers([]);
+    }
     setLoading(false);
   }, [centerLeadId, supabase]);
 
@@ -426,6 +441,16 @@ export default function BpoCentreLeadViewComponent({
     }, 0);
     return () => window.clearTimeout(t);
   }, [loadDetail]);
+
+  useEffect(() => {
+    setActivitySearchInput("");
+    setActivitySearchQuery("");
+    setActivityPage(1);
+  }, [centerLeadId]);
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [activitySearchQuery]);
 
   const publicOpenIntakeUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -547,29 +572,10 @@ export default function BpoCentreLeadViewComponent({
     await loadDetail();
   }, [callDisposition, callNotes, canEdit, centerLeadId, currentUserId, draft, loadDetail, supabase]);
 
-  const addNote = useCallback(async () => {
-    if (!centerLeadId || !noteDraft.trim()) return;
-    if (!canEdit) {
-      setToast({ message: "You do not have permission to edit this centre lead.", type: "error" });
-      return;
-    }
-    setSaving(true);
-    const { error } = await supabase.from("bpo_center_lead_notes").insert({
-      center_lead_id: centerLeadId,
-      body: noteDraft.trim(),
-      created_by: currentUserId,
-    });
-    setSaving(false);
-    if (error) {
-      setToast({ message: error.message, type: "error" });
-      return;
-    }
-    setNoteDraft("");
-    setToast({ message: "Note added.", type: "success" });
-    await loadDetail();
-  }, [canEdit, centerLeadId, currentUserId, loadDetail, noteDraft, supabase]);
-
   const activityFeed = useMemo(() => {
+    const resolveActor = (userId: string | null | undefined) =>
+      userId ? (authorNameByUserId[userId]?.trim() || "Unknown user") : "Unknown user";
+
     const calls =
       callResults?.map((c) => ({
         id: `call:${c.id}`,
@@ -577,6 +583,7 @@ export default function BpoCentreLeadViewComponent({
         at: new Date(c.recorded_at).getTime(),
         code: c.result_code,
         body: c.notes ?? "",
+        actorLabel: resolveActor(c.recorded_by),
       })) ?? [];
     const noteItems =
       notes?.map((n) => ({
@@ -585,9 +592,33 @@ export default function BpoCentreLeadViewComponent({
         at: new Date(n.created_at).getTime(),
         code: "note",
         body: n.body ?? "",
+        actorLabel: resolveActor(n.created_by),
       })) ?? [];
     return [...calls, ...noteItems].sort((a, b) => b.at - a.at);
-  }, [callResults, notes]);
+  }, [authorNameByUserId, callResults, notes]);
+
+  const filteredActivityFeed = useMemo(() => {
+    const q = activitySearchQuery.trim().toLowerCase();
+    if (!q) return activityFeed;
+    return activityFeed.filter((item) => {
+      const title = item.kind === "call" ? formatCallResultLabel(item.code) : "Note";
+      const hay = [title, item.body, item.actorLabel, new Date(item.at).toLocaleString()]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [activityFeed, activitySearchQuery]);
+
+  const activityTotalPages = Math.max(1, Math.ceil(filteredActivityFeed.length / ACTIVITY_PAGE_SIZE));
+  const activityCurrentPage = Math.min(activityPage, activityTotalPages);
+  const pagedActivityFeed = useMemo(() => {
+    const start = (activityCurrentPage - 1) * ACTIVITY_PAGE_SIZE;
+    return filteredActivityFeed.slice(start, start + ACTIVITY_PAGE_SIZE);
+  }, [filteredActivityFeed, activityCurrentPage]);
+
+  useEffect(() => {
+    if (activityPage > activityTotalPages) setActivityPage(activityTotalPages);
+  }, [activityPage, activityTotalPages]);
 
   const intakeAdmin = useMemo(() => team.find((m) => m.member_kind === "center_admin") ?? null, [team]);
   const intakeCloser = useMemo(() => team.find((m) => m.position_key === "closer") ?? null, [team]);
@@ -682,107 +713,6 @@ export default function BpoCentreLeadViewComponent({
     [canEdit, loadDetail, supabase],
   );
 
-  const addTeamMember = useCallback(async () => {
-    if (!centerLeadId) return;
-    if (!canEdit) {
-      setToast({ message: "You do not have permission to edit this centre lead.", type: "error" });
-      return;
-    }
-    if (!addMemberForm.full_name.trim() || !addMemberForm.email.trim()) {
-      setToast({ message: "Name and email are required.", type: "error" });
-      return;
-    }
-    if (!isValidEmail(addMemberForm.email)) {
-      setToast({ message: "Email is not valid.", type: "error" });
-      return;
-    }
-    if (addMemberForm.position_key === "custom" && !addMemberForm.custom_position_label.trim()) {
-      setToast({ message: "Custom role needs a label.", type: "error" });
-      return;
-    }
-    if (addMemberForm.member_kind === "center_admin") {
-      const { data: existingAdmin } = await supabase
-        .from("bpo_center_lead_team_members")
-        .select("id")
-        .eq("center_lead_id", centerLeadId)
-        .eq("member_kind", "center_admin")
-        .maybeSingle();
-      if (existingAdmin) {
-        await supabase.from("bpo_center_lead_team_members").update({ member_kind: "team_member" }).eq("id", existingAdmin.id);
-      }
-    }
-    setSaving(true);
-    const nextOrder = team.length ? Math.max(...team.map((t) => t.sort_order)) + 1 : 0;
-    const { error } = await supabase.from("bpo_center_lead_team_members").insert({
-      center_lead_id: centerLeadId,
-      member_kind: addMemberForm.member_kind,
-      full_name: addMemberForm.full_name.trim(),
-      email: addMemberForm.email.trim().toLowerCase(),
-      phone: addMemberForm.phone.trim() || null,
-      position_key: addMemberForm.position_key,
-      custom_position_label: addMemberForm.position_key === "custom" ? addMemberForm.custom_position_label.trim() : null,
-      sort_order: nextOrder,
-    });
-    setSaving(false);
-    if (error) {
-      setToast({ message: error.message, type: "error" });
-      return;
-    }
-    setAddMemberForm({
-      full_name: "",
-      email: "",
-      phone: "",
-      position_key: "closer",
-      custom_position_label: "",
-      member_kind: "team_member",
-    });
-    setToast({ message: "Team member added.", type: "success" });
-    await loadDetail();
-  }, [addMemberForm, canEdit, centerLeadId, loadDetail, supabase, team]);
-
-  const applyDqed = useCallback(async () => {
-    if (!centerLeadId || !draft) return;
-    if (!canEdit) {
-      setToast({ message: "You do not have permission to edit this centre lead.", type: "error" });
-      return;
-    }
-    if (dqedCode.trim() !== getExpectedDqedCode()) {
-      setToast({ message: "Activation code does not match.", type: "error" });
-      return;
-    }
-    if (dqedPhrase.trim().length < 8) {
-      setToast({ message: "Confirmation phrase too short.", type: "error" });
-      return;
-    }
-    setSaving(true);
-    const summary = `DQED: ${draft.centre_display_name}. ${dqedPhrase.trim()}.`;
-    const { error: e1 } = await supabase.from("bpo_center_lead_offboarding_events").insert({
-      center_lead_id: centerLeadId,
-      confirmation_phrase: dqedPhrase.trim(),
-      summary,
-      performed_by: currentUserId,
-    });
-    if (e1) {
-      setSaving(false);
-      setToast({ message: e1.message, type: "error" });
-      return;
-    }
-    const { error: e2 } = await supabase
-      .from("bpo_center_leads")
-      .update({ stage: "dqed", updated_by: currentUserId })
-      .eq("id", centerLeadId);
-    setSaving(false);
-    if (e2) {
-      setToast({ message: e2.message, type: "error" });
-      return;
-    }
-    setDqedPhrase("");
-    setDqedCode("");
-    setToast({ message: "Marked DQED.", type: "success" });
-    await loadDetail();
-    setDraft((d) => (d ? { ...d, stage: "dqed" } : d));
-  }, [canEdit, centerLeadId, currentUserId, dqedCode, dqedPhrase, draft, loadDetail, supabase]);
-
   if (currentRole !== "system_admin") {
     return (
       <div className="mx-auto w-full max-w-[1200px]" style={{ fontFamily: T.font }}>
@@ -806,15 +736,11 @@ export default function BpoCentreLeadViewComponent({
   return (
     <div className="mx-auto w-full max-w-[1600px] transition-all duration-150" style={{ fontFamily: T.font }}>
       {toast && (
-        <div
-          className="fixed bottom-6 right-6 z-[5100] rounded-xl px-4 py-3 text-sm font-semibold shadow-lg"
-          style={{ background: toast.type === "success" ? "#166534" : "#991b1b", color: "#fff", fontFamily: T.font }}
-        >
-          {toast.message}
-          <button type="button" className="ml-3 underline" onClick={() => setToast(null)}>
-            Dismiss
-          </button>
-        </div>
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
 
       {/* Header bar: Back + Nav + Tabs + Actions */}
@@ -842,69 +768,10 @@ export default function BpoCentreLeadViewComponent({
             <ChevronLeft size={18} />
           </button>
 
-          {/* Prev/Next navigation */}
-          {allLeadIds && allLeadIds.length > 1 && (
-            <div style={{ display: "flex", gap: 4 }}>
-              <button
-                type="button"
-                disabled={!prevLeadId}
-                onClick={() => {
-                  if (!prevLeadId || !centerLeadId) return;
-                  const path = window.location.pathname.replace(centerLeadId, prevLeadId);
-                  router.push(path);
-                }}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  border: `1px solid ${T.border}`,
-                  background: "#fff",
-                  cursor: prevLeadId ? "pointer" : "not-allowed",
-                  opacity: prevLeadId ? 1 : 0.4,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: T.textMid,
-                }}
-                aria-label="Previous centre"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <button
-                type="button"
-                disabled={!nextLeadId}
-                onClick={() => {
-                  if (!nextLeadId || !centerLeadId) return;
-                  const path = window.location.pathname.replace(centerLeadId, nextLeadId);
-                  router.push(path);
-                }}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  border: `1px solid ${T.border}`,
-                  background: "#fff",
-                  cursor: nextLeadId ? "pointer" : "not-allowed",
-                  opacity: nextLeadId ? 1 : 0.4,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: T.textMid,
-                }}
-                aria-label="Next centre"
-              >
-                <ChevronRight size={14} />
-              </button>
-              <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, alignSelf: "center", marginLeft: 4 }}>
-                {currentIdx + 1}/{allLeadIds.length}
-              </span>
-            </div>
-          )}
-
           <TabNavigation
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            tabs={["Overview", "Team", "Resources", "Credentials"]}
+            tabs={["Overview", "Centre & Team setup", "Resources", "Credentials"]}
           />
         </div>
 
@@ -1022,63 +889,70 @@ export default function BpoCentreLeadViewComponent({
               </InfoGrid>
             </LeadCard>
 
-            {/* Section 2: Team */}
-            {team.length > 0 && (
-              <LeadCard
-                icon="👥"
-                title="Team"
-                subtitle="Centre admin and assigned staff"
-              >
+            {/* Section: Team roster */}
+            <LeadCard
+              icon="👥"
+              title="Team"
+              subtitle="Centre admin & onboarding team roster"
+            >
+              {team.length === 0 ? (
+                <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                  No team members yet — send the intake link or add them from the Centre & Team setup tab.
+                </div>
+              ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {team.map((m) => {
-                    const role = m.position_key === "custom" ? (m.custom_position_label ?? "Custom") : m.position_key;
                     const isAdmin = m.member_kind === "center_admin";
                     return (
                       <div
                         key={m.id}
                         style={{
-                          display: "flex",
+                          display: "grid",
+                          gridTemplateColumns: "80px 1fr 1.4fr 0.9fr",
                           alignItems: "center",
-                          justifyContent: "space-between",
                           gap: 12,
                           padding: "10px 12px",
                           borderRadius: 10,
-                          background: "#f8faf6",
                           border: `1px solid ${T.borderLight}`,
+                          background: "#f8faf6",
                         }}
                       >
-                        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{m.full_name}</span>
-                          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
-                            {role}{m.email ? ` · ${m.email}` : ""}
-                          </span>
-                        </div>
-                        {isAdmin && (
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "3px 8px",
-                              borderRadius: 999,
-                              background: "#dcfce7",
-                              color: "#166534",
-                              border: "1px solid #86efac",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.04em",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Admin
-                          </span>
-                        )}
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 10,
+                            fontWeight: 900,
+                            textTransform: "uppercase",
+                            padding: "3px 8px",
+                            borderRadius: 999,
+                            background: isAdmin ? "#dcfce7" : "#eef2ff",
+                            border: `1px solid ${isAdmin ? "#86efac" : "#c7d2fe"}`,
+                            color: isAdmin ? "#166534" : "#3730a3",
+                            letterSpacing: "0.02em",
+                            width: "fit-content",
+                          }}
+                        >
+                          {isAdmin ? "Admin" : "Member"}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {m.full_name}
+                        </span>
+                        <span style={{ fontSize: 12, color: T.textMid, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {m.email}
+                        </span>
+                        <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600, textTransform: "capitalize", textAlign: "right" }}>
+                          {m.position_key === "custom" ? m.custom_position_label || "—" : m.position_key}
+                        </span>
                       </div>
                     );
                   })}
                 </div>
-              </LeadCard>
-            )}
+              )}
+            </LeadCard>
 
-            {/* Section 3: Notes & Disposition */}
+            {/* Section 2: Notes & Disposition */}
             <LeadCard
               icon="📝"
               title="Notes & Disposition"
@@ -1092,107 +966,206 @@ export default function BpoCentreLeadViewComponent({
                 </p>
               </div>
 
-              {/* Add new note */}
-              <div style={{ marginBottom: 12 }}>
-                <textarea
-                  value={noteDraft}
-                  disabled={isDisabled}
-                  onChange={(e) => setNoteDraft(e.target.value)}
-                  rows={2}
-                  placeholder="Add a note..."
-                  style={{ ...fieldStyle, resize: "vertical", minHeight: 56, opacity: isDisabled ? 0.65 : 1 }}
+              {/* Activity feed: notes + call updates */}
+              <p style={{ ...labelStyle, marginBottom: 6 }}>Activity</p>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "stretch",
+                  marginBottom: 10,
+                  flexWrap: "wrap",
+                }}
+              >
+                <input
+                  type="search"
+                  placeholder="Search conversation…"
+                  value={activitySearchInput}
+                  onChange={(e) => setActivitySearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setActivitySearchQuery(activitySearchInput.trim().toLowerCase());
+                    }
+                  }}
+                  style={{ ...fieldStyle, flex: "1 1 160px", minWidth: 0, fontSize: 13 }}
                   onFocus={fieldFocus}
                   onBlur={fieldBlur}
                 />
                 <button
                   type="button"
-                  disabled={isDisabled || saving || !noteDraft.trim()}
-                  onClick={() => void addNote()}
+                  onClick={() => setActivitySearchQuery(activitySearchInput.trim().toLowerCase())}
                   style={{
-                    marginTop: 8,
-                    height: 30,
-                    padding: "0 12px",
-                    borderRadius: 8,
-                    border: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    borderRadius: 10,
+                    border: `1px solid ${BRAND_GREEN}`,
                     background: BRAND_GREEN,
                     color: "#fff",
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 800,
-                    cursor: isDisabled || saving ? "not-allowed" : "pointer",
-                    opacity: isDisabled || saving || !noteDraft.trim() ? 0.5 : 1,
+                    padding: "0 14px",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  Save note
+                  <Search size={14} strokeWidth={2.5} />
+                  Search
                 </button>
+                {activitySearchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActivitySearchInput("");
+                      setActivitySearchQuery("");
+                    }}
+                    style={{
+                      borderRadius: 10,
+                      border: `1px solid ${T.border}`,
+                      background: T.cardBg,
+                      color: T.textMuted,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "0 12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Clear
+                  </button>
+                ) : null}
               </div>
-
-              {/* Note history */}
-              <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
-                {notes.length === 0 ? (
-                  <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>No notes yet.</div>
+              <div style={{ maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+                {activityFeed.length === 0 ? (
+                  <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>No activity logged yet.</div>
+                ) : filteredActivityFeed.length === 0 ? (
+                  <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>No results match your search.</div>
                 ) : (
-                  notes.map((n) => (
-                    <div key={n.id} style={{ padding: "10px 12px", borderRadius: 8, background: "#f8faf6", border: `1px solid ${T.borderLight}` }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: T.textMuted, marginBottom: 4 }}>
-                        {new Date(n.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  pagedActivityFeed.map((item) => {
+                    const isCall = item.kind === "call";
+                    const title = isCall ? formatCallResultLabel(item.code) : "Note";
+                    const chipBg = isCall ? "#dcfce7" : "#eef2ff";
+                    const chipBorder = isCall ? "#86efac" : "#c7d2fe";
+                    const chipText = isCall ? "#166534" : "#3730a3";
+                    const byLine = isCall ? `Call logged by ${item.actorLabel}` : `Note added by ${item.actorLabel}`;
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          border: `1px solid ${T.borderLight}`,
+                          background: "#f8faf6",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 900,
+                                textTransform: "uppercase",
+                                padding: "3px 8px",
+                                borderRadius: 999,
+                                background: chipBg,
+                                border: `1px solid ${chipBorder}`,
+                                color: chipText,
+                                letterSpacing: "0.02em",
+                              }}
+                            >
+                              {isCall ? "Call" : "Note"}
+                            </span>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: T.textDark, textTransform: "uppercase" }}>
+                              {title}
+                            </span>
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted }}>
+                            {new Date(item.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, marginBottom: item.body ? 6 : 0 }}>
+                          {byLine}
+                        </div>
+                        {item.body && (
+                          <div style={{ fontSize: 12, color: T.textDark, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                            {item.body}
+                          </div>
+                        )}
                       </div>
-                      <div style={{ fontSize: 12, color: T.textDark, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{n.body}</div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
-            </LeadCard>
-
-            {/* Danger zone (collapsible) */}
-            {!isDqed && (
-              <LeadCard icon="⚠️" title="Danger zone" subtitle="Offboarding audit action" defaultExpanded={false}>
-                <div style={{ borderRadius: 12, border: "1.5px solid #fecaca", backgroundColor: "#fef2f2", padding: 14 }}>
-                  <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#7f1d1d", lineHeight: 1.5 }}>
-                    Marking a centre lead as DQED logs an offboarding record.
-                  </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <input
-                      placeholder="Confirmation phrase (8+ chars)"
-                      value={dqedPhrase}
-                      disabled={!canEdit || saving}
-                      onChange={(e) => setDqedPhrase(e.target.value)}
-                      style={{ ...fieldStyle, fontSize: 12 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                    <input
-                      placeholder="Activation code"
-                      value={dqedCode}
-                      disabled={!canEdit || saving}
-                      onChange={(e) => setDqedCode(e.target.value)}
-                      style={{ ...fieldStyle, fontSize: 12 }}
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  </div>
-                  <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+              {filteredActivityFeed.length > ACTIVITY_PAGE_SIZE && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 4px 0",
+                    marginTop: 8,
+                    borderTop: `1px solid ${T.borderLight}`,
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted }}>
+                    Showing {(activityCurrentPage - 1) * ACTIVITY_PAGE_SIZE + 1}
+                    –{Math.min(activityCurrentPage * ACTIVITY_PAGE_SIZE, filteredActivityFeed.length)} of {filteredActivityFeed.length}
+                  </span>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                     <button
                       type="button"
-                      disabled={!canEdit || saving}
-                      onClick={() => void applyDqed()}
+                      onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                      disabled={activityCurrentPage === 1}
                       style={{
-                        border: "none",
-                        borderRadius: 8,
-                        background: "#b91c1c",
-                        color: "#fff",
-                        fontSize: 12,
-                        fontWeight: 800,
-                        padding: "8px 14px",
-                        cursor: !canEdit || saving ? "not-allowed" : "pointer",
-                        opacity: !canEdit || saving ? 0.65 : 1,
+                        width: 30,
+                        height: 30,
+                        borderRadius: 6,
+                        border: `1px solid ${T.border}`,
+                        background: "#fff",
+                        color: activityCurrentPage === 1 ? T.textMuted : BRAND_GREEN,
+                        cursor: activityCurrentPage === 1 ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: activityCurrentPage === 1 ? 0.5 : 1,
                       }}
+                      aria-label="Previous page"
                     >
-                      Confirm DQED
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M15 18l-6-6 6-6" />
+                      </svg>
+                    </button>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: T.textDark }}>
+                      {activityCurrentPage} / {activityTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActivityPage((p) => Math.min(activityTotalPages, p + 1))}
+                      disabled={activityCurrentPage === activityTotalPages}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 6,
+                        border: `1px solid ${T.border}`,
+                        background: "#fff",
+                        color: activityCurrentPage === activityTotalPages ? T.textMuted : BRAND_GREEN,
+                        cursor: activityCurrentPage === activityTotalPages ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: activityCurrentPage === activityTotalPages ? 0.5 : 1,
+                      }}
+                      aria-label="Next page"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
                     </button>
                   </div>
                 </div>
-              </LeadCard>
-            )}
+              )}
+            </LeadCard>
+
           </div>
 
           {/* RIGHT COLUMN: Call Result Update Panel */}
@@ -1255,170 +1228,89 @@ export default function BpoCentreLeadViewComponent({
                 {saving ? "Submitting..." : "Submit"}
               </button>
             </div>
-
-            {/* Activity feed */}
-            <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
-              {activityFeed.length === 0 ? (
-                <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 600, textAlign: "center", padding: 16 }}>
-                  No activity logged yet.
-                </div>
-              ) : (
-                activityFeed.map((item) => {
-                  const isCall = item.kind === "call";
-                  const title = isCall ? formatCallResultLabel(item.code) : "Note";
-                  const chipBg = isCall ? "#dcfce7" : "#eef2ff";
-                  const chipBorder = isCall ? "#86efac" : "#c7d2fe";
-                  const chipText = isCall ? "#166534" : "#3730a3";
-                  return (
-                    <div
-                      key={item.id}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 8,
-                        border: `1px solid ${T.borderLight}`,
-                        background: "#fafafa",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: item.body ? 6 : 0 }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 900,
-                              textTransform: "uppercase",
-                              padding: "3px 8px",
-                              borderRadius: 999,
-                              background: chipBg,
-                              border: `1px solid ${chipBorder}`,
-                              color: chipText,
-                              letterSpacing: "0.02em",
-                            }}
-                          >
-                            {isCall ? "Call" : "Note"}
-                          </span>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: T.textDark, textTransform: "uppercase" }}>
-                            {title}
-                          </span>
-                        </span>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: T.textMuted }}>
-                          {new Date(item.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                        </span>
-                      </div>
-                      {item.body && (
-                        <div style={{ fontSize: 11, color: T.textMid, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>
-                          {item.body}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
           </LeadCard>
           </div>
         </div>
-      ) : activeTab === "Team" ? (
-        /* ═══════════════ TEAM TAB ═══════════════ */
-        <div style={{ maxWidth: 1200 }}>
-          <LeadCard icon="👥" title="Centre admin & team" subtitle="Onboarding team roster" collapsible={false}>
-            <ShadcnTable>
-              <TableHeader>
-                <TableRow style={{ backgroundColor: BRAND_GREEN, borderBottom: "none" }} className="hover:bg-transparent">
-                  {[
-                    { label: "Role", align: "left" as const },
-                    { label: "Name", align: "left" as const },
-                    { label: "Email", align: "left" as const },
-                    { label: "Position", align: "left" as const },
-                  ].map(({ label, align }) => (
-                    <TableHead
-                      key={label}
-                      style={{
-                        color: "#ffffff",
-                        fontWeight: 700,
-                        fontSize: 12,
-                        letterSpacing: "0.3px",
-                        padding: "14px 16px",
-                        whiteSpace: "nowrap",
-                        textAlign: align,
-                      }}
-                    >
-                      {label}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {team.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} style={{ color: T.textMuted }}>
-                      No team yet — send the intake link or add members below.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  team.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell style={{ padding: "12px 16px" }}>
-                        <span
-                          className="rounded-md px-2 py-0.5 text-[11px] font-extrabold uppercase"
-                          style={{
-                            background: m.member_kind === "center_admin" ? "#dcfce7" : T.blueFaint,
-                            color: m.member_kind === "center_admin" ? "#166534" : T.textMid,
-                          }}
-                        >
-                          {m.member_kind === "center_admin" ? "Admin" : "Member"}
-                        </span>
-                      </TableCell>
-                      <TableCell style={{ padding: "12px 16px", fontWeight: 800 }}>{m.full_name}</TableCell>
-                      <TableCell style={{ padding: "12px 16px", fontSize: 13 }}>{m.email}</TableCell>
-                      <TableCell style={{ padding: "12px 16px", fontSize: 13 }}>
-                        {m.position_key === "custom" ? m.custom_position_label : m.position_key}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </ShadcnTable>
-
-            {!isDqed && (
-              <div style={{ marginTop: 16, borderRadius: 12, border: `1px solid ${T.border}`, padding: "12px 14px", backgroundColor: T.blueFaint }}>
-                <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 900, color: T.textMuted }}>Add team member</p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" style={{ alignItems: "end" }}>
-                  <input placeholder="Full name" value={addMemberForm.full_name} onChange={(e) => setAddMemberForm((f) => ({ ...f, full_name: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                  <input placeholder="Email" type="text" inputMode="email" autoComplete="email" value={addMemberForm.email} onChange={(e) => setAddMemberForm((f) => ({ ...f, email: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                  <input placeholder="Phone (optional)" value={addMemberForm.phone} onChange={(e) => setAddMemberForm((f) => ({ ...f, phone: e.target.value }))} style={{ ...fieldStyle, fontWeight: 500 }} onFocus={fieldFocus} onBlur={fieldBlur} />
-                  <StyledSelect
-                    value={addMemberForm.member_kind}
-                    onValueChange={(v) => setAddMemberForm((f) => ({ ...f, member_kind: v as "center_admin" | "team_member" }))}
-                    options={[{ value: "team_member", label: "Team member" }, { value: "center_admin", label: "Centre admin" }]}
-                    placeholder="Kind"
-                  />
-                  <StyledSelect
-                    value={addMemberForm.position_key}
-                    onValueChange={(v) => setAddMemberForm((f) => ({ ...f, position_key: v as typeof addMemberForm.position_key }))}
-                    options={[{ value: "owner", label: "Owner" }, { value: "manager", label: "Manager" }, { value: "closer", label: "Closer" }, { value: "custom", label: "Custom" }]}
-                    placeholder="Position"
-                  />
-                  {addMemberForm.position_key === "custom" && (
-                    <input
-                      placeholder="Custom role label"
-                      value={addMemberForm.custom_position_label}
-                      onChange={(e) => setAddMemberForm((f) => ({ ...f, custom_position_label: e.target.value }))}
-                      style={{ ...fieldStyle, fontWeight: 500 }}
-                      className="lg:col-span-5"
-                      onFocus={fieldFocus}
-                      onBlur={fieldBlur}
-                    />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void addTeamMember()}
-                  style={{ marginTop: 8, height: 32, padding: "0 14px", borderRadius: 8, border: "none", background: BRAND_GREEN, color: "#fff", fontSize: 11, fontWeight: 900, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
-                >
-                  Add to team
-                </button>
+      ) : activeTab === "Centre & Team setup" ? (
+        /* ═══════════════ CENTRE & TEAM SETUP TAB ═══════════════ */
+        <div style={{ width: "100%" }}>
+          <LeadCard
+            icon="🏢"
+            title={draft.centre_display_name?.trim() || "Centre"}
+            subtitle="Centre onboarding"
+            collapsible={false}
+          >
+            {isDqed ? (
+              <div style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>
+                This centre lead is DQED — centre onboarding is disabled.
               </div>
+            ) : (
+              <BpoCentreLeadOnboardingForm
+                linkedCenterId={draft.linked_call_center_id}
+                teamMembers={centreUsers}
+                onRemoveTeamMember={async (userId) => {
+                  const { error } = await supabase
+                    .from("users")
+                    .update({ call_center_id: null })
+                    .eq("id", userId);
+                  if (error) {
+                    setToast({ message: `Failed to remove team member: ${error.message}`, type: "error" });
+                    return;
+                  }
+                  setToast({ message: "Team member removed from centre.", type: "success" });
+                  await loadDetail();
+                }}
+                prefill={{
+                  centreName: draft.centre_display_name,
+                  did: credentials[0]?.did_number ?? null,
+                  slackChannel: credentials[0]?.slack_account_details ?? null,
+                  email: intakeAdmin?.email ?? null,
+                  dailyTransferTarget: draft.committed_daily_transfers ?? null,
+                  dailySalesTarget: draft.committed_daily_sales ?? null,
+                  adminFullName: intakeAdmin?.full_name ?? null,
+                  adminEmail: intakeAdmin?.email ?? null,
+                  adminPhone: intakeAdmin?.phone ?? null,
+                }}
+                onCancel={onBack}
+                onCreateCentre={async (values) => {
+                  if (!canEdit) {
+                    setToast({ message: "You do not have permission to edit this centre lead.", type: "error" });
+                    return null;
+                  }
+                  const { data, error } = await supabase
+                    .from("call_centers")
+                    .insert([{
+                      name: values.centreName,
+                      did: values.did || null,
+                      slack_channel: values.slackChannel || null,
+                      email: values.email || null,
+                      region: values.region || null,
+                      country: values.country || null,
+                    }])
+                    .select("id")
+                    .single();
+                  if (error || !data?.id) {
+                    setToast({ message: `Failed to create centre: ${error?.message || "Unknown error"}`, type: "error" });
+                    return null;
+                  }
+                  const { error: linkError } = await supabase
+                    .from("bpo_center_leads")
+                    .update({ linked_call_center_id: data.id, updated_by: currentUserId })
+                    .eq("id", centerLeadId);
+                  if (linkError) {
+                    setToast({ message: `Centre created but failed to link to lead: ${linkError.message}`, type: "error" });
+                  } else {
+                    setToast({ message: "Centre created successfully.", type: "success" });
+                  }
+                  await loadDetail();
+                  return { id: data.id };
+                }}
+                onSaveThresholds={() => setToast({ message: "Threshold settings save will be wired up soon.", type: "success" })}
+                onTeamSetupSubmit={async () => {
+                  setToast({ message: "Team member created and assigned to centre.", type: "success" });
+                  await loadDetail();
+                }}
+              />
             )}
           </LeadCard>
         </div>
@@ -1497,23 +1389,6 @@ export default function BpoCentreLeadViewComponent({
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <button
                         type="button"
-                        onClick={() => setShowAdminProvision((v) => !v)}
-                        style={{
-                          height: 34,
-                          padding: "0 12px",
-                          borderRadius: 10,
-                          border: `1px solid ${T.border}`,
-                          background: "#fff",
-                          color: BRAND_GREEN,
-                          fontSize: 12,
-                          fontWeight: 800,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {showAdminProvision ? "Hide admin form" : "Create centre admin"}
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => setShowCloserProvision((v) => !v)}
                         style={{
                           height: 34,
@@ -1531,27 +1406,6 @@ export default function BpoCentreLeadViewComponent({
                       </button>
                     </div>
                   </div>
-
-                  {showAdminProvision && (
-                    <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
-                      <UserEditorComponent
-                        onClose={() => setShowAdminProvision(false)}
-                        onSubmit={(data) => {
-                          const fullName = `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim();
-                          setProvisioned((p) => ({ ...p, adminEmail: data.email, adminName: fullName || p.adminName }));
-                          setToast({ message: "Centre admin created.", type: "success" });
-                        }}
-                        presetRoleKey="call_center_admin"
-                        allowedRoleKeys={["call_center_admin"]}
-                        lockRole
-                        prefill={{
-                          fullName: intakeAdmin?.full_name ?? "",
-                          email: intakeAdmin?.email ?? "",
-                          phone: intakeAdmin?.phone ?? "",
-                        }}
-                      />
-                    </div>
-                  )}
 
                   {showCloserProvision && (
                     <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
