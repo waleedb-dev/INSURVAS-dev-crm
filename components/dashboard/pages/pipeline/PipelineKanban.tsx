@@ -14,6 +14,14 @@ export type PipelineKanbanColumn = {
   cards: ReactNode;
 };
 
+/** Optional drag-and-drop (same HTML5 pattern as Lead Pipeline kanban). */
+export type PipelineKanbanDragDrop = {
+  dragOverColumnId: string | number | null;
+  onColumnDragOver: (columnId: PipelineKanbanColumn["id"]) => void;
+  onColumnDragLeave: () => void;
+  onColumnDrop: (columnId: PipelineKanbanColumn["id"]) => void;
+};
+
 function formatCountLabel(count: number): string {
   return `${count} ${count === 1 ? "Opportunity" : "Opportunities"}`;
 }
@@ -22,10 +30,12 @@ export function PipelineKanban({
   columns,
   emptyTitle = "No opportunities found",
   emptyDescription = "Try changing your search or filters.",
+  dragDrop,
 }: {
   columns: PipelineKanbanColumn[];
   emptyTitle?: string;
   emptyDescription?: string;
+  dragDrop?: PipelineKanbanDragDrop;
 }) {
   const totalCards = columns.reduce((sum, column) => sum + column.count, 0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -114,6 +124,7 @@ export function PipelineKanban({
         <div className="pipeline-kanban-board">
           {columns.map((column) => {
             const isCollapsed = collapsed[String(column.id)];
+            const isDropOver = Boolean(dragDrop && !isCollapsed && dragDrop.dragOverColumnId === column.id);
             return (
               <section
                 key={column.id}
@@ -122,6 +133,23 @@ export function PipelineKanban({
                   minWidth: isCollapsed ? 50 : 320,
                   width: isCollapsed ? 50 : 320,
                 }}
+                onDragOver={
+                  dragDrop && !isCollapsed
+                    ? (e) => {
+                        e.preventDefault();
+                        dragDrop.onColumnDragOver(column.id);
+                      }
+                    : undefined
+                }
+                onDragLeave={dragDrop && !isCollapsed ? () => dragDrop.onColumnDragLeave() : undefined}
+                onDrop={
+                  dragDrop && !isCollapsed
+                    ? (e) => {
+                        e.preventDefault();
+                        dragDrop.onColumnDrop(column.id);
+                      }
+                    : undefined
+                }
               >
                 {isCollapsed ? (
                   <div
@@ -209,7 +237,13 @@ export function PipelineKanban({
                         <span style={{ color: T.textDark, fontWeight: 800 }}>{column.value}</span>
                       </div>
                     </div>
-                    <div className="pipeline-kanban-column-body">
+                    <div
+                      className="pipeline-kanban-column-body"
+                      style={{
+                        backgroundColor: isDropOver ? `${column.bg}99` : undefined,
+                        transition: dragDrop ? "background-color 0.2s ease" : undefined,
+                      }}
+                    >
                       {column.count === 0 ? (
                         <div className="pipeline-kanban-empty-stage">No opportunities in this stage yet.</div>
                       ) : (
