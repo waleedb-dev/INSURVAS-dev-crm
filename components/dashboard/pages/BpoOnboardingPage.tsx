@@ -125,6 +125,26 @@ const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
 
 const STAGE_LABEL: Record<string, string> = Object.fromEntries(STAGE_OPTIONS.map((o) => [o.key, o.label]));
 
+/** Column header info tooltips (aligned with Lead Pipeline Kanban). */
+const STAGE_INFO: Record<CenterLeadStage, string> = {
+  pre_onboarding:
+    "Landing stage for new centre leads. Qualify the opportunity, complete intake, and gather what you need before scheduling a formal onboarding conversation.",
+  ready_for_onboarding_meeting:
+    "The centre is queued for their Insurvas onboarding meeting. Use once prerequisites are in place and the session is booked or imminent.",
+  onboarding_completed:
+    "Onboarding and provisioning are finished and the centre should be operating in the CRM. Day-to-day seller activity continues from here unless something changes.",
+  actively_selling:
+    "Steady-state centre with no open escalations—normal production and relationship management.",
+  needs_attention:
+    "Flagged for visibility: blockers, stalled progress, SLA risk, or anything that needs explicit follow-up from the team.",
+  on_pause:
+    "Intentionally on hold. Leave the lead here until criteria to resume are agreed; avoid routine progression while paused.",
+  dqed:
+    "Disqualified centre: not proceeding under current partnership criteria. Keeps history without cluttering active stages.",
+  offboarded:
+    "Formal end of the relationship. Archived for reference; no ongoing onboarding or operational work expected.",
+};
+
 const STAGE_KANBAN_COLORS = ["#638b4b", "#2563eb", "#7c3aed", "#0f766e", "#d97706", "#64748b", "#991b1b", "#374151"];
 const STAGE_KANBAN_BACKGROUNDS = ["#f2f8ee", "#eef2ff", "#f5f3ff", "#f0fdfa", "#fffbeb", "#f8fafc", "#fef2f2", "#f9fafb"];
 
@@ -385,6 +405,7 @@ export default function BpoOnboardingPage() {
         return {
           id: stage.key,
           title: stage.label,
+          info: STAGE_INFO[stage.key],
           count: stageTotals.get(stage.key) ?? 0,
           value: stageRows
             .reduce((sum, row) => sum + (row.opportunity_value ?? 0), 0)
