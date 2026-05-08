@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/shadcn/table";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ClipboardCopy, Loader2, ShieldAlert, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardCopy, Loader2, ShieldAlert, Trash2, X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
-import { LeadCard } from "@/components/dashboard/pages/LeadCard";
+import { LeadCard, InfoField, InfoGrid, formatDate } from "@/components/dashboard/pages/LeadCard";
 import UserEditorComponent from "@/components/dashboard/pages/UserEditorComponent";
 
 const BRAND_GREEN = "#233217";
@@ -33,15 +33,18 @@ function StyledSelect({
   onValueChange,
   options,
   placeholder = "Select...",
+  disabled = false,
 }: {
   value: string;
   onValueChange: (value: string) => void;
   options: { value: string; label: string }[];
   placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
-    <Select value={value} onValueChange={(val) => onValueChange(val || "")}>
+    <Select value={value} onValueChange={(val) => onValueChange(val || "")} disabled={disabled}>
       <SelectTrigger
+        disabled={disabled}
         style={{
           width: "100%",
           minWidth: 140,
@@ -58,6 +61,7 @@ function StyledSelect({
           transition: "all 0.15s ease-in-out",
           position: "relative",
           zIndex: 1,
+          opacity: disabled ? 0.65 : 1,
         }}
         className="hover:border-[#233217] focus:border-[#233217] focus:ring-2 focus:ring-[#233217]/20"
       >
@@ -123,17 +127,6 @@ const STAGE_OPTIONS: { key: CenterLeadStage; label: string }[] = [
 ];
 
 const STAGE_LABEL: Record<string, string> = Object.fromEntries(STAGE_OPTIONS.map((o) => [o.key, o.label]));
-
-const STAGE_COLOR: Record<string, string> = {
-  pre_onboarding: "#638b4b",
-  ready_for_onboarding_meeting: "#2563eb",
-  onboarding_completed: "#7c3aed",
-  actively_selling: "#0f766e",
-  needs_attention: "#d97706",
-  on_pause: "#64748b",
-  dqed: "#991b1b",
-  offboarded: "#374151",
-};
 
 function getExpectedDqedCode(): string {
   return (
@@ -337,12 +330,13 @@ export default function BpoCentreLeadViewComponent({
   const [resourcesLead, setResourcesLead] = useState<ResourceRow[]>([]);
 
   const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [credForm, setCredForm] = useState({ slack: "", crm: "", did: "", other: "" });
   const [provisioned, setProvisioned] = useState<{ adminEmail?: string; adminName?: string; closerEmail?: string; closerName?: string }>({});
   const [showAdminProvision, setShowAdminProvision] = useState(false);
   const [showCloserProvision, setShowCloserProvision] = useState(false);
   const [callNotes, setCallNotes] = useState("");
-  const [callDisposition, setCallDisposition] = useState("");
+  const [callDisposition, setCallDisposition] = useState<"" | "call_completed" | "no_pickup">("");
   const [noteDraft, setNoteDraft] = useState("");
   const [resLeadForm, setResLeadForm] = useState({ title: "", url: "", description: "" });
   const [resGlobalForm, setResGlobalForm] = useState({ title: "", url: "", description: "" });
@@ -480,6 +474,7 @@ export default function BpoCentreLeadViewComponent({
       return;
     }
     setToast({ message: "Saved.", type: "success" });
+    setIsEditing(false);
     await loadDetail();
   }, [canEdit, centerLeadId, currentUserId, draft, loadDetail, supabase]);
 
@@ -508,55 +503,24 @@ export default function BpoCentreLeadViewComponent({
     await loadDetail();
   }, [canEdit, centerLeadId, credForm, currentUserId, loadDetail, supabase]);
 
-  const addCallResult = useCallback(
-    async (code: "call_completed" | "no_pickup") => {
-      if (!centerLeadId) return;
-      if (!canEdit) {
-        setToast({ message: "You do not have permission to edit this centre lead.", type: "error" });
-        return;
-      }
-      setSaving(true);
-      const { error } = await supabase.from("bpo_center_lead_call_results").insert({
-        center_lead_id: centerLeadId,
-        result_code: code,
-        notes: callNotes.trim() || null,
-        recorded_by: currentUserId,
-      });
-      setSaving(false);
-      if (error) {
-        setToast({ message: error.message, type: "error" });
-        return;
-      }
-      setCallNotes("");
-      setToast({ message: "Call result recorded.", type: "success" });
-      await loadDetail();
-    },
-    [callNotes, canEdit, centerLeadId, currentUserId, loadDetail, supabase],
-  );
-
   const logCallUpdate = useCallback(async () => {
     if (!centerLeadId || !draft) return;
     if (!canEdit) {
       setToast({ message: "You do not have permission to edit this centre lead.", type: "error" });
       return;
     }
-    if (!callDisposition.trim() && !callNotes.trim()) {
-      setToast({ message: "Add a disposition or notes.", type: "error" });
+    if (!callDisposition) {
+      setToast({ message: "Pick a disposition.", type: "error" });
       return;
     }
     setSaving(true);
 
-    const updateNotes = [
-      callDisposition.trim() ? `Disposition: ${callDisposition.trim()}` : null,
-      callNotes.trim() ? `Notes: ${callNotes.trim()}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const dispositionLabel = callDisposition === "call_completed" ? "Call completed" : "No pickup";
 
     const { error: e1 } = await supabase.from("bpo_center_lead_call_results").insert({
       center_lead_id: centerLeadId,
-      result_code: "call_update",
-      notes: updateNotes || null,
+      result_code: callDisposition,
+      notes: callNotes.trim() || null,
       recorded_by: currentUserId,
     });
     if (e1) {
@@ -565,18 +529,16 @@ export default function BpoCentreLeadViewComponent({
       return;
     }
 
-    if (callDisposition.trim()) {
-      const { error: e2 } = await supabase
-        .from("bpo_center_leads")
-        .update({ last_disposition_text: callDisposition.trim(), updated_by: currentUserId })
-        .eq("id", centerLeadId);
-      if (e2) {
-        setSaving(false);
-        setToast({ message: e2.message, type: "error" });
-        return;
-      }
-      setDraft((d) => (d ? { ...d, last_disposition_text: callDisposition.trim() } : d));
+    const { error: e2 } = await supabase
+      .from("bpo_center_leads")
+      .update({ last_disposition_text: dispositionLabel, updated_by: currentUserId })
+      .eq("id", centerLeadId);
+    if (e2) {
+      setSaving(false);
+      setToast({ message: e2.message, type: "error" });
+      return;
     }
+    setDraft((d) => (d ? { ...d, last_disposition_text: dispositionLabel } : d));
 
     setSaving(false);
     setCallDisposition("");
@@ -949,23 +911,34 @@ export default function BpoCentreLeadViewComponent({
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button
             type="button"
-            disabled={isDisabled || saving}
-            onClick={() => void saveCentreLead()}
+            disabled={isDisabled || !draft}
+            onClick={() => setIsEditing(true)}
             style={{
               height: 34,
-              padding: "0 16px",
+              padding: "0 18px",
               borderRadius: 8,
-              border: "none",
-              background: BRAND_GREEN,
-              color: "#fff",
+              border: `1px solid ${T.border}`,
+              background: T.cardBg,
+              color: BRAND_GREEN,
               fontSize: 12,
-              fontWeight: 800,
-              cursor: isDisabled || saving ? "not-allowed" : "pointer",
-              opacity: isDisabled || saving ? 0.55 : 1,
+              fontWeight: 700,
+              cursor: isDisabled || !draft ? "not-allowed" : "pointer",
+              opacity: isDisabled || !draft ? 0.55 : 1,
               transition: "all 0.15s ease-in-out",
             }}
+            onMouseEnter={(e) => {
+              if (isDisabled || !draft) return;
+              e.currentTarget.style.backgroundColor = BRAND_GREEN;
+              e.currentTarget.style.color = "#fff";
+              e.currentTarget.style.borderColor = BRAND_GREEN;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = T.cardBg;
+              e.currentTarget.style.color = BRAND_GREEN;
+              e.currentTarget.style.borderColor = T.border;
+            }}
           >
-            {saving ? "Saving..." : "Save"}
+            Edit Lead
           </button>
 
           <button
@@ -1010,33 +983,13 @@ export default function BpoCentreLeadViewComponent({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18, alignItems: "start" }}>
           {/* LEFT COLUMN */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Section 1: Profile Details */}
-            <div
-              style={{
-                background: "#fff",
-                border: `1px solid ${T.border}`,
-                borderRadius: 14,
-                padding: "20px 22px",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-              }}
-            >
-              {/* Stage badge + name */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    padding: "4px 10px",
-                    borderRadius: 6,
-                    color: "#fff",
-                    background: STAGE_COLOR[draft.stage] ?? BRAND_GREEN,
-                  }}
-                >
-                  {STAGE_LABEL[draft.stage] ?? draft.stage}
-                </span>
-                {draft.last_call_result && (
+            {/* Section 1: Centre profile */}
+            <LeadCard
+              icon="🏢"
+              title="Centre profile"
+              subtitle="Identity, stage, and capacity"
+              actions={
+                draft.last_call_result ? (
                   <span
                     style={{
                       fontSize: 10,
@@ -1046,6 +999,7 @@ export default function BpoCentreLeadViewComponent({
                       background: draft.last_call_result === "call_completed" ? "#dcfce7" : "#fef3c7",
                       color: draft.last_call_result === "call_completed" ? "#166534" : "#92400e",
                       border: `1px solid ${draft.last_call_result === "call_completed" ? "#86efac" : "#fcd34d"}`,
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {formatCallResultLabel(draft.last_call_result)}
@@ -1053,205 +1007,89 @@ export default function BpoCentreLeadViewComponent({
                       <> &mdash; {new Date(draft.last_call_result_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>
                     )}
                   </span>
-                )}
-              </div>
+                ) : null
+              }
+            >
+              <InfoGrid columns={3}>
+                <InfoField label="Centre name" value={draft.centre_display_name} />
+                <InfoField label="Stage" value={STAGE_LABEL[draft.stage] ?? draft.stage} />
+                <InfoField label="Closers" value={draft.closer_count ?? "—"} />
+              </InfoGrid>
+              <InfoGrid columns={3} bordered={false}>
+                <InfoField label="Daily sales target" value={draft.committed_daily_sales ?? "—"} />
+                <InfoField label="Daily transfers target" value={draft.committed_daily_transfers ?? "—"} />
+                <InfoField label="Expected start" value={formatDate(draft.expected_start_date ?? undefined)} />
+              </InfoGrid>
+            </LeadCard>
 
-              {/* Key fields grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
-                <div>
-                  <label style={labelStyle}>Centre name</label>
-                  <input
-                    value={draft.centre_display_name}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, centre_display_name: e.target.value })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Stage</label>
-                  <Select
-                    value={draft.stage}
-                    disabled={isDisabled}
-                    onValueChange={(v) => v && setDraft({ ...draft, stage: v as CenterLeadStage })}
-                  >
-                    <SelectTrigger
-                      className="!h-auto w-full"
-                      style={{
-                        minHeight: 36,
-                        borderRadius: 8,
-                        border: `1px solid ${T.border}`,
-                        fontWeight: 700,
-                        fontSize: 13,
-                        paddingLeft: 12,
-                        paddingRight: 10,
-                        backgroundColor: isDisabled ? T.pageBg : "#fff",
-                        opacity: isDisabled ? 0.65 : 1,
-                        fontFamily: T.font,
-                      }}
-                    >
-                      <SelectValue>{STAGE_LABEL[draft.stage]}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STAGE_OPTIONS.map((o) => (
-                        <SelectItem key={o.key} value={o.key}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Closers</label>
-                  <input
-                    type="number"
-                    value={draft.closer_count ?? ""}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, closer_count: e.target.value === "" ? null : Number(e.target.value) })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Daily sales target</label>
-                  <input
-                    type="number"
-                    value={draft.committed_daily_sales ?? ""}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, committed_daily_sales: e.target.value === "" ? null : Number(e.target.value) })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Daily transfers target</label>
-                  <input
-                    type="number"
-                    value={draft.committed_daily_transfers ?? ""}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, committed_daily_transfers: e.target.value === "" ? null : Number(e.target.value) })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Expected start</label>
-                  <input
-                    type="date"
-                    value={draft.expected_start_date ?? ""}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, expected_start_date: e.target.value || null })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Opportunity value</label>
-                  <input
-                    type="number"
-                    value={draft.opportunity_value ?? ""}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, opportunity_value: e.target.value === "" ? null : Number(e.target.value) })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Source</label>
-                  <input
-                    value={draft.opportunity_source ?? ""}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, opportunity_source: e.target.value })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Lead vendor</label>
-                  <input
-                    value={draft.lead_vendor_label ?? ""}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, lead_vendor_label: e.target.value })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Linked CRM centre</label>
-                  <input
-                    value={draft.linked_crm_centre_label ?? ""}
-                    disabled={isDisabled}
-                    onChange={(e) => setDraft({ ...draft, linked_crm_centre_label: e.target.value })}
-                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                    onFocus={fieldFocus}
-                    onBlur={fieldBlur}
-                  />
-                </div>
-              </div>
-
-              {/* Owner/team quick summary */}
-              {team.length > 0 && (
-                <div style={{ marginTop: 16, padding: "10px 12px", background: "#f8faf6", borderRadius: 8, border: `1px solid ${T.borderLight}` }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", marginBottom: 6 }}>Team ({team.length})</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {team.slice(0, 6).map((m) => (
-                      <span
+            {/* Section 2: Team */}
+            {team.length > 0 && (
+              <LeadCard
+                icon="👥"
+                title="Team"
+                subtitle="Centre admin and assigned staff"
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {team.map((m) => {
+                    const role = m.position_key === "custom" ? (m.custom_position_label ?? "Custom") : m.position_key;
+                    const isAdmin = m.member_kind === "center_admin";
+                    return (
+                      <div
                         key={m.id}
                         style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          padding: "3px 8px",
-                          borderRadius: 6,
-                          background: m.member_kind === "center_admin" ? "#dcfce7" : "#f1f5f9",
-                          color: m.member_kind === "center_admin" ? "#166534" : T.textMid,
-                          border: `1px solid ${m.member_kind === "center_admin" ? "#86efac" : T.border}`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          background: "#f8faf6",
+                          border: `1px solid ${T.borderLight}`,
                         }}
                       >
-                        {m.full_name} ({m.position_key === "custom" ? m.custom_position_label : m.position_key})
-                      </span>
-                    ))}
-                    {team.length > 6 && (
-                      <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, alignSelf: "center" }}>+{team.length - 6} more</span>
-                    )}
-                  </div>
+                        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: T.textDark }}>{m.full_name}</span>
+                          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                            {role}{m.email ? ` · ${m.email}` : ""}
+                          </span>
+                        </div>
+                        {isAdmin && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: "3px 8px",
+                              borderRadius: 999,
+                              background: "#dcfce7",
+                              color: "#166534",
+                              border: "1px solid #86efac",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Admin
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
+              </LeadCard>
+            )}
 
-            {/* Section 2: Last Disposition / Notes (Bottom Left) */}
-            <div
-              style={{
-                background: "#fff",
-                border: `1px solid ${T.border}`,
-                borderRadius: 14,
-                padding: "18px 22px",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-              }}
+            {/* Section 3: Notes & Disposition */}
+            <LeadCard
+              icon="📝"
+              title="Notes & Disposition"
+              subtitle="Latest disposition and centre notes"
             >
-              <div style={{ fontSize: 12, fontWeight: 800, color: BRAND_GREEN, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                Notes & Disposition
-              </div>
-
               {/* Last disposition */}
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Last disposition</label>
-                <textarea
-                  value={draft.last_disposition_text ?? ""}
-                  disabled={isDisabled}
-                  onChange={(e) => setDraft({ ...draft, last_disposition_text: e.target.value })}
-                  rows={2}
-                  style={{ ...fieldStyle, resize: "vertical", minHeight: 56, opacity: isDisabled ? 0.65 : 1 }}
-                  onFocus={fieldFocus}
-                  onBlur={fieldBlur}
-                />
+                <p style={{ ...labelStyle, marginBottom: 6 }}>Last disposition</p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: T.textDark, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                  {draft.last_disposition_text || "—"}
+                </p>
               </div>
 
               {/* Add new note */}
@@ -1303,7 +1141,7 @@ export default function BpoCentreLeadViewComponent({
                   ))
                 )}
               </div>
-            </div>
+            </LeadCard>
 
             {/* Danger zone (collapsible) */}
             {!isDqed && (
@@ -1358,31 +1196,24 @@ export default function BpoCentreLeadViewComponent({
           </div>
 
           {/* RIGHT COLUMN: Call Result Update Panel */}
-          <div
-            style={{
-              background: "#fff",
-              border: `1px solid ${T.border}`,
-              borderRadius: 14,
-              padding: "18px 20px",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-              position: "sticky",
-              top: 20,
-            }}
+          <div style={{ position: "sticky", top: 20 }}>
+          <LeadCard
+            icon="📞"
+            title="Call update"
+            subtitle="Log dispositions and outcomes"
+            collapsible={false}
           >
-            <div style={{ fontSize: 12, fontWeight: 800, color: BRAND_GREEN, marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-              Call update
-            </div>
-
             <div style={{ marginBottom: 10 }}>
               <label style={labelStyle}>Disposition</label>
-              <input
+              <StyledSelect
                 value={callDisposition}
                 disabled={isDisabled}
-                onChange={(e) => setCallDisposition(e.target.value)}
-                placeholder="What happened on the call?"
-                style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
-                onFocus={fieldFocus}
-                onBlur={fieldBlur}
+                onValueChange={(v) => setCallDisposition((v as "call_completed" | "no_pickup" | "") || "")}
+                options={[
+                  { value: "call_completed", label: "Call completed" },
+                  { value: "no_pickup", label: "No pickup" },
+                ]}
+                placeholder="Pick a disposition"
               />
             </div>
 
@@ -1393,75 +1224,35 @@ export default function BpoCentreLeadViewComponent({
               onChange={(e) => setCallNotes(e.target.value)}
               placeholder="Optional notes..."
               rows={3}
-              style={{ ...fieldStyle, marginBottom: 10, resize: "vertical", minHeight: 70, opacity: isDisabled ? 0.65 : 1 }}
+              style={{ ...fieldStyle, marginBottom: 12, resize: "vertical", minHeight: 70, opacity: isDisabled ? 0.65 : 1 }}
               onFocus={fieldFocus}
               onBlur={fieldBlur}
             />
-            <button
-              type="button"
-              disabled={isDisabled || saving}
-              onClick={() => void logCallUpdate()}
-              style={{
-                width: "100%",
-                height: 36,
-                borderRadius: 8,
-                border: "none",
-                background: BRAND_GREEN,
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 900,
-                cursor: isDisabled || saving ? "not-allowed" : "pointer",
-                opacity: isDisabled || saving ? 0.6 : 1,
-                fontFamily: T.font,
-                letterSpacing: "0.02em",
-                marginBottom: 12,
-              }}
-            >
-              Log call update
-            </button>
-
-            <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
               <button
                 type="button"
-                disabled={isDisabled || saving}
-                onClick={() => void addCallResult("call_completed")}
+                disabled={isDisabled || saving || !callDisposition}
+                onClick={() => void logCallUpdate()}
                 style={{
-                  flex: 1,
-                  height: 36,
+                  height: 32,
+                  padding: "0 16px",
                   borderRadius: 8,
                   border: "none",
-                  background: "#166534",
+                  background: BRAND_GREEN,
                   color: "#fff",
-                  fontSize: 11,
-                  fontWeight: 900,
-                  cursor: isDisabled || saving ? "not-allowed" : "pointer",
-                  opacity: isDisabled || saving ? 0.6 : 1,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: isDisabled || saving || !callDisposition ? "not-allowed" : "pointer",
+                  opacity: isDisabled || saving || !callDisposition ? 0.6 : 1,
                   fontFamily: T.font,
                   letterSpacing: "0.02em",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
-                Call Completed
-              </button>
-              <button
-                type="button"
-                disabled={isDisabled || saving}
-                onClick={() => void addCallResult("no_pickup")}
-                style={{
-                  flex: 1,
-                  height: 36,
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#6b7280",
-                  color: "#fff",
-                  fontSize: 11,
-                  fontWeight: 900,
-                  cursor: isDisabled || saving ? "not-allowed" : "pointer",
-                  opacity: isDisabled || saving ? 0.6 : 1,
-                  fontFamily: T.font,
-                  letterSpacing: "0.02em",
-                }}
-              >
-                No Pickup
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {saving ? "Submitting..." : "Submit"}
               </button>
             </div>
 
@@ -1523,6 +1314,7 @@ export default function BpoCentreLeadViewComponent({
                 })
               )}
             </div>
+          </LeadCard>
           </div>
         </div>
       ) : activeTab === "Team" ? (
@@ -1862,6 +1654,290 @@ export default function BpoCentreLeadViewComponent({
       {!canEdit && (
         <div style={{ marginTop: 12, fontSize: 12, color: T.textMuted, fontWeight: 700 }}>
           Read-only view.
+        </div>
+      )}
+
+      {/* ═══════════════ EDIT LEAD MODAL ═══════════════ */}
+      {isEditing && draft && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 40,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              width: "100%",
+              maxWidth: 880,
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "20px 28px",
+                borderBottom: `1px solid ${T.borderLight}`,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <h2
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    margin: "0 0 4px",
+                    color: T.textDark,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Edit &ldquo;{draft.centre_display_name || "Centre lead"}&rdquo;
+                </h2>
+                <p style={{ margin: 0, fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
+                  {canEdit
+                    ? "Update centre profile and onboarding details."
+                    : "Read-only view — you do not have permission to edit."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  void loadDetail();
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: T.textMuted,
+                  padding: 8,
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = T.pageBg;
+                  e.currentTarget.style.color = T.textDark;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = T.textMuted;
+                }}
+                aria-label="Close"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, padding: "20px 28px", overflowY: "auto", backgroundColor: "#fff" }}>
+              {/* Centre profile */}
+              <h3
+                style={{
+                  margin: "0 0 16px",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  color: T.textDark,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  borderBottom: `2px solid ${T.borderLight}`,
+                  paddingBottom: 8,
+                }}
+              >
+                Centre profile
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: 16,
+                  marginBottom: 24,
+                }}
+              >
+                <div>
+                  <label style={labelStyle}>Centre name</label>
+                  <input
+                    value={draft.centre_display_name}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, centre_display_name: e.target.value })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Stage</label>
+                  <StyledSelect
+                    value={draft.stage}
+                    disabled={isDisabled}
+                    onValueChange={(v) => {
+                      if (v) setDraft({ ...draft, stage: v as CenterLeadStage });
+                    }}
+                    options={STAGE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+                    placeholder="Select stage"
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Closers</label>
+                  <input
+                    type="number"
+                    value={draft.closer_count ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, closer_count: e.target.value === "" ? null : Number(e.target.value) })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Expected start</label>
+                  <input
+                    type="date"
+                    value={draft.expected_start_date ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, expected_start_date: e.target.value || null })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Daily sales target</label>
+                  <input
+                    type="number"
+                    value={draft.committed_daily_sales ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, committed_daily_sales: e.target.value === "" ? null : Number(e.target.value) })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Daily transfers target</label>
+                  <input
+                    type="number"
+                    value={draft.committed_daily_transfers ?? ""}
+                    disabled={isDisabled}
+                    onChange={(e) => setDraft({ ...draft, committed_daily_transfers: e.target.value === "" ? null : Number(e.target.value) })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+              </div>
+
+              {/* Disposition */}
+              <h3
+                style={{
+                  margin: "0 0 16px",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  color: T.textDark,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  borderBottom: `2px solid ${T.borderLight}`,
+                  paddingBottom: 8,
+                }}
+              >
+                Disposition
+              </h3>
+              <div>
+                <label style={labelStyle}>Last disposition</label>
+                <textarea
+                  value={draft.last_disposition_text ?? ""}
+                  disabled={isDisabled}
+                  onChange={(e) => setDraft({ ...draft, last_disposition_text: e.target.value })}
+                  rows={3}
+                  style={{ ...fieldStyle, resize: "vertical", minHeight: 80, opacity: isDisabled ? 0.65 : 1 }}
+                  onFocus={fieldFocus}
+                  onBlur={fieldBlur}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: "16px 28px",
+                borderTop: `1px solid ${T.borderLight}`,
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 10,
+                backgroundColor: "#fafcf8",
+              }}
+            >
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => {
+                  setIsEditing(false);
+                  void loadDetail();
+                }}
+                style={{
+                  height: 36,
+                  padding: "0 18px",
+                  borderRadius: 8,
+                  border: `1px solid ${T.border}`,
+                  background: "#fff",
+                  color: T.textDark,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: saving ? "not-allowed" : "pointer",
+                  opacity: saving ? 0.6 : 1,
+                  transition: "all 0.15s ease-in-out",
+                  fontFamily: T.font,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDisabled || saving}
+                onClick={() => void saveCentreLead()}
+                style={{
+                  height: 36,
+                  padding: "0 22px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: BRAND_GREEN,
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: isDisabled || saving ? "not-allowed" : "pointer",
+                  opacity: isDisabled || saving ? 0.6 : 1,
+                  transition: "all 0.15s ease-in-out",
+                  fontFamily: T.font,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {saving ? "Saving..." : "Save changes"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
