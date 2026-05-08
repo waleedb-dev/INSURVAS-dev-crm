@@ -28,26 +28,19 @@ const POSITION_OPTIONS: { value: TeamLine["position_key"]; label: string }[] = [
   { value: "custom", label: "Custom role" },
 ];
 
-const KIND_OPTIONS: { value: "center_admin" | "team_member"; label: string }[] = [
-  { value: "team_member", label: "Team member" },
-  { value: "center_admin", label: "Centre admin" },
-];
-
 type AddMemberDraft = {
   full_name: string;
   email: string;
   phone: string;
-  member_kind: "center_admin" | "team_member";
   position_key: TeamLine["position_key"];
   custom_position_label: string;
 };
 
-function emptyDraft(member_kind: "center_admin" | "team_member" = "center_admin"): AddMemberDraft {
+function emptyDraft(): AddMemberDraft {
   return {
     full_name: "",
     email: "",
     phone: "",
-    member_kind,
     position_key: "owner",
     custom_position_label: "",
   };
@@ -201,7 +194,7 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [addDraft, setAddDraft] = useState<AddMemberDraft>(() => emptyDraft("team_member"));
+  const [addDraft, setAddDraft] = useState<AddMemberDraft>(() => emptyDraft());
 
   const load = useCallback(async () => {
     if (!isInvite) return;
@@ -227,10 +220,6 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
   }, [inviteToken, isInvite, supabase]);
 
   useEffect(() => { void load(); }, [load]);
-
-  const setAdminLine = (index: number) => {
-    setLines((ls) => ls.map((l, i) => ({ ...l, is_center_admin: i === index })));
-  };
 
   const removeLine = (index: number) => {
     setLines((ls) => {
@@ -263,12 +252,9 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
     }
     setError(null);
 
-    const wantsAdmin = addDraft.member_kind === "center_admin";
-    const hasAdmin = lines.some((l) => l.is_center_admin);
-    const promoteNew = wantsAdmin || !hasAdmin;
+    const promoteNew = !lines.some((l) => l.is_center_admin);
 
     setLines((ls) => {
-      const demoted = promoteNew ? ls.map((l) => ({ ...l, is_center_admin: false })) : ls;
       const next: TeamLine = {
         full_name: fullName,
         email,
@@ -277,11 +263,10 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
         custom_position_label: addDraft.position_key === "custom" ? addDraft.custom_position_label.trim() : "",
         is_center_admin: promoteNew,
       };
-      return [...demoted, next];
+      return [...ls, next];
     });
 
-    const nextHasAdmin = promoteNew || hasAdmin;
-    setAddDraft(emptyDraft(nextHasAdmin ? "team_member" : "center_admin"));
+    setAddDraft(emptyDraft());
   }, [addDraft, lines]);
 
   const submit = useCallback(async () => {
@@ -415,17 +400,21 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
 
   const addPanelStyle: CSSProperties = {
     borderRadius: T.radiusMd,
-    border: `1px solid ${T.border}`,
-    background: "linear-gradient(180deg, rgba(242,248,238,0.95) 0%, rgba(220,235,220,0.35) 100%)",
-    padding: "clamp(16px, 2.2vw, 20px)",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.65)",
+    border: `1px solid ${T.borderLight}`,
+    backgroundColor: "#f6faf3",
+    padding: "clamp(14px, 1.8vw, 18px)",
   };
 
-  const addGridStyle: CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
-    gap: "clamp(12px, 2vw, 16px)",
-    alignItems: "stretch",
+  const addRowStyle: CSSProperties = {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "clamp(10px, 1.5vw, 14px)",
+    alignItems: "flex-end",
+  };
+
+  const addFieldCellStyle: CSSProperties = {
+    flex: "1 1 150px",
+    minWidth: 130,
   };
 
   const compactInputStyle: CSSProperties = {
@@ -570,22 +559,13 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
             )}
 
             {/* Centre name */}
-            <div
-              style={{
-                marginBottom: 28,
-                padding: "clamp(16px, 2vw, 22px)",
-                borderRadius: T.radiusMd,
-                border: `1px solid ${T.borderLight}`,
-                background: "linear-gradient(180deg, #ffffff 0%, #f8faf6 100%)",
-                boxShadow: "0 1px 3px rgba(35, 50, 23, 0.04)",
-              }}
-            >
-              <label style={labelStyle}>Centre name</label>
+            <div style={{ marginBottom: 24, maxWidth: 520 }}>
+              <label style={compactFieldLabelStyle}>Centre name</label>
               <input
                 value={centerName}
                 onChange={(e) => setCenterName(e.target.value)}
                 placeholder="e.g. Apex Transfers LLC"
-                style={{ ...fieldStyle, borderRadius: 10 }}
+                style={{ ...fieldStyle, padding: "10px 12px", fontSize: 13, fontWeight: 500, minHeight: 40, borderRadius: 10 }}
                 onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
                 onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
               />
@@ -645,7 +625,6 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                   <table className="intake-form-table" style={tableStyle}>
                     <thead>
                       <tr>
-                        <th style={thStyle}>Role</th>
                         <th style={thStyle}>Name</th>
                         <th style={thStyle}>Email</th>
                         <th style={thStyle}>Position</th>
@@ -655,7 +634,7 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                     <tbody>
                       {lines.length === 0 ? (
                         <tr className="intake-empty-row">
-                          <td colSpan={5} style={{ ...tdStyle, borderBottom: "none", color: T.textMuted, fontWeight: 600, textAlign: "center", padding: "clamp(22px, 4vw, 36px) 20px", lineHeight: 1.55, fontSize: 13, background: "rgba(255,255,255,0.65)" }}>
+                          <td colSpan={4} style={{ ...tdStyle, borderBottom: "none", color: T.textMuted, fontWeight: 600, textAlign: "center", padding: "clamp(22px, 4vw, 36px) 20px", lineHeight: 1.55, fontSize: 13, background: "rgba(255,255,255,0.65)" }}>
                             <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 10, maxWidth: "36rem", margin: "0 auto" }}>
                               <span
                                 style={{
@@ -673,7 +652,7 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.75"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
                               </span>
                               <span>
-                                No team members yet. Add people below — the first person you add becomes the centre administrator unless you choose <strong style={{ color: T.textDark, fontWeight: 800 }}>Centre admin</strong> for someone else.
+                                No team members yet — add the centre team below.
                               </span>
                             </span>
                           </td>
@@ -681,40 +660,6 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                       ) : (
                         lines.map((line, idx) => (
                           <tr key={idx} className="intake-data-row">
-                            <td style={tdStyle}>
-                              <button
-                                type="button"
-                                onClick={() => setAdminLine(idx)}
-                                disabled={line.is_center_admin}
-                                title={line.is_center_admin ? "Centre administrator" : "Make centre administrator"}
-                                onMouseEnter={(e) => {
-                                  if (line.is_center_admin) return;
-                                  e.currentTarget.style.background = "rgba(220,235,220,0.95)";
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (line.is_center_admin) {
-                                    e.currentTarget.style.background = "#dcfce7";
-                                    return;
-                                  }
-                                  e.currentTarget.style.background = T.blueFaint;
-                                }}
-                                style={{
-                                  border: line.is_center_admin ? "1px solid #86efac" : `1px solid ${T.borderLight}`,
-                                  background: line.is_center_admin ? "#dcfce7" : T.blueFaint,
-                                  color: line.is_center_admin ? "#166534" : T.textMid,
-                                  fontSize: 11,
-                                  fontWeight: 800,
-                                  letterSpacing: "0.3px",
-                                  textTransform: "uppercase",
-                                  padding: "5px 11px",
-                                  borderRadius: 8,
-                                  cursor: line.is_center_admin ? "default" : "pointer",
-                                  transition: "all 0.15s ease-in-out",
-                                }}
-                              >
-                                {line.is_center_admin ? "Admin" : "Member"}
-                              </button>
-                            </td>
                             <td style={{ ...tdStyle, fontWeight: 700 }}>{line.full_name}</td>
                             <td style={tdStyle}>{line.email}</td>
                             <td style={{ ...tdStyle, textTransform: line.position_key === "custom" ? "none" : "capitalize" }}>
@@ -754,11 +699,11 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
 
                 {/* Add team member */}
                 <div style={addPanelStyle}>
-                  <p style={{ margin: "0 0 14px", fontSize: 11, fontWeight: 900, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.35px" }}>
+                  <p style={{ margin: "0 0 12px", fontSize: 11, fontWeight: 800, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.35px" }}>
                     Add team member
                   </p>
-                  <div style={addGridStyle}>
-                    <div style={{ minWidth: 0 }}>
+                  <div style={addRowStyle}>
+                    <div style={{ ...addFieldCellStyle, flex: "2 1 200px" }}>
                       <label style={compactFieldLabelStyle}>Full name</label>
                       <input
                         placeholder="Full name"
@@ -769,7 +714,7 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                         onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
                       />
                     </div>
-                    <div style={{ minWidth: 0 }}>
+                    <div style={{ ...addFieldCellStyle, flex: "2 1 200px" }}>
                       <label style={compactFieldLabelStyle}>Email</label>
                       <input
                         placeholder="Email"
@@ -783,10 +728,10 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                         onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
                       />
                     </div>
-                    <div style={{ minWidth: 0 }}>
+                    <div style={addFieldCellStyle}>
                       <label style={compactFieldLabelStyle}>Phone (optional)</label>
                       <input
-                        placeholder="Phone (optional)"
+                        placeholder="Phone"
                         value={addDraft.phone}
                         onChange={(e) => setAddDraft((d) => ({ ...d, phone: e.target.value }))}
                         style={compactInputStyle}
@@ -794,16 +739,7 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                         onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
                       />
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <label style={compactFieldLabelStyle}>Team role</label>
-                      <IntakeSelect
-                        ariaLabel="Team role"
-                        value={addDraft.member_kind}
-                        onValueChange={(v) => setAddDraft((d) => ({ ...d, member_kind: v as AddMemberDraft["member_kind"] }))}
-                        options={KIND_OPTIONS}
-                      />
-                    </div>
-                    <div style={{ minWidth: 0 }}>
+                    <div style={addFieldCellStyle}>
                       <label style={compactFieldLabelStyle}>Position</label>
                       <IntakeSelect
                         ariaLabel="Position"
@@ -812,44 +748,47 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
                         options={POSITION_OPTIONS}
                       />
                     </div>
-                  </div>
-                  {addDraft.position_key === "custom" && (
-                    <div style={{ marginTop: 12, minWidth: 0 }}>
-                      <label style={compactFieldLabelStyle}>Custom role</label>
-                      <input
-                        placeholder="Describe the role"
-                        value={addDraft.custom_position_label}
-                        onChange={(e) => setAddDraft((d) => ({ ...d, custom_position_label: e.target.value }))}
-                        style={compactInputStyle}
-                        onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
-                        onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-                      />
-                    </div>
-                  )}
-                  <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 10 }}>
+                    {addDraft.position_key === "custom" && (
+                      <div style={addFieldCellStyle}>
+                        <label style={compactFieldLabelStyle}>Custom role</label>
+                        <input
+                          placeholder="Describe the role"
+                          value={addDraft.custom_position_label}
+                          onChange={(e) => setAddDraft((d) => ({ ...d, custom_position_label: e.target.value }))}
+                          style={compactInputStyle}
+                          onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
+                          onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
+                        />
+                      </div>
+                    )}
                     <button
                       type="button"
                       className="intake-btn-primary"
                       onClick={addLineFromDraft}
                       style={{
+                        flex: "0 0 auto",
+                        marginLeft: "auto",
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: 8,
-                        padding: "11px 22px",
-                        minHeight: 42,
-                        minWidth: 140,
+                        gap: 6,
+                        height: 40,
+                        padding: "0 18px",
                         borderRadius: 10,
                         border: "none",
                         backgroundColor: "#233217",
                         color: "#fff",
                         fontSize: 13,
-                        fontWeight: 800,
+                        fontWeight: 700,
                         cursor: "pointer",
                         transition: "all 0.15s ease-in-out",
-                        boxShadow: "0 2px 8px rgba(35, 50, 23, 0.2)",
+                        boxShadow: "0 1px 4px rgba(35, 50, 23, 0.16)",
+                        fontFamily: T.font,
                       }}
                     >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
                       Add to team
                     </button>
                   </div>
@@ -857,34 +796,73 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
               </div>
             </div>
 
-          {/* Submit */}
-          <button
-            type="button"
-            disabled={saving}
-            className="intake-btn-primary"
-            onClick={() => void submit()}
+          {/* Submit action bar */}
+          <div
             style={{
-              marginTop: "clamp(24px, 3vw, 36px)",
-              width: "100%",
-              padding: "clamp(15px, 2vw, 18px) 24px",
-              border: "none",
-              borderRadius: T.radiusMd,
-              backgroundColor: saving ? "#c8d4bb" : "#233217",
-              color: "#fff",
-              fontSize: 15,
-              fontWeight: 800,
-              letterSpacing: "0.02em",
-              cursor: saving ? "not-allowed" : "pointer",
-              transition: "all 0.15s ease-in-out",
-              boxShadow: saving ? "none" : "0 2px 12px rgba(35, 50, 23, 0.18)",
+              marginTop: "clamp(20px, 2.5vw, 28px)",
+              paddingTop: "clamp(16px, 2vw, 20px)",
+              borderTop: `1px solid ${T.borderLight}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
             }}
           >
-            {saving ? "Submitting…" : "Submit intake"}
-          </button>
-
-          <p style={{ marginTop: 18, textAlign: "center", fontSize: 12, fontWeight: 500, color: T.textMuted, lineHeight: 1.5, maxWidth: "40rem", marginLeft: "auto", marginRight: "auto" }}>
-            If you need help, reply to your Insurvas contact.
-          </p>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: T.textMuted, lineHeight: 1.5 }}>
+              Need help? Reply to your Insurvas contact.
+            </p>
+            <button
+              type="button"
+              disabled={saving}
+              className="intake-btn-primary"
+              onClick={() => void submit()}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                height: 42,
+                padding: "0 22px",
+                minWidth: 180,
+                border: "none",
+                borderRadius: 10,
+                backgroundColor: saving ? "#c8d4bb" : "#233217",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: "0.01em",
+                cursor: saving ? "not-allowed" : "pointer",
+                transition: "all 0.15s ease-in-out",
+                boxShadow: saving ? "none" : "0 2px 8px rgba(35, 50, 23, 0.18)",
+                fontFamily: T.font,
+              }}
+            >
+              {saving ? (
+                <>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 14,
+                      height: 14,
+                      border: "2px solid rgba(255,255,255,0.4)",
+                      borderTopColor: "#fff",
+                      borderRadius: "50%",
+                      animation: "spin 0.7s linear infinite",
+                    }}
+                  />
+                  Submitting…
+                </>
+              ) : (
+                <>
+                  Submit intake
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M5 12h14M13 5l7 7-7 7" />
+                  </svg>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
       </div>
