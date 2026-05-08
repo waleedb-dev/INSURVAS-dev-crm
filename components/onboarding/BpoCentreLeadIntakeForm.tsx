@@ -54,6 +54,18 @@ function positionLabel(line: Pick<TeamLine, "position_key" | "custom_position_la
   return opt?.label ?? line.position_key;
 }
 
+/**
+ * Centre admin = the Owner. If multiple owners are present, the first owner wins.
+ * If no owner has been added yet, the first row stands in so the data invariant
+ * (exactly one centre admin) holds for the submit payload.
+ */
+function applyAdminRule(rows: TeamLine[]): TeamLine[] {
+  if (rows.length === 0) return rows;
+  const ownerIdx = rows.findIndex((r) => r.position_key === "owner");
+  const adminIdx = ownerIdx >= 0 ? ownerIdx : 0;
+  return rows.map((r, i) => ({ ...r, is_center_admin: i === adminIdx }));
+}
+
 const SUBMIT_ERROR_MAP: Record<string, string> = {
   invalid_token: "This link is not valid.",
   expired: "This invite has expired.",
@@ -209,26 +221,22 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
     setCenterName(p.centre_display_name ?? "");
     setSubmittedAt(p.form_submitted_at ?? null);
     if (Array.isArray(p.team) && p.team.length > 0) {
-      const anyAdmin = p.team.some((x) => x.is_center_admin);
-      setLines(p.team.map((r, idx) => ({
-        full_name: r.full_name ?? "", email: r.email ?? "", phone: r.phone ?? "",
+      const parsed: TeamLine[] = p.team.map((r) => ({
+        full_name: r.full_name ?? "",
+        email: r.email ?? "",
+        phone: r.phone ?? "",
         position_key: (r.position_key as TeamLine["position_key"]) || "owner",
         custom_position_label: r.custom_position_label ?? "",
-        is_center_admin: !!r.is_center_admin || (!anyAdmin && idx === 0),
-      })));
+        is_center_admin: false,
+      }));
+      setLines(applyAdminRule(parsed));
     }
   }, [inviteToken, isInvite, supabase]);
 
   useEffect(() => { void load(); }, [load]);
 
   const removeLine = (index: number) => {
-    setLines((ls) => {
-      const next = ls.filter((_, i) => i !== index);
-      if (next.length > 0 && !next.some((l) => l.is_center_admin)) {
-        next[0] = { ...next[0], is_center_admin: true };
-      }
-      return next;
-    });
+    setLines((ls) => applyAdminRule(ls.filter((_, i) => i !== index)));
   };
 
   const addLineFromDraft = useCallback(() => {
@@ -252,19 +260,17 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
     }
     setError(null);
 
-    const promoteNew = !lines.some((l) => l.is_center_admin);
-
-    setLines((ls) => {
-      const next: TeamLine = {
+    setLines((ls) => applyAdminRule([
+      ...ls,
+      {
         full_name: fullName,
         email,
         phone: addDraft.phone.trim(),
         position_key: addDraft.position_key,
         custom_position_label: addDraft.position_key === "custom" ? addDraft.custom_position_label.trim() : "",
-        is_center_admin: promoteNew,
-      };
-      return [...ls, next];
-    });
+        is_center_admin: false,
+      },
+    ]));
 
     setAddDraft(emptyDraft());
   }, [addDraft, lines]);
@@ -454,16 +460,215 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
 
   /* ---------- Success ---------- */
   if (success || submittedAt) {
+    const submittedCentreName = centerName.trim();
+    const nextSteps: { title: string; description: string }[] = [
+      {
+        title: "We review your team",
+        description: "Your Insurvas account manager confirms the roster and centre details.",
+      },
+      {
+        title: "Credentials are provisioned",
+        description: "We create logins for the centre administrator and closers.",
+      },
+      {
+        title: "Onboarding call scheduled",
+        description: "You'll receive an email with next-step instructions and a meeting link.",
+      },
+    ];
+
     return (
       <div style={{ ...pageStyle, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ ...cardStyle, maxWidth: 480, textAlign: "center" }}>
-          <div style={headerStyle}>
-            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>Thank you</h1>
+        <div
+          style={{
+            ...cardStyle,
+            width: "100%",
+            maxWidth: 720,
+            overflow: "hidden",
+          }}
+        >
+          {/* Branded header */}
+          <div
+            style={{
+              ...headerStyle,
+              display: "grid",
+              gridTemplateColumns: "1fr auto 1fr",
+              alignItems: "center",
+              gap: 12,
+              paddingTop: "clamp(16px, 2.2vw, 26px)",
+              paddingBottom: "clamp(16px, 2.2vw, 26px)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center", minWidth: 0 }}>
+              <img
+                src="/logo-expanded.png"
+                alt="Insurvas"
+                style={{
+                  height: "clamp(30px, 3.2vw, 38px)",
+                  width: "auto",
+                  maxWidth: "min(200px, 42vw)",
+                  objectFit: "contain",
+                  objectPosition: "left center",
+                }}
+              />
+            </div>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "clamp(1.05rem, 1.6vw, 1.25rem)",
+                fontWeight: 800,
+                color: T.textDark,
+                lineHeight: 1.2,
+                textAlign: "center",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Onboarding submitted
+            </h1>
+            <div aria-hidden style={{ minWidth: 0 }} />
           </div>
-          <div style={{ ...bodyStyle, padding: "32px 24px" }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: T.textMuted, lineHeight: 1.6 }}>
-              Your centre lead details were received. Our team will follow up with credentials and next steps.
+
+          {/* Hero confirmation */}
+          <div
+            style={{
+              padding: "clamp(28px, 4vw, 44px) clamp(24px, 4vw, 48px) clamp(8px, 1.5vw, 16px)",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: "50%",
+                background: "linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%)",
+                border: "1px solid rgba(35, 50, 23, 0.12)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 20px",
+                boxShadow: "0 6px 20px rgba(35, 50, 23, 0.12)",
+              }}
+              aria-hidden
+            >
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "clamp(1.5rem, 2.4vw, 2rem)",
+                fontWeight: 800,
+                color: T.textDark,
+                lineHeight: 1.2,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Thank you{submittedCentreName ? `, ${submittedCentreName}` : ""}.
+            </h2>
+            <p
+              style={{
+                margin: "12px auto 0",
+                fontSize: 15,
+                fontWeight: 500,
+                color: T.textMuted,
+                lineHeight: 1.55,
+                maxWidth: "44ch",
+              }}
+            >
+              Your centre lead details have been received. Our team will be in touch shortly with credentials and next steps.
             </p>
+          </div>
+
+          {/* Next steps */}
+          <div
+            style={{
+              padding: "clamp(20px, 3vw, 32px) clamp(20px, 4vw, 48px) clamp(28px, 4vw, 40px)",
+            }}
+          >
+            <p
+              style={{
+                margin: "0 0 14px",
+                fontSize: 11,
+                fontWeight: 800,
+                color: T.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.4px",
+                textAlign: "center",
+              }}
+            >
+              What happens next
+            </p>
+            <ol
+              style={{
+                listStyle: "none",
+                margin: 0,
+                padding: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              {nextSteps.map((step, i) => (
+                <li
+                  key={step.title}
+                  style={{
+                    display: "flex",
+                    gap: 14,
+                    alignItems: "flex-start",
+                    padding: "14px 16px",
+                    borderRadius: T.radiusMd,
+                    border: `1px solid ${T.borderLight}`,
+                    backgroundColor: "#f6faf3",
+                  }}
+                >
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      backgroundColor: "#233217",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      letterSpacing: "0",
+                      marginTop: 1,
+                    }}
+                    aria-hidden
+                  >
+                    {i + 1}
+                  </span>
+                  <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark, lineHeight: 1.35 }}>
+                      {step.title}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: T.textMuted, lineHeight: 1.5 }}>
+                      {step.description}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: "16px clamp(20px, 4vw, 48px) 22px",
+              borderTop: `1px solid ${T.borderLight}`,
+              backgroundColor: "#fafcf8",
+              textAlign: "center",
+              fontSize: 12,
+              fontWeight: 500,
+              color: T.textMuted,
+              lineHeight: 1.5,
+            }}
+          >
+            Questions in the meantime? Reply to your Insurvas contact and we'll help you out.
           </div>
         </div>
       </div>
