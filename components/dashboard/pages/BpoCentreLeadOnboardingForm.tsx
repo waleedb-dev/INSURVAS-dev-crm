@@ -5,30 +5,6 @@ import { Loader2 } from "lucide-react";
 import { T } from "@/lib/theme";
 import UserEditorComponent from "@/components/dashboard/pages/UserEditorComponent";
 
-const REGIONS = [
-  "North America",
-  "South America",
-  "Central America",
-  "Caribbean",
-  "Europe",
-  "Middle East",
-  "Africa",
-  "Asia",
-  "Oceania",
-] as const;
-
-const COUNTRIES_BY_REGION: Record<string, string[]> = {
-  "North America": ["United States", "Canada", "Mexico"],
-  "South America": ["Brazil", "Argentina", "Colombia", "Peru", "Chile", "Venezuela", "Ecuador", "Bolivia", "Paraguay", "Uruguay", "Guyana", "Suriname", "French Guiana"],
-  "Central America": ["Guatemala", "Belize", "Honduras", "El Salvador", "Nicaragua", "Costa Rica", "Panama"],
-  "Caribbean": ["Dominican Republic", "Cuba", "Jamaica", "Puerto Rico", "Trinidad and Tobago", "Bahamas", "Barbados", "Haiti"],
-  "Europe": ["United Kingdom", "Spain", "Germany", "France", "Italy", "Portugal", "Poland", "Romania", "Netherlands", "Belgium", "Sweden", "Austria", "Switzerland", "Greece", "Czech Republic", "Hungary", "Denmark", "Finland", "Norway", "Ireland", "Slovakia", "Bulgaria", "Croatia", "Serbia", "Slovenia", "Lithuania", "Latvia", "Estonia", "Luxembourg", "Malta", "Cyprus"],
-  "Middle East": ["Saudi Arabia", "United Arab Emirates", "Israel", "Turkey", "Egypt", "Qatar", "Kuwait", "Bahrain", "Oman", "Jordan", "Lebanon", "Iraq", "Iran"],
-  "Africa": ["Nigeria", "South Africa", "Kenya", "Ghana", "Egypt", "Morocco", "Tanzania", "Uganda", "Ethiopia", "Algeria", "Cameroon", "Senegal", "Ivory Coast", "Tunisia", "Libya", "Sudan", "Angola", "Mozambique", "Madagascar", "Zimbabwe"],
-  "Asia": ["India", "Pakistan", "Philippines", "Bangladesh", "Sri Lanka", "Nepal", "Indonesia", "Thailand", "Vietnam", "Malaysia", "Singapore", "China", "Hong Kong", "Taiwan", "Japan", "South Korea", "Myanmar", "Cambodia", "Laos", "Mongolia"],
-  "Oceania": ["Australia", "New Zealand", "Fiji", "Papua New Guinea", "Samoa", "Tonga", "Vanuatu", "Solomon Islands"],
-};
-
 type TabKey = "info" | "thresholds" | "team";
 
 export interface CentreOnboardingPrefill {
@@ -36,7 +12,6 @@ export interface CentreOnboardingPrefill {
   did?: string | null;
   slackChannel?: string | null;
   email?: string | null;
-  region?: string | null;
   country?: string | null;
   dailyTransferTarget?: number | null;
   dailySalesTarget?: number | null;
@@ -50,7 +25,6 @@ export interface CentreCreateValues {
   did: string;
   slackChannel: string;
   email: string;
-  region: string;
   country: string;
 }
 
@@ -116,7 +90,6 @@ export default function BpoCentreLeadOnboardingForm({
   const [did, setDid] = useState(prefill.did ?? "");
   const [slackChannel, setSlackChannel] = useState(prefill.slackChannel ?? "");
   const [email, setEmail] = useState(prefill.email ?? "");
-  const [region, setRegion] = useState(prefill.region ?? "");
   const [country, setCountry] = useState(prefill.country ?? "");
 
   const [touched, setTouched] = useState({ name: false, did: false, slack: false, email: false });
@@ -177,7 +150,6 @@ export default function BpoCentreLeadOnboardingForm({
       did: did.trim(),
       slackChannel: slackChannel.trim(),
       email: email.trim(),
-      region: region.trim(),
       country: country.trim(),
     });
     setCreating(false);
@@ -237,16 +209,26 @@ export default function BpoCentreLeadOnboardingForm({
                 />
               </div>
               <div>
-                <label style={labelStyle}>DIRECT LINE (DID) *</label>
+                <label style={labelStyle}>COUNTRY</label>
                 <input
-                  type="tel"
-                  value={did}
-                  onChange={(e) => setDid(e.target.value.replace(/[^0-9+]/g, ""))}
-                  onBlur={() => setTouched((t) => ({ ...t, did: true }))}
-                  placeholder="e.g. +15550000000"
-                  style={requiredInputStyle(invalidDid)}
+                  autoComplete="off"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  placeholder="e.g. United Kingdom"
+                  style={baseInputStyle}
                 />
               </div>
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={labelStyle}>DIRECT LINE (DID) *</label>
+              <input
+                type="tel"
+                value={did}
+                onChange={(e) => setDid(e.target.value.replace(/[^0-9+]/g, ""))}
+                onBlur={() => setTouched((t) => ({ ...t, did: true }))}
+                placeholder="e.g. +15550000000"
+                style={{ ...requiredInputStyle(invalidDid), width: "100%" }}
+              />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               <div>
@@ -269,51 +251,6 @@ export default function BpoCentreLeadOnboardingForm({
                   placeholder="centre@email.com"
                   style={requiredInputStyle(invalidEmail)}
                 />
-              </div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginTop: 24 }}>
-              <div>
-                <label style={labelStyle}>REGION</label>
-                <select
-                  value={region}
-                  onChange={(e) => {
-                    setRegion(e.target.value);
-                    setCountry("");
-                  }}
-                  style={{
-                    ...baseInputStyle,
-                    cursor: "pointer",
-                    color: region ? T.textDark : T.textMuted,
-                  }}
-                >
-                  <option value="">Select Region...</option>
-                  {REGIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={labelStyle}>COUNTRY</label>
-                <select
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  disabled={!region}
-                  style={{
-                    ...baseInputStyle,
-                    cursor: region ? "pointer" : "not-allowed",
-                    backgroundColor: region ? "#fff" : T.rowBg,
-                    color: country ? T.textDark : (region ? T.textMuted : "#aaa"),
-                  }}
-                >
-                  <option value="">Select Country...</option>
-                  {region && COUNTRIES_BY_REGION[region]?.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 

@@ -7,8 +7,11 @@ import { T } from "@/lib/theme";
 export type PipelineKanbanColumn = {
   id: string | number;
   title: string;
+  /** Hover text shown next to the column title (same pattern as Lead Pipeline). */
+  info?: string;
   count: number;
-  value: string;
+  /** Optional summary next to counts (e.g. currency totals); omit for boards without aggregates. */
+  value?: string;
   color: string;
   bg: string;
   cards: ReactNode;
@@ -39,6 +42,7 @@ export function PipelineKanban({
 }) {
   const totalCards = columns.reduce((sum, column) => sum + column.count, 0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [infoTooltip, setInfoTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   const toggleCollapse = (id: PipelineKanbanColumn["id"]) => {
     const key = String(id);
@@ -212,9 +216,43 @@ export function PipelineKanban({
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark, lineHeight: 1.25 }}>
-                          {column.title}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: T.textDark, lineHeight: 1.25 }}>
+                            {column.title}
+                          </span>
+                          {column.info ? (
+                            <div style={{ position: "relative", flexShrink: 0 }}>
+                              <button
+                                type="button"
+                                onMouseEnter={(e) => {
+                                  const text = column.info;
+                                  if (!text) return;
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setInfoTooltip({ text, x: rect.left, y: rect.bottom + 8 });
+                                }}
+                                onMouseLeave={() => setInfoTooltip(null)}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  padding: 2,
+                                  color: T.textMuted,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  borderRadius: "50%",
+                                }}
+                                aria-label={`What this stage means: ${column.title}`}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <line x1="12" y1="16" x2="12" y2="12" />
+                                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                                </svg>
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                         <button
                           type="button"
                           onClick={() => toggleCollapse(column.id)}
@@ -224,6 +262,7 @@ export function PipelineKanban({
                             cursor: "pointer",
                             padding: 0,
                             color: T.textMuted,
+                            flexShrink: 0,
                           }}
                           aria-label={`Collapse ${column.title}`}
                         >
@@ -234,7 +273,9 @@ export function PipelineKanban({
                       </div>
                       <div style={{ marginTop: 4, display: "flex", gap: 12, fontSize: 12 }}>
                         <span style={{ color: T.textMuted, fontWeight: 600 }}>{formatCountLabel(column.count)}</span>
-                        <span style={{ color: T.textDark, fontWeight: 800 }}>{column.value}</span>
+                        {column.value?.trim() ? (
+                          <span style={{ color: T.textDark, fontWeight: 800 }}>{column.value}</span>
+                        ) : null}
                       </div>
                     </div>
                     <div
@@ -257,6 +298,30 @@ export function PipelineKanban({
           })}
         </div>
       </div>
+
+      {infoTooltip && (
+        <div
+          style={{
+            position: "fixed",
+            top: infoTooltip.y,
+            left: infoTooltip.x,
+            backgroundColor: "#fff",
+            color: "#233217",
+            padding: "12px 16px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 500,
+            maxWidth: 260,
+            zIndex: 9999,
+            boxShadow: "0 8px 24px rgba(35, 50, 23, 0.2)",
+            lineHeight: 1.5,
+            border: "1.5px solid #233217",
+            pointerEvents: "none",
+          }}
+        >
+          {infoTooltip.text}
+        </div>
+      )}
     </div>
   );
 }

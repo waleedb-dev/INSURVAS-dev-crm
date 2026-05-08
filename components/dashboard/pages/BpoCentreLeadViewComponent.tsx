@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/select";
 import { useDashboardContext } from "@/components/dashboard/DashboardContext";
 import { LeadCard, InfoField, InfoGrid, formatDate } from "@/components/dashboard/pages/LeadCard";
-import UserEditorComponent from "@/components/dashboard/pages/UserEditorComponent";
 import BpoCentreLeadOnboardingForm from "@/components/dashboard/pages/BpoCentreLeadOnboardingForm";
+import { bpoRegionForCountry } from "@/lib/bpoRegionCountry";
 import { Toast } from "@/components/ui";
 
 const BRAND_GREEN = "#233217";
@@ -164,10 +164,10 @@ function fieldBlur(e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) {
 interface CenterLeadRow {
   id: string;
   centre_display_name: string;
+  country: string | null;
   stage: CenterLeadStage;
   linked_crm_centre_label: string | null;
   lead_vendor_label: string | null;
-  opportunity_value: number | null;
   opportunity_source: string | null;
   expected_start_date: string | null;
   committed_daily_sales: number | null;
@@ -324,8 +324,6 @@ export default function BpoCentreLeadViewComponent({
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [credForm, setCredForm] = useState({ slack: "", crm: "", did: "", other: "" });
-  const [provisioned, setProvisioned] = useState<{ adminEmail?: string; adminName?: string; closerEmail?: string; closerName?: string }>({});
-  const [showCloserProvision, setShowCloserProvision] = useState(false);
   const [callNotes, setCallNotes] = useState("");
   const [callDisposition, setCallDisposition] = useState<"" | "call_completed" | "no_pickup">("");
   const [resLeadForm, setResLeadForm] = useState({ title: "", url: "", description: "" });
@@ -476,10 +474,10 @@ export default function BpoCentreLeadViewComponent({
       .from("bpo_center_leads")
       .update({
         centre_display_name: draft.centre_display_name,
+        country: draft.country?.trim() || null,
         stage: draft.stage,
         linked_crm_centre_label: draft.linked_crm_centre_label?.trim() || null,
         lead_vendor_label: draft.lead_vendor_label?.trim() || null,
-        opportunity_value: draft.opportunity_value,
         opportunity_source: draft.opportunity_source?.trim() || null,
         expected_start_date: draft.expected_start_date || null,
         committed_daily_sales: draft.committed_daily_sales,
@@ -625,10 +623,10 @@ export default function BpoCentreLeadViewComponent({
 
   const credentialsEmail = useMemo(() => {
     const centreName = draft?.centre_display_name?.trim() || "your centre";
-    const adminName = provisioned.adminName || intakeAdmin?.full_name || "Centre admin";
-    const adminEmail = provisioned.adminEmail || intakeAdmin?.email || "";
-    const closerName = provisioned.closerName || intakeCloser?.full_name || "Closer";
-    const closerEmail = provisioned.closerEmail || intakeCloser?.email || "";
+    const adminName = intakeAdmin?.full_name || "Centre admin";
+    const adminEmail = intakeAdmin?.email || "";
+    const closerName = intakeCloser?.full_name || "Closer";
+    const closerEmail = intakeCloser?.email || "";
 
     const lines: string[] = [];
     lines.push(`Hello ${adminName},`);
@@ -651,7 +649,7 @@ export default function BpoCentreLeadViewComponent({
       subject: `Insurvas access details – ${centreName}`,
       body: lines.join("\n"),
     };
-  }, [credForm.crm, credForm.did, credForm.other, credForm.slack, draft?.centre_display_name, intakeAdmin?.email, intakeAdmin?.full_name, intakeCloser?.email, intakeCloser?.full_name, provisioned.adminEmail, provisioned.adminName, provisioned.closerEmail, provisioned.closerName]);
+  }, [credForm.crm, credForm.did, credForm.other, credForm.slack, draft?.centre_display_name, intakeAdmin?.email, intakeAdmin?.full_name, intakeCloser?.email, intakeCloser?.full_name]);
 
   const addResource = useCallback(
     async (scope: "universal" | "lead", form: { title: string; url: string; description: string }) => {
@@ -847,7 +845,7 @@ export default function BpoCentreLeadViewComponent({
         /* ═══════════════════════════════════════════════════════════════════
            3-PANEL LAYOUT: Profile (top-left), Notes (bottom-left), Call (right)
            ═══════════════════════════════════════════════════════════════════ */
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 480px", gap: 18, alignItems: "start" }}>
           {/* LEFT COLUMN */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* Section 1: Centre profile */}
@@ -881,6 +879,9 @@ export default function BpoCentreLeadViewComponent({
                 <InfoField label="Centre name" value={draft.centre_display_name} />
                 <InfoField label="Stage" value={STAGE_LABEL[draft.stage] ?? draft.stage} />
                 <InfoField label="Closers" value={draft.closer_count ?? "—"} />
+              </InfoGrid>
+              <InfoGrid columns={1} bordered={false}>
+                <InfoField label="Country" value={draft.country?.trim() || "—"} />
               </InfoGrid>
               <InfoGrid columns={3} bordered={false}>
                 <InfoField label="Daily sales target" value={draft.committed_daily_sales ?? "—"} />
@@ -1262,6 +1263,7 @@ export default function BpoCentreLeadViewComponent({
                 }}
                 prefill={{
                   centreName: draft.centre_display_name,
+                  country: draft.country,
                   did: credentials[0]?.did_number ?? null,
                   slackChannel: credentials[0]?.slack_account_details ?? null,
                   email: intakeAdmin?.email ?? null,
@@ -1284,7 +1286,7 @@ export default function BpoCentreLeadViewComponent({
                       did: values.did || null,
                       slack_channel: values.slackChannel || null,
                       email: values.email || null,
-                      region: values.region || null,
+                      region: bpoRegionForCountry(values.country)?.trim() || null,
                       country: values.country || null,
                     }])
                     .select("id")
@@ -1381,56 +1383,14 @@ export default function BpoCentreLeadViewComponent({
             <div style={{ marginBottom: 16 }}>
               <LeadCard icon="👤" title="Provision users" subtitle="Create centre admin + closer accounts and send credentials" collapsible={false}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <div style={{ fontSize: 12, fontWeight: 900, color: BRAND_GREEN, textTransform: "uppercase", letterSpacing: "0.3px" }}>
-                        Suggested from intake
-                      </div>
-                      <div style={{ fontSize: 12, color: T.textMid, fontWeight: 600 }}>
-                        Admin: {intakeAdmin ? `${intakeAdmin.full_name} (${intakeAdmin.email})` : "Not set"} · Closer: {intakeCloser ? `${intakeCloser.full_name} (${intakeCloser.email})` : "Not set"}
-                      </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: BRAND_GREEN, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                      Suggested from intake
                     </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowCloserProvision((v) => !v)}
-                        style={{
-                          height: 34,
-                          padding: "0 12px",
-                          borderRadius: 10,
-                          border: `1px solid ${T.border}`,
-                          background: "#fff",
-                          color: BRAND_GREEN,
-                          fontSize: 12,
-                          fontWeight: 800,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {showCloserProvision ? "Hide closer form" : "Create closer"}
-                      </button>
+                    <div style={{ fontSize: 12, color: T.textMid, fontWeight: 600 }}>
+                      Admin: {intakeAdmin ? `${intakeAdmin.full_name} (${intakeAdmin.email})` : "Not set"} · Closer: {intakeCloser ? `${intakeCloser.full_name} (${intakeCloser.email})` : "Not set"}
                     </div>
                   </div>
-
-                  {showCloserProvision && (
-                    <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
-                      <UserEditorComponent
-                        onClose={() => setShowCloserProvision(false)}
-                        onSubmit={(data) => {
-                          const fullName = `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim();
-                          setProvisioned((p) => ({ ...p, closerEmail: data.email, closerName: fullName || p.closerName }));
-                          setToast({ message: "Closer created.", type: "success" });
-                        }}
-                        presetRoleKey="call_center_agent"
-                        allowedRoleKeys={["call_center_agent"]}
-                        lockRole
-                        prefill={{
-                          fullName: intakeCloser?.full_name ?? "",
-                          email: intakeCloser?.email ?? "",
-                          phone: intakeCloser?.phone ?? "",
-                        }}
-                      />
-                    </div>
-                  )}
 
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", paddingTop: 4 }}>
                     <button
@@ -1454,7 +1414,7 @@ export default function BpoCentreLeadViewComponent({
                       Copy credentials email
                     </button>
                     <a
-                      href={`mailto:${encodeURIComponent(provisioned.adminEmail || intakeAdmin?.email || "")}?subject=${encodeURIComponent(credentialsEmail.subject)}&body=${encodeURIComponent(credentialsEmail.body)}`}
+                      href={`mailto:${encodeURIComponent(intakeAdmin?.email || "")}?subject=${encodeURIComponent(credentialsEmail.subject)}&body=${encodeURIComponent(credentialsEmail.body)}`}
                       style={{
                         height: 34,
                         padding: "0 12px",
@@ -1638,6 +1598,19 @@ export default function BpoCentreLeadViewComponent({
                     value={draft.centre_display_name}
                     disabled={isDisabled}
                     onChange={(e) => setDraft({ ...draft, centre_display_name: e.target.value })}
+                    style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
+                    onFocus={fieldFocus}
+                    onBlur={fieldBlur}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Country</label>
+                  <input
+                    value={draft.country ?? ""}
+                    disabled={isDisabled}
+                    autoComplete="off"
+                    placeholder="e.g. United Kingdom"
+                    onChange={(e) => setDraft({ ...draft, country: e.target.value })}
                     style={{ ...fieldStyle, opacity: isDisabled ? 0.65 : 1 }}
                     onFocus={fieldFocus}
                     onBlur={fieldBlur}

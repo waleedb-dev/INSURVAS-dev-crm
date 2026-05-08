@@ -77,6 +77,7 @@ const SUBMIT_ERROR_MAP: Record<string, string> = {
   team_custom_label_required: "Custom roles need a label.",
   team_exactly_one_admin: "Exactly one person must be marked as centre administrator.",
   not_found_or_closed: "This lead is no longer accepting intake.",
+  country_required: "Enter a country.",
 };
 
 function isValidEmail(value: string): boolean {
@@ -201,6 +202,7 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
 
   const [loading, setLoading] = useState(isInvite);
   const [centerName, setCenterName] = useState("");
+  const [country, setCountry] = useState("");
   const [lines, setLines] = useState<TeamLine[]>([]);
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -216,9 +218,17 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
     const { data, error: rpcError } = await supabase.rpc("bpo_center_lead_public_get", { p_token: inviteToken });
     setLoading(false);
     if (rpcError) { setError(rpcError.message); return; }
-    const p = data as { ok?: boolean; error?: string; centre_display_name?: string; form_submitted_at?: string | null; team?: Array<{ full_name?: string; email?: string; phone?: string | null; position_key?: string; custom_position_label?: string | null; is_center_admin?: boolean }> };
+    const p = data as {
+      ok?: boolean;
+      error?: string;
+      centre_display_name?: string;
+      country?: string | null;
+      form_submitted_at?: string | null;
+      team?: Array<{ full_name?: string; email?: string; phone?: string | null; position_key?: string; custom_position_label?: string | null; is_center_admin?: boolean }>;
+    };
     if (!p?.ok) { setError(p?.error === "expired" ? "This invite has expired." : "This onboarding link is not valid."); return; }
     setCenterName(p.centre_display_name ?? "");
+    setCountry((p.country ?? "").trim());
     setSubmittedAt(p.form_submitted_at ?? null);
     if (Array.isArray(p.team) && p.team.length > 0) {
       const parsed: TeamLine[] = p.team.map((r) => ({
@@ -276,38 +286,59 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
   }, [addDraft, lines]);
 
   const submit = useCallback(async () => {
-    const adminCount = lines.filter((l) => l.is_center_admin).length;
-    if (adminCount !== 1) { setError("Select exactly one centre administrator."); return; }
-    if (isInvite && !inviteToken) return;
-    setSaving(true);
-    setError(null);
+    if (!centerName.trim()) {
+      setError("Centre name is required.");
+      return;
+    }
+    if (!country.trim()) {
+      setError("Country is required.");
+      return;
+    }
+
     const team = lines
       .filter((l) => l.full_name.trim() && l.email.trim())
       .map((l) => ({
         full_name: l.full_name.trim(),
         email: l.email.trim(),
         phone: l.phone.trim() || null,
-      position_key: l.position_key,
-      custom_position_label: l.position_key === "custom" ? l.custom_position_label.trim() : "",
-      is_center_admin: l.is_center_admin,
+        position_key: l.position_key,
+        custom_position_label: l.position_key === "custom" ? l.custom_position_label.trim() : "",
+        is_center_admin: l.is_center_admin,
       }));
 
     if (team.length === 0) {
-      setSaving(false);
       setError("Add at least one teammate with email.");
       return;
     }
 
     const invalidEmail = team.find((t) => !isValidEmail(t.email));
     if (invalidEmail) {
-      setSaving(false);
       setError(`Invalid email: ${invalidEmail.email}`);
       return;
     }
 
+    const adminCount = team.filter((t) => t.is_center_admin).length;
+    if (adminCount !== 1) {
+      setError("Select exactly one centre administrator.");
+      return;
+    }
+
+    if (isInvite && !inviteToken) return;
+    setSaving(true);
+    setError(null);
+
     const { data, error: rpcError } = isInvite
-      ? await supabase.rpc("bpo_center_lead_public_submit", { p_token: inviteToken, p_centre_display_name: centerName.trim(), p_team: team })
-      : await supabase.rpc("bpo_center_lead_public_open_submit", { p_centre_display_name: centerName.trim(), p_team: team });
+      ? await supabase.rpc("bpo_center_lead_public_submit", {
+          p_token: inviteToken,
+          p_centre_display_name: centerName.trim(),
+          p_team: team,
+          p_country: country.trim(),
+        })
+      : await supabase.rpc("bpo_center_lead_public_open_submit", {
+          p_centre_display_name: centerName.trim(),
+          p_team: team,
+          p_country: country.trim(),
+        });
     setSaving(false);
     if (rpcError) { setError(rpcError.message); return; }
     const payload = data as { ok?: boolean; error?: string; center_lead_id?: string };
@@ -327,7 +358,7 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
         },
       });
     } catch { /* non-blocking */ }
-  }, [centerName, inviteToken, isInvite, lines, load, supabase]);
+  }, [centerName, country, inviteToken, isInvite, lines, load, supabase]);
 
   const pageStyle: CSSProperties = {
     minHeight: "100vh",
@@ -763,17 +794,73 @@ export function BpoCentreLeadIntakeForm({ mode, inviteToken = "" }: Props) {
               </div>
             )}
 
-            {/* Centre name */}
-            <div style={{ marginBottom: 24, maxWidth: 520 }}>
-              <label style={compactFieldLabelStyle}>Centre name</label>
-              <input
-                value={centerName}
-                onChange={(e) => setCenterName(e.target.value)}
-                placeholder="e.g. Apex Transfers LLC"
-                style={{ ...fieldStyle, padding: "10px 12px", fontSize: 13, fontWeight: 500, minHeight: 40, borderRadius: 10 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "#3b5229"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}
-              />
+            {/* Centre name first, then country (same row) */}
+            <div style={{ marginBottom: 24, display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  gap: 16,
+                  alignItems: "flex-start",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                  <label style={compactFieldLabelStyle}>Centre name *</label>
+                  <input
+                    value={centerName}
+                    onChange={(e) => setCenterName(e.target.value)}
+                    placeholder="e.g. Apex Transfers LLC"
+                    style={{
+                      ...fieldStyle,
+                      width: "100%",
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      minHeight: 40,
+                      borderRadius: 10,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "#3b5229";
+                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = T.border;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
+                <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+                  <label style={compactFieldLabelStyle}>Country *</label>
+                  <input
+                    aria-label="Country"
+                    autoComplete="off"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    placeholder="e.g. United Kingdom"
+                    style={{
+                      ...fieldStyle,
+                      width: "100%",
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      minHeight: 40,
+                      borderRadius: 10,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "#3b5229";
+                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,139,75,0.12)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = T.border;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, lineHeight: 1.5 }}>
+                We need the centre name, country, at least one team member, and exactly one marked centre administrator before you submit.
+              </div>
             </div>
 
             {/* Team section */}
